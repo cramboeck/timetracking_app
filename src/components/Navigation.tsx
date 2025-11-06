@@ -1,4 +1,4 @@
-import { Clock, Edit, List } from 'lucide-react';
+import { Clock, Edit, List, Settings } from 'lucide-react';
 import { ViewMode } from '../types';
 
 interface NavigationProps {
@@ -11,6 +11,7 @@ export const Navigation = ({ currentView, onViewChange }: NavigationProps) => {
     { view: 'stopwatch', icon: Clock, label: 'Stoppuhr' },
     { view: 'manual', icon: Edit, label: 'Manuell' },
     { view: 'list', icon: List, label: 'Übersicht' },
+    { view: 'settings', icon: Settings, label: 'Einstellungen' },
   ];
 
   return (

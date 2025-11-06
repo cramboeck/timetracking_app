@@ -1,27 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square } from 'lucide-react';
 import { formatDuration } from '../utils/time';
-import { TimeEntry } from '../types';
+import { TimeEntry, Project, Customer } from '../types';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => void;
   runningEntry: TimeEntry | null;
   onUpdateRunning: (entry: TimeEntry) => void;
+  projects: Project[];
+  customers: Customer[];
 }
 
-export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning }: StopwatchProps) => {
+export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers }: StopwatchProps) => {
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [project, setProject] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [description, setDescription] = useState('');
   const startTimeRef = useRef<string | null>(null);
   const intervalRef = useRef<number | null>(null);
+
+  const activeProjects = projects.filter(p => p.isActive);
 
   useEffect(() => {
     if (runningEntry) {
       setIsRunning(true);
       startTimeRef.current = runningEntry.startTime;
-      setProject(runningEntry.project);
+      setProjectId(runningEntry.projectId);
       setDescription(runningEntry.description);
 
       const elapsed = Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000);
@@ -49,6 +53,11 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning }: StopwatchPr
   }, [isRunning]);
 
   const handleStart = () => {
+    if (!projectId) {
+      alert('Bitte wähle ein Projekt aus');
+      return;
+    }
+
     const now = new Date().toISOString();
     startTimeRef.current = now;
     setIsRunning(true);
@@ -58,7 +67,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning }: StopwatchPr
       id: crypto.randomUUID(),
       startTime: now,
       duration: 0,
-      project: project || 'Ohne Projekt',
+      projectId,
       description: description || '',
       isRunning: true,
       createdAt: now,
@@ -84,7 +93,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning }: StopwatchPr
       startTime: startTimeRef.current,
       endTime,
       duration: elapsedSeconds,
-      project: project || 'Ohne Projekt',
+      projectId,
       description: description || '',
       isRunning: false,
       createdAt: runningEntry?.createdAt || startTimeRef.current,
@@ -94,8 +103,13 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning }: StopwatchPr
     setIsRunning(false);
     setElapsedSeconds(0);
     startTimeRef.current = null;
-    setProject('');
+    setProjectId('');
     setDescription('');
+  };
+
+  const getProjectDisplay = (project: Project) => {
+    const customer = customers.find(c => c.id === project.customerId);
+    return `${customer?.name} - ${project.name}`;
   };
 
   return (
@@ -108,14 +122,28 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning }: StopwatchPr
         </div>
 
         <div className="w-full max-w-md space-y-4 mb-8">
-          <input
-            type="text"
-            placeholder="Projekt (optional)"
-            value={project}
-            onChange={(e) => setProject(e.target.value)}
-            disabled={isRunning}
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          />
+          <div>
+            <select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              disabled={isRunning || activeProjects.length === 0}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            >
+              <option value="">
+                {activeProjects.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
+              </option>
+              {activeProjects.map(project => (
+                <option key={project.id} value={project.id}>
+                  {getProjectDisplay(project)}
+                </option>
+              ))}
+            </select>
+            {activeProjects.length === 0 && (
+              <p className="text-sm text-gray-500 mt-2">
+                Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
+              </p>
+            )}
+          </div>
           <textarea
             placeholder="Beschreibung (optional)"
             value={description}

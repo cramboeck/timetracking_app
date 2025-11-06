@@ -6,10 +6,43 @@
   body {
     @apply bg-gray-50 text-gray-900;
   }
+
+  /* Smooth scrolling on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Better mobile viewport handling */
+  html {
+    height: -webkit-fill-available;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
 }
 
 @layer utilities {
   .touch-manipulation {
     touch-action: manipulation;
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Improve desktop layout */
+  @media (min-width: 768px) {
+    .desktop-max-width {
+      max-width: 1200px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  }
+
+  /* Smooth transitions */
+  .smooth-transition {
+    transition: all 0.2s ease-in-out;
   }
 }

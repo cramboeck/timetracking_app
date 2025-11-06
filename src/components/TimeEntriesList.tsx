@@ -1,13 +1,36 @@
-import { Trash2, Clock } from 'lucide-react';
-import { TimeEntry } from '../types';
+import { useState } from 'react';
+import { Trash2, Clock, Edit2, Download } from 'lucide-react';
+import { TimeEntry, Project, Customer } from '../types';
 import { formatDuration, formatTime, formatDate } from '../utils/time';
+import { Modal } from './Modal';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface TimeEntriesListProps {
   entries: TimeEntry[];
+  projects: Project[];
+  customers: Customer[];
   onDelete: (id: string) => void;
+  onEdit: (id: string, updates: Partial<TimeEntry>) => void;
 }
 
-export const TimeEntriesList = ({ entries, onDelete }: TimeEntriesListProps) => {
+export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit }: TimeEntriesListProps) => {
+  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
+  const [editProjectId, setEditProjectId] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string; name: string }>({
+    isOpen: false,
+    id: '',
+    name: ''
+  });
+
+  const getProjectById = (id: string) => projects.find(p => p.id === id);
+  const getCustomerById = (id: string) => customers.find(c => c.id === id);
+
+  const getProjectDisplay = (entry: TimeEntry) => {
+    const project = getProjectById(entry.projectId);
+    const customer = project ? getCustomerById(project.customerId) : null;
+    return project && customer ? `${customer.name} - ${project.name}` : 'Unbekanntes Projekt';
+  };
   const sortedEntries = [...entries].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
@@ -22,6 +45,68 @@ export const TimeEntriesList = ({ entries, onDelete }: TimeEntriesListProps) => 
   }, {} as Record<string, TimeEntry[]>);
 
   const totalHours = entries.reduce((sum, entry) => sum + entry.duration, 0);
+
+  const openEditModal = (entry: TimeEntry) => {
+    setEditingEntry(entry);
+    setEditProjectId(entry.projectId);
+    setEditDescription(entry.description);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingEntry || !editProjectId) return;
+
+    onEdit(editingEntry.id, {
+      projectId: editProjectId,
+      description: editDescription
+    });
+
+    setEditingEntry(null);
+  };
+
+  const handleDeleteClick = (entry: TimeEntry) => {
+    setDeleteConfirm({
+      isOpen: true,
+      id: entry.id,
+      name: getProjectDisplay(entry)
+    });
+  };
+
+  const confirmDelete = () => {
+    onDelete(deleteConfirm.id);
+  };
+
+  const exportToCSV = () => {
+    const headers = ['Datum', 'Start', 'Ende', 'Dauer (Std)', 'Kunde', 'Projekt', 'Beschreibung', 'Stundensatz', 'Betrag'];
+    const rows = entries.map(entry => {
+      const project = getProjectById(entry.projectId);
+      const customer = project ? getCustomerById(project.customerId) : null;
+      const hours = entry.duration / 3600;
+      const amount = project ? hours * project.hourlyRate : 0;
+
+      return [
+        formatDate(entry.startTime),
+        formatTime(entry.startTime),
+        entry.endTime ? formatTime(entry.endTime) : '-',
+        hours.toFixed(2),
+        customer?.name || '-',
+        project?.name || '-',
+        entry.description || '-',
+        project ? project.hourlyRate.toFixed(2) : '-',
+        amount.toFixed(2)
+      ];
+    });
+
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(row => row.join(';'))
+    ].join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `zeiterfassung_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
 
   if (entries.length === 0) {
     return (
@@ -41,9 +126,22 @@ export const TimeEntriesList = ({ entries, onDelete }: TimeEntriesListProps) => 
   return (
     <div className="flex flex-col h-full">
       <div className="sticky top-0 bg-white border-b border-gray-200 p-6 pb-4">
-        <h1 className="text-2xl font-bold mb-2">Übersicht</h1>
-        <div className="text-lg font-semibold text-blue-600">
-          Gesamt: {formatDuration(totalHours)}
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">Übersicht</h1>
+            <div className="text-lg font-semibold text-blue-600">
+              Gesamt: {formatDuration(totalHours)}
+            </div>
+          </div>
+          {entries.length > 0 && (
+            <button
+              onClick={exportToCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Download size={18} />
+              CSV Export
+            </button>
+          )}
         </div>
       </div>
 
@@ -58,19 +156,40 @@ export const TimeEntriesList = ({ entries, onDelete }: TimeEntriesListProps) => 
                   className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm"
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{entry.project}</h3>
-                      {entry.description && (
-                        <p className="text-sm text-gray-600 mt-1">{entry.description}</p>
-                      )}
+                    <div className="flex items-start gap-3 flex-1">
+                      {(() => {
+                        const project = getProjectById(entry.projectId);
+                        const customer = project ? getCustomerById(project.customerId) : null;
+                        return customer ? (
+                          <div
+                            className="w-10 h-10 rounded-lg flex-shrink-0"
+                            style={{ backgroundColor: customer.color }}
+                          />
+                        ) : null;
+                      })()}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900">{getProjectDisplay(entry)}</h3>
+                        {entry.description && (
+                          <p className="text-sm text-gray-600 mt-1">{entry.description}</p>
+                        )}
+                      </div>
                     </div>
-                    <button
-                      onClick={() => onDelete(entry.id)}
-                      className="ml-2 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors touch-manipulation"
-                      aria-label="Löschen"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openEditModal(entry)}
+                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation"
+                        aria-label="Bearbeiten"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(entry)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors touch-manipulation"
+                        aria-label="Löschen"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-sm text-gray-500">
                     <span>
@@ -87,6 +206,74 @@ export const TimeEntriesList = ({ entries, onDelete }: TimeEntriesListProps) => 
           </div>
         ))}
       </div>
+
+      {/* Edit Modal */}
+      <Modal
+        isOpen={editingEntry !== null}
+        onClose={() => setEditingEntry(null)}
+        title="Eintrag bearbeiten"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Projekt *
+            </label>
+            <select
+              value={editProjectId}
+              onChange={(e) => setEditProjectId(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {projects.filter(p => p.isActive).map(project => {
+                const customer = getCustomerById(project.customerId);
+                return (
+                  <option key={project.id} value={project.id}>
+                    {customer?.name} - {project.name}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Beschreibung
+            </label>
+            <textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              rows={4}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              onClick={() => setEditingEntry(null)}
+              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={!editProjectId}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              Speichern
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, id: '', name: '' })}
+        onConfirm={confirmDelete}
+        title="Eintrag löschen?"
+        message={`Möchtest du den Eintrag "${deleteConfirm.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`}
+        confirmText="Löschen"
+        variant="danger"
+      />
     </div>
   );
 };

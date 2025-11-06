@@ -1,22 +1,36 @@
 import { useState } from 'react';
 import { Save } from 'lucide-react';
-import { TimeEntry } from '../types';
+import { TimeEntry, Project, Customer } from '../types';
 import { calculateDuration } from '../utils/time';
 
 interface ManualEntryProps {
   onSave: (entry: TimeEntry) => void;
+  projects: Project[];
+  customers: Customer[];
 }
 
-export const ManualEntry = ({ onSave }: ManualEntryProps) => {
+export const ManualEntry = ({ onSave, projects, customers }: ManualEntryProps) => {
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('17:00');
-  const [project, setProject] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [description, setDescription] = useState('');
+
+  const activeProjects = projects.filter(p => p.isActive);
+
+  const getProjectDisplay = (project: Project) => {
+    const customer = customers.find(c => c.id === project.customerId);
+    return `${customer?.name} - ${project.name}`;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!projectId) {
+      alert('Bitte wähle ein Projekt aus');
+      return;
+    }
 
     const startDateTime = new Date(`${date}T${startTime}`).toISOString();
     const endDateTime = new Date(`${date}T${endTime}`).toISOString();
@@ -32,7 +46,7 @@ export const ManualEntry = ({ onSave }: ManualEntryProps) => {
       startTime: startDateTime,
       endTime: endDateTime,
       duration,
-      project: project || 'Ohne Projekt',
+      projectId,
       description: description || '',
       isRunning: false,
       createdAt: new Date().toISOString(),
@@ -41,7 +55,7 @@ export const ManualEntry = ({ onSave }: ManualEntryProps) => {
     onSave(entry);
 
     // Reset form
-    setProject('');
+    setProjectId('');
     setDescription('');
     setStartTime('09:00');
     setEndTime('17:00');
@@ -95,15 +109,29 @@ export const ManualEntry = ({ onSave }: ManualEntryProps) => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Projekt
+              Projekt *
             </label>
-            <input
-              type="text"
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
-              placeholder="z.B. Website-Redesign"
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              required
+              disabled={activeProjects.length === 0}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            >
+              <option value="">
+                {activeProjects.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
+              </option>
+              {activeProjects.map(project => (
+                <option key={project.id} value={project.id}>
+                  {getProjectDisplay(project)}
+                </option>
+              ))}
+            </select>
+            {activeProjects.length === 0 && (
+              <p className="text-sm text-gray-500 mt-2">
+                Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
+              </p>
+            )}
           </div>
 
           <div>
