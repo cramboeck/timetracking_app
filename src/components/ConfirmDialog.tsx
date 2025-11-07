@@ -31,7 +31,7 @@ export const ConfirmDialog = ({
   const variantStyles = {
     danger: 'bg-red-600 hover:bg-red-700',
     warning: 'bg-yellow-600 hover:bg-yellow-700',
-    info: 'bg-blue-600 hover:bg-blue-700'
+    info: 'bg-accent-primary bg-accent-primary-hover'
   };
 
   return (

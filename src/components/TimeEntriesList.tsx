@@ -152,7 +152,7 @@ export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit
         <div className="flex justify-between items-start mb-2">
           <div>
             <h1 className="text-2xl font-bold mb-2">Übersicht</h1>
-            <div className="text-lg font-semibold text-blue-600">
+            <div className="text-lg font-semibold text-accent-primary">
               Gesamt: {formatDuration(totalHours)}
             </div>
           </div>
@@ -219,7 +219,7 @@ export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit
                       {formatTime(entry.startTime)}
                       {entry.endTime && ` - ${formatTime(entry.endTime)}`}
                     </span>
-                    <span className="font-semibold text-blue-600">
+                    <span className="font-semibold text-accent-primary">
                       {formatDuration(entry.duration)}
                     </span>
                   </div>
@@ -319,7 +319,7 @@ export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit
             <button
               onClick={handleSaveEdit}
               disabled={!editProjectId || !editDate || !editStartTime || !editEndTime}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 btn-accent"
             >
               Speichern
             </button>
