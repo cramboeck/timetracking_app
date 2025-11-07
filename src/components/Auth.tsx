@@ -66,8 +66,9 @@ export const Auth = () => {
 
     if (!result.success) {
       setError(result.message || 'Registrierung fehlgeschlagen');
-      setIsLoading(false);
     }
+
+    setIsLoading(false);
     // On success, AuthContext will update and user will be logged in
   };
 
