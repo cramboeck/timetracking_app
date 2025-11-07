@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Briefcase, Clock } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, CompanyInfo, TeamInvitation, User } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -45,7 +45,8 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone } = useAuth();
-  const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'activities' | 'company' | 'team' | 'appearance'>('customers');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities'>('account');
+  const [timeTrackingSubTab, setTimeTrackingSubTab] = useState<'customers' | 'projects' | 'activities'>('customers');
 
   // Company Info State
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
@@ -398,90 +399,262 @@ export const Settings = ({
 
   const getCustomerById = (id: string) => customers.find(c => c.id === id);
 
+  // Sidebar menu items
+  const menuItems = [
+    {
+      category: 'Persönlich',
+      items: [
+        { id: 'account', label: 'Mein Account', icon: UserIcon, desc: 'Profil & Logout' },
+        { id: 'appearance', label: 'Darstellung', icon: Palette, desc: 'Theme & Farben' },
+        { id: 'notifications', label: 'Benachrichtigungen', icon: Bell, desc: 'E-Mail & Browser' }
+      ]
+    },
+    {
+      category: 'Geschäftlich',
+      items: [
+        { id: 'company', label: 'Firma & Branding', icon: Building, desc: 'Logo & Kontaktdaten' },
+        ...(currentUser?.accountType === 'business' || currentUser?.accountType === 'team'
+          ? [{ id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }]
+          : []
+        ),
+        { id: 'timetracking', label: 'Zeiterfassung', icon: Clock, desc: 'Kunden, Projekte & Tätigkeiten' }
+      ]
+    }
+  ];
+
   return (
-    <div className="flex flex-col h-full bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <h1 className="text-2xl font-bold">Einstellungen</h1>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 overflow-x-auto scroll-touch">
-        <div className="flex gap-2 sm:gap-4 min-w-max">
-          <button
-            onClick={() => setActiveTab('customers')}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
-              activeTab === 'customers'
-                ? 'border-accent-primary text-accent-primary font-semibold'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Users size={20} />
-            Kunden
-          </button>
-          <button
-            onClick={() => setActiveTab('projects')}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
-              activeTab === 'projects'
-                ? 'border-accent-primary text-accent-primary font-semibold'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <FolderOpen size={20} />
-            Projekte
-          </button>
-          <button
-            onClick={() => setActiveTab('activities')}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
-              activeTab === 'activities'
-                ? 'border-accent-primary text-accent-primary font-semibold'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <ListChecks size={20} />
-            Tätigkeiten
-          </button>
-          <button
-            onClick={() => setActiveTab('company')}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
-              activeTab === 'company'
-                ? 'border-accent-primary text-accent-primary font-semibold'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Building size={20} />
-            Firma
-          </button>
-          {(currentUser?.accountType === 'business' || currentUser?.accountType === 'team') && (
-            <button
-              onClick={() => setActiveTab('team')}
-              className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
-                activeTab === 'team'
-                  ? 'border-accent-primary text-accent-primary font-semibold'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Users2 size={20} />
-              Team
-            </button>
-          )}
-          <button
-            onClick={() => setActiveTab('appearance')}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
-              activeTab === 'appearance'
-                ? 'border-accent-primary text-accent-primary font-semibold'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Palette size={20} />
-            Darstellung
-          </button>
+    <div className="flex h-full bg-gray-50 dark:bg-gray-900">
+      {/* Sidebar */}
+      <div className="w-64 bg-white dark:bg-dark-100 border-r border-gray-200 dark:border-dark-200 flex-shrink-0 hidden lg:flex flex-col">
+        {/* Sidebar Header */}
+        <div className="px-6 py-6 border-b border-gray-200 dark:border-dark-200">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Einstellungen</h1>
+          <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">Verwalte deinen Account</p>
         </div>
+
+        {/* Sidebar Navigation */}
+        <nav className="flex-1 overflow-y-auto p-4">
+          {menuItems.map((section, idx) => (
+            <div key={idx} className={idx > 0 ? 'mt-6' : ''}>
+              <h3 className="px-3 mb-2 text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider">
+                {section.category}
+              </h3>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id as any)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-medium'
+                          : 'text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                      }`}
+                    >
+                      <Icon size={20} className={isActive ? 'text-accent-primary' : 'text-gray-400'} />
+                      <div className="flex-1 text-left">
+                        <div className={`text-sm ${isActive ? 'font-semibold' : 'font-medium'}`}>
+                          {item.label}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-dark-400">
+                          {item.desc}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {activeTab === 'customers' && (
+      {/* Mobile Header with Dropdown */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-10 bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-200 px-4 py-3">
+        <select
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value as any)}
+          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-accent-primary"
+        >
+          {menuItems.map((section) => (
+            <optgroup key={section.category} label={section.category}>
+              {section.items.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="lg:hidden h-16"></div> {/* Spacer for mobile header */}
+        <div className="p-4 sm:p-6 lg:p-8">
+        {/* Account Tab */}
+        {activeTab === 'account' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <UserIcon size={24} className="text-accent-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Mein Account</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">Deine persönlichen Informationen</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Account-Typ</p>
+                    <p className="mt-1 font-medium text-gray-900 dark:text-white">
+                      {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
+                      {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
+                      {currentUser?.accountType === 'team' && '👥 Team'}
+                    </p>
+                  </div>
+                  {currentUser?.organizationName && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-dark-400">
+                        {currentUser?.accountType === 'business' ? 'Firmenname' : 'Team-Name'}
+                      </p>
+                      <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser.organizationName}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Benutzername</p>
+                    <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser?.username}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">E-Mail</p>
+                    <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser?.email}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Mitglied seit</p>
+                  <p className="mt-1 font-medium text-gray-900 dark:text-white">
+                    {currentUser?.createdAt && new Date(currentUser.createdAt).toLocaleDateString('de-DE', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-dark-200">
+                <button
+                  onClick={logout}
+                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium"
+                >
+                  <LogOut size={18} />
+                  Abmelden
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Notifications Tab */}
+        {activeTab === 'notifications' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <Bell size={24} className="text-accent-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Benachrichtigungen</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">Verwalte deine Benachrichtigungseinstellungen</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm text-blue-900 dark:text-blue-200">
+                    🚀 Browser-Benachrichtigungen und E-Mail-Notifications werden in Kürze verfügbar sein!
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="font-medium text-gray-900 dark:text-white">Geplante Features:</h3>
+                  <ul className="space-y-2 text-sm text-gray-600 dark:text-dark-300">
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-primary mt-0.5">•</span>
+                      <span><strong>Monatserinnerung:</strong> Browser-Benachrichtigung 3 Tage vor Monatsende</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-primary mt-0.5">•</span>
+                      <span><strong>Tägliche Erinnerung:</strong> Benachrichtigung wenn keine Stunden eingetragen wurden</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-primary mt-0.5">•</span>
+                      <span><strong>Qualitätsprüfung:</strong> Warnung bei fehlenden Beschreibungen</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-primary mt-0.5">•</span>
+                      <span><strong>Wochenreport:</strong> Zusammenfassung zur Selbstprüfung jeden Freitag</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-primary mt-0.5">•</span>
+                      <span><strong>E-Mail-Benachrichtigungen:</strong> Alle Reports auch per E-Mail</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Timetracking Tab with Sub-Tabs */}
+        {activeTab === 'timetracking' && (
+          <div className="max-w-4xl mx-auto">
+            {/* Sub-Tab Navigation */}
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 mb-6 p-2 shadow-sm">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setTimeTrackingSubTab('customers')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    timeTrackingSubTab === 'customers'
+                      ? 'bg-accent-primary text-white font-semibold'
+                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                  }`}
+                >
+                  <Users size={18} />
+                  Kunden
+                </button>
+                <button
+                  onClick={() => setTimeTrackingSubTab('projects')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    timeTrackingSubTab === 'projects'
+                      ? 'bg-accent-primary text-white font-semibold'
+                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                  }`}
+                >
+                  <FolderOpen size={18} />
+                  Projekte
+                </button>
+                <button
+                  onClick={() => setTimeTrackingSubTab('activities')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    timeTrackingSubTab === 'activities'
+                      ? 'bg-accent-primary text-white font-semibold'
+                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                  }`}
+                >
+                  <ListChecks size={18} />
+                  Tätigkeiten
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-Tab Content */}
+            {timeTrackingSubTab === 'customers' && (
           <div className="max-w-4xl mx-auto">
             <div className="flex justify-between items-center mb-6">
               <p className="text-gray-600">{customers.length} Kunde(n)</p>
