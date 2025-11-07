@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette } from 'lucide-react';
-import { Customer, Project } from '../types';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks } from 'lucide-react';
+import { Customer, Project, Activity } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 
 interface SettingsProps {
   customers: Customer[];
   projects: Project[];
+  activities: Activity[];
   darkMode: boolean;
   onToggleDarkMode: () => void;
   onAddCustomer: (customer: Customer) => void;
@@ -15,6 +16,9 @@ interface SettingsProps {
   onAddProject: (project: Project) => void;
   onUpdateProject: (id: string, updates: Partial<Project>) => void;
   onDeleteProject: (id: string) => void;
+  onAddActivity: (activity: Activity) => void;
+  onUpdateActivity: (id: string, updates: Partial<Activity>) => void;
+  onDeleteActivity: (id: string) => void;
 }
 
 const COLORS = [
@@ -25,6 +29,7 @@ const COLORS = [
 export const Settings = ({
   customers,
   projects,
+  activities,
   darkMode,
   onToggleDarkMode,
   onAddCustomer,
@@ -32,15 +37,19 @@ export const Settings = ({
   onDeleteCustomer,
   onAddProject,
   onUpdateProject,
-  onDeleteProject
+  onDeleteProject,
+  onAddActivity,
+  onUpdateActivity,
+  onDeleteActivity
 }: SettingsProps) => {
-  const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'appearance'>('customers');
+  const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'activities' | 'appearance'>('customers');
 
   // Customer Modal
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerColor, setCustomerColor] = useState(COLORS[0]);
+  const [customerNumber, setCustomerNumber] = useState('');
   const [customerContactPerson, setCustomerContactPerson] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
@@ -52,10 +61,16 @@ export const Settings = ({
   const [projectCustomerId, setProjectCustomerId] = useState('');
   const [projectHourlyRate, setProjectHourlyRate] = useState('');
 
+  // Activity Modal
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [activityName, setActivityName] = useState('');
+  const [activityDescription, setActivityDescription] = useState('');
+
   // Delete Confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
-    type: 'customer' | 'project' | null;
+    type: 'customer' | 'project' | 'activity' | null;
     id: string;
     name: string;
   }>({ isOpen: false, type: null, id: '', name: '' });
@@ -65,6 +80,7 @@ export const Settings = ({
       setEditingCustomer(customer);
       setCustomerName(customer.name);
       setCustomerColor(customer.color);
+      setCustomerNumber(customer.customerNumber || '');
       setCustomerContactPerson(customer.contactPerson || '');
       setCustomerEmail(customer.email || '');
       setCustomerAddress(customer.address || '');
@@ -72,6 +88,7 @@ export const Settings = ({
       setEditingCustomer(null);
       setCustomerName('');
       setCustomerColor(COLORS[0]);
+      setCustomerNumber('');
       setCustomerContactPerson('');
       setCustomerEmail('');
       setCustomerAddress('');
@@ -86,6 +103,7 @@ export const Settings = ({
       onUpdateCustomer(editingCustomer.id, {
         name: customerName.trim(),
         color: customerColor,
+        customerNumber: customerNumber.trim() || undefined,
         contactPerson: customerContactPerson.trim() || undefined,
         email: customerEmail.trim() || undefined,
         address: customerAddress.trim() || undefined
@@ -95,6 +113,7 @@ export const Settings = ({
         id: crypto.randomUUID(),
         name: customerName.trim(),
         color: customerColor,
+        customerNumber: customerNumber.trim() || undefined,
         contactPerson: customerContactPerson.trim() || undefined,
         email: customerEmail.trim() || undefined,
         address: customerAddress.trim() || undefined,
@@ -143,6 +162,39 @@ export const Settings = ({
     setProjectModalOpen(false);
   };
 
+  const openActivityModal = (activity?: Activity) => {
+    if (activity) {
+      setEditingActivity(activity);
+      setActivityName(activity.name);
+      setActivityDescription(activity.description || '');
+    } else {
+      setEditingActivity(null);
+      setActivityName('');
+      setActivityDescription('');
+    }
+    setActivityModalOpen(true);
+  };
+
+  const handleSaveActivity = () => {
+    if (!activityName.trim()) return;
+
+    if (editingActivity) {
+      onUpdateActivity(editingActivity.id, {
+        name: activityName.trim(),
+        description: activityDescription.trim() || undefined
+      });
+    } else {
+      onAddActivity({
+        id: crypto.randomUUID(),
+        name: activityName.trim(),
+        description: activityDescription.trim() || undefined,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    setActivityModalOpen(false);
+  };
+
   const handleDeleteCustomer = (customer: Customer) => {
     const customerProjects = projects.filter(p => p.customerId === customer.id);
     if (customerProjects.length > 0) {
@@ -166,11 +218,22 @@ export const Settings = ({
     });
   };
 
+  const handleDeleteActivity = (activity: Activity) => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'activity',
+      id: activity.id,
+      name: activity.name
+    });
+  };
+
   const confirmDelete = () => {
     if (deleteConfirm.type === 'customer') {
       onDeleteCustomer(deleteConfirm.id);
     } else if (deleteConfirm.type === 'project') {
       onDeleteProject(deleteConfirm.id);
+    } else if (deleteConfirm.type === 'activity') {
+      onDeleteActivity(deleteConfirm.id);
     }
   };
 
@@ -207,6 +270,17 @@ export const Settings = ({
           >
             <FolderOpen size={20} />
             Projekte
+          </button>
+          <button
+            onClick={() => setActiveTab('activities')}
+            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+              activeTab === 'activities'
+                ? 'border-blue-600 text-blue-600 font-semibold'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <ListChecks size={20} />
+            Tätigkeiten
           </button>
           <button
             onClick={() => setActiveTab('appearance')}
@@ -358,6 +432,63 @@ export const Settings = ({
           </div>
         )}
 
+        {activeTab === 'activities' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="flex justify-between items-center mb-6">
+              <p className="text-gray-600">{activities.length} Tätigkeit(en)</p>
+              <button
+                onClick={() => openActivityModal()}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus size={20} />
+                Tätigkeit hinzufügen
+              </button>
+            </div>
+
+            {activities.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <ListChecks size={48} className="mx-auto mb-4 opacity-50" />
+                <p>Noch keine Tätigkeiten vorhanden</p>
+                <p className="text-sm mt-2">Füge vorgefertigte Tätigkeiten hinzu (z.B. "Meeting", "Entwicklung", "Beratung")</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activities.map(activity => (
+                  <div
+                    key={activity.id}
+                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900">{activity.name}</h3>
+                        {activity.description && (
+                          <p className="text-sm text-gray-500 mt-1">{activity.description}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openActivityModal(activity)}
+                          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Bearbeiten"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteActivity(activity)}
+                          className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Löschen"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'appearance' && (
           <div className="max-w-4xl mx-auto">
             <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -408,6 +539,19 @@ export const Settings = ({
               placeholder="z.B. Musterfirma GmbH"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Kundennummer (für sevDesk)
+            </label>
+            <input
+              type="text"
+              value={customerNumber}
+              onChange={(e) => setCustomerNumber(e.target.value)}
+              placeholder="z.B. K-12345"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -557,12 +701,64 @@ export const Settings = ({
         </div>
       </Modal>
 
+      {/* Activity Modal */}
+      <Modal
+        isOpen={activityModalOpen}
+        onClose={() => setActivityModalOpen(false)}
+        title={editingActivity ? 'Tätigkeit bearbeiten' : 'Neue Tätigkeit'}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Tätigkeitsname *
+            </label>
+            <input
+              type="text"
+              value={activityName}
+              onChange={(e) => setActivityName(e.target.value)}
+              placeholder="z.B. Meeting, Entwicklung, Beratung"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Beschreibung (optional)
+            </label>
+            <textarea
+              value={activityDescription}
+              onChange={(e) => setActivityDescription(e.target.value)}
+              placeholder="Weitere Details zur Tätigkeit..."
+              rows={3}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              onClick={() => setActivityModalOpen(false)}
+              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={handleSaveActivity}
+              disabled={!activityName.trim()}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              Speichern
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Delete Confirmation */}
       <ConfirmDialog
         isOpen={deleteConfirm.isOpen}
         onClose={() => setDeleteConfirm({ isOpen: false, type: null, id: '', name: '' })}
         onConfirm={confirmDelete}
-        title={`${deleteConfirm.type === 'customer' ? 'Kunde' : 'Projekt'} löschen?`}
+        title={`${deleteConfirm.type === 'customer' ? 'Kunde' : deleteConfirm.type === 'activity' ? 'Tätigkeit' : 'Projekt'} löschen?`}
         message={`Möchtest du "${deleteConfirm.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`}
         confirmText="Löschen"
         variant="danger"

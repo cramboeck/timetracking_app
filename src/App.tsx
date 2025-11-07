@@ -5,7 +5,7 @@ import { ManualEntry } from './components/ManualEntry';
 import { TimeEntriesList } from './components/TimeEntriesList';
 import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
-import { TimeEntry, ViewMode, Customer, Project } from './types';
+import { TimeEntry, ViewMode, Customer, Project, Activity } from './types';
 import { storage } from './utils/storage';
 import { darkMode } from './utils/darkMode';
 
@@ -14,6 +14,7 @@ function App() {
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -22,11 +23,13 @@ function App() {
     const loadedEntries = storage.getEntries();
     const loadedCustomers = storage.getCustomers();
     const loadedProjects = storage.getProjects();
+    const loadedActivities = storage.getActivities();
     const isDark = darkMode.initialize();
 
     setEntries(loadedEntries);
     setCustomers(loadedCustomers);
     setProjects(loadedProjects);
+    setActivities(loadedActivities);
     setIsDarkMode(isDark);
 
     // Find any running entry
@@ -128,6 +131,31 @@ function App() {
     });
   };
 
+  // Activity handlers
+  const handleAddActivity = (activity: Activity) => {
+    setActivities(prev => {
+      const updated = [...prev, activity];
+      storage.saveActivities(updated);
+      return updated;
+    });
+  };
+
+  const handleUpdateActivity = (id: string, updates: Partial<Activity>) => {
+    setActivities(prev => {
+      const updated = prev.map(a => a.id === id ? { ...a, ...updates } : a);
+      storage.saveActivities(updated);
+      return updated;
+    });
+  };
+
+  const handleDeleteActivity = (id: string) => {
+    setActivities(prev => {
+      const filtered = prev.filter(a => a.id !== id);
+      storage.saveActivities(filtered);
+      return filtered;
+    });
+  };
+
   // Dark Mode handler
   const handleToggleDarkMode = () => {
     const newMode = !isDarkMode;
@@ -145,6 +173,7 @@ function App() {
             onUpdateRunning={handleUpdateRunning}
             projects={projects}
             customers={customers}
+            activities={activities}
           />
         )}
         {currentView === 'manual' && (
@@ -152,6 +181,7 @@ function App() {
             onSave={handleSaveEntry}
             projects={projects}
             customers={customers}
+            activities={activities}
           />
         )}
         {currentView === 'list' && (
@@ -174,6 +204,7 @@ function App() {
           <Settings
             customers={customers}
             projects={projects}
+            activities={activities}
             darkMode={isDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
             onAddCustomer={handleAddCustomer}
@@ -182,6 +213,9 @@ function App() {
             onAddProject={handleAddProject}
             onUpdateProject={handleUpdateProject}
             onDeleteProject={handleDeleteProject}
+            onAddActivity={handleAddActivity}
+            onUpdateActivity={handleUpdateActivity}
+            onDeleteActivity={handleDeleteActivity}
           />
         )}
       </main>

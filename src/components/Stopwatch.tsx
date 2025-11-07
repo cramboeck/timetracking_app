@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square } from 'lucide-react';
 import { formatDuration } from '../utils/time';
-import { TimeEntry, Project, Customer } from '../types';
+import { TimeEntry, Project, Customer, Activity } from '../types';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => void;
@@ -9,9 +9,10 @@ interface StopwatchProps {
   onUpdateRunning: (entry: TimeEntry) => void;
   projects: Project[];
   customers: Customer[];
+  activities: Activity[];
 }
 
-export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers }: StopwatchProps) => {
+export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers, activities }: StopwatchProps) => {
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [projectId, setProjectId] = useState('');
@@ -112,97 +113,160 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     return `${customer?.name} - ${project.name}`;
   };
 
+  const selectedProject = projectId ? projects.find(p => p.id === projectId) : null;
+  const selectedCustomer = selectedProject ? customers.find(c => c.id === selectedProject.customerId) : null;
+
   return (
-    <div className="flex flex-col h-full p-6">
-      <h1 className="text-2xl font-bold mb-8">Zeiterfassung</h1>
+    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <h1 className="text-2xl font-bold dark:text-white">Zeiterfassung</h1>
+      </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="text-7xl font-mono font-bold mb-12 tracking-wider">
-          {formatDuration(elapsedSeconds)}
-        </div>
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
+        {/* Timer Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8 mb-8 w-full max-w-2xl">
+          {/* Timer Display */}
+          <div className="text-center mb-8">
+            <div className={`text-7xl md:text-8xl font-mono font-bold tracking-wider mb-4 transition-colors ${
+              isRunning
+                ? 'text-blue-600 dark:text-blue-400 animate-pulse'
+                : 'text-gray-800 dark:text-gray-100'
+            }`}>
+              {formatDuration(elapsedSeconds)}
+            </div>
 
-        <div className="w-full max-w-md space-y-4 mb-8">
-          <div>
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={isRunning || activeProjects.length === 0}
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-            >
-              <option value="">
-                {activeProjects.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
-              </option>
-              {activeProjects.map(project => (
-                <option key={project.id} value={project.id}>
-                  {getProjectDisplay(project)}
-                </option>
-              ))}
-            </select>
-            {activeProjects.length === 0 && (
-              <p className="text-sm text-gray-500 mt-2">
-                Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
-              </p>
+            {/* Active Project Info */}
+            {isRunning && selectedProject && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/30 rounded-full border border-blue-200 dark:border-blue-800">
+                <div
+                  className="w-3 h-3 rounded-full animate-pulse"
+                  style={{ backgroundColor: selectedCustomer?.color || '#3B82F6' }}
+                />
+                <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  {selectedCustomer?.name} - {selectedProject.name}
+                </span>
+              </div>
             )}
           </div>
-          <textarea
-            placeholder="Beschreibung (optional)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={isRunning}
-            rows={3}
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 resize-none"
-          />
-        </div>
 
-        <div className="flex gap-4">
-          {!isRunning && elapsedSeconds === 0 && (
-            <button
-              onClick={handleStart}
-              className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 active:bg-blue-800 touch-manipulation transition-colors shadow-lg"
-            >
-              <Play size={24} />
-              Start
-            </button>
-          )}
-
-          {isRunning && (
-            <>
-              <button
-                onClick={handlePause}
-                className="flex items-center gap-2 px-8 py-4 bg-yellow-500 text-white rounded-full font-semibold hover:bg-yellow-600 active:bg-yellow-700 touch-manipulation transition-colors shadow-lg"
+          {/* Form */}
+          <div className="space-y-4 mb-8">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Projekt
+              </label>
+              <select
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                disabled={isRunning || activeProjects.length === 0}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
               >
-                <Pause size={24} />
-                Pause
-              </button>
-              <button
-                onClick={handleStop}
-                className="flex items-center gap-2 px-8 py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-colors shadow-lg"
-              >
-                <Square size={24} />
-                Stop
-              </button>
-            </>
-          )}
+                <option value="">
+                  {activeProjects.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
+                </option>
+                {activeProjects.map(project => (
+                  <option key={project.id} value={project.id}>
+                    {getProjectDisplay(project)}
+                  </option>
+                ))}
+              </select>
+              {activeProjects.length === 0 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                  Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
+                </p>
+              )}
+            </div>
 
-          {!isRunning && elapsedSeconds > 0 && (
-            <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Beschreibung (optional)
+              </label>
+              <textarea
+                placeholder="Was wurde gemacht?"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                disabled={isRunning}
+                rows={3}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed resize-none transition-colors"
+              />
+              {activities.length > 0 && !isRunning && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {activities.map(activity => (
+                    <button
+                      key={activity.id}
+                      type="button"
+                      onClick={() => setDescription(activity.name)}
+                      className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                      title={activity.description}
+                    >
+                      {activity.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Control Buttons */}
+          <div className="flex flex-wrap gap-3 justify-center">
+            {!isRunning && elapsedSeconds === 0 && (
               <button
-                onClick={handleResume}
-                className="flex items-center gap-2 px-8 py-4 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 active:bg-green-800 touch-manipulation transition-colors shadow-lg"
+                onClick={handleStart}
+                className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 active:bg-blue-800 touch-manipulation transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!projectId}
               >
                 <Play size={24} />
-                Weiter
+                Start
               </button>
-              <button
-                onClick={handleStop}
-                className="flex items-center gap-2 px-8 py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-colors shadow-lg"
-              >
-                <Square size={24} />
-                Stop
-              </button>
-            </>
-          )}
+            )}
+
+            {isRunning && (
+              <>
+                <button
+                  onClick={handlePause}
+                  className="flex items-center gap-2 px-8 py-4 bg-yellow-500 text-white rounded-full font-semibold hover:bg-yellow-600 active:bg-yellow-700 touch-manipulation transition-all shadow-lg hover:shadow-xl"
+                >
+                  <Pause size={24} />
+                  Pause
+                </button>
+                <button
+                  onClick={handleStop}
+                  className="flex items-center gap-2 px-8 py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-all shadow-lg hover:shadow-xl"
+                >
+                  <Square size={24} />
+                  Stop
+                </button>
+              </>
+            )}
+
+            {!isRunning && elapsedSeconds > 0 && (
+              <>
+                <button
+                  onClick={handleResume}
+                  className="flex items-center gap-2 px-8 py-4 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 active:bg-green-800 touch-manipulation transition-all shadow-lg hover:shadow-xl"
+                >
+                  <Play size={24} />
+                  Weiter
+                </button>
+                <button
+                  onClick={handleStop}
+                  className="flex items-center gap-2 px-8 py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-all shadow-lg hover:shadow-xl"
+                >
+                  <Square size={24} />
+                  Stop
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Helper Text */}
+        {!isRunning && elapsedSeconds === 0 && (
+          <div className="text-center text-gray-500 dark:text-gray-400 text-sm max-w-md">
+            <p>Wähle ein Projekt aus und starte die Zeiterfassung mit einem Klick auf Start</p>
+          </div>
+        )}
       </div>
     </div>
   );
