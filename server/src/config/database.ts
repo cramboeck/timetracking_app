@@ -158,6 +158,9 @@ export function initializeDatabase() {
   console.log('✅ Database initialized successfully');
 }
 
+// Initialize database immediately when this module is loaded
+initializeDatabase();
+
 // Export prepared statements for common queries
 export const queries = {
   // Users

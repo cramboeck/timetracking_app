@@ -512,61 +512,123 @@ export const Settings = ({
         <div className="p-4 sm:p-6 lg:p-8">
         {/* Account Tab */}
         {activeTab === 'account' && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <UserIcon size={24} className="text-accent-primary" />
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Mein Account</h2>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">Deine persönlichen Informationen</p>
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Profile Overview Card */}
+            <div className="bg-gradient-to-br from-accent-primary to-accent-600 rounded-xl p-6 shadow-lg text-white">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl font-bold">
+                    {currentUser?.username.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">{currentUser?.username}</h2>
+                    <p className="text-white/90 text-sm mt-1">{currentUser?.email}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium">
+                        {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
+                        {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
+                        {currentUser?.accountType === 'team' && '👥 Team'}
+                      </span>
+                      {currentUser?.organizationName && (
+                        <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium">
+                          {currentUser.organizationName}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Account-Typ</p>
-                    <p className="mt-1 font-medium text-gray-900 dark:text-white">
-                      {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
-                      {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
-                      {currentUser?.accountType === 'team' && '👥 Team'}
-                    </p>
-                  </div>
-                  {currentUser?.organizationName && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-dark-400">
-                        {currentUser?.accountType === 'business' ? 'Firmenname' : 'Team-Name'}
-                      </p>
-                      <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser.organizationName}</p>
-                    </div>
-                  )}
+            {/* Account Statistics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4">
+                <div className="text-gray-500 dark:text-dark-400 text-xs font-medium uppercase tracking-wide">Kunden</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{customers.length}</div>
+              </div>
+              <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4">
+                <div className="text-gray-500 dark:text-dark-400 text-xs font-medium uppercase tracking-wide">Projekte</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{projects.length}</div>
+              </div>
+              <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4">
+                <div className="text-gray-500 dark:text-dark-400 text-xs font-medium uppercase tracking-wide">Tätigkeiten</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{activities.length}</div>
+              </div>
+              <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4">
+                <div className="text-gray-500 dark:text-dark-400 text-xs font-medium uppercase tracking-wide">Einträge</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                  {storage.getEntries().filter(e => e.userId === currentUser?.id).length}
                 </div>
+              </div>
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Benutzername</p>
-                    <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser?.username}</p>
+            {/* Account Details */}
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <UserIcon size={20} className="text-accent-primary" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Account-Details</h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wide">User-ID</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <code className="text-xs font-mono px-2 py-1 bg-gray-100 dark:bg-dark-50 rounded text-gray-700 dark:text-dark-300 flex-1 truncate">
+                      {currentUser?.id}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(currentUser?.id || '');
+                        alert('✅ User-ID kopiert!');
+                      }}
+                      className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-50 rounded transition-colors"
+                      title="Kopieren"
+                    >
+                      <Copy size={14} className="text-gray-500" />
+                    </button>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">E-Mail</p>
-                    <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser?.email}</p>
-                  </div>
+                  <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">Für Support-Anfragen</p>
                 </div>
 
                 <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Mitglied seit</p>
-                  <p className="mt-1 font-medium text-gray-900 dark:text-white">
+                  <p className="text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wide">Mitglied seit</p>
+                  <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
                     {currentUser?.createdAt && new Date(currentUser.createdAt).toLocaleDateString('de-DE', {
-                      day: 'numeric',
+                      day: '2-digit',
                       month: 'long',
                       year: 'numeric'
                     })}
                   </p>
+                  <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
+                    {currentUser?.createdAt && Math.floor((Date.now() - new Date(currentUser.createdAt).getTime()) / (1000 * 60 * 60 * 24))} Tage aktiv
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wide">Zeitrundung</p>
+                  <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+                    {currentUser?.timeRoundingInterval === 1 ? 'Keine Rundung' : `${currentUser?.timeRoundingInterval} Minuten`}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">Aufrunden auf nächstes Intervall</p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wide">Akzentfarbe</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <div
+                      className="w-6 h-6 rounded-full border-2 border-gray-200 dark:border-dark-200"
+                      style={{ backgroundColor: `var(--accent-primary)` }}
+                    />
+                    <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">
+                      {currentUser?.accentColor}
+                    </span>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              {/* Time Rounding Settings */}
-              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-dark-200">
+            {/* Time Rounding Settings */}
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
                 <div className="flex items-center gap-3 mb-4">
                   <Timer size={20} className="text-accent-primary" />
                   <div>
@@ -596,10 +658,10 @@ export const Settings = ({
                     ℹ️ Zeiten werden immer <strong>aufgerundet</strong>. Beispiel mit 15 Minuten: 1 Min → 15 Min, 16 Min → 30 Min
                   </p>
                 </div>
-              </div>
+            </div>
 
-              {/* GDPR / Data Protection */}
-              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-dark-200">
+            {/* GDPR / Data Protection */}
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
                 <div className="flex items-center gap-3 mb-4">
                   <Shield size={20} className="text-gray-600 dark:text-gray-400" />
                   <div>
@@ -704,17 +766,17 @@ export const Settings = ({
                     ℹ️ Alle Exporte enthalten <strong>keine Passwörter</strong> und werden gemäß DSGVO erstellt.
                   </p>
                 </div>
-              </div>
+            </div>
 
-              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-dark-200">
-                <button
-                  onClick={logout}
-                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium"
-                >
-                  <LogOut size={18} />
-                  Abmelden
-                </button>
-              </div>
+            {/* Logout Button */}
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
+              <button
+                onClick={logout}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg transition-colors text-red-600 dark:text-red-400 font-medium"
+              >
+                <LogOut size={18} />
+                Abmelden
+              </button>
             </div>
           </div>
         )}
