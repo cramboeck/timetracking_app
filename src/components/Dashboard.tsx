@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react';
 import { Download, Calendar, TrendingUp, Clock, DollarSign } from 'lucide-react';
 import { TimeEntry, Project, Customer } from '../types';
 import jsPDF from 'jspdf';
+import { storage } from '../utils/storage';
+import { useAuth } from '../contexts/AuthContext';
 
 interface DashboardProps {
   entries: TimeEntry[];
@@ -23,6 +25,7 @@ interface ProjectStats {
 type TimeframeType = 'month' | 'quarter' | 'year' | 'custom';
 
 export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
+  const { currentUser } = useAuth();
   const [timeframeType, setTimeframeType] = useState<TimeframeType>('month');
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
@@ -157,32 +160,86 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
     const periodLabel = getPeriodLabel();
     const customerFilter = selectedCustomer !== 'all' ? getCustomerById(selectedCustomer) : null;
 
-    // Header - Professional layout
+    // Load company info
+    const companyInfo = currentUser ? storage.getCompanyInfoByUserId(currentUser.id) : null;
+
+    let y = 20;
+
+    // Company Header with Logo
+    if (companyInfo) {
+      // Add logo if available
+      if (companyInfo.logo) {
+        try {
+          // Add logo at top left (max height 20mm)
+          doc.addImage(companyInfo.logo, 'PNG', 20, y, 30, 20);
+        } catch (error) {
+          console.error('Error adding logo to PDF:', error);
+        }
+      }
+
+      // Company info on the right side
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text(companyInfo.name, 190, y, { align: 'right' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      y += 4;
+      doc.text(companyInfo.address, 190, y, { align: 'right' });
+      y += 4;
+      doc.text(`${companyInfo.zipCode} ${companyInfo.city}`, 190, y, { align: 'right' });
+      y += 4;
+      doc.text(companyInfo.country, 190, y, { align: 'right' });
+      y += 5;
+      doc.text(companyInfo.email, 190, y, { align: 'right' });
+
+      if (companyInfo.phone) {
+        y += 4;
+        doc.text(`Tel: ${companyInfo.phone}`, 190, y, { align: 'right' });
+      }
+
+      if (companyInfo.website) {
+        y += 4;
+        doc.text(companyInfo.website, 190, y, { align: 'right' });
+      }
+
+      y += 10;
+    }
+
+    // Report Title - centered
+    y = Math.max(y, 45); // Ensure minimum spacing
     doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text('Stundenbericht', 105, 25, { align: 'center' });
+    doc.text('Stundenbericht', 105, y, { align: 'center' });
 
+    y += 10;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    doc.text(periodLabel, 105, 35, { align: 'center' });
+    doc.text(periodLabel, 105, y, { align: 'center' });
+
+    y += 15;
 
     // Customer Info (if filtered)
     if (customerFilter) {
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text('Kunde:', 20, 50);
+      doc.text('Kunde:', 20, y);
       doc.setFont('helvetica', 'normal');
-      doc.text(customerFilter.name, 40, 50);
+      doc.text(customerFilter.name, 40, y);
+      y += 6;
       if (customerFilter.contactPerson) {
-        doc.text(`Ansprechpartner: ${customerFilter.contactPerson}`, 40, 56);
+        doc.text(`Ansprechpartner: ${customerFilter.contactPerson}`, 40, y);
+        y += 6;
       }
       if (customerFilter.email) {
-        doc.text(`E-Mail: ${customerFilter.email}`, 40, 62);
+        doc.text(`E-Mail: ${customerFilter.email}`, 40, y);
+        y += 6;
       }
+      y += 5;
     }
 
     // Summary box
-    let y = customerFilter ? 75 : 50;
+    y += 5;
     doc.setFillColor(240, 240, 240);
     doc.rect(20, y, 170, 20, 'F');
     doc.setFontSize(10);
@@ -255,8 +312,15 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
     doc.text('Ort, Datum', 20, y);
     doc.text('Unterschrift Auftraggeber', 120, y);
 
-    // Footer with note for Microsoft 365 integration
+    // Footer with company tax info and note
     doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'normal');
+
+    if (companyInfo?.taxId) {
+      doc.text(`Steuernummer: ${companyInfo.taxId}`, 105, 280, { align: 'center' });
+    }
+
     doc.setTextColor(150, 150, 150);
     doc.text('// TODO: Microsoft 365 Integration - Automatischer Versand via Graph API', 20, 285);
 
