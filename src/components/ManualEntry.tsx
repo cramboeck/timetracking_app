@@ -3,6 +3,7 @@ import { Save } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { calculateDuration } from '../utils/time';
 import { useAuth } from '../contexts/AuthContext';
+import { roundTimeUp } from '../utils/timeRounding';
 
 interface ManualEntryProps {
   onSave: (entry: TimeEntry) => void;
@@ -30,7 +31,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!projectId) {
+    if (!projectId || !currentUser) {
       alert('Bitte wähle ein Projekt aus');
       return;
     }
@@ -44,12 +45,15 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
       return;
     }
 
+    // Apply time rounding based on user preference
+    const roundedDuration = roundTimeUp(duration, currentUser.timeRoundingInterval);
+
     const entry: TimeEntry = {
       id: crypto.randomUUID(),
-      userId: currentUser!.id,
+      userId: currentUser.id,
       startTime: startDateTime,
       endTime: endDateTime,
-      duration,
+      duration: roundedDuration, // Use rounded duration
       projectId,
       description: description || '',
       isRunning: false,

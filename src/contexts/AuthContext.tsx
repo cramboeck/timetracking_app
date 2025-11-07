@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginCredentials, RegisterData, AccentColor, GrayTone } from '../types';
+import { User, LoginCredentials, RegisterData, AccentColor, GrayTone, TimeRoundingInterval } from '../types';
 import { storage } from '../utils/storage';
 import { hashPassword, verifyPassword, validatePassword, validateEmail, validateUsername } from '../utils/auth';
 import { accentColor } from '../utils/accentColor';
@@ -14,6 +14,7 @@ interface AuthContextType {
   logout: () => void;
   updateAccentColor: (color: AccentColor) => void;
   updateGrayTone: (tone: GrayTone) => void;
+  updateTimeRoundingInterval: (interval: TimeRoundingInterval) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -153,6 +154,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         mfaEnabled: false,
         accentColor: 'blue', // Default accent color
         grayTone: 'medium', // Default gray tone
+        timeRoundingInterval: 15, // Default: 15 minutes rounding
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString()
       };
@@ -215,6 +217,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     grayTone.set(tone);
   };
 
+  const updateTimeRoundingInterval = (interval: TimeRoundingInterval) => {
+    if (!currentUser) return;
+
+    // Update user in storage
+    storage.updateUser(currentUser.id, { timeRoundingInterval: interval });
+
+    // Update local state
+    const updatedUser = { ...currentUser, timeRoundingInterval: interval };
+    setCurrentUser(updatedUser);
+    storage.setCurrentUser(updatedUser);
+  };
+
   const value: AuthContextType = {
     currentUser,
     isAuthenticated: !!currentUser,
@@ -223,7 +237,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     register,
     logout,
     updateAccentColor,
-    updateGrayTone
+    updateGrayTone,
+    updateTimeRoundingInterval
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

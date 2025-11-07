@@ -6,10 +6,13 @@ import { TimeEntriesList } from './components/TimeEntriesList';
 import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
 import { Auth } from './components/Auth';
+import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
+import { WelcomeModal } from './components/WelcomeModal';
 import { TimeEntry, ViewMode, Customer, Project, Activity } from './types';
 import { storage } from './utils/storage';
 import { darkMode } from './utils/darkMode';
 import { useAuth } from './contexts/AuthContext';
+import { notificationService } from './utils/notifications';
 
 function App() {
   const { currentUser, isAuthenticated, isLoading } = useAuth();
@@ -20,6 +23,8 @@ function App() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [showNotificationRequest, setShowNotificationRequest] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
   // Load all data from localStorage on mount (filtered by current user)
   useEffect(() => {
@@ -54,6 +59,119 @@ function App() {
       setCurrentView('stopwatch');
     }
   }, [currentUser]);
+
+  // Show welcome modal for new users
+  useEffect(() => {
+    if (!currentUser || !isAuthenticated) return;
+
+    // Check if user has seen welcome message
+    const hasSeenWelcome = localStorage.getItem(`welcome_shown_${currentUser.id}`);
+
+    if (!hasSeenWelcome) {
+      // Show welcome modal immediately
+      setShowWelcomeModal(true);
+
+      // Show notification request after welcome modal is closed
+      // (will be handled when user closes welcome modal)
+    } else {
+      // Show notification request after 2 seconds if welcome was already shown
+      const timer = setTimeout(() => {
+        setShowNotificationRequest(true);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [currentUser, isAuthenticated]);
+
+  // When welcome modal closes, show notification request
+  const handleWelcomeClose = () => {
+    setShowWelcomeModal(false);
+
+    // Show notification request after 1 second
+    setTimeout(() => {
+      setShowNotificationRequest(true);
+    }, 1000);
+  };
+
+  // Browser Notifications - Check conditions periodically
+  useEffect(() => {
+    if (!currentUser || !isAuthenticated) return;
+
+    // Check if notifications are supported
+    if (!notificationService.isSupported()) {
+      return;
+    }
+
+    // Function to check all notification conditions
+    const checkNotifications = () => {
+      const now = new Date();
+
+      // 1. Month-end notification (3 days before)
+      if (notificationService.shouldShowMonthEndNotification()) {
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const daysRemaining = daysInMonth - now.getDate();
+
+        if (notificationService.canShowNotification('month-end', 24)) {
+          notificationService.showMonthEndNotification(daysRemaining);
+          notificationService.setLastNotificationTime('month-end');
+        }
+      }
+
+      // 2. Daily reminder (if no entries today)
+      const today = now.toISOString().split('T')[0];
+      const hasEntriesToday = entries.some(e => {
+        const entryDate = new Date(e.startTime).toISOString().split('T')[0];
+        return entryDate === today && !e.isRunning;
+      });
+
+      if (notificationService.shouldShowDailyReminder(hasEntriesToday)) {
+        if (notificationService.canShowNotification('daily-reminder', 24)) {
+          notificationService.showDailyReminder();
+          notificationService.setLastNotificationTime('daily-reminder');
+        }
+      }
+
+      // 3. Quality check (entries without descriptions)
+      const entriesWithoutDescription = entries.filter(
+        e => !e.isRunning && (!e.description || e.description.trim() === '')
+      ).length;
+
+      if (notificationService.shouldShowQualityCheck(entriesWithoutDescription)) {
+        if (notificationService.canShowNotification('quality-check', 168)) { // Once per week
+          notificationService.showQualityCheckNotification(entriesWithoutDescription);
+          notificationService.setLastNotificationTime('quality-check');
+        }
+      }
+
+      // 4. Weekly report (Friday 16:00-18:00)
+      if (notificationService.shouldShowWeeklyReport()) {
+        // Calculate total hours this week
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay() + 1); // Monday
+        weekStart.setHours(0, 0, 0, 0);
+
+        const weekEntries = entries.filter(e => {
+          const entryDate = new Date(e.startTime);
+          return entryDate >= weekStart && !e.isRunning;
+        });
+
+        const totalHours = weekEntries.reduce((sum, e) => sum + (e.duration / 3600), 0);
+
+        if (notificationService.canShowNotification('weekly-report', 168)) { // Once per week
+          notificationService.showWeeklyReportNotification(totalHours);
+          notificationService.setLastNotificationTime('weekly-report');
+        }
+      }
+    };
+
+    // Check immediately on mount
+    checkNotifications();
+
+    // Check every hour
+    const interval = setInterval(checkNotifications, 60 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [currentUser, isAuthenticated, entries]);
 
   // Time Entry handlers
   const handleSaveEntry = (entry: TimeEntry) => {
@@ -249,6 +367,16 @@ function App() {
         )}
       </main>
       <Navigation currentView={currentView} onViewChange={setCurrentView} />
+
+      {/* Welcome Modal for new users */}
+      {showWelcomeModal && (
+        <WelcomeModal isOpen={showWelcomeModal} onClose={handleWelcomeClose} />
+      )}
+
+      {/* Notification Permission Request */}
+      {showNotificationRequest && (
+        <NotificationPermissionRequest onClose={() => setShowNotificationRequest(false)} />
+      )}
     </div>
   );
 }
