@@ -3,6 +3,7 @@ import { Play, Pause, Square } from 'lucide-react';
 import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { roundTimeUp } from '../utils/timeRounding';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => void;
@@ -89,15 +90,19 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   };
 
   const handleStop = () => {
-    if (!startTimeRef.current) return;
+    if (!startTimeRef.current || !currentUser) return;
 
     const endTime = new Date().toISOString();
+
+    // Apply time rounding based on user preference
+    const roundedDuration = roundTimeUp(elapsedSeconds, currentUser.timeRoundingInterval);
+
     const entry: TimeEntry = {
       id: runningEntry?.id || crypto.randomUUID(),
-      userId: currentUser!.id,
+      userId: currentUser.id,
       startTime: startTimeRef.current,
       endTime,
-      duration: elapsedSeconds,
+      duration: roundedDuration, // Use rounded duration
       projectId,
       description: description || '',
       isRunning: false,

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock } from 'lucide-react';
-import { Customer, Project, Activity, GrayTone, CompanyInfo, TeamInvitation, User } from '../types';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer } from 'lucide-react';
+import { Customer, Project, Activity, GrayTone, CompanyInfo, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { storage } from '../utils/storage';
+import { getRoundingIntervalLabel } from '../utils/timeRounding';
 
 interface SettingsProps {
   customers: Customer[];
@@ -44,7 +45,7 @@ export const Settings = ({
   onUpdateActivity,
   onDeleteActivity
 }: SettingsProps) => {
-  const { currentUser, logout, updateAccentColor, updateGrayTone } = useAuth();
+  const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval } = useAuth();
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'timetracking'>('account');
   const [timeTrackingSubTab, setTimeTrackingSubTab] = useState<'customers' | 'projects' | 'activities'>('customers');
 
@@ -545,6 +546,39 @@ export const Settings = ({
                       month: 'long',
                       year: 'numeric'
                     })}
+                  </p>
+                </div>
+              </div>
+
+              {/* Time Rounding Settings */}
+              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-dark-200">
+                <div className="flex items-center gap-3 mb-4">
+                  <Timer size={20} className="text-accent-primary" />
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">Zeitaufrundung</h3>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Mindesteinheit für erfasste Zeiten</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                  {([1, 5, 10, 15, 30, 60] as TimeRoundingInterval[]).map((interval) => (
+                    <button
+                      key={interval}
+                      onClick={() => updateTimeRoundingInterval(interval)}
+                      className={`p-3 rounded-lg border-2 transition-all text-center ${
+                        currentUser?.timeRoundingInterval === interval
+                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-semibold'
+                          : 'border-gray-200 dark:border-dark-200 hover:border-gray-300 dark:hover:border-dark-300 text-gray-700 dark:text-dark-300'
+                      }`}
+                    >
+                      <div className="text-sm font-medium">{getRoundingIntervalLabel(interval)}</div>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm text-blue-900 dark:text-blue-200">
+                    ℹ️ Zeiten werden immer <strong>aufgerundet</strong>. Beispiel mit 15 Minuten: 1 Min → 15 Min, 16 Min → 30 Min
                   </p>
                 </div>
               </div>
