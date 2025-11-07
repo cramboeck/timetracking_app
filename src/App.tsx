@@ -8,6 +8,8 @@ import { Settings } from './components/Settings';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
+import { CookieConsent } from './components/CookieConsent';
+import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TimeEntry, ViewMode, Customer, Project, Activity } from './types';
 import { storage } from './utils/storage';
 import { darkMode } from './utils/darkMode';
@@ -25,6 +27,7 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
   // Load all data from localStorage on mount (filtered by current user)
   useEffect(() => {
@@ -82,6 +85,24 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [currentUser, isAuthenticated]);
+
+  // Handle privacy policy navigation via hash
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (window.location.hash === '#datenschutz') {
+        setShowPrivacyPolicy(true);
+        // Remove hash from URL
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    };
+
+    // Check hash on mount
+    handleHashChange();
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // When welcome modal closes, show notification request
   const handleWelcomeClose = () => {
@@ -376,6 +397,14 @@ function App() {
       {/* Notification Permission Request */}
       {showNotificationRequest && (
         <NotificationPermissionRequest onClose={() => setShowNotificationRequest(false)} />
+      )}
+
+      {/* Cookie Consent Banner */}
+      <CookieConsent />
+
+      {/* Privacy Policy Modal */}
+      {showPrivacyPolicy && (
+        <PrivacyPolicy onClose={() => setShowPrivacyPolicy(false)} />
       )}
     </div>
   );

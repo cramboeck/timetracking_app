@@ -3,17 +3,15 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { queries } from '../config/database';
 import { emailService } from '../services/emailService';
+import { auditLog } from '../services/auditLog';
+import { authLimiter } from '../middleware/rateLimiter';
+import { validate, registerSchema, loginSchema } from '../middleware/validation';
 
 const router = Router();
 
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, validate(registerSchema), async (req, res) => {
   try {
     const { username, email, password, accountType, organizationName, inviteCode } = req.body;
-
-    // Validate
-    if (!username || !email || !password || !accountType) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
 
     // Check if user exists
     if (queries.getUserByUsername.get(username)) {
@@ -46,6 +44,16 @@ router.post('/register', async (req, res) => {
       new Date().toISOString()
     );
 
+    // Audit log
+    auditLog.log({
+      userId,
+      action: 'user.register',
+      resource: `user:${userId}`,
+      details: JSON.stringify({ username, email, accountType }),
+      ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+      userAgent: req.headers['user-agent']
+    });
+
     // Send welcome email
     await emailService.sendWelcomeEmail({
       userId,
@@ -72,13 +80,9 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
   try {
     const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Missing credentials' });
-    }
 
     const user = queries.getUserByUsername.get(username) as any;
 
@@ -94,6 +98,16 @@ router.post('/login', async (req, res) => {
 
     // Update last login
     queries.updateUserLastLogin.run(new Date().toISOString(), user.id);
+
+    // Audit log
+    auditLog.log({
+      userId: user.id,
+      action: 'user.login',
+      resource: `user:${user.id}`,
+      details: JSON.stringify({ username }),
+      ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+      userAgent: req.headers['user-agent']
+    });
 
     // Generate token
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, { expiresIn: '7d' });
