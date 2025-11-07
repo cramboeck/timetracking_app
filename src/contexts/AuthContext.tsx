@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginCredentials, RegisterData, AccentColor } from '../types';
+import { User, LoginCredentials, RegisterData, AccentColor, GrayTone } from '../types';
 import { storage } from '../utils/storage';
 import { hashPassword, verifyPassword, validatePassword, validateEmail, validateUsername } from '../utils/auth';
 import { accentColor } from '../utils/accentColor';
+import { grayTone } from '../utils/theme';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -12,6 +13,7 @@ interface AuthContextType {
   register: (data: RegisterData) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   updateAccentColor: (color: AccentColor) => void;
+  updateGrayTone: (tone: GrayTone) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,6 +30,15 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Helper function to apply accent color to root element
+const applyAccentColorToRoot = (color: AccentColor) => {
+  const root = document.documentElement;
+  // Remove all accent color classes
+  root.classList.remove('accent-blue', 'accent-green', 'accent-orange', 'accent-purple', 'accent-red', 'accent-pink');
+  // Add selected color class
+  root.classList.add(`accent-${color}`);
+};
+
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,6 +47,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   useEffect(() => {
     const user = storage.getCurrentUser();
     setCurrentUser(user);
+
+    // Initialize theme
+    if (user) {
+      accentColor.set(user.accentColor);
+      grayTone.set(user.grayTone);
+      applyAccentColorToRoot(user.accentColor);
+    }
+
     setIsLoading(false);
   }, []);
 
@@ -64,6 +83,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       storage.updateUser(user.id, { lastLogin: updatedUser.lastLogin });
       storage.setCurrentUser(updatedUser);
       setCurrentUser(updatedUser);
+
+      // Apply user's theme
+      accentColor.set(updatedUser.accentColor);
+      grayTone.set(updatedUser.grayTone);
+      applyAccentColorToRoot(updatedUser.accentColor);
 
       return { success: true };
     } catch (error) {
@@ -104,6 +128,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Hash password
       const passwordHash = await hashPassword(data.password);
 
+      // Create team if account type is team
+      const teamId = data.accountType === 'team' ? crypto.randomUUID() : undefined;
+
+      if (teamId && data.organizationName) {
+        storage.addTeam({
+          id: teamId,
+          name: data.organizationName,
+          ownerId: crypto.randomUUID(), // Will be updated with user id
+          createdAt: new Date().toISOString()
+        });
+      }
+
       // Create new user
       const newUser: User = {
         id: crypto.randomUUID(),
@@ -112,16 +148,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         passwordHash,
         accountType: data.accountType,
         organizationName: data.organizationName,
+        teamId: teamId,
+        teamRole: data.accountType === 'team' ? 'owner' : undefined, // Owner if team account
         mfaEnabled: false,
         accentColor: 'blue', // Default accent color
+        grayTone: 'medium', // Default gray tone
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString()
       };
+
+      // Update team owner to the created user
+      if (teamId) {
+        storage.updateTeam(teamId, { ownerId: newUser.id });
+      }
 
       // Save user
       storage.addUser(newUser);
       storage.setCurrentUser(newUser);
       setCurrentUser(newUser);
+
+      // Apply default theme
+      accentColor.set(newUser.accentColor);
+      grayTone.set(newUser.grayTone);
+      applyAccentColorToRoot(newUser.accentColor);
 
       return { success: true };
     } catch (error) {
@@ -146,8 +195,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setCurrentUser(updatedUser);
     storage.setCurrentUser(updatedUser);
 
-    // Update accent color utility
+    // Update accent color utility and apply to DOM
     accentColor.set(color);
+    applyAccentColorToRoot(color);
+  };
+
+  const updateGrayTone = (tone: GrayTone) => {
+    if (!currentUser) return;
+
+    // Update user in storage
+    storage.updateUser(currentUser.id, { grayTone: tone });
+
+    // Update local state
+    const updatedUser = { ...currentUser, grayTone: tone };
+    setCurrentUser(updatedUser);
+    storage.setCurrentUser(updatedUser);
+
+    // Update gray tone utility and apply to DOM
+    grayTone.set(tone);
   };
 
   const value: AuthContextType = {
@@ -157,7 +222,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     login,
     register,
     logout,
-    updateAccentColor
+    updateAccentColor,
+    updateGrayTone
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

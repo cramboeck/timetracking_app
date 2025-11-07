@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut } from 'lucide-react';
-import { Customer, Project, Activity } from '../types';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast } from 'lucide-react';
+import { Customer, Project, Activity, GrayTone } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
@@ -43,7 +43,7 @@ export const Settings = ({
   onUpdateActivity,
   onDeleteActivity
 }: SettingsProps) => {
-  const { currentUser, logout, updateAccentColor } = useAuth();
+  const { currentUser, logout, updateAccentColor, updateGrayTone } = useAuth();
   const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'activities' | 'appearance'>('customers');
 
   // Customer Modal
@@ -607,6 +607,64 @@ export const Settings = ({
                         {currentUser?.accentColor === color.name && (
                           <div className="absolute -top-1 -right-1 w-5 h-5 bg-white dark:bg-dark-100 rounded-full flex items-center justify-center">
                             <div className={`w-3 h-3 bg-accent-${color.name}-600 rounded-full`} />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Gray Tone Selection */}
+                <div className="pt-3 border-t border-gray-200 dark:border-dark-200">
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                    <Contrast size={18} />
+                    Grauton-Intensität
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-dark-400 mb-4">
+                    Wähle die Dunkelheit des Dark Modes (nur im Dark Mode sichtbar)
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { name: 'light' as GrayTone, label: 'Hell', desc: 'Weiche Grautöne' },
+                      { name: 'medium' as GrayTone, label: 'Mittel', desc: 'Ausgewogen' },
+                      { name: 'dark' as GrayTone, label: 'Dunkel', desc: 'Tiefe Schwarztöne' },
+                    ].map((tone) => (
+                      <button
+                        key={tone.name}
+                        onClick={() => updateGrayTone(tone.name)}
+                        className={`relative flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover:scale-105 ${
+                          currentUser?.grayTone === tone.name
+                            ? `border-accent-${currentUser?.accentColor || 'blue'}-600 bg-accent-${currentUser?.accentColor || 'blue'}-50 dark:bg-accent-${currentUser?.accentColor || 'blue'}-900/20`
+                            : 'border-gray-300 dark:border-dark-200 hover:border-gray-400'
+                        }`}
+                        title={tone.desc}
+                      >
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                          tone.name === 'light' ? 'bg-gray-700' :
+                          tone.name === 'medium' ? 'bg-gray-800' :
+                          'bg-gray-950'
+                        }`}>
+                          <div className={`w-6 h-6 rounded ${
+                            tone.name === 'light' ? 'bg-gray-500' :
+                            tone.name === 'medium' ? 'bg-gray-600' :
+                            'bg-gray-800'
+                          }`} />
+                        </div>
+                        <div className="text-center">
+                          <span className={`text-sm font-medium block ${
+                            currentUser?.grayTone === tone.name
+                              ? `text-accent-${currentUser?.accentColor || 'blue'}-600`
+                              : 'text-gray-900 dark:text-white'
+                          }`}>
+                            {tone.label}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-dark-400">
+                            {tone.desc}
+                          </span>
+                        </div>
+                        {currentUser?.grayTone === tone.name && (
+                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-white dark:bg-dark-100 rounded-full flex items-center justify-center">
+                            <div className={`w-3 h-3 bg-accent-${currentUser?.accentColor || 'blue'}-600 rounded-full`} />
                           </div>
                         )}
                       </button>
