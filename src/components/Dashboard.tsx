@@ -206,11 +206,21 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
       y += 10;
     }
 
-    // Report Title - centered
+    // Report Title - centered (use custom title if customer is filtered and has one)
     y = Math.max(y, 45); // Ensure minimum spacing
+
+    let reportTitle = 'Stundenbericht';
+    if (customerFilter?.reportTitle) {
+      // Replace template variables
+      reportTitle = customerFilter.reportTitle
+        .replace(/\{\{kunde\}\}/gi, customerFilter.name)
+        .replace(/\{\{monat\}\}/gi, getPeriodLabel())
+        .replace(/\{\{zeitraum\}\}/gi, getPeriodLabel());
+    }
+
     doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text('Stundenbericht', 105, y, { align: 'center' });
+    doc.text(reportTitle, 105, y, { align: 'center' });
 
     y += 10;
     doc.setFontSize(12);

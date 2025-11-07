@@ -7,6 +7,7 @@ export interface Customer {
   contactPerson?: string;
   email?: string;
   address?: string;
+  reportTitle?: string; // Custom report title for this customer (e.g., "Stundenzettel" or "Tätigkeitsnachweis")
   createdAt: string;
 }
 

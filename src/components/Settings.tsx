@@ -69,6 +69,7 @@ export const Settings = ({
   const [customerContactPerson, setCustomerContactPerson] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [customerReportTitle, setCustomerReportTitle] = useState('');
 
   // Project Modal
   const [projectModalOpen, setProjectModalOpen] = useState(false);
@@ -102,6 +103,7 @@ export const Settings = ({
       setCustomerContactPerson(customer.contactPerson || '');
       setCustomerEmail(customer.email || '');
       setCustomerAddress(customer.address || '');
+      setCustomerReportTitle(customer.reportTitle || '');
     } else {
       setEditingCustomer(null);
       setCustomerName('');
@@ -110,6 +112,7 @@ export const Settings = ({
       setCustomerContactPerson('');
       setCustomerEmail('');
       setCustomerAddress('');
+      setCustomerReportTitle('');
     }
     setCustomerModalOpen(true);
   };
@@ -124,7 +127,8 @@ export const Settings = ({
         customerNumber: customerNumber.trim() || undefined,
         contactPerson: customerContactPerson.trim() || undefined,
         email: customerEmail.trim() || undefined,
-        address: customerAddress.trim() || undefined
+        address: customerAddress.trim() || undefined,
+        reportTitle: customerReportTitle.trim() || undefined
       });
     } else {
       onAddCustomer({
@@ -136,6 +140,7 @@ export const Settings = ({
         contactPerson: customerContactPerson.trim() || undefined,
         email: customerEmail.trim() || undefined,
         address: customerAddress.trim() || undefined,
+        reportTitle: customerReportTitle.trim() || undefined,
         createdAt: new Date().toISOString()
       });
     }
@@ -1070,6 +1075,22 @@ export const Settings = ({
               rows={2}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Report-Titel (für PDF)
+            </label>
+            <input
+              type="text"
+              value={customerReportTitle}
+              onChange={(e) => setCustomerReportTitle(e.target.value)}
+              placeholder="z.B. Stundenzettel, Tätigkeitsnachweis, Arbeitszeitnachweis"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Optional: Individueller Titel für PDF-Reports dieses Kunden (Standard: "Stundenbericht")
+            </p>
           </div>
 
           <div>
