@@ -262,7 +262,7 @@ export const Settings = ({
       </div>
 
       {/* Tabs */}
-      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 overflow-x-auto">
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 overflow-x-auto scroll-touch">
         <div className="flex gap-2 sm:gap-4 min-w-max">
           <button
             onClick={() => setActiveTab('customers')}
