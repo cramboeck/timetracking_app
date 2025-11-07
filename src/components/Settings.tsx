@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut } from 'lucide-react';
 import { Customer, Project, Activity } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SettingsProps {
   customers: Customer[];
@@ -42,6 +43,7 @@ export const Settings = ({
   onUpdateActivity,
   onDeleteActivity
 }: SettingsProps) => {
+  const { currentUser, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'activities' | 'appearance'>('customers');
 
   // Customer Modal
@@ -111,6 +113,7 @@ export const Settings = ({
     } else {
       onAddCustomer({
         id: crypto.randomUUID(),
+        userId: currentUser!.id,
         name: customerName.trim(),
         color: customerColor,
         customerNumber: customerNumber.trim() || undefined,
@@ -151,6 +154,7 @@ export const Settings = ({
     } else {
       onAddProject({
         id: crypto.randomUUID(),
+        userId: currentUser!.id,
         name: projectName.trim(),
         customerId: projectCustomerId,
         hourlyRate: parseFloat(projectHourlyRate),
@@ -186,6 +190,7 @@ export const Settings = ({
     } else {
       onAddActivity({
         id: crypto.randomUUID(),
+        userId: currentUser!.id,
         name: activityName.trim(),
         description: activityDescription.trim() || undefined,
         createdAt: new Date().toISOString()
@@ -490,15 +495,48 @@ export const Settings = ({
         )}
 
         {activeTab === 'appearance' && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Design & Aussehen</h2>
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Account Info */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account</h2>
+
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Benutzername</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{currentUser?.username}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">E-Mail</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{currentUser?.email}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Mitglied seit</p>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {currentUser?.createdAt && new Date(currentUser.createdAt).toLocaleDateString('de-DE')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={logout}
+                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium"
+                >
+                  <LogOut size={18} />
+                  Abmelden
+                </button>
+              </div>
+            </div>
+
+            {/* Appearance Settings */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Design & Aussehen</h2>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between py-3">
                   <div>
-                    <h3 className="font-medium text-gray-900">Dark Mode</h3>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <h3 className="font-medium text-gray-900 dark:text-white">Dark Mode</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                       Dunkles Farbschema für bessere Lesbarkeit bei Nacht
                     </p>
                   </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Save } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { calculateDuration } from '../utils/time';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ManualEntryProps {
   onSave: (entry: TimeEntry) => void;
@@ -11,6 +12,7 @@ interface ManualEntryProps {
 }
 
 export const ManualEntry = ({ onSave, projects, customers, activities }: ManualEntryProps) => {
+  const { currentUser } = useAuth();
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState('09:00');
@@ -44,6 +46,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
 
     const entry: TimeEntry = {
       id: crypto.randomUUID(),
+      userId: currentUser!.id,
       startTime: startDateTime,
       endTime: endDateTime,
       duration,

@@ -1,9 +1,11 @@
-import { TimeEntry, Customer, Project, Activity } from '../types';
+import { TimeEntry, Customer, Project, Activity, User } from '../types';
 
 const STORAGE_KEY_ENTRIES = 'timetracking_entries';
 const STORAGE_KEY_CUSTOMERS = 'timetracking_customers';
 const STORAGE_KEY_PROJECTS = 'timetracking_projects';
 const STORAGE_KEY_ACTIVITIES = 'timetracking_activities';
+const STORAGE_KEY_USERS = 'timetracking_users';
+const STORAGE_KEY_CURRENT_USER = 'timetracking_current_user';
 
 export const storage = {
   // Time Entries
@@ -164,5 +166,76 @@ export const storage = {
     const activities = storage.getActivities();
     const filtered = activities.filter(a => a.id !== id);
     storage.saveActivities(filtered);
+  },
+
+  // Users
+  getUsers: (): User[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_USERS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Error loading users:', error);
+      return [];
+    }
+  },
+
+  saveUsers: (users: User[]): void => {
+    try {
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+    } catch (error) {
+      console.error('Error saving users:', error);
+    }
+  },
+
+  addUser: (user: User): void => {
+    const users = storage.getUsers();
+    users.push(user);
+    storage.saveUsers(users);
+  },
+
+  getUserByUsername: (username: string): User | undefined => {
+    const users = storage.getUsers();
+    return users.find(u => u.username.toLowerCase() === username.toLowerCase());
+  },
+
+  getUserByEmail: (email: string): User | undefined => {
+    const users = storage.getUsers();
+    return users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  },
+
+  updateUser: (id: string, updates: Partial<User>): void => {
+    const users = storage.getUsers();
+    const index = users.findIndex(u => u.id === id);
+    if (index !== -1) {
+      users[index] = { ...users[index], ...updates };
+      storage.saveUsers(users);
+    }
+  },
+
+  // Current User Session
+  getCurrentUser: (): User | null => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Error loading current user:', error);
+      return null;
+    }
+  },
+
+  setCurrentUser: (user: User | null): void => {
+    try {
+      if (user) {
+        localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(user));
+      } else {
+        localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
+      }
+    } catch (error) {
+      console.error('Error saving current user:', error);
+    }
+  },
+
+  clearCurrentUser: (): void => {
+    localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
   }
 };
