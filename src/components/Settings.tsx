@@ -61,6 +61,7 @@ export const Settings = ({
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [projectName, setProjectName] = useState('');
   const [projectCustomerId, setProjectCustomerId] = useState('');
+  const [projectRateType, setProjectRateType] = useState<'hourly' | 'daily'>('hourly');
   const [projectHourlyRate, setProjectHourlyRate] = useState('');
 
   // Activity Modal
@@ -133,11 +134,13 @@ export const Settings = ({
       setEditingProject(project);
       setProjectName(project.name);
       setProjectCustomerId(project.customerId);
+      setProjectRateType(project.rateType || 'hourly');
       setProjectHourlyRate(project.hourlyRate.toString());
     } else {
       setEditingProject(null);
       setProjectName('');
       setProjectCustomerId(customers[0]?.id || '');
+      setProjectRateType('hourly');
       setProjectHourlyRate('');
     }
     setProjectModalOpen(true);
@@ -150,6 +153,7 @@ export const Settings = ({
       onUpdateProject(editingProject.id, {
         name: projectName.trim(),
         customerId: projectCustomerId,
+        rateType: projectRateType,
         hourlyRate: parseFloat(projectHourlyRate)
       });
     } else {
@@ -158,6 +162,7 @@ export const Settings = ({
         userId: currentUser!.id,
         name: projectName.trim(),
         customerId: projectCustomerId,
+        rateType: projectRateType,
         hourlyRate: parseFloat(projectHourlyRate),
         isActive: true,
         createdAt: new Date().toISOString()
@@ -831,13 +836,47 @@ export const Settings = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Stundensatz (€) *
+              Abrechnungsart *
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setProjectRateType('hourly')}
+                className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${
+                  projectRateType === 'hourly'
+                    ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 text-accent-primary'
+                    : 'border-gray-300 text-gray-600 hover:border-gray-400'
+                }`}
+              >
+                <span className="text-2xl">⏱️</span>
+                <span className="font-medium text-sm">Stundensatz</span>
+                <span className="text-xs text-gray-500">Pro Stunde</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setProjectRateType('daily')}
+                className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${
+                  projectRateType === 'daily'
+                    ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 text-accent-primary'
+                    : 'border-gray-300 text-gray-600 hover:border-gray-400'
+                }`}
+              >
+                <span className="text-2xl">📅</span>
+                <span className="font-medium text-sm">Tagessatz</span>
+                <span className="text-xs text-gray-500">Pro Tag (8h)</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {projectRateType === 'hourly' ? 'Stundensatz (€)' : 'Tagessatz (€)'} *
             </label>
             <input
               type="number"
               value={projectHourlyRate}
               onChange={(e) => setProjectHourlyRate(e.target.value)}
-              placeholder="z.B. 85.00"
+              placeholder={projectRateType === 'hourly' ? 'z.B. 85.00' : 'z.B. 680.00'}
               step="0.01"
               min="0"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
