@@ -169,7 +169,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
 
         <button
           type="submit"
-          className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 active:bg-blue-800 touch-manipulation transition-colors shadow-lg mt-6"
+          className="w-full flex items-center justify-center gap-2 px-6 py-4 btn-accent shadow-lg mt-6"
         >
           <Save size={20} />
           Speichern

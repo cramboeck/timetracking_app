@@ -217,7 +217,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
             {!isRunning && elapsedSeconds === 0 && (
               <button
                 onClick={handleStart}
-                className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 active:bg-blue-800 touch-manipulation transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-8 py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={!projectId}
               >
                 <Play size={24} />
@@ -248,7 +248,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               <>
                 <button
                   onClick={handleResume}
-                  className="flex items-center gap-2 px-8 py-4 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 active:bg-green-800 touch-manipulation transition-all shadow-lg hover:shadow-xl"
+                  className="flex items-center gap-2 px-8 py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl"
                 >
                   <Play size={24} />
                   Weiter

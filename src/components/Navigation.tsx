@@ -24,7 +24,7 @@ export const Navigation = ({ currentView, onViewChange }: NavigationProps) => {
             onClick={() => onViewChange(view)}
             className={`flex flex-col items-center justify-center flex-1 h-full touch-manipulation transition-colors ${
               currentView === view
-                ? 'text-blue-600 dark:text-blue-400'
+                ? 'text-accent-primary'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
             }`}
           >
