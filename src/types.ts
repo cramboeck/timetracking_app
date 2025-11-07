@@ -30,6 +30,25 @@ export type AccountType = 'personal' | 'business' | 'team';
 
 export type AccentColor = 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'pink';
 
+export type GrayTone = 'light' | 'medium' | 'dark';
+
+export type TeamRole = 'owner' | 'admin' | 'member';
+
+export interface TeamMembership {
+  id: string;
+  teamId: string;
+  userId: string;
+  role: TeamRole;
+  joinedAt: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  ownerId: string; // User who created the team
+  createdAt: string;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -37,9 +56,12 @@ export interface User {
   passwordHash: string;
   accountType: AccountType;
   organizationName?: string; // For business/team accounts
+  teamId?: string; // For team members - which team they belong to
+  teamRole?: TeamRole; // Role within the team
   mfaEnabled: boolean;
   mfaSecret?: string; // For future TOTP implementation
   accentColor: AccentColor; // User's chosen accent color
+  grayTone: GrayTone; // User's chosen gray tone intensity
   createdAt: string;
   lastLogin?: string;
 }

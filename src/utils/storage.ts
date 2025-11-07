@@ -1,4 +1,4 @@
-import { TimeEntry, Customer, Project, Activity, User } from '../types';
+import { TimeEntry, Customer, Project, Activity, User, Team, TeamMembership, TeamRole } from '../types';
 
 const STORAGE_KEY_ENTRIES = 'timetracking_entries';
 const STORAGE_KEY_CUSTOMERS = 'timetracking_customers';
@@ -6,6 +6,8 @@ const STORAGE_KEY_PROJECTS = 'timetracking_projects';
 const STORAGE_KEY_ACTIVITIES = 'timetracking_activities';
 const STORAGE_KEY_USERS = 'timetracking_users';
 const STORAGE_KEY_CURRENT_USER = 'timetracking_current_user';
+const STORAGE_KEY_TEAMS = 'timetracking_teams';
+const STORAGE_KEY_TEAM_MEMBERSHIPS = 'timetracking_team_memberships';
 
 export const storage = {
   // Time Entries
@@ -237,5 +239,82 @@ export const storage = {
 
   clearCurrentUser: (): void => {
     localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
+  },
+
+  // Teams
+  getTeams: (): Team[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_TEAMS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Error loading teams:', error);
+      return [];
+    }
+  },
+
+  saveTeams: (teams: Team[]): void => {
+    try {
+      localStorage.setItem(STORAGE_KEY_TEAMS, JSON.stringify(teams));
+    } catch (error) {
+      console.error('Error saving teams:', error);
+    }
+  },
+
+  addTeam: (team: Team): void => {
+    const teams = storage.getTeams();
+    teams.push(team);
+    storage.saveTeams(teams);
+  },
+
+  getTeamById: (id: string): Team | undefined => {
+    const teams = storage.getTeams();
+    return teams.find(t => t.id === id);
+  },
+
+  updateTeam: (id: string, updates: Partial<Team>): void => {
+    const teams = storage.getTeams();
+    const index = teams.findIndex(t => t.id === id);
+    if (index !== -1) {
+      teams[index] = { ...teams[index], ...updates };
+      storage.saveTeams(teams);
+    }
+  },
+
+  // Team Memberships
+  getTeamMemberships: (): TeamMembership[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_TEAM_MEMBERSHIPS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Error loading team memberships:', error);
+      return [];
+    }
+  },
+
+  saveTeamMemberships: (memberships: TeamMembership[]): void => {
+    try {
+      localStorage.setItem(STORAGE_KEY_TEAM_MEMBERSHIPS, JSON.stringify(memberships));
+    } catch (error) {
+      console.error('Error saving team memberships:', error);
+    }
+  },
+
+  addTeamMembership: (membership: TeamMembership): void => {
+    const memberships = storage.getTeamMemberships();
+    memberships.push(membership);
+    storage.saveTeamMemberships(memberships);
+  },
+
+  getTeamMembers: (teamId: string): User[] => {
+    const users = storage.getUsers();
+    return users.filter(u => u.teamId === teamId);
+  },
+
+  getUserRole: (userId: string, teamId: string): TeamRole | undefined => {
+    const user = storage.getUsers().find(u => u.id === userId);
+    if (user && user.teamId === teamId) {
+      return user.teamRole;
+    }
+    return undefined;
   }
 };

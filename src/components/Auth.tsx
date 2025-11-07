@@ -99,7 +99,7 @@ export const Auth = () => {
               }}
               className={`flex-1 px-6 py-4 font-semibold transition-colors ${
                 isLogin
-                  ? 'bg-white dark:bg-gray-800 text-blue-600 border-b-2 border-blue-600'
+                  ? 'bg-white dark:bg-gray-800 text-accent-primary border-b-2 border-accent-primary'
                   : 'bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-400'
               }`}
             >
@@ -112,7 +112,7 @@ export const Auth = () => {
               }}
               className={`flex-1 px-6 py-4 font-semibold transition-colors ${
                 !isLogin
-                  ? 'bg-white dark:bg-gray-800 text-blue-600 border-b-2 border-blue-600'
+                  ? 'bg-white dark:bg-gray-800 text-accent-primary border-b-2 border-accent-primary'
                   : 'bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-400'
               }`}
             >
@@ -186,7 +186,7 @@ export const Auth = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="w-full py-3 btn-accent"
                 >
                   {isLoading ? 'Anmelden...' : 'Anmelden'}
                 </button>
@@ -205,12 +205,12 @@ export const Auth = () => {
                       onClick={() => setRegisterAccountType('personal')}
                       className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
                         registerAccountType === 'personal'
-                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30'
+                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
                           : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
                       }`}
                     >
-                      <User size={24} className={registerAccountType === 'personal' ? 'text-blue-600' : 'text-gray-400'} />
-                      <span className={`text-xs font-medium ${registerAccountType === 'personal' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                      <User size={24} className={registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-400'} />
+                      <span className={`text-xs font-medium ${registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
                         Freelancer
                       </span>
                     </button>
@@ -219,12 +219,12 @@ export const Auth = () => {
                       onClick={() => setRegisterAccountType('business')}
                       className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
                         registerAccountType === 'business'
-                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30'
+                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
                           : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
                       }`}
                     >
-                      <Building2 size={24} className={registerAccountType === 'business' ? 'text-blue-600' : 'text-gray-400'} />
-                      <span className={`text-xs font-medium ${registerAccountType === 'business' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                      <Building2 size={24} className={registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-400'} />
+                      <span className={`text-xs font-medium ${registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
                         Unternehmen
                       </span>
                     </button>
@@ -233,12 +233,12 @@ export const Auth = () => {
                       onClick={() => setRegisterAccountType('team')}
                       className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
                         registerAccountType === 'team'
-                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30'
+                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
                           : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
                       }`}
                     >
-                      <Users size={24} className={registerAccountType === 'team' ? 'text-blue-600' : 'text-gray-400'} />
-                      <span className={`text-xs font-medium ${registerAccountType === 'team' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                      <Users size={24} className={registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-400'} />
+                      <span className={`text-xs font-medium ${registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
                         Team
                       </span>
                     </button>
@@ -337,7 +337,7 @@ export const Auth = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="w-full py-3 btn-accent"
                 >
                   {isLoading ? 'Registrieren...' : 'Registrieren'}
                 </button>
