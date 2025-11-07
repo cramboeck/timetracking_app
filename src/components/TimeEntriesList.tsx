@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Trash2, Clock, Edit2, Download } from 'lucide-react';
 import { TimeEntry, Project, Customer } from '../types';
-import { formatDuration, formatTime, formatDate } from '../utils/time';
+import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -17,6 +17,9 @@ export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editProjectId, setEditProjectId] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editStartTime, setEditStartTime] = useState('');
+  const [editEndTime, setEditEndTime] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string; name: string }>({
     isOpen: false,
     id: '',
@@ -50,14 +53,34 @@ export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit
     setEditingEntry(entry);
     setEditProjectId(entry.projectId);
     setEditDescription(entry.description);
+
+    // Extract date and times
+    const startDate = new Date(entry.startTime);
+    const endDate = entry.endTime ? new Date(entry.endTime) : new Date();
+
+    setEditDate(startDate.toISOString().split('T')[0]);
+    setEditStartTime(startDate.toTimeString().slice(0, 5)); // HH:MM
+    setEditEndTime(endDate.toTimeString().slice(0, 5)); // HH:MM
   };
 
   const handleSaveEdit = () => {
-    if (!editingEntry || !editProjectId) return;
+    if (!editingEntry || !editProjectId || !editDate || !editStartTime || !editEndTime) return;
+
+    const startDateTime = new Date(`${editDate}T${editStartTime}`).toISOString();
+    const endDateTime = new Date(`${editDate}T${editEndTime}`).toISOString();
+    const duration = calculateDuration(startDateTime, endDateTime);
+
+    if (duration <= 0) {
+      alert('Die Endzeit muss nach der Startzeit liegen!');
+      return;
+    }
 
     onEdit(editingEntry.id, {
       projectId: editProjectId,
-      description: editDescription
+      description: editDescription,
+      startTime: startDateTime,
+      endTime: endDateTime,
+      duration
     });
 
     setEditingEntry(null);
@@ -236,12 +259,52 @@ export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              Datum *
+            </label>
+            <input
+              type="date"
+              value={editDate}
+              onChange={(e) => setEditDate(e.target.value)}
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Von *
+              </label>
+              <input
+                type="time"
+                value={editStartTime}
+                onChange={(e) => setEditStartTime(e.target.value)}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Bis *
+              </label>
+              <input
+                type="time"
+                value={editEndTime}
+                onChange={(e) => setEditEndTime(e.target.value)}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Beschreibung
             </label>
             <textarea
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
-              rows={4}
+              rows={3}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
           </div>
@@ -255,7 +318,7 @@ export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit
             </button>
             <button
               onClick={handleSaveEdit}
-              disabled={!editProjectId}
+              disabled={!editProjectId || !editDate || !editStartTime || !editEndTime}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               Speichern
