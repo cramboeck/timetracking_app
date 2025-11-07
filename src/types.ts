@@ -2,6 +2,7 @@ export interface Customer {
   id: string;
   name: string;
   color: string;
+  customerNumber?: string; // For sevDesk integration
   contactPerson?: string;
   email?: string;
   address?: string;
@@ -14,6 +15,13 @@ export interface CompanyInfo {
   email: string;
   phone?: string;
   taxId?: string;
+}
+
+export interface Activity {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
 }
 
 export interface Project {

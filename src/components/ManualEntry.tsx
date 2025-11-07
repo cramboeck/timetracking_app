@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { Save } from 'lucide-react';
-import { TimeEntry, Project, Customer } from '../types';
+import { TimeEntry, Project, Customer, Activity } from '../types';
 import { calculateDuration } from '../utils/time';
 
 interface ManualEntryProps {
   onSave: (entry: TimeEntry) => void;
   projects: Project[];
   customers: Customer[];
+  activities: Activity[];
 }
 
-export const ManualEntry = ({ onSave, projects, customers }: ManualEntryProps) => {
+export const ManualEntry = ({ onSave, projects, customers, activities }: ManualEntryProps) => {
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState('09:00');
@@ -145,6 +146,21 @@ export const ManualEntry = ({ onSave, projects, customers }: ManualEntryProps) =
               rows={4}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
+            {activities.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {activities.map(activity => (
+                  <button
+                    key={activity.id}
+                    type="button"
+                    onClick={() => setDescription(activity.name)}
+                    className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                    title={activity.description}
+                  >
+                    {activity.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

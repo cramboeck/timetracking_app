@@ -1,8 +1,9 @@
-import { TimeEntry, Customer, Project } from '../types';
+import { TimeEntry, Customer, Project, Activity } from '../types';
 
 const STORAGE_KEY_ENTRIES = 'timetracking_entries';
 const STORAGE_KEY_CUSTOMERS = 'timetracking_customers';
 const STORAGE_KEY_PROJECTS = 'timetracking_projects';
+const STORAGE_KEY_ACTIVITIES = 'timetracking_activities';
 
 export const storage = {
   // Time Entries
@@ -123,5 +124,45 @@ export const storage = {
     const projects = storage.getProjects();
     const filtered = projects.filter(p => p.id !== id);
     storage.saveProjects(filtered);
+  },
+
+  // Activities
+  getActivities: (): Activity[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_ACTIVITIES);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Error loading activities:', error);
+      return [];
+    }
+  },
+
+  saveActivities: (activities: Activity[]): void => {
+    try {
+      localStorage.setItem(STORAGE_KEY_ACTIVITIES, JSON.stringify(activities));
+    } catch (error) {
+      console.error('Error saving activities:', error);
+    }
+  },
+
+  addActivity: (activity: Activity): void => {
+    const activities = storage.getActivities();
+    activities.push(activity);
+    storage.saveActivities(activities);
+  },
+
+  updateActivity: (id: string, updates: Partial<Activity>): void => {
+    const activities = storage.getActivities();
+    const index = activities.findIndex(a => a.id === id);
+    if (index !== -1) {
+      activities[index] = { ...activities[index], ...updates };
+      storage.saveActivities(activities);
+    }
+  },
+
+  deleteActivity: (id: string): void => {
+    const activities = storage.getActivities();
+    const filtered = activities.filter(a => a.id !== id);
+    storage.saveActivities(filtered);
   }
 };
