@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginCredentials, RegisterData } from '../types';
+import { User, LoginCredentials, RegisterData, AccentColor } from '../types';
 import { storage } from '../utils/storage';
 import { hashPassword, verifyPassword, validatePassword, validateEmail, validateUsername } from '../utils/auth';
+import { accentColor } from '../utils/accentColor';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -10,6 +11,7 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; message?: string }>;
   register: (data: RegisterData) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
+  updateAccentColor: (color: AccentColor) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -108,7 +110,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         username: data.username,
         email: data.email,
         passwordHash,
+        accountType: data.accountType,
+        organizationName: data.organizationName,
         mfaEnabled: false,
+        accentColor: 'blue', // Default accent color
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString()
       };
@@ -130,13 +135,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setCurrentUser(null);
   };
 
+  const updateAccentColor = (color: AccentColor) => {
+    if (!currentUser) return;
+
+    // Update user in storage
+    storage.updateUser(currentUser.id, { accentColor: color });
+
+    // Update local state
+    const updatedUser = { ...currentUser, accentColor: color };
+    setCurrentUser(updatedUser);
+    storage.setCurrentUser(updatedUser);
+
+    // Update accent color utility
+    accentColor.set(color);
+  };
+
   const value: AuthContextType = {
     currentUser,
     isAuthenticated: !!currentUser,
     isLoading,
     login,
     register,
-    logout
+    logout,
+    updateAccentColor
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

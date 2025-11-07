@@ -26,13 +26,20 @@ export interface Activity {
   createdAt: string;
 }
 
+export type AccountType = 'personal' | 'business' | 'team';
+
+export type AccentColor = 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'pink';
+
 export interface User {
   id: string;
   username: string;
   email: string;
   passwordHash: string;
+  accountType: AccountType;
+  organizationName?: string; // For business/team accounts
   mfaEnabled: boolean;
   mfaSecret?: string; // For future TOTP implementation
+  accentColor: AccentColor; // User's chosen accent color
   createdAt: string;
   lastLogin?: string;
 }
@@ -53,6 +60,8 @@ export interface RegisterData {
   username: string;
   email: string;
   password: string;
+  accountType: AccountType;
+  organizationName?: string;
 }
 
 export interface Project {

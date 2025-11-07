@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Clock, Mail, Lock, User, Shield } from 'lucide-react';
+import { Clock, Mail, Lock, User, Shield, Building2, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { AccountType } from '../types';
 
 export const Auth = () => {
   const { login, register } = useAuth();
@@ -18,6 +19,8 @@ export const Auth = () => {
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [registerPasswordConfirm, setRegisterPasswordConfirm] = useState('');
+  const [registerAccountType, setRegisterAccountType] = useState<AccountType>('personal');
+  const [registerOrganizationName, setRegisterOrganizationName] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,12 +49,19 @@ export const Auth = () => {
       return;
     }
 
+    if ((registerAccountType === 'business' || registerAccountType === 'team') && !registerOrganizationName.trim()) {
+      setError('Bitte gib einen Firmennamen/Team-Namen ein');
+      return;
+    }
+
     setIsLoading(true);
 
     const result = await register({
       username: registerUsername,
       email: registerEmail,
-      password: registerPassword
+      password: registerPassword,
+      accountType: registerAccountType,
+      organizationName: registerOrganizationName.trim() || undefined
     });
 
     if (!result.success) {
@@ -183,6 +193,77 @@ export const Auth = () => {
             ) : (
               /* Register Form */
               <form onSubmit={handleRegister} className="space-y-4">
+                {/* Account Type Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Account-Typ *
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRegisterAccountType('personal')}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                        registerAccountType === 'personal'
+                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30'
+                          : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                      }`}
+                    >
+                      <User size={24} className={registerAccountType === 'personal' ? 'text-blue-600' : 'text-gray-400'} />
+                      <span className={`text-xs font-medium ${registerAccountType === 'personal' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                        Freelancer
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRegisterAccountType('business')}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                        registerAccountType === 'business'
+                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30'
+                          : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                      }`}
+                    >
+                      <Building2 size={24} className={registerAccountType === 'business' ? 'text-blue-600' : 'text-gray-400'} />
+                      <span className={`text-xs font-medium ${registerAccountType === 'business' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                        Unternehmen
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRegisterAccountType('team')}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                        registerAccountType === 'team'
+                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30'
+                          : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                      }`}
+                    >
+                      <Users size={24} className={registerAccountType === 'team' ? 'text-blue-600' : 'text-gray-400'} />
+                      <span className={`text-xs font-medium ${registerAccountType === 'team' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                        Team
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Organization Name - only for business/team */}
+                {(registerAccountType === 'business' || registerAccountType === 'team') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      {registerAccountType === 'business' ? 'Firmenname' : 'Team-Name'} *
+                    </label>
+                    <div className="relative">
+                      <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                      <input
+                        type="text"
+                        value={registerOrganizationName}
+                        onChange={(e) => setRegisterOrganizationName(e.target.value)}
+                        placeholder={registerAccountType === 'business' ? 'z.B. Musterfirma GmbH' : 'z.B. Design Team Alpha'}
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Benutzername *
@@ -196,7 +277,7 @@ export const Auth = () => {
                       placeholder="3-20 Zeichen, nur a-z, 0-9, _, -"
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required
-                      autoFocus
+                      autoFocus={registerAccountType === 'personal'}
                     />
                   </div>
                 </div>

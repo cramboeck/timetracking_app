@@ -43,7 +43,7 @@ export const Settings = ({
   onUpdateActivity,
   onDeleteActivity
 }: SettingsProps) => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, updateAccentColor } = useAuth();
   const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'activities' | 'appearance'>('customers');
 
   // Customer Modal
@@ -497,27 +497,43 @@ export const Settings = ({
         {activeTab === 'appearance' && (
           <div className="max-w-4xl mx-auto space-y-6">
             {/* Account Info */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account</h2>
 
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Benutzername</p>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">Account-Typ</p>
+                  <p className="font-medium text-gray-900 dark:text-white capitalize">
+                    {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
+                    {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
+                    {currentUser?.accountType === 'team' && '👥 Team'}
+                  </p>
+                </div>
+                {currentUser?.organizationName && (
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">
+                      {currentUser?.accountType === 'business' ? 'Firmenname' : 'Team-Name'}
+                    </p>
+                    <p className="font-medium text-gray-900 dark:text-white">{currentUser?.organizationName}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">Benutzername</p>
                   <p className="font-medium text-gray-900 dark:text-white">{currentUser?.username}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">E-Mail</p>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">E-Mail</p>
                   <p className="font-medium text-gray-900 dark:text-white">{currentUser?.email}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Mitglied seit</p>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">Mitglied seit</p>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {currentUser?.createdAt && new Date(currentUser.createdAt).toLocaleDateString('de-DE')}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-dark-200">
                 <button
                   onClick={logout}
                   className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium"
@@ -529,21 +545,22 @@ export const Settings = ({
             </div>
 
             {/* Appearance Settings */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Design & Aussehen</h2>
 
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* Dark Mode Toggle */}
                 <div className="flex items-center justify-between py-3">
                   <div>
                     <h3 className="font-medium text-gray-900 dark:text-white">Dark Mode</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      Dunkles Farbschema für bessere Lesbarkeit bei Nacht
+                    <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+                      Dunkles Farbschema mit tiefen Grautönen
                     </p>
                   </div>
                   <button
                     onClick={onToggleDarkMode}
-                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                      darkMode ? 'bg-blue-600' : 'bg-gray-300'
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent-${currentUser?.accentColor || 'blue'}-500 focus:ring-offset-2 ${
+                      darkMode ? `bg-accent-${currentUser?.accentColor || 'blue'}-600` : 'bg-gray-300'
                     }`}
                   >
                     <span
@@ -552,6 +569,49 @@ export const Settings = ({
                       }`}
                     />
                   </button>
+                </div>
+
+                {/* Accent Color Selection */}
+                <div className="pt-3 border-t border-gray-200 dark:border-dark-200">
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-2">Akzentfarbe</h3>
+                  <p className="text-sm text-gray-500 dark:text-dark-400 mb-4">
+                    Wähle deine bevorzugte Akzentfarbe für Buttons und Highlights
+                  </p>
+                  <div className="grid grid-cols-6 gap-3">
+                    {[
+                      { name: 'blue', label: 'Blau', class: 'bg-accent-blue-600' },
+                      { name: 'green', label: 'Grün', class: 'bg-accent-green-600' },
+                      { name: 'orange', label: 'Orange', class: 'bg-accent-orange-600' },
+                      { name: 'purple', label: 'Lila', class: 'bg-accent-purple-600' },
+                      { name: 'red', label: 'Rot', class: 'bg-accent-red-600' },
+                      { name: 'pink', label: 'Pink', class: 'bg-accent-pink-600' },
+                    ].map((color) => (
+                      <button
+                        key={color.name}
+                        onClick={() => updateAccentColor(color.name as any)}
+                        className={`relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover:scale-105 ${
+                          currentUser?.accentColor === color.name
+                            ? `border-accent-${color.name}-600 bg-accent-${color.name}-50 dark:bg-accent-${color.name}-900/20`
+                            : 'border-gray-300 dark:border-dark-200 hover:border-gray-400'
+                        }`}
+                        title={color.label}
+                      >
+                        <div className={`w-8 h-8 rounded-full ${color.class}`} />
+                        <span className={`text-xs font-medium ${
+                          currentUser?.accentColor === color.name
+                            ? `text-accent-${color.name}-600`
+                            : 'text-gray-600 dark:text-dark-400'
+                        }`}>
+                          {color.label}
+                        </span>
+                        {currentUser?.accentColor === color.name && (
+                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-white dark:bg-dark-100 rounded-full flex items-center justify-center">
+                            <div className={`w-3 h-3 bg-accent-${color.name}-600 rounded-full`} />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
