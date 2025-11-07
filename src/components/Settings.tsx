@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Briefcase, Clock } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, CompanyInfo, TeamInvitation, User } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -45,7 +45,7 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'timetracking'>('account');
   const [timeTrackingSubTab, setTimeTrackingSubTab] = useState<'customers' | 'projects' | 'activities'>('customers');
 
   // Company Info State
@@ -716,22 +716,22 @@ export const Settings = ({
             )}
 
             {timeTrackingSubTab === 'projects' && (
-          <div className="max-w-4xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
-              <p className="text-gray-600">{projects.length} Projekt(e)</p>
-              <button
-                onClick={() => openProjectModal()}
-                disabled={customers.length === 0}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                <Plus size={20} />
-                Projekt hinzufügen
-              </button>
-            </div>
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <p className="text-gray-600 dark:text-dark-400">{projects.length} Projekt(e)</p>
+                  <button
+                    onClick={() => openProjectModal()}
+                    disabled={customers.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus size={20} />
+                    Projekt hinzufügen
+                  </button>
+                </div>
 
-            {customers.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Users size={48} className="mx-auto mb-4 opacity-50" />
+                {customers.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-dark-400">
+                    <Users size={48} className="mx-auto mb-4 opacity-50" />
                 <p>Bitte füge zuerst einen Kunden hinzu</p>
               </div>
             ) : projects.length === 0 ? (
@@ -785,61 +785,63 @@ export const Settings = ({
                 })}
               </div>
             )}
-          </div>
-        )}
-
-        {activeTab === 'activities' && (
-          <div className="max-w-4xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
-              <p className="text-gray-600">{activities.length} Tätigkeit(en)</p>
-              <button
-                onClick={() => openActivityModal()}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus size={20} />
-                Tätigkeit hinzufügen
-              </button>
-            </div>
-
-            {activities.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <ListChecks size={48} className="mx-auto mb-4 opacity-50" />
-                <p>Noch keine Tätigkeiten vorhanden</p>
-                <p className="text-sm mt-2">Füge vorgefertigte Tätigkeiten hinzu (z.B. "Meeting", "Entwicklung", "Beratung")</p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {activities.map(activity => (
-                  <div
-                    key={activity.id}
-                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+            )}
+
+            {timeTrackingSubTab === 'activities' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <p className="text-gray-600 dark:text-dark-400">{activities.length} Tätigkeit(en)</p>
+                  <button
+                    onClick={() => openActivityModal()}
+                    className="flex items-center gap-2 px-4 py-2 btn-accent"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{activity.name}</h3>
-                        {activity.description && (
-                          <p className="text-sm text-gray-500 mt-1">{activity.description}</p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openActivityModal(activity)}
-                          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Bearbeiten"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteActivity(activity)}
-                          className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Löschen"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </div>
+                    <Plus size={20} />
+                    Tätigkeit hinzufügen
+                  </button>
+                </div>
+
+                {activities.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-dark-400">
+                    <ListChecks size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Noch keine Tätigkeiten vorhanden</p>
+                    <p className="text-sm mt-2">Füge vorgefertigte Tätigkeiten hinzu (z.B. "Meeting", "Entwicklung", "Beratung")</p>
                   </div>
-                ))}
+                ) : (
+                  <div className="space-y-4">
+                    {activities.map(activity => (
+                      <div
+                        key={activity.id}
+                        className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">{activity.name}</h3>
+                            {activity.description && (
+                              <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">{activity.description}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openActivityModal(activity)}
+                              className="p-2 text-gray-600 dark:text-dark-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              title="Bearbeiten"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteActivity(activity)}
+                              className="p-2 text-gray-600 dark:text-dark-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Löschen"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1392,6 +1394,7 @@ export const Settings = ({
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Customer Modal */}
