@@ -513,116 +513,56 @@ export const Settings = ({
         {/* Account Tab */}
         {activeTab === 'account' && (
           <div className="max-w-4xl mx-auto space-y-6">
-            {/* Profile Overview Card */}
-            <div className="bg-gradient-to-br from-accent-primary to-accent-600 rounded-xl p-6 shadow-lg text-white">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl font-bold">
-                    {currentUser?.username.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold">{currentUser?.username}</h2>
-                    <p className="text-white/90 text-sm mt-1">{currentUser?.email}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium">
-                        {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
-                        {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
-                        {currentUser?.accountType === 'team' && '👥 Team'}
-                      </span>
-                      {currentUser?.organizationName && (
-                        <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium">
-                          {currentUser.organizationName}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Account Statistics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4">
-                <div className="text-gray-500 dark:text-dark-400 text-xs font-medium uppercase tracking-wide">Kunden</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{customers.length}</div>
-              </div>
-              <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4">
-                <div className="text-gray-500 dark:text-dark-400 text-xs font-medium uppercase tracking-wide">Projekte</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{projects.length}</div>
-              </div>
-              <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4">
-                <div className="text-gray-500 dark:text-dark-400 text-xs font-medium uppercase tracking-wide">Tätigkeiten</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{activities.length}</div>
-              </div>
-              <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4">
-                <div className="text-gray-500 dark:text-dark-400 text-xs font-medium uppercase tracking-wide">Einträge</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                  {storage.getEntries().filter(e => e.userId === currentUser?.id).length}
-                </div>
-              </div>
-            </div>
-
             {/* Account Details */}
             <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
               <div className="flex items-center gap-3 mb-6">
                 <UserIcon size={20} className="text-accent-primary" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Account-Details</h3>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Mein Account</h3>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">Persönliche Informationen</p>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wide">User-ID</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <code className="text-xs font-mono px-2 py-1 bg-gray-100 dark:bg-dark-50 rounded text-gray-700 dark:text-dark-300 flex-1 truncate">
-                      {currentUser?.id}
-                    </code>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(currentUser?.id || '');
-                        alert('✅ User-ID kopiert!');
-                      }}
-                      className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-50 rounded transition-colors"
-                      title="Kopieren"
-                    >
-                      <Copy size={14} className="text-gray-500" />
-                    </button>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Account-Typ</p>
+                    <p className="mt-1 font-medium text-gray-900 dark:text-white">
+                      {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
+                      {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
+                      {currentUser?.accountType === 'team' && '👥 Team'}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">Für Support-Anfragen</p>
+                  {currentUser?.organizationName && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-dark-400">
+                        {currentUser?.accountType === 'business' ? 'Firmenname' : 'Team-Name'}
+                      </p>
+                      <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser.organizationName}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Benutzername</p>
+                    <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser?.username}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">E-Mail</p>
+                    <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser?.email}</p>
+                  </div>
                 </div>
 
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wide">Mitglied seit</p>
-                  <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+                  <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Mitglied seit</p>
+                  <p className="mt-1 font-medium text-gray-900 dark:text-white">
                     {currentUser?.createdAt && new Date(currentUser.createdAt).toLocaleDateString('de-DE', {
-                      day: '2-digit',
+                      day: 'numeric',
                       month: 'long',
                       year: 'numeric'
                     })}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
-                    {currentUser?.createdAt && Math.floor((Date.now() - new Date(currentUser.createdAt).getTime()) / (1000 * 60 * 60 * 24))} Tage aktiv
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wide">Zeitrundung</p>
-                  <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                    {currentUser?.timeRoundingInterval === 1 ? 'Keine Rundung' : `${currentUser?.timeRoundingInterval} Minuten`}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">Aufrunden auf nächstes Intervall</p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wide">Akzentfarbe</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <div
-                      className="w-6 h-6 rounded-full border-2 border-gray-200 dark:border-dark-200"
-                      style={{ backgroundColor: `var(--accent-primary)` }}
-                    />
-                    <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">
-                      {currentUser?.accentColor}
-                    </span>
-                  </div>
                 </div>
               </div>
             </div>
