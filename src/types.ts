@@ -11,11 +11,20 @@ export interface Customer {
 }
 
 export interface CompanyInfo {
+  id: string;
+  userId: string; // User-specific company info
   name: string;
   address: string;
+  city: string;
+  zipCode: string;
+  country: string;
   email: string;
   phone?: string;
+  website?: string;
   taxId?: string;
+  logo?: string; // Base64 encoded image or URL
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Activity {

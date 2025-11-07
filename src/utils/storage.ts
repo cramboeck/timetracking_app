@@ -1,4 +1,4 @@
-import { TimeEntry, Customer, Project, Activity, User, Team, TeamMembership, TeamRole } from '../types';
+import { TimeEntry, Customer, Project, Activity, User, Team, TeamMembership, TeamRole, CompanyInfo } from '../types';
 
 const STORAGE_KEY_ENTRIES = 'timetracking_entries';
 const STORAGE_KEY_CUSTOMERS = 'timetracking_customers';
@@ -8,6 +8,7 @@ const STORAGE_KEY_USERS = 'timetracking_users';
 const STORAGE_KEY_CURRENT_USER = 'timetracking_current_user';
 const STORAGE_KEY_TEAMS = 'timetracking_teams';
 const STORAGE_KEY_TEAM_MEMBERSHIPS = 'timetracking_team_memberships';
+const STORAGE_KEY_COMPANY_INFO = 'timetracking_company_info';
 
 export const storage = {
   // Time Entries
@@ -316,5 +317,56 @@ export const storage = {
       return user.teamRole;
     }
     return undefined;
+  },
+
+  // Company Info
+  getCompanyInfos: (): CompanyInfo[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_COMPANY_INFO);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Error loading company infos:', error);
+      return [];
+    }
+  },
+
+  saveCompanyInfos: (infos: CompanyInfo[]): void => {
+    try {
+      localStorage.setItem(STORAGE_KEY_COMPANY_INFO, JSON.stringify(infos));
+    } catch (error) {
+      console.error('Error saving company infos:', error);
+    }
+  },
+
+  getCompanyInfoByUserId: (userId: string): CompanyInfo | undefined => {
+    const infos = storage.getCompanyInfos();
+    return infos.find(info => info.userId === userId);
+  },
+
+  saveCompanyInfo: (info: CompanyInfo): void => {
+    const infos = storage.getCompanyInfos();
+    const index = infos.findIndex(i => i.userId === info.userId);
+
+    if (index !== -1) {
+      infos[index] = { ...info, updatedAt: new Date().toISOString() };
+    } else {
+      infos.push(info);
+    }
+
+    storage.saveCompanyInfos(infos);
+  },
+
+  updateCompanyInfo: (userId: string, updates: Partial<CompanyInfo>): void => {
+    const infos = storage.getCompanyInfos();
+    const index = infos.findIndex(i => i.userId === userId);
+
+    if (index !== -1) {
+      infos[index] = {
+        ...infos[index],
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
+      storage.saveCompanyInfos(infos);
+    }
   }
 };
