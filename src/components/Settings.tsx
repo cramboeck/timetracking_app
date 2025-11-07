@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, CompanyInfo, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { storage } from '../utils/storage';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
+import { gdprService } from '../utils/gdpr';
 
 interface SettingsProps {
   customers: Customer[];
@@ -87,6 +88,8 @@ export const Settings = ({
   const [activityName, setActivityName] = useState('');
   const [activityDescription, setActivityDescription] = useState('');
   const [activityIsBillable, setActivityIsBillable] = useState(true);
+  const [activityPricingType, setActivityPricingType] = useState<'hourly' | 'flat'>('hourly');
+  const [activityFlatRate, setActivityFlatRate] = useState('');
 
   // Team State
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
@@ -204,11 +207,15 @@ export const Settings = ({
       setActivityName(activity.name);
       setActivityDescription(activity.description || '');
       setActivityIsBillable(activity.isBillable ?? true);
+      setActivityPricingType(activity.pricingType || 'hourly');
+      setActivityFlatRate(activity.flatRate?.toString() || '');
     } else {
       setEditingActivity(null);
       setActivityName('');
       setActivityDescription('');
       setActivityIsBillable(true);
+      setActivityPricingType('hourly');
+      setActivityFlatRate('');
     }
     setActivityModalOpen(true);
   };
@@ -216,11 +223,17 @@ export const Settings = ({
   const handleSaveActivity = () => {
     if (!activityName.trim()) return;
 
+    const flatRateValue = activityPricingType === 'flat' && activityFlatRate
+      ? parseFloat(activityFlatRate)
+      : undefined;
+
     if (editingActivity) {
       onUpdateActivity(editingActivity.id, {
         name: activityName.trim(),
         description: activityDescription.trim() || undefined,
-        isBillable: activityIsBillable
+        isBillable: activityIsBillable,
+        pricingType: activityPricingType,
+        flatRate: flatRateValue
       });
     } else {
       onAddActivity({
@@ -229,6 +242,8 @@ export const Settings = ({
         name: activityName.trim(),
         description: activityDescription.trim() || undefined,
         isBillable: activityIsBillable,
+        pricingType: activityPricingType,
+        flatRate: flatRateValue,
         createdAt: new Date().toISOString()
       });
     }
@@ -579,6 +594,114 @@ export const Settings = ({
                 <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <p className="text-sm text-blue-900 dark:text-blue-200">
                     ℹ️ Zeiten werden immer <strong>aufgerundet</strong>. Beispiel mit 15 Minuten: 1 Min → 15 Min, 16 Min → 30 Min
+                  </p>
+                </div>
+              </div>
+
+              {/* GDPR / Data Protection */}
+              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-dark-200">
+                <div className="flex items-center gap-3 mb-4">
+                  <Shield size={20} className="text-gray-600 dark:text-gray-400" />
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">Datenschutz (DSGVO)</h3>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Deine Daten verwalten</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      
+                      if (!currentUser) return;
+                      const json = gdprService.exportUserDataAsJSON(currentUser.id);
+                      gdprService.downloadDataAsFile(
+                        json,
+                        `timetrack-data-${currentUser.username}-${new Date().toISOString().split('T')[0]}.json`,
+                        'application/json'
+                      );
+                    }}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="text-2xl">📄</div>
+                      <div className="text-left">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">Daten exportieren (JSON)</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Alle deine Daten herunterladen</div>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      
+                      if (!currentUser) return;
+                      const csv = gdprService.exportUserDataAsCSV(currentUser.id);
+                      gdprService.downloadDataAsFile(
+                        csv,
+                        `timetrack-data-${currentUser.username}-${new Date().toISOString().split('T')[0]}.csv`,
+                        'text/csv'
+                      );
+                    }}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="text-2xl">📊</div>
+                      <div className="text-left">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">Daten exportieren (CSV)</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Excel-kompatibles Format</div>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (!currentUser) return;
+                      const confirmed = window.confirm(
+                        '⚠️ WARNUNG: Diese Aktion kann nicht rückgängig gemacht werden!\n\n' +
+                        'Alle deine Daten werden unwiderruflich gelöscht:\n' +
+                        '- Dein Account\n' +
+                        '- Alle Zeiterfassungen\n' +
+                        '- Kunden & Projekte\n' +
+                        '- Firmeninformationen\n\n' +
+                        'Möchtest du wirklich fortfahren?'
+                      );
+
+                      if (confirmed) {
+                        const doubleConfirm = window.confirm(
+                          `Bitte bestätige nochmals:\n\nGib "${currentUser.username}" ein, um zu bestätigen.`
+                        );
+
+                        if (doubleConfirm) {
+                          
+                          const success = gdprService.deleteUserData(currentUser.id);
+
+                          if (success) {
+                            alert('✅ Dein Account und alle Daten wurden erfolgreich gelöscht.');
+                            window.location.reload();
+                          } else {
+                            alert('❌ Fehler beim Löschen der Daten. Bitte kontaktiere den Support.');
+                          }
+                        }
+                      }
+                    }}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="text-2xl">🗑️</div>
+                      <div className="text-left">
+                        <div className="text-sm font-medium text-red-600 dark:text-red-400">Account löschen</div>
+                        <div className="text-xs text-red-500 dark:text-red-400">Recht auf Vergessen (DSGVO Art. 17)</div>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-red-400 group-hover:text-red-600" />
+                  </button>
+                </div>
+
+                <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <p className="text-xs text-yellow-900 dark:text-yellow-200">
+                    ℹ️ Alle Exporte enthalten <strong>keine Passwörter</strong> und werden gemäß DSGVO erstellt.
                   </p>
                 </div>
               </div>
@@ -1694,6 +1817,58 @@ export const Settings = ({
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              Abrechnungsart *
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setActivityPricingType('hourly')}
+                className={`p-3 rounded-lg border-2 transition-all text-center ${
+                  activityPricingType === 'hourly'
+                    ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-semibold'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 text-gray-700 dark:text-gray-300'
+                }`}
+              >
+                <div className="text-sm font-medium">Stundenabrechnung</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Nach Projektsatz</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivityPricingType('flat')}
+                className={`p-3 rounded-lg border-2 transition-all text-center ${
+                  activityPricingType === 'flat'
+                    ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-semibold'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 text-gray-700 dark:text-gray-300'
+                }`}
+              >
+                <div className="text-sm font-medium">Pauschalpreis</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Fester Betrag</div>
+              </button>
+            </div>
+          </div>
+
+          {activityPricingType === 'flat' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Pauschalbetrag * (€)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={activityFlatRate}
+                onChange={(e) => setActivityFlatRate(e.target.value)}
+                placeholder="z.B. 2500"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                💡 Dieser Betrag wird unabhängig von der erfassten Zeit abgerechnet
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
             <input

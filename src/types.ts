@@ -28,12 +28,16 @@ export interface CompanyInfo {
   updatedAt: string;
 }
 
+export type PricingType = 'hourly' | 'flat';
+
 export interface Activity {
   id: string;
   userId: string; // Multi-user support
   name: string;
   description?: string;
   isBillable: boolean; // Abrechenbar oder nicht
+  pricingType: PricingType; // Stunden- oder Pauschalabrechnung
+  flatRate?: number; // Pauschalbetrag (nur bei pricingType='flat')
   createdAt: string;
 }
 
