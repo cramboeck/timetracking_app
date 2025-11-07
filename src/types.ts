@@ -23,6 +23,7 @@ export interface Activity {
   userId: string; // Multi-user support
   name: string;
   description?: string;
+  isBillable: boolean; // Abrechenbar oder nicht
   createdAt: string;
 }
 
@@ -86,12 +87,15 @@ export interface RegisterData {
   organizationName?: string;
 }
 
+export type RateType = 'hourly' | 'daily';
+
 export interface Project {
   id: string;
   userId: string; // Multi-user support
   customerId: string;
   name: string;
-  hourlyRate: number; // in EUR
+  rateType: RateType; // Stundensatz oder Tagessatz
+  hourlyRate: number; // in EUR (wird für Tagessatz auch verwendet)
   isActive: boolean;
   createdAt: string;
 }

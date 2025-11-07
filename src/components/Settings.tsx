@@ -68,6 +68,7 @@ export const Settings = ({
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [activityName, setActivityName] = useState('');
   const [activityDescription, setActivityDescription] = useState('');
+  const [activityIsBillable, setActivityIsBillable] = useState(true);
 
   // Delete Confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -171,10 +172,12 @@ export const Settings = ({
       setEditingActivity(activity);
       setActivityName(activity.name);
       setActivityDescription(activity.description || '');
+      setActivityIsBillable(activity.isBillable ?? true);
     } else {
       setEditingActivity(null);
       setActivityName('');
       setActivityDescription('');
+      setActivityIsBillable(true);
     }
     setActivityModalOpen(true);
   };
@@ -185,7 +188,8 @@ export const Settings = ({
     if (editingActivity) {
       onUpdateActivity(editingActivity.id, {
         name: activityName.trim(),
-        description: activityDescription.trim() || undefined
+        description: activityDescription.trim() || undefined,
+        isBillable: activityIsBillable
       });
     } else {
       onAddActivity({
@@ -193,6 +197,7 @@ export const Settings = ({
         userId: currentUser!.id,
         name: activityName.trim(),
         description: activityDescription.trim() || undefined,
+        isBillable: activityIsBillable,
         createdAt: new Date().toISOString()
       });
     }
@@ -252,13 +257,13 @@ export const Settings = ({
       </div>
 
       {/* Tabs */}
-      <div className="bg-white border-b border-gray-200 px-6">
-        <div className="flex gap-4">
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 overflow-x-auto">
+        <div className="flex gap-2 sm:gap-4 min-w-max">
           <button
             onClick={() => setActiveTab('customers')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
               activeTab === 'customers'
-                ? 'border-blue-600 text-blue-600 font-semibold'
+                ? 'border-accent-primary text-accent-primary font-semibold'
                 : 'border-transparent text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -267,9 +272,9 @@ export const Settings = ({
           </button>
           <button
             onClick={() => setActiveTab('projects')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
               activeTab === 'projects'
-                ? 'border-blue-600 text-blue-600 font-semibold'
+                ? 'border-accent-primary text-accent-primary font-semibold'
                 : 'border-transparent text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -278,9 +283,9 @@ export const Settings = ({
           </button>
           <button
             onClick={() => setActiveTab('activities')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
               activeTab === 'activities'
-                ? 'border-blue-600 text-blue-600 font-semibold'
+                ? 'border-accent-primary text-accent-primary font-semibold'
                 : 'border-transparent text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -289,9 +294,9 @@ export const Settings = ({
           </button>
           <button
             onClick={() => setActiveTab('appearance')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
               activeTab === 'appearance'
-                ? 'border-blue-600 text-blue-600 font-semibold'
+                ? 'border-accent-primary text-accent-primary font-semibold'
                 : 'border-transparent text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -889,6 +894,22 @@ export const Settings = ({
               rows={3}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
+          </div>
+
+          <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <input
+              type="checkbox"
+              id="activity-billable"
+              checked={activityIsBillable}
+              onChange={(e) => setActivityIsBillable(e.target.checked)}
+              className="w-4 h-4 text-accent-primary border-gray-300 rounded focus:ring-2 focus:ring-accent-primary"
+            />
+            <label htmlFor="activity-billable" className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+              Abrechenbar
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Nicht abrechenbare Tätigkeiten werden nicht in Reports berücksichtigt
+              </span>
+            </label>
           </div>
 
           <div className="flex gap-3 pt-4">
