@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast } from 'lucide-react';
-import { Customer, Project, Activity, GrayTone } from '../types';
+import { useState, useEffect } from 'react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X } from 'lucide-react';
+import { Customer, Project, Activity, GrayTone, CompanyInfo } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
+import { storage } from '../utils/storage';
 
 interface SettingsProps {
   customers: Customer[];
@@ -44,7 +45,20 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone } = useAuth();
-  const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'activities' | 'appearance'>('customers');
+  const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'activities' | 'company' | 'appearance'>('customers');
+
+  // Company Info State
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
+  const [companyName, setCompanyName] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [companyCity, setCompanyCity] = useState('');
+  const [companyZipCode, setCompanyZipCode] = useState('');
+  const [companyCountry, setCompanyCountry] = useState('Deutschland');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [companyWebsite, setCompanyWebsite] = useState('');
+  const [companyTaxId, setCompanyTaxId] = useState('');
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
 
   // Customer Modal
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
@@ -252,6 +266,79 @@ export const Settings = ({
     }
   };
 
+  // Load company info on mount
+  useEffect(() => {
+    if (currentUser) {
+      const info = storage.getCompanyInfoByUserId(currentUser.id);
+      if (info) {
+        setCompanyInfo(info);
+        setCompanyName(info.name);
+        setCompanyAddress(info.address);
+        setCompanyCity(info.city);
+        setCompanyZipCode(info.zipCode);
+        setCompanyCountry(info.country);
+        setCompanyEmail(info.email);
+        setCompanyPhone(info.phone || '');
+        setCompanyWebsite(info.website || '');
+        setCompanyTaxId(info.taxId || '');
+        setCompanyLogo(info.logo || null);
+      }
+    }
+  }, [currentUser]);
+
+  const handleSaveCompanyInfo = () => {
+    if (!currentUser) return;
+
+    const info: CompanyInfo = {
+      id: companyInfo?.id || crypto.randomUUID(),
+      userId: currentUser.id,
+      name: companyName.trim(),
+      address: companyAddress.trim(),
+      city: companyCity.trim(),
+      zipCode: companyZipCode.trim(),
+      country: companyCountry.trim(),
+      email: companyEmail.trim(),
+      phone: companyPhone.trim() || undefined,
+      website: companyWebsite.trim() || undefined,
+      taxId: companyTaxId.trim() || undefined,
+      logo: companyLogo || undefined,
+      createdAt: companyInfo?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    storage.saveCompanyInfo(info);
+    setCompanyInfo(info);
+    alert('Firmendaten gespeichert!');
+  };
+
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Logo darf maximal 2MB groß sein');
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Nur Bilddateien sind erlaubt');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      setCompanyLogo(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setCompanyLogo(null);
+  };
+
   const getCustomerById = (id: string) => customers.find(c => c.id === id);
 
   return (
@@ -296,6 +383,17 @@ export const Settings = ({
           >
             <ListChecks size={20} />
             Tätigkeiten
+          </button>
+          <button
+            onClick={() => setActiveTab('company')}
+            className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
+              activeTab === 'company'
+                ? 'border-accent-primary text-accent-primary font-semibold'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Building size={20} />
+            Firma
           </button>
           <button
             onClick={() => setActiveTab('appearance')}
@@ -501,6 +599,220 @@ export const Settings = ({
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'company' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <Building size={24} className="text-accent-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Firmendaten</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    Diese Informationen erscheinen in deinen PDF-Reports
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Logo Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Firmenlogo
+                  </label>
+
+                  {companyLogo ? (
+                    <div className="relative inline-block">
+                      <img
+                        src={companyLogo}
+                        alt="Company Logo"
+                        className="h-24 w-auto object-contain border border-gray-200 dark:border-dark-200 rounded-lg p-2 bg-white dark:bg-dark-50"
+                      />
+                      <button
+                        onClick={handleRemoveLogo}
+                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                        title="Logo entfernen"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <label
+                        htmlFor="logo-upload"
+                        className="inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 dark:border-dark-200 rounded-lg cursor-pointer hover:border-accent-primary hover:bg-accent-light dark:hover:bg-accent-lighter/10 transition-colors"
+                      >
+                        <Upload size={20} className="text-gray-500" />
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Logo hochladen
+                        </span>
+                      </label>
+                      <input
+                        id="logo-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        PNG, JPG oder SVG • Max. 2MB
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Company Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Firmenname *
+                  </label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="z.B. Musterfirma GmbH"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                {/* Address Fields Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Straße & Hausnummer *
+                    </label>
+                    <input
+                      type="text"
+                      value={companyAddress}
+                      onChange={(e) => setCompanyAddress(e.target.value)}
+                      placeholder="z.B. Musterstraße 123"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      PLZ *
+                    </label>
+                    <input
+                      type="text"
+                      value={companyZipCode}
+                      onChange={(e) => setCompanyZipCode(e.target.value)}
+                      placeholder="z.B. 12345"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Stadt *
+                    </label>
+                    <input
+                      type="text"
+                      value={companyCity}
+                      onChange={(e) => setCompanyCity(e.target.value)}
+                      placeholder="z.B. Berlin"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Land *
+                    </label>
+                    <input
+                      type="text"
+                      value={companyCountry}
+                      onChange={(e) => setCompanyCountry(e.target.value)}
+                      placeholder="z.B. Deutschland"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Contact Fields */}
+                <div className="pt-4 border-t border-gray-200 dark:border-dark-200">
+                  <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">Kontaktdaten</h3>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        E-Mail *
+                      </label>
+                      <input
+                        type="email"
+                        value={companyEmail}
+                        onChange={(e) => setCompanyEmail(e.target.value)}
+                        placeholder="z.B. kontakt@musterfirma.de"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Telefon
+                        </label>
+                        <input
+                          type="tel"
+                          value={companyPhone}
+                          onChange={(e) => setCompanyPhone(e.target.value)}
+                          placeholder="z.B. +49 30 12345678"
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Website
+                        </label>
+                        <input
+                          type="url"
+                          value={companyWebsite}
+                          onChange={(e) => setCompanyWebsite(e.target.value)}
+                          placeholder="z.B. https://musterfirma.de"
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tax ID */}
+                <div className="pt-4 border-t border-gray-200 dark:border-dark-200">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Steuernummer / USt-IdNr.
+                    </label>
+                    <input
+                      type="text"
+                      value={companyTaxId}
+                      onChange={(e) => setCompanyTaxId(e.target.value)}
+                      placeholder="z.B. DE123456789"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      Optional: Für Rechnungen und offizielle Dokumente
+                    </p>
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <div className="pt-6 border-t border-gray-200 dark:border-dark-200">
+                  <button
+                    onClick={handleSaveCompanyInfo}
+                    disabled={!companyName.trim() || !companyAddress.trim() || !companyCity.trim() || !companyZipCode.trim() || !companyCountry.trim() || !companyEmail.trim()}
+                    className="btn-accent px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Firmendaten speichern
+                  </button>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                    * Pflichtfelder
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
