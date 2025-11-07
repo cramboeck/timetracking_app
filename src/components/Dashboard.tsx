@@ -20,29 +20,76 @@ interface ProjectStats {
   entryCount: number;
 }
 
+type TimeframeType = 'month' | 'quarter' | 'year' | 'custom';
+
 export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
+  const [timeframeType, setTimeframeType] = useState<TimeframeType>('month');
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [selectedCustomer, setSelectedCustomer] = useState<string>('all');
+  const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   const getProjectById = (id: string) => projects.find(p => p.id === id);
   const getCustomerById = (id: string) => customers.find(c => c.id === id);
 
-  // Filter entries by selected month
-  const monthlyEntries = useMemo(() => {
+  // Get current quarter/year based on selected month
+  const getCurrentQuarter = () => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const quarter = Math.floor((month - 1) / 3) + 1;
+    return { year, quarter };
+  };
+
+  // Filter entries based on all criteria
+  const filteredEntries = useMemo(() => {
     return entries.filter(entry => {
+      if (entry.isRunning) return false;
+
       const entryDate = new Date(entry.startTime);
-      const entryMonth = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}`;
-      return entryMonth === selectedMonth && !entry.isRunning;
+      const project = getProjectById(entry.projectId);
+
+      // Filter by customer
+      if (selectedCustomer !== 'all' && project?.customerId !== selectedCustomer) {
+        return false;
+      }
+
+      // Filter by project
+      if (selectedProject !== 'all' && entry.projectId !== selectedProject) {
+        return false;
+      }
+
+      // Filter by timeframe
+      if (timeframeType === 'month') {
+        const entryMonth = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}`;
+        return entryMonth === selectedMonth;
+      } else if (timeframeType === 'quarter') {
+        const { year, quarter } = getCurrentQuarter();
+        const entryYear = entryDate.getFullYear();
+        const entryQuarter = Math.floor(entryDate.getMonth() / 3) + 1;
+        return entryYear === year && entryQuarter === quarter;
+      } else if (timeframeType === 'year') {
+        const [year] = selectedMonth.split('-').map(Number);
+        return entryDate.getFullYear() === year;
+      } else if (timeframeType === 'custom') {
+        if (!customStartDate || !customEndDate) return true;
+        const start = new Date(customStartDate);
+        const end = new Date(customEndDate);
+        end.setHours(23, 59, 59, 999);
+        return entryDate >= start && entryDate <= end;
+      }
+
+      return true;
     });
-  }, [entries, selectedMonth]);
+  }, [entries, selectedMonth, selectedCustomer, selectedProject, timeframeType, customStartDate, customEndDate, getProjectById]);
 
   // Calculate statistics
   const stats = useMemo(() => {
     const projectMap = new Map<string, ProjectStats>();
 
-    monthlyEntries.forEach(entry => {
+    filteredEntries.forEach(entry => {
       const project = getProjectById(entry.projectId);
       const customer = project ? getCustomerById(project.customerId) : null;
 
@@ -71,7 +118,7 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
     });
 
     return Array.from(projectMap.values()).sort((a, b) => b.totalSeconds - a.totalSeconds);
-  }, [monthlyEntries, projects, customers]);
+  }, [filteredEntries, projects, customers]);
 
   const totalSeconds = stats.reduce((sum, s) => sum + s.totalSeconds, 0);
   const totalAmount = stats.reduce((sum, s) => sum + s.totalAmount, 0);
@@ -88,61 +135,136 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
     return Array.from(months).sort().reverse();
   }, [entries]);
 
+  // Get period label for PDF
+  const getPeriodLabel = () => {
+    if (timeframeType === 'custom' && customStartDate && customEndDate) {
+      const start = new Date(customStartDate).toLocaleDateString('de-DE');
+      const end = new Date(customEndDate).toLocaleDateString('de-DE');
+      return `${start} - ${end}`;
+    }
+    const [year, month] = selectedMonth.split('-');
+    if (timeframeType === 'year') {
+      return year;
+    } else if (timeframeType === 'quarter') {
+      const { quarter } = getCurrentQuarter();
+      return `Q${quarter} ${year}`;
+    }
+    return new Date(parseInt(year), parseInt(month) - 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' });
+  };
+
   const generatePDF = () => {
     const doc = new jsPDF();
-    const [year, month] = selectedMonth.split('-');
-    const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' });
+    const periodLabel = getPeriodLabel();
+    const customerFilter = selectedCustomer !== 'all' ? getCustomerById(selectedCustomer) : null;
 
-    // Header
-    doc.setFontSize(20);
-    doc.text('Stundenbericht', 20, 20);
+    // Header - Professional layout
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Stundenbericht', 105, 25, { align: 'center' });
+
     doc.setFontSize(12);
-    doc.text(monthName, 20, 30);
+    doc.setFont('helvetica', 'normal');
+    doc.text(periodLabel, 105, 35, { align: 'center' });
 
-    // Summary
+    // Customer Info (if filtered)
+    if (customerFilter) {
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Kunde:', 20, 50);
+      doc.setFont('helvetica', 'normal');
+      doc.text(customerFilter.name, 40, 50);
+      if (customerFilter.contactPerson) {
+        doc.text(`Ansprechpartner: ${customerFilter.contactPerson}`, 40, 56);
+      }
+      if (customerFilter.email) {
+        doc.text(`E-Mail: ${customerFilter.email}`, 40, 62);
+      }
+    }
+
+    // Summary box
+    let y = customerFilter ? 75 : 50;
+    doc.setFillColor(240, 240, 240);
+    doc.rect(20, y, 170, 20, 'F');
     doc.setFontSize(10);
-    doc.text(`Gesamtstunden: ${totalHours.toFixed(2)} h`, 20, 45);
-    doc.text(`Gesamtbetrag: ${totalAmount.toFixed(2)} EUR`, 20, 52);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Gesamtstunden: ${totalHours.toFixed(2)} h`, 25, y + 8);
+    doc.text(`Gesamtbetrag: ${totalAmount.toFixed(2)} EUR`, 25, y + 15);
 
     // Table Header
-    let y = 70;
+    y += 30;
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.text('Kunde', 20, y);
     doc.text('Projekt', 70, y);
     doc.text('Stunden', 120, y);
-    doc.text('Satz', 145, y);
-    doc.text('Betrag', 170, y);
+    doc.text('Satz (€/h)', 142, y);
+    doc.text('Betrag (€)', 170, y);
+    doc.line(20, y + 2, 190, y + 2);
 
     // Table Rows
-    y += 7;
+    y += 8;
     doc.setFont('helvetica', 'normal');
 
     stats.forEach((stat) => {
-      if (y > 270) {
+      if (y > 260) {
         doc.addPage();
         y = 20;
       }
 
       const hours = stat.totalSeconds / 3600;
-      doc.text(stat.customerName.substring(0, 25), 20, y);
-      doc.text(stat.projectName.substring(0, 25), 70, y);
+      doc.text(stat.customerName.substring(0, 22), 20, y);
+      doc.text(stat.projectName.substring(0, 22), 70, y);
       doc.text(hours.toFixed(2), 120, y);
       doc.text(stat.hourlyRate.toFixed(2), 145, y);
-      doc.text(stat.totalAmount.toFixed(2), 170, y);
-
-      y += 7;
+      doc.text(stat.totalAmount.toFixed(2), 172, y);
+      y += 6;
     });
 
-    // Total
-    y += 5;
+    // Total line
+    y += 3;
+    doc.line(20, y, 190, y);
+    y += 7;
     doc.setFont('helvetica', 'bold');
-    doc.text('Gesamt:', 100, y);
-    doc.text(totalHours.toFixed(2), 120, y);
-    doc.text(totalAmount.toFixed(2) + ' EUR', 170, y);
+    doc.text('Gesamt:', 95, y);
+    doc.text(totalHours.toFixed(2) + ' h', 120, y);
+    doc.text(totalAmount.toFixed(2) + ' €', 168, y);
+
+    // Signature section
+    y += 20;
+    if (y > 240) {
+      doc.addPage();
+      y = 30;
+    }
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Hiermit bestätige ich die Richtigkeit der aufgeführten Stunden:', 20, y);
+
+    y += 20;
+    doc.line(20, y, 90, y);
+    doc.line(120, y, 190, y);
+    y += 5;
+    doc.setFontSize(8);
+    doc.text('Ort, Datum', 20, y);
+    doc.text('Unterschrift Auftragnehmer', 120, y);
+
+    y += 15;
+    doc.line(20, y, 90, y);
+    doc.line(120, y, 190, y);
+    y += 5;
+    doc.text('Ort, Datum', 20, y);
+    doc.text('Unterschrift Auftraggeber', 120, y);
+
+    // Footer with note for Microsoft 365 integration
+    doc.setFontSize(7);
+    doc.setTextColor(150, 150, 150);
+    doc.text('// TODO: Microsoft 365 Integration - Automatischer Versand via Graph API', 20, 285);
 
     // Save
-    doc.save(`Stundenbericht_${monthName.replace(' ', '_')}.pdf`);
+    const filename = customerFilter
+      ? `Stundenbericht_${customerFilter.name.replace(/\s+/g, '_')}_${periodLabel.replace(/\s+/g, '_')}.pdf`
+      : `Stundenbericht_${periodLabel.replace(/\s+/g, '_')}.pdf`;
+    doc.save(filename);
   };
 
   if (entries.length === 0) {
@@ -166,7 +288,7 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold dark:text-white">Dashboard & Reports</h1>
-          {monthlyEntries.length > 0 && (
+          {filteredEntries.length > 0 && (
             <button
               onClick={generatePDF}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -178,26 +300,126 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
         </div>
       </div>
 
-      {/* Month Selector */}
+      {/* Advanced Filters */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <Calendar size={20} className="text-gray-600 dark:text-gray-400" />
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {availableMonths.map(month => {
-              const [year, m] = month.split('-');
-              const date = new Date(parseInt(year), parseInt(m) - 1);
-              const label = date.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
-              return (
-                <option key={month} value={month}>
-                  {label}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Timeframe Type */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              Zeitraum
+            </label>
+            <select
+              value={timeframeType}
+              onChange={(e) => setTimeframeType(e.target.value as TimeframeType)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="month">Monat</option>
+              <option value="quarter">Quartal</option>
+              <option value="year">Jahr</option>
+              <option value="custom">Benutzerdefiniert</option>
+            </select>
+          </div>
+
+          {/* Month/Year Selector (shown for month/quarter/year) */}
+          {timeframeType !== 'custom' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                {timeframeType === 'year' ? 'Jahr' : 'Monat/Jahr'}
+              </label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {availableMonths.map(month => {
+                  const [year, m] = month.split('-');
+                  const date = new Date(parseInt(year), parseInt(m) - 1);
+                  const label = timeframeType === 'year'
+                    ? year
+                    : date.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
+                  return (
+                    <option key={month} value={month}>
+                      {label}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* Custom Date Range (shown when timeframeType === 'custom') */}
+          {timeframeType === 'custom' && (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Von
+                </label>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Bis
+                </label>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Customer Filter */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              Kunde
+            </label>
+            <select
+              value={selectedCustomer}
+              onChange={(e) => {
+                setSelectedCustomer(e.target.value);
+                setSelectedProject('all'); // Reset project filter when customer changes
+              }}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Alle Kunden</option>
+              {customers.map(customer => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
                 </option>
-              );
-            })}
-          </select>
+              ))}
+            </select>
+          </div>
+
+          {/* Project Filter */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              Projekt
+            </label>
+            <select
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Alle Projekte</option>
+              {projects
+                .filter(p => selectedCustomer === 'all' || p.customerId === selectedCustomer)
+                .map(project => {
+                  const customer = getCustomerById(project.customerId);
+                  return (
+                    <option key={project.id} value={project.id}>
+                      {customer?.name} - {project.name}
+                    </option>
+                  );
+                })}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -230,7 +452,7 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
         </div>
 
         {/* Project Breakdown */}
-        {monthlyEntries.length === 0 ? (
+        {filteredEntries.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
             <Calendar size={48} className="mx-auto mb-4 text-gray-400 opacity-50" />
             <p className="text-gray-500 dark:text-gray-400">Keine Einträge für diesen Monat</p>
