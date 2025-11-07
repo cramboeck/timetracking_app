@@ -2,7 +2,18 @@ export interface Customer {
   id: string;
   name: string;
   color: string;
+  contactPerson?: string;
+  email?: string;
+  address?: string;
   createdAt: string;
+}
+
+export interface CompanyInfo {
+  name: string;
+  address: string;
+  email: string;
+  phone?: string;
+  taxId?: string;
 }
 
 export interface Project {

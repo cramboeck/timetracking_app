@@ -41,6 +41,9 @@ export const Settings = ({
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerColor, setCustomerColor] = useState(COLORS[0]);
+  const [customerContactPerson, setCustomerContactPerson] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
 
   // Project Modal
   const [projectModalOpen, setProjectModalOpen] = useState(false);
@@ -62,10 +65,16 @@ export const Settings = ({
       setEditingCustomer(customer);
       setCustomerName(customer.name);
       setCustomerColor(customer.color);
+      setCustomerContactPerson(customer.contactPerson || '');
+      setCustomerEmail(customer.email || '');
+      setCustomerAddress(customer.address || '');
     } else {
       setEditingCustomer(null);
       setCustomerName('');
       setCustomerColor(COLORS[0]);
+      setCustomerContactPerson('');
+      setCustomerEmail('');
+      setCustomerAddress('');
     }
     setCustomerModalOpen(true);
   };
@@ -76,13 +85,19 @@ export const Settings = ({
     if (editingCustomer) {
       onUpdateCustomer(editingCustomer.id, {
         name: customerName.trim(),
-        color: customerColor
+        color: customerColor,
+        contactPerson: customerContactPerson.trim() || undefined,
+        email: customerEmail.trim() || undefined,
+        address: customerAddress.trim() || undefined
       });
     } else {
       onAddCustomer({
         id: crypto.randomUUID(),
         name: customerName.trim(),
         color: customerColor,
+        contactPerson: customerContactPerson.trim() || undefined,
+        email: customerEmail.trim() || undefined,
+        address: customerAddress.trim() || undefined,
         createdAt: new Date().toISOString()
       });
     }
@@ -393,6 +408,45 @@ export const Settings = ({
               placeholder="z.B. Musterfirma GmbH"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Ansprechpartner
+            </label>
+            <input
+              type="text"
+              value={customerContactPerson}
+              onChange={(e) => setCustomerContactPerson(e.target.value)}
+              placeholder="z.B. Max Mustermann"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              E-Mail
+            </label>
+            <input
+              type="email"
+              value={customerEmail}
+              onChange={(e) => setCustomerEmail(e.target.value)}
+              placeholder="z.B. kontakt@musterfirma.de"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Adresse
+            </label>
+            <textarea
+              value={customerAddress}
+              onChange={(e) => setCustomerAddress(e.target.value)}
+              placeholder="Musterstraße 123&#10;12345 Musterstadt"
+              rows={2}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
           </div>
 
