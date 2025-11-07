@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Mail, Lock, User, Shield, Building2, Users } from 'lucide-react';
+import { Clock, Mail, Lock, User, Shield, Building2, Users, Ticket } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AccountType } from '../types';
 
@@ -21,6 +21,7 @@ export const Auth = () => {
   const [registerPasswordConfirm, setRegisterPasswordConfirm] = useState('');
   const [registerAccountType, setRegisterAccountType] = useState<AccountType>('personal');
   const [registerOrganizationName, setRegisterOrganizationName] = useState('');
+  const [registerInviteCode, setRegisterInviteCode] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +62,8 @@ export const Auth = () => {
       email: registerEmail,
       password: registerPassword,
       accountType: registerAccountType,
-      organizationName: registerOrganizationName.trim() || undefined
+      organizationName: registerOrganizationName.trim() || undefined,
+      inviteCode: registerInviteCode.trim() || undefined
     });
 
     if (!result.success) {
@@ -332,6 +334,26 @@ export const Auth = () => {
                       required
                     />
                   </div>
+                </div>
+
+                {/* Invite Code - Optional */}
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Ticket size={18} className="text-gray-500 dark:text-gray-400" />
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Einladungscode (optional)
+                    </label>
+                  </div>
+                  <input
+                    type="text"
+                    value={registerInviteCode}
+                    onChange={(e) => setRegisterInviteCode(e.target.value.toUpperCase())}
+                    placeholder="INVITE-XXXXXXXXX"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    💡 Du hast einen Einladungscode? Gib ihn hier ein, um einem bestehenden Team beizutreten
+                  </p>
                 </div>
 
                 <button

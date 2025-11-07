@@ -129,16 +129,55 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Hash password
       const passwordHash = await hashPassword(data.password);
 
-      // Create team if account type is team
-      const teamId = data.accountType === 'team' ? crypto.randomUUID() : undefined;
+      // Check for invite code first
+      let teamId: string | undefined;
+      let teamRole: 'owner' | 'admin' | 'member' | undefined;
 
-      if (teamId && data.organizationName) {
-        storage.addTeam({
-          id: teamId,
-          name: data.organizationName,
-          ownerId: crypto.randomUUID(), // Will be updated with user id
-          createdAt: new Date().toISOString()
-        });
+      if (data.inviteCode) {
+        // User is joining via invite code
+        const invitation = storage.getTeamInvitationByCode(data.inviteCode.trim().toUpperCase());
+
+        if (!invitation) {
+          return { success: false, message: 'Ungültiger Einladungscode' };
+        }
+
+        // Check if invitation is already used
+        if (invitation.usedBy) {
+          return { success: false, message: 'Dieser Einladungscode wurde bereits verwendet' };
+        }
+
+        // Check if invitation is expired
+        const expiresAt = new Date(invitation.expiresAt);
+        if (expiresAt < new Date()) {
+          return { success: false, message: 'Dieser Einladungscode ist abgelaufen' };
+        }
+
+        // Get the team
+        const team = storage.getTeamById(invitation.teamId);
+        if (!team) {
+          return { success: false, message: 'Team nicht gefunden' };
+        }
+
+        teamId = team.id;
+        teamRole = invitation.role;
+
+        // Override account type to match team
+        data.accountType = 'team';
+        data.organizationName = team.name;
+      } else {
+        // Create team if account type is team (creating new team, not joining)
+        teamId = data.accountType === 'team' ? crypto.randomUUID() : undefined;
+
+        if (teamId && data.organizationName) {
+          storage.addTeam({
+            id: teamId,
+            name: data.organizationName,
+            ownerId: crypto.randomUUID(), // Will be updated with user id
+            createdAt: new Date().toISOString()
+          });
+        }
+
+        teamRole = data.accountType === 'team' ? 'owner' : undefined;
       }
 
       // Create new user
@@ -150,7 +189,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         accountType: data.accountType,
         organizationName: data.organizationName,
         teamId: teamId,
-        teamRole: data.accountType === 'team' ? 'owner' : undefined, // Owner if team account
+        teamRole: teamRole,
         mfaEnabled: false,
         accentColor: 'blue', // Default accent color
         grayTone: 'medium', // Default gray tone
@@ -159,9 +198,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         lastLogin: new Date().toISOString()
       };
 
-      // Update team owner to the created user
-      if (teamId) {
+      // Update team owner if creating new team
+      if (teamId && !data.inviteCode && data.accountType === 'team') {
         storage.updateTeam(teamId, { ownerId: newUser.id });
+      }
+
+      // Mark invitation as used if joining via invite code
+      if (data.inviteCode) {
+        storage.useTeamInvitation(data.inviteCode.trim().toUpperCase(), newUser.id);
       }
 
       // Save user

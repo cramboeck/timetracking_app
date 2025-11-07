@@ -110,6 +110,7 @@ export interface RegisterData {
   password: string;
   accountType: AccountType;
   organizationName?: string;
+  inviteCode?: string; // Optional invite code to join existing team
 }
 
 export type RateType = 'hourly' | 'daily';
