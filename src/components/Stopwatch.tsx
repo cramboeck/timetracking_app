@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square } from 'lucide-react';
 import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => void;
@@ -13,6 +14,7 @@ interface StopwatchProps {
 }
 
 export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers, activities }: StopwatchProps) => {
+  const { currentUser } = useAuth();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [projectId, setProjectId] = useState('');
@@ -66,6 +68,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
     const entry: TimeEntry = {
       id: crypto.randomUUID(),
+      userId: currentUser!.id,
       startTime: now,
       duration: 0,
       projectId,
@@ -91,6 +94,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     const endTime = new Date().toISOString();
     const entry: TimeEntry = {
       id: runningEntry?.id || crypto.randomUUID(),
+      userId: currentUser!.id,
       startTime: startTimeRef.current,
       endTime,
       duration: elapsedSeconds,

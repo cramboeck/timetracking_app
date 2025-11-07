@@ -5,11 +5,14 @@ import { ManualEntry } from './components/ManualEntry';
 import { TimeEntriesList } from './components/TimeEntriesList';
 import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
+import { Auth } from './components/Auth';
 import { TimeEntry, ViewMode, Customer, Project, Activity } from './types';
 import { storage } from './utils/storage';
 import { darkMode } from './utils/darkMode';
+import { useAuth } from './contexts/AuthContext';
 
 function App() {
+  const { currentUser, isAuthenticated, isLoading } = useAuth();
   const [currentView, setCurrentView] = useState<ViewMode>('settings');
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -18,31 +21,39 @@ function App() {
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // Load all data from localStorage on mount
+  // Load all data from localStorage on mount (filtered by current user)
   useEffect(() => {
-    const loadedEntries = storage.getEntries();
-    const loadedCustomers = storage.getCustomers();
-    const loadedProjects = storage.getProjects();
-    const loadedActivities = storage.getActivities();
+    if (!currentUser) return;
+
+    const allEntries = storage.getEntries();
+    const allCustomers = storage.getCustomers();
+    const allProjects = storage.getProjects();
+    const allActivities = storage.getActivities();
     const isDark = darkMode.initialize();
 
-    setEntries(loadedEntries);
-    setCustomers(loadedCustomers);
-    setProjects(loadedProjects);
-    setActivities(loadedActivities);
+    // Filter data by current user ID
+    const userEntries = allEntries.filter(e => e.userId === currentUser.id);
+    const userCustomers = allCustomers.filter(c => c.userId === currentUser.id);
+    const userProjects = allProjects.filter(p => p.userId === currentUser.id);
+    const userActivities = allActivities.filter(a => a.userId === currentUser.id);
+
+    setEntries(userEntries);
+    setCustomers(userCustomers);
+    setProjects(userProjects);
+    setActivities(userActivities);
     setIsDarkMode(isDark);
 
-    // Find any running entry
-    const running = loadedEntries.find(e => e.isRunning);
+    // Find any running entry for current user
+    const running = userEntries.find(e => e.isRunning);
     if (running) {
       setRunningEntry(running);
     }
 
     // If there are customers/projects, switch to stopwatch view
-    if (loadedCustomers.length > 0 && loadedProjects.length > 0) {
+    if (userCustomers.length > 0 && userProjects.length > 0) {
       setCurrentView('stopwatch');
     }
-  }, []);
+  }, [currentUser]);
 
   // Time Entry handlers
   const handleSaveEntry = (entry: TimeEntry) => {
@@ -163,6 +174,24 @@ function App() {
     darkMode.set(newMode);
   };
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Lädt...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not authenticated - show Auth screen
+  if (!isAuthenticated) {
+    return <Auth />;
+  }
+
+  // Authenticated - show main app
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <main className="flex-1 overflow-hidden pb-16">
