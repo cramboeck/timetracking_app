@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette } from 'lucide-react';
 import { Customer, Project } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -7,6 +7,8 @@ import { ConfirmDialog } from './ConfirmDialog';
 interface SettingsProps {
   customers: Customer[];
   projects: Project[];
+  darkMode: boolean;
+  onToggleDarkMode: () => void;
   onAddCustomer: (customer: Customer) => void;
   onUpdateCustomer: (id: string, updates: Partial<Customer>) => void;
   onDeleteCustomer: (id: string) => void;
@@ -23,6 +25,8 @@ const COLORS = [
 export const Settings = ({
   customers,
   projects,
+  darkMode,
+  onToggleDarkMode,
   onAddCustomer,
   onUpdateCustomer,
   onDeleteCustomer,
@@ -30,7 +34,7 @@ export const Settings = ({
   onUpdateProject,
   onDeleteProject
 }: SettingsProps) => {
-  const [activeTab, setActiveTab] = useState<'customers' | 'projects'>('customers');
+  const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'appearance'>('customers');
 
   // Customer Modal
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
@@ -189,6 +193,17 @@ export const Settings = ({
             <FolderOpen size={20} />
             Projekte
           </button>
+          <button
+            onClick={() => setActiveTab('appearance')}
+            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+              activeTab === 'appearance'
+                ? 'border-blue-600 text-blue-600 font-semibold'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Palette size={20} />
+            Darstellung
+          </button>
         </div>
       </div>
 
@@ -325,6 +340,37 @@ export const Settings = ({
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'appearance' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Design & Aussehen</h2>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-3">
+                  <div>
+                    <h3 className="font-medium text-gray-900">Dark Mode</h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Dunkles Farbschema für bessere Lesbarkeit bei Nacht
+                    </p>
+                  </div>
+                  <button
+                    onClick={onToggleDarkMode}
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      darkMode ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                        darkMode ? 'translate-x-7' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

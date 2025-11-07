@@ -25,4 +25,4 @@ export interface TimeEntry {
   createdAt: string;
 }
 
-export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'settings';
+export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'dashboard' | 'settings';

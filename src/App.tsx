@@ -3,9 +3,11 @@ import { Navigation } from './components/Navigation';
 import { Stopwatch } from './components/Stopwatch';
 import { ManualEntry } from './components/ManualEntry';
 import { TimeEntriesList } from './components/TimeEntriesList';
+import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
 import { TimeEntry, ViewMode, Customer, Project } from './types';
 import { storage } from './utils/storage';
+import { darkMode } from './utils/darkMode';
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewMode>('settings');
@@ -13,16 +15,19 @@ function App() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Load all data from localStorage on mount
   useEffect(() => {
     const loadedEntries = storage.getEntries();
     const loadedCustomers = storage.getCustomers();
     const loadedProjects = storage.getProjects();
+    const isDark = darkMode.initialize();
 
     setEntries(loadedEntries);
     setCustomers(loadedCustomers);
     setProjects(loadedProjects);
+    setIsDarkMode(isDark);
 
     // Find any running entry
     const running = loadedEntries.find(e => e.isRunning);
@@ -123,8 +128,15 @@ function App() {
     });
   };
 
+  // Dark Mode handler
+  const handleToggleDarkMode = () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    darkMode.set(newMode);
+  };
+
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <main className="flex-1 overflow-hidden pb-16">
         {currentView === 'stopwatch' && (
           <Stopwatch
@@ -151,10 +163,19 @@ function App() {
             onEdit={handleEditEntry}
           />
         )}
+        {currentView === 'dashboard' && (
+          <Dashboard
+            entries={entries}
+            projects={projects}
+            customers={customers}
+          />
+        )}
         {currentView === 'settings' && (
           <Settings
             customers={customers}
             projects={projects}
+            darkMode={isDarkMode}
+            onToggleDarkMode={handleToggleDarkMode}
             onAddCustomer={handleAddCustomer}
             onUpdateCustomer={handleUpdateCustomer}
             onDeleteCustomer={handleDeleteCustomer}
