@@ -60,6 +60,18 @@ export interface Team {
   createdAt: string;
 }
 
+export interface TeamInvitation {
+  id: string;
+  teamId: string;
+  invitationCode: string;
+  role: TeamRole;
+  createdBy: string; // User ID who created the invitation
+  expiresAt: string;
+  usedBy?: string; // User ID who used the invitation
+  usedAt?: string;
+  createdAt: string;
+}
+
 export interface User {
   id: string;
   username: string;

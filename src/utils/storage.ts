@@ -1,4 +1,4 @@
-import { TimeEntry, Customer, Project, Activity, User, Team, TeamMembership, TeamRole, CompanyInfo } from '../types';
+import { TimeEntry, Customer, Project, Activity, User, Team, TeamMembership, TeamRole, CompanyInfo, TeamInvitation } from '../types';
 
 const STORAGE_KEY_ENTRIES = 'timetracking_entries';
 const STORAGE_KEY_CUSTOMERS = 'timetracking_customers';
@@ -9,6 +9,7 @@ const STORAGE_KEY_CURRENT_USER = 'timetracking_current_user';
 const STORAGE_KEY_TEAMS = 'timetracking_teams';
 const STORAGE_KEY_TEAM_MEMBERSHIPS = 'timetracking_team_memberships';
 const STORAGE_KEY_COMPANY_INFO = 'timetracking_company_info';
+const STORAGE_KEY_TEAM_INVITATIONS = 'timetracking_team_invitations';
 
 export const storage = {
   // Time Entries
@@ -368,5 +369,60 @@ export const storage = {
       };
       storage.saveCompanyInfos(infos);
     }
+  },
+
+  // Team Invitations
+  getTeamInvitations: (): TeamInvitation[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_TEAM_INVITATIONS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Error loading team invitations:', error);
+      return [];
+    }
+  },
+
+  saveTeamInvitations: (invitations: TeamInvitation[]): void => {
+    try {
+      localStorage.setItem(STORAGE_KEY_TEAM_INVITATIONS, JSON.stringify(invitations));
+    } catch (error) {
+      console.error('Error saving team invitations:', error);
+    }
+  },
+
+  createTeamInvitation: (invitation: TeamInvitation): void => {
+    const invitations = storage.getTeamInvitations();
+    invitations.push(invitation);
+    storage.saveTeamInvitations(invitations);
+  },
+
+  getTeamInvitationsByTeamId: (teamId: string): TeamInvitation[] => {
+    const invitations = storage.getTeamInvitations();
+    return invitations.filter(inv => inv.teamId === teamId && !inv.usedBy);
+  },
+
+  getTeamInvitationByCode: (code: string): TeamInvitation | undefined => {
+    const invitations = storage.getTeamInvitations();
+    return invitations.find(inv => inv.invitationCode === code && !inv.usedBy);
+  },
+
+  useTeamInvitation: (code: string, userId: string): void => {
+    const invitations = storage.getTeamInvitations();
+    const index = invitations.findIndex(inv => inv.invitationCode === code);
+
+    if (index !== -1) {
+      invitations[index] = {
+        ...invitations[index],
+        usedBy: userId,
+        usedAt: new Date().toISOString()
+      };
+      storage.saveTeamInvitations(invitations);
+    }
+  },
+
+  deleteTeamInvitation: (id: string): void => {
+    const invitations = storage.getTeamInvitations();
+    const filtered = invitations.filter(inv => inv.id !== id);
+    storage.saveTeamInvitations(filtered);
   }
 };

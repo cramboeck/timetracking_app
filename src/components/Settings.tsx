@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X } from 'lucide-react';
-import { Customer, Project, Activity, GrayTone, CompanyInfo } from '../types';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus } from 'lucide-react';
+import { Customer, Project, Activity, GrayTone, CompanyInfo, TeamInvitation, User } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,7 +45,7 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone } = useAuth();
-  const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'activities' | 'company' | 'appearance'>('customers');
+  const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'activities' | 'company' | 'team' | 'appearance'>('customers');
 
   // Company Info State
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
@@ -85,6 +85,11 @@ export const Settings = ({
   const [activityName, setActivityName] = useState('');
   const [activityDescription, setActivityDescription] = useState('');
   const [activityIsBillable, setActivityIsBillable] = useState(true);
+
+  // Team State
+  const [teamMembers, setTeamMembers] = useState<User[]>([]);
+  const [teamInvitations, setTeamInvitations] = useState<TeamInvitation[]>([]);
+  const [newInvitationRole, setNewInvitationRole] = useState<'admin' | 'member'>('member');
 
   // Delete Confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -291,6 +296,53 @@ export const Settings = ({
     }
   }, [currentUser]);
 
+  // Load team data
+  useEffect(() => {
+    if (currentUser && currentUser.teamId && (currentUser.accountType === 'business' || currentUser.accountType === 'team')) {
+      // Load team members
+      const allUsers = storage.getUsers();
+      const members = allUsers.filter(u => u.teamId === currentUser.teamId);
+      setTeamMembers(members);
+
+      // Load team invitations (only for owners/admins)
+      if (currentUser.teamRole === 'owner' || currentUser.teamRole === 'admin') {
+        const invitations = storage.getTeamInvitationsByTeamId(currentUser.teamId);
+        setTeamInvitations(invitations);
+      }
+    }
+  }, [currentUser, activeTab]);
+
+  const generateInvitationCode = () => {
+    return `INVITE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+  };
+
+  const handleCreateInvitation = () => {
+    if (!currentUser || !currentUser.teamId) return;
+
+    const invitation: TeamInvitation = {
+      id: crypto.randomUUID(),
+      teamId: currentUser.teamId,
+      invitationCode: generateInvitationCode(),
+      role: newInvitationRole,
+      createdBy: currentUser.id,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+      createdAt: new Date().toISOString()
+    };
+
+    storage.createTeamInvitation(invitation);
+    setTeamInvitations([...teamInvitations, invitation]);
+  };
+
+  const handleCopyInvitationCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    alert('Einladungscode kopiert!');
+  };
+
+  const handleDeleteInvitation = (id: string) => {
+    storage.deleteTeamInvitation(id);
+    setTeamInvitations(teamInvitations.filter(inv => inv.id !== id));
+  };
+
   const handleSaveCompanyInfo = () => {
     if (!currentUser) return;
 
@@ -400,6 +452,19 @@ export const Settings = ({
             <Building size={20} />
             Firma
           </button>
+          {(currentUser?.accountType === 'business' || currentUser?.accountType === 'team') && (
+            <button
+              onClick={() => setActiveTab('team')}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
+                activeTab === 'team'
+                  ? 'border-accent-primary text-accent-primary font-semibold'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Users2 size={20} />
+              Team
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('appearance')}
             className={`flex items-center gap-2 px-3 sm:px-4 py-3 border-b-2 transition-colors touch-manipulation whitespace-nowrap ${
@@ -818,6 +883,158 @@ export const Settings = ({
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'team' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Team Members */}
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <Users2 size={24} className="text-accent-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Team-Mitglieder</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    {teamMembers.length} Mitglied(er) im Team
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {teamMembers.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-dark-400">
+                    <Users2 size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Keine Team-Mitglieder</p>
+                  </div>
+                ) : (
+                  teamMembers.map(member => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-accent-primary flex items-center justify-center text-white font-semibold">
+                          {member.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 dark:text-white">{member.username}</span>
+                            {member.id === currentUser?.id && (
+                              <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">Du</span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500 dark:text-dark-400">{member.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
+                          member.teamRole === 'owner'
+                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                            : member.teamRole === 'admin'
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                            : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
+                        }`}>
+                          <Shield size={12} />
+                          {member.teamRole === 'owner' ? 'Owner' : member.teamRole === 'admin' ? 'Admin' : 'Mitglied'}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Team Invitations (only for owners/admins) */}
+            {(currentUser?.teamRole === 'owner' || currentUser?.teamRole === 'admin') && (
+              <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <UserPlus size={24} className="text-accent-primary" />
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Team-Einladungen</h2>
+                      <p className="text-sm text-gray-500 dark:text-dark-400">
+                        Lade neue Mitglieder zu deinem Team ein
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Create New Invitation */}
+                <div className="mb-6 p-4 bg-gray-50 dark:bg-dark-50 rounded-lg">
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-3">Neue Einladung erstellen</h3>
+                  <div className="flex gap-3">
+                    <select
+                      value={newInvitationRole}
+                      onChange={(e) => setNewInvitationRole(e.target.value as 'admin' | 'member')}
+                      className="px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                    >
+                      <option value="member">Mitglied</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <button
+                      onClick={handleCreateInvitation}
+                      className="flex items-center gap-2 px-4 py-2 btn-accent"
+                    >
+                      <Plus size={18} />
+                      Einladung erstellen
+                    </button>
+                  </div>
+                </div>
+
+                {/* Active Invitations */}
+                <div className="space-y-3">
+                  <h3 className="font-medium text-gray-900 dark:text-white text-sm">
+                    Aktive Einladungen ({teamInvitations.length})
+                  </h3>
+                  {teamInvitations.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-dark-400 text-center py-4">
+                      Keine aktiven Einladungen
+                    </p>
+                  ) : (
+                    teamInvitations.map(invitation => (
+                      <div
+                        key={invitation.id}
+                        className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-50 rounded-lg"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <code className="px-3 py-1 bg-white dark:bg-dark-100 border border-gray-300 dark:border-dark-200 rounded font-mono text-sm font-semibold text-gray-900 dark:text-white">
+                              {invitation.invitationCode}
+                            </code>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              invitation.role === 'admin'
+                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
+                            }`}>
+                              {invitation.role === 'admin' ? 'Admin' : 'Mitglied'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-dark-400">
+                            Gültig bis {new Date(invitation.expiresAt).toLocaleDateString('de-DE')}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleCopyInvitationCode(invitation.invitationCode)}
+                            className="p-2 text-accent-primary hover:bg-accent-light dark:hover:bg-accent-lighter/10 rounded-lg transition-colors"
+                            title="Code kopieren"
+                          >
+                            <Copy size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteInvitation(invitation.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            title="Einladung löschen"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
