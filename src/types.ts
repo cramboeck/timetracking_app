@@ -7,15 +7,25 @@ export interface Customer {
   contactPerson?: string;
   email?: string;
   address?: string;
+  reportTitle?: string; // Custom report title for this customer (e.g., "Stundenzettel" or "Tätigkeitsnachweis")
   createdAt: string;
 }
 
 export interface CompanyInfo {
+  id: string;
+  userId: string; // User-specific company info
   name: string;
   address: string;
+  city: string;
+  zipCode: string;
+  country: string;
   email: string;
   phone?: string;
+  website?: string;
   taxId?: string;
+  logo?: string; // Base64 encoded image or URL
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Activity {
@@ -23,6 +33,7 @@ export interface Activity {
   userId: string; // Multi-user support
   name: string;
   description?: string;
+  isBillable: boolean; // Abrechenbar oder nicht
   createdAt: string;
 }
 
@@ -46,6 +57,18 @@ export interface Team {
   id: string;
   name: string;
   ownerId: string; // User who created the team
+  createdAt: string;
+}
+
+export interface TeamInvitation {
+  id: string;
+  teamId: string;
+  invitationCode: string;
+  role: TeamRole;
+  createdBy: string; // User ID who created the invitation
+  expiresAt: string;
+  usedBy?: string; // User ID who used the invitation
+  usedAt?: string;
   createdAt: string;
 }
 
@@ -86,12 +109,15 @@ export interface RegisterData {
   organizationName?: string;
 }
 
+export type RateType = 'hourly' | 'daily';
+
 export interface Project {
   id: string;
   userId: string; // Multi-user support
   customerId: string;
   name: string;
-  hourlyRate: number; // in EUR
+  rateType: RateType; // Stundensatz oder Tagessatz
+  hourlyRate: number; // in EUR (wird für Tagessatz auch verwendet)
   isActive: boolean;
   createdAt: string;
 }

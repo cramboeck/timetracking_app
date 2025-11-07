@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast } from 'lucide-react';
-import { Customer, Project, Activity, GrayTone } from '../types';
+import { useState, useEffect } from 'react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Briefcase, Clock } from 'lucide-react';
+import { Customer, Project, Activity, GrayTone, CompanyInfo, TeamInvitation, User } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
+import { storage } from '../utils/storage';
 
 interface SettingsProps {
   customers: Customer[];
@@ -44,7 +45,21 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone } = useAuth();
-  const [activeTab, setActiveTab] = useState<'customers' | 'projects' | 'activities' | 'appearance'>('customers');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities'>('account');
+  const [timeTrackingSubTab, setTimeTrackingSubTab] = useState<'customers' | 'projects' | 'activities'>('customers');
+
+  // Company Info State
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
+  const [companyName, setCompanyName] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [companyCity, setCompanyCity] = useState('');
+  const [companyZipCode, setCompanyZipCode] = useState('');
+  const [companyCountry, setCompanyCountry] = useState('Deutschland');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [companyWebsite, setCompanyWebsite] = useState('');
+  const [companyTaxId, setCompanyTaxId] = useState('');
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
 
   // Customer Modal
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
@@ -55,12 +70,14 @@ export const Settings = ({
   const [customerContactPerson, setCustomerContactPerson] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [customerReportTitle, setCustomerReportTitle] = useState('');
 
   // Project Modal
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [projectName, setProjectName] = useState('');
   const [projectCustomerId, setProjectCustomerId] = useState('');
+  const [projectRateType, setProjectRateType] = useState<'hourly' | 'daily'>('hourly');
   const [projectHourlyRate, setProjectHourlyRate] = useState('');
 
   // Activity Modal
@@ -68,6 +85,12 @@ export const Settings = ({
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [activityName, setActivityName] = useState('');
   const [activityDescription, setActivityDescription] = useState('');
+  const [activityIsBillable, setActivityIsBillable] = useState(true);
+
+  // Team State
+  const [teamMembers, setTeamMembers] = useState<User[]>([]);
+  const [teamInvitations, setTeamInvitations] = useState<TeamInvitation[]>([]);
+  const [newInvitationRole, setNewInvitationRole] = useState<'admin' | 'member'>('member');
 
   // Delete Confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -86,6 +109,7 @@ export const Settings = ({
       setCustomerContactPerson(customer.contactPerson || '');
       setCustomerEmail(customer.email || '');
       setCustomerAddress(customer.address || '');
+      setCustomerReportTitle(customer.reportTitle || '');
     } else {
       setEditingCustomer(null);
       setCustomerName('');
@@ -94,6 +118,7 @@ export const Settings = ({
       setCustomerContactPerson('');
       setCustomerEmail('');
       setCustomerAddress('');
+      setCustomerReportTitle('');
     }
     setCustomerModalOpen(true);
   };
@@ -108,7 +133,8 @@ export const Settings = ({
         customerNumber: customerNumber.trim() || undefined,
         contactPerson: customerContactPerson.trim() || undefined,
         email: customerEmail.trim() || undefined,
-        address: customerAddress.trim() || undefined
+        address: customerAddress.trim() || undefined,
+        reportTitle: customerReportTitle.trim() || undefined
       });
     } else {
       onAddCustomer({
@@ -120,6 +146,7 @@ export const Settings = ({
         contactPerson: customerContactPerson.trim() || undefined,
         email: customerEmail.trim() || undefined,
         address: customerAddress.trim() || undefined,
+        reportTitle: customerReportTitle.trim() || undefined,
         createdAt: new Date().toISOString()
       });
     }
@@ -132,11 +159,13 @@ export const Settings = ({
       setEditingProject(project);
       setProjectName(project.name);
       setProjectCustomerId(project.customerId);
+      setProjectRateType(project.rateType || 'hourly');
       setProjectHourlyRate(project.hourlyRate.toString());
     } else {
       setEditingProject(null);
       setProjectName('');
       setProjectCustomerId(customers[0]?.id || '');
+      setProjectRateType('hourly');
       setProjectHourlyRate('');
     }
     setProjectModalOpen(true);
@@ -149,6 +178,7 @@ export const Settings = ({
       onUpdateProject(editingProject.id, {
         name: projectName.trim(),
         customerId: projectCustomerId,
+        rateType: projectRateType,
         hourlyRate: parseFloat(projectHourlyRate)
       });
     } else {
@@ -157,6 +187,7 @@ export const Settings = ({
         userId: currentUser!.id,
         name: projectName.trim(),
         customerId: projectCustomerId,
+        rateType: projectRateType,
         hourlyRate: parseFloat(projectHourlyRate),
         isActive: true,
         createdAt: new Date().toISOString()
@@ -171,10 +202,12 @@ export const Settings = ({
       setEditingActivity(activity);
       setActivityName(activity.name);
       setActivityDescription(activity.description || '');
+      setActivityIsBillable(activity.isBillable ?? true);
     } else {
       setEditingActivity(null);
       setActivityName('');
       setActivityDescription('');
+      setActivityIsBillable(true);
     }
     setActivityModalOpen(true);
   };
@@ -185,7 +218,8 @@ export const Settings = ({
     if (editingActivity) {
       onUpdateActivity(editingActivity.id, {
         name: activityName.trim(),
-        description: activityDescription.trim() || undefined
+        description: activityDescription.trim() || undefined,
+        isBillable: activityIsBillable
       });
     } else {
       onAddActivity({
@@ -193,6 +227,7 @@ export const Settings = ({
         userId: currentUser!.id,
         name: activityName.trim(),
         description: activityDescription.trim() || undefined,
+        isBillable: activityIsBillable,
         createdAt: new Date().toISOString()
       });
     }
@@ -242,129 +277,445 @@ export const Settings = ({
     }
   };
 
+  // Load company info on mount
+  useEffect(() => {
+    if (currentUser) {
+      const info = storage.getCompanyInfoByUserId(currentUser.id);
+      if (info) {
+        setCompanyInfo(info);
+        setCompanyName(info.name);
+        setCompanyAddress(info.address);
+        setCompanyCity(info.city);
+        setCompanyZipCode(info.zipCode);
+        setCompanyCountry(info.country);
+        setCompanyEmail(info.email);
+        setCompanyPhone(info.phone || '');
+        setCompanyWebsite(info.website || '');
+        setCompanyTaxId(info.taxId || '');
+        setCompanyLogo(info.logo || null);
+      }
+    }
+  }, [currentUser]);
+
+  // Load team data
+  useEffect(() => {
+    if (currentUser && currentUser.teamId && (currentUser.accountType === 'business' || currentUser.accountType === 'team')) {
+      // Load team members
+      const allUsers = storage.getUsers();
+      const members = allUsers.filter(u => u.teamId === currentUser.teamId);
+      setTeamMembers(members);
+
+      // Load team invitations (only for owners/admins)
+      if (currentUser.teamRole === 'owner' || currentUser.teamRole === 'admin') {
+        const invitations = storage.getTeamInvitationsByTeamId(currentUser.teamId);
+        setTeamInvitations(invitations);
+      }
+    }
+  }, [currentUser, activeTab]);
+
+  const generateInvitationCode = () => {
+    return `INVITE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+  };
+
+  const handleCreateInvitation = () => {
+    if (!currentUser || !currentUser.teamId) return;
+
+    const invitation: TeamInvitation = {
+      id: crypto.randomUUID(),
+      teamId: currentUser.teamId,
+      invitationCode: generateInvitationCode(),
+      role: newInvitationRole,
+      createdBy: currentUser.id,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+      createdAt: new Date().toISOString()
+    };
+
+    storage.createTeamInvitation(invitation);
+    setTeamInvitations([...teamInvitations, invitation]);
+  };
+
+  const handleCopyInvitationCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    alert('Einladungscode kopiert!');
+  };
+
+  const handleDeleteInvitation = (id: string) => {
+    storage.deleteTeamInvitation(id);
+    setTeamInvitations(teamInvitations.filter(inv => inv.id !== id));
+  };
+
+  const handleSaveCompanyInfo = () => {
+    if (!currentUser) return;
+
+    const info: CompanyInfo = {
+      id: companyInfo?.id || crypto.randomUUID(),
+      userId: currentUser.id,
+      name: companyName.trim(),
+      address: companyAddress.trim(),
+      city: companyCity.trim(),
+      zipCode: companyZipCode.trim(),
+      country: companyCountry.trim(),
+      email: companyEmail.trim(),
+      phone: companyPhone.trim() || undefined,
+      website: companyWebsite.trim() || undefined,
+      taxId: companyTaxId.trim() || undefined,
+      logo: companyLogo || undefined,
+      createdAt: companyInfo?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    storage.saveCompanyInfo(info);
+    setCompanyInfo(info);
+    alert('Firmendaten gespeichert!');
+  };
+
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Logo darf maximal 2MB groß sein');
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Nur Bilddateien sind erlaubt');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      setCompanyLogo(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setCompanyLogo(null);
+  };
+
   const getCustomerById = (id: string) => customers.find(c => c.id === id);
 
+  // Sidebar menu items
+  const menuItems = [
+    {
+      category: 'Persönlich',
+      items: [
+        { id: 'account', label: 'Mein Account', icon: UserIcon, desc: 'Profil & Logout' },
+        { id: 'appearance', label: 'Darstellung', icon: Palette, desc: 'Theme & Farben' },
+        { id: 'notifications', label: 'Benachrichtigungen', icon: Bell, desc: 'E-Mail & Browser' }
+      ]
+    },
+    {
+      category: 'Geschäftlich',
+      items: [
+        { id: 'company', label: 'Firma & Branding', icon: Building, desc: 'Logo & Kontaktdaten' },
+        ...(currentUser?.accountType === 'business' || currentUser?.accountType === 'team'
+          ? [{ id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }]
+          : []
+        ),
+        { id: 'timetracking', label: 'Zeiterfassung', icon: Clock, desc: 'Kunden, Projekte & Tätigkeiten' }
+      ]
+    }
+  ];
+
   return (
-    <div className="flex flex-col h-full bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <h1 className="text-2xl font-bold">Einstellungen</h1>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white border-b border-gray-200 px-6">
-        <div className="flex gap-4">
-          <button
-            onClick={() => setActiveTab('customers')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
-              activeTab === 'customers'
-                ? 'border-blue-600 text-blue-600 font-semibold'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Users size={20} />
-            Kunden
-          </button>
-          <button
-            onClick={() => setActiveTab('projects')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
-              activeTab === 'projects'
-                ? 'border-blue-600 text-blue-600 font-semibold'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <FolderOpen size={20} />
-            Projekte
-          </button>
-          <button
-            onClick={() => setActiveTab('activities')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
-              activeTab === 'activities'
-                ? 'border-blue-600 text-blue-600 font-semibold'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <ListChecks size={20} />
-            Tätigkeiten
-          </button>
-          <button
-            onClick={() => setActiveTab('appearance')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
-              activeTab === 'appearance'
-                ? 'border-blue-600 text-blue-600 font-semibold'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Palette size={20} />
-            Darstellung
-          </button>
+    <div className="flex h-full bg-gray-50 dark:bg-gray-900">
+      {/* Sidebar */}
+      <div className="w-64 bg-white dark:bg-dark-100 border-r border-gray-200 dark:border-dark-200 flex-shrink-0 hidden lg:flex flex-col">
+        {/* Sidebar Header */}
+        <div className="px-6 py-6 border-b border-gray-200 dark:border-dark-200">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Einstellungen</h1>
+          <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">Verwalte deinen Account</p>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {activeTab === 'customers' && (
-          <div className="max-w-4xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
-              <p className="text-gray-600">{customers.length} Kunde(n)</p>
-              <button
-                onClick={() => openCustomerModal()}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus size={20} />
-                Kunde hinzufügen
-              </button>
-            </div>
-
-            {customers.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Users size={48} className="mx-auto mb-4 opacity-50" />
-                <p>Noch keine Kunden vorhanden</p>
-                <p className="text-sm mt-2">Füge deinen ersten Kunden hinzu</p>
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {customers.map(customer => (
-                  <div
-                    key={customer.id}
-                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div
-                          className="w-10 h-10 rounded-lg flex-shrink-0"
-                          style={{ backgroundColor: customer.color }}
-                        />
-                        <div className="min-w-0">
-                          <h3 className="font-semibold text-gray-900 truncate">{customer.name}</h3>
-                          <p className="text-sm text-gray-500">
-                            {projects.filter(p => p.customerId === customer.id).length} Projekt(e)
-                          </p>
+        {/* Sidebar Navigation */}
+        <nav className="flex-1 overflow-y-auto p-4">
+          {menuItems.map((section, idx) => (
+            <div key={idx} className={idx > 0 ? 'mt-6' : ''}>
+              <h3 className="px-3 mb-2 text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider">
+                {section.category}
+              </h3>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id as any)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-medium'
+                          : 'text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                      }`}
+                    >
+                      <Icon size={20} className={isActive ? 'text-accent-primary' : 'text-gray-400'} />
+                      <div className="flex-1 text-left">
+                        <div className={`text-sm ${isActive ? 'font-semibold' : 'font-medium'}`}>
+                          {item.label}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-dark-400">
+                          {item.desc}
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openCustomerModal(customer)}
-                          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCustomer(customer)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
-            )}
+            </div>
+          ))}
+        </nav>
+      </div>
+
+      {/* Mobile Header with Dropdown */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-10 bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-200 px-4 py-3">
+        <select
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value as any)}
+          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-accent-primary"
+        >
+          {menuItems.map((section) => (
+            <optgroup key={section.category} label={section.category}>
+              {section.items.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="lg:hidden h-16"></div> {/* Spacer for mobile header */}
+        <div className="p-4 sm:p-6 lg:p-8">
+        {/* Account Tab */}
+        {activeTab === 'account' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <UserIcon size={24} className="text-accent-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Mein Account</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">Deine persönlichen Informationen</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Account-Typ</p>
+                    <p className="mt-1 font-medium text-gray-900 dark:text-white">
+                      {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
+                      {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
+                      {currentUser?.accountType === 'team' && '👥 Team'}
+                    </p>
+                  </div>
+                  {currentUser?.organizationName && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-dark-400">
+                        {currentUser?.accountType === 'business' ? 'Firmenname' : 'Team-Name'}
+                      </p>
+                      <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser.organizationName}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Benutzername</p>
+                    <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser?.username}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">E-Mail</p>
+                    <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser?.email}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Mitglied seit</p>
+                  <p className="mt-1 font-medium text-gray-900 dark:text-white">
+                    {currentUser?.createdAt && new Date(currentUser.createdAt).toLocaleDateString('de-DE', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-dark-200">
+                <button
+                  onClick={logout}
+                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium"
+                >
+                  <LogOut size={18} />
+                  Abmelden
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
-        {activeTab === 'projects' && (
+        {/* Notifications Tab */}
+        {activeTab === 'notifications' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <Bell size={24} className="text-accent-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Benachrichtigungen</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">Verwalte deine Benachrichtigungseinstellungen</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm text-blue-900 dark:text-blue-200">
+                    🚀 Browser-Benachrichtigungen und E-Mail-Notifications werden in Kürze verfügbar sein!
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="font-medium text-gray-900 dark:text-white">Geplante Features:</h3>
+                  <ul className="space-y-2 text-sm text-gray-600 dark:text-dark-300">
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-primary mt-0.5">•</span>
+                      <span><strong>Monatserinnerung:</strong> Browser-Benachrichtigung 3 Tage vor Monatsende</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-primary mt-0.5">•</span>
+                      <span><strong>Tägliche Erinnerung:</strong> Benachrichtigung wenn keine Stunden eingetragen wurden</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-primary mt-0.5">•</span>
+                      <span><strong>Qualitätsprüfung:</strong> Warnung bei fehlenden Beschreibungen</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-primary mt-0.5">•</span>
+                      <span><strong>Wochenreport:</strong> Zusammenfassung zur Selbstprüfung jeden Freitag</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-accent-primary mt-0.5">•</span>
+                      <span><strong>E-Mail-Benachrichtigungen:</strong> Alle Reports auch per E-Mail</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Timetracking Tab with Sub-Tabs */}
+        {activeTab === 'timetracking' && (
+          <div className="max-w-4xl mx-auto">
+            {/* Sub-Tab Navigation */}
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 mb-6 p-2 shadow-sm">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setTimeTrackingSubTab('customers')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    timeTrackingSubTab === 'customers'
+                      ? 'bg-accent-primary text-white font-semibold'
+                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                  }`}
+                >
+                  <Users size={18} />
+                  Kunden
+                </button>
+                <button
+                  onClick={() => setTimeTrackingSubTab('projects')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    timeTrackingSubTab === 'projects'
+                      ? 'bg-accent-primary text-white font-semibold'
+                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                  }`}
+                >
+                  <FolderOpen size={18} />
+                  Projekte
+                </button>
+                <button
+                  onClick={() => setTimeTrackingSubTab('activities')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    timeTrackingSubTab === 'activities'
+                      ? 'bg-accent-primary text-white font-semibold'
+                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                  }`}
+                >
+                  <ListChecks size={18} />
+                  Tätigkeiten
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-Tab Content */}
+            {timeTrackingSubTab === 'customers' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
+                  <button
+                    onClick={() => openCustomerModal()}
+                    className="flex items-center gap-2 px-4 py-2 btn-accent"
+                  >
+                    <Plus size={20} />
+                    Kunde hinzufügen
+                  </button>
+                </div>
+
+                {customers.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-dark-400">
+                    <Users size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Noch keine Kunden vorhanden</p>
+                    <p className="text-sm mt-2">Füge deinen ersten Kunden hinzu</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {customers.map(customer => (
+                      <div
+                        key={customer.id}
+                        className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3 flex-1">
+                            <div
+                              className="w-10 h-10 rounded-lg flex-shrink-0"
+                              style={{ backgroundColor: customer.color }}
+                            />
+                            <div className="min-w-0">
+                              <h3 className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</h3>
+                              <p className="text-sm text-gray-500 dark:text-dark-400">
+                                {projects.filter(p => p.customerId === customer.id).length} Projekt(e)
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openCustomerModal(customer)}
+                              className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCustomer(customer)}
+                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {timeTrackingSubTab === 'projects' && (
           <div className="max-w-4xl mx-auto">
             <div className="flex justify-between items-center mb-6">
               <p className="text-gray-600">{projects.length} Projekt(e)</p>
@@ -489,6 +840,372 @@ export const Settings = ({
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'company' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <Building size={24} className="text-accent-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Firmendaten</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    Diese Informationen erscheinen in deinen PDF-Reports
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Logo Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Firmenlogo
+                  </label>
+
+                  {companyLogo ? (
+                    <div className="relative inline-block">
+                      <img
+                        src={companyLogo}
+                        alt="Company Logo"
+                        className="h-24 w-auto object-contain border border-gray-200 dark:border-dark-200 rounded-lg p-2 bg-white dark:bg-dark-50"
+                      />
+                      <button
+                        onClick={handleRemoveLogo}
+                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                        title="Logo entfernen"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <label
+                        htmlFor="logo-upload"
+                        className="inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 dark:border-dark-200 rounded-lg cursor-pointer hover:border-accent-primary hover:bg-accent-light dark:hover:bg-accent-lighter/10 transition-colors"
+                      >
+                        <Upload size={20} className="text-gray-500" />
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Logo hochladen
+                        </span>
+                      </label>
+                      <input
+                        id="logo-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        PNG, JPG oder SVG • Max. 2MB
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Company Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Firmenname *
+                  </label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="z.B. Musterfirma GmbH"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                {/* Address Fields Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Straße & Hausnummer *
+                    </label>
+                    <input
+                      type="text"
+                      value={companyAddress}
+                      onChange={(e) => setCompanyAddress(e.target.value)}
+                      placeholder="z.B. Musterstraße 123"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      PLZ *
+                    </label>
+                    <input
+                      type="text"
+                      value={companyZipCode}
+                      onChange={(e) => setCompanyZipCode(e.target.value)}
+                      placeholder="z.B. 12345"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Stadt *
+                    </label>
+                    <input
+                      type="text"
+                      value={companyCity}
+                      onChange={(e) => setCompanyCity(e.target.value)}
+                      placeholder="z.B. Berlin"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Land *
+                    </label>
+                    <input
+                      type="text"
+                      value={companyCountry}
+                      onChange={(e) => setCompanyCountry(e.target.value)}
+                      placeholder="z.B. Deutschland"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Contact Fields */}
+                <div className="pt-4 border-t border-gray-200 dark:border-dark-200">
+                  <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">Kontaktdaten</h3>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        E-Mail *
+                      </label>
+                      <input
+                        type="email"
+                        value={companyEmail}
+                        onChange={(e) => setCompanyEmail(e.target.value)}
+                        placeholder="z.B. kontakt@musterfirma.de"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Telefon
+                        </label>
+                        <input
+                          type="tel"
+                          value={companyPhone}
+                          onChange={(e) => setCompanyPhone(e.target.value)}
+                          placeholder="z.B. +49 30 12345678"
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Website
+                        </label>
+                        <input
+                          type="url"
+                          value={companyWebsite}
+                          onChange={(e) => setCompanyWebsite(e.target.value)}
+                          placeholder="z.B. https://musterfirma.de"
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tax ID */}
+                <div className="pt-4 border-t border-gray-200 dark:border-dark-200">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Steuernummer / USt-IdNr.
+                    </label>
+                    <input
+                      type="text"
+                      value={companyTaxId}
+                      onChange={(e) => setCompanyTaxId(e.target.value)}
+                      placeholder="z.B. DE123456789"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      Optional: Für Rechnungen und offizielle Dokumente
+                    </p>
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <div className="pt-6 border-t border-gray-200 dark:border-dark-200">
+                  <button
+                    onClick={handleSaveCompanyInfo}
+                    disabled={!companyName.trim() || !companyAddress.trim() || !companyCity.trim() || !companyZipCode.trim() || !companyCountry.trim() || !companyEmail.trim()}
+                    className="btn-accent px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Firmendaten speichern
+                  </button>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                    * Pflichtfelder
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'team' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Team Members */}
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <Users2 size={24} className="text-accent-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Team-Mitglieder</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    {teamMembers.length} Mitglied(er) im Team
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {teamMembers.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-dark-400">
+                    <Users2 size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Keine Team-Mitglieder</p>
+                  </div>
+                ) : (
+                  teamMembers.map(member => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-accent-primary flex items-center justify-center text-white font-semibold">
+                          {member.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 dark:text-white">{member.username}</span>
+                            {member.id === currentUser?.id && (
+                              <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">Du</span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500 dark:text-dark-400">{member.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
+                          member.teamRole === 'owner'
+                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                            : member.teamRole === 'admin'
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                            : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
+                        }`}>
+                          <Shield size={12} />
+                          {member.teamRole === 'owner' ? 'Owner' : member.teamRole === 'admin' ? 'Admin' : 'Mitglied'}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Team Invitations (only for owners/admins) */}
+            {(currentUser?.teamRole === 'owner' || currentUser?.teamRole === 'admin') && (
+              <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <UserPlus size={24} className="text-accent-primary" />
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Team-Einladungen</h2>
+                      <p className="text-sm text-gray-500 dark:text-dark-400">
+                        Lade neue Mitglieder zu deinem Team ein
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Create New Invitation */}
+                <div className="mb-6 p-4 bg-gray-50 dark:bg-dark-50 rounded-lg">
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-3">Neue Einladung erstellen</h3>
+                  <div className="flex gap-3">
+                    <select
+                      value={newInvitationRole}
+                      onChange={(e) => setNewInvitationRole(e.target.value as 'admin' | 'member')}
+                      className="px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                    >
+                      <option value="member">Mitglied</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <button
+                      onClick={handleCreateInvitation}
+                      className="flex items-center gap-2 px-4 py-2 btn-accent"
+                    >
+                      <Plus size={18} />
+                      Einladung erstellen
+                    </button>
+                  </div>
+                </div>
+
+                {/* Active Invitations */}
+                <div className="space-y-3">
+                  <h3 className="font-medium text-gray-900 dark:text-white text-sm">
+                    Aktive Einladungen ({teamInvitations.length})
+                  </h3>
+                  {teamInvitations.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-dark-400 text-center py-4">
+                      Keine aktiven Einladungen
+                    </p>
+                  ) : (
+                    teamInvitations.map(invitation => (
+                      <div
+                        key={invitation.id}
+                        className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-50 rounded-lg"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <code className="px-3 py-1 bg-white dark:bg-dark-100 border border-gray-300 dark:border-dark-200 rounded font-mono text-sm font-semibold text-gray-900 dark:text-white">
+                              {invitation.invitationCode}
+                            </code>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              invitation.role === 'admin'
+                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
+                            }`}>
+                              {invitation.role === 'admin' ? 'Admin' : 'Mitglied'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-dark-400">
+                            Gültig bis {new Date(invitation.expiresAt).toLocaleDateString('de-DE')}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleCopyInvitationCode(invitation.invitationCode)}
+                            className="p-2 text-accent-primary hover:bg-accent-light dark:hover:bg-accent-lighter/10 rounded-lg transition-colors"
+                            title="Code kopieren"
+                          >
+                            <Copy size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteInvitation(invitation.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            title="Einladung löschen"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -752,6 +1469,22 @@ export const Settings = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              Report-Titel (für PDF)
+            </label>
+            <input
+              type="text"
+              value={customerReportTitle}
+              onChange={(e) => setCustomerReportTitle(e.target.value)}
+              placeholder="z.B. Stundenzettel, Tätigkeitsnachweis, Arbeitszeitnachweis"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Optional: Individueller Titel für PDF-Reports dieses Kunden (Standard: "Stundenbericht")
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Farbe
             </label>
             <div className="grid grid-cols-5 gap-2">
@@ -826,13 +1559,47 @@ export const Settings = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Stundensatz (€) *
+              Abrechnungsart *
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setProjectRateType('hourly')}
+                className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${
+                  projectRateType === 'hourly'
+                    ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 text-accent-primary'
+                    : 'border-gray-300 text-gray-600 hover:border-gray-400'
+                }`}
+              >
+                <span className="text-2xl">⏱️</span>
+                <span className="font-medium text-sm">Stundensatz</span>
+                <span className="text-xs text-gray-500">Pro Stunde</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setProjectRateType('daily')}
+                className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${
+                  projectRateType === 'daily'
+                    ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 text-accent-primary'
+                    : 'border-gray-300 text-gray-600 hover:border-gray-400'
+                }`}
+              >
+                <span className="text-2xl">📅</span>
+                <span className="font-medium text-sm">Tagessatz</span>
+                <span className="text-xs text-gray-500">Pro Tag (8h)</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {projectRateType === 'hourly' ? 'Stundensatz (€)' : 'Tagessatz (€)'} *
             </label>
             <input
               type="number"
               value={projectHourlyRate}
               onChange={(e) => setProjectHourlyRate(e.target.value)}
-              placeholder="z.B. 85.00"
+              placeholder={projectRateType === 'hourly' ? 'z.B. 85.00' : 'z.B. 680.00'}
               step="0.01"
               min="0"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -889,6 +1656,22 @@ export const Settings = ({
               rows={3}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
+          </div>
+
+          <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <input
+              type="checkbox"
+              id="activity-billable"
+              checked={activityIsBillable}
+              onChange={(e) => setActivityIsBillable(e.target.checked)}
+              className="w-4 h-4 text-accent-primary border-gray-300 rounded focus:ring-2 focus:ring-accent-primary"
+            />
+            <label htmlFor="activity-billable" className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+              Abrechenbar
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Nicht abrechenbare Tätigkeiten werden nicht in Reports berücksichtigt
+              </span>
+            </label>
           </div>
 
           <div className="flex gap-3 pt-4">

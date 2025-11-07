@@ -123,16 +123,16 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <h1 className="text-2xl font-bold dark:text-white">Zeiterfassung</h1>
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
+        <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Zeiterfassung</h1>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center p-6">
+      <div className="flex-1 flex flex-col items-center justify-center p-3 sm:p-6">
         {/* Timer Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8 mb-8 w-full max-w-2xl">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 md:p-8 mb-8 w-full max-w-2xl">
           {/* Timer Display */}
           <div className="text-center mb-8">
-            <div className={`text-7xl md:text-8xl font-mono font-bold tracking-wider mb-4 transition-colors ${
+            <div className={`text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-mono font-bold tracking-tight sm:tracking-wider mb-4 transition-colors break-all ${
               isRunning
                 ? 'text-blue-600 dark:text-blue-400 animate-pulse'
                 : 'text-gray-800 dark:text-gray-100'
@@ -142,12 +142,12 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
             {/* Active Project Info */}
             {isRunning && selectedProject && (
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/30 rounded-full border border-blue-200 dark:border-blue-800">
+              <div className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 rounded-full border border-blue-200 dark:border-blue-800 max-w-full">
                 <div
-                  className="w-3 h-3 rounded-full animate-pulse"
+                  className="w-3 h-3 rounded-full animate-pulse flex-shrink-0"
                   style={{ backgroundColor: selectedCustomer?.color || '#3B82F6' }}
                 />
-                <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                <span className="text-xs sm:text-sm font-medium text-blue-900 dark:text-blue-100 truncate">
                   {selectedCustomer?.name} - {selectedProject.name}
                 </span>
               </div>
@@ -217,10 +217,10 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
             {!isRunning && elapsedSeconds === 0 && (
               <button
                 onClick={handleStart}
-                className="flex items-center gap-2 px-8 py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                 disabled={!projectId}
               >
-                <Play size={24} />
+                <Play size={20} className="sm:w-6 sm:h-6" />
                 Start
               </button>
             )}
@@ -229,16 +229,16 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               <>
                 <button
                   onClick={handlePause}
-                  className="flex items-center gap-2 px-8 py-4 bg-yellow-500 text-white rounded-full font-semibold hover:bg-yellow-600 active:bg-yellow-700 touch-manipulation transition-all shadow-lg hover:shadow-xl"
+                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-yellow-500 text-white rounded-full font-semibold hover:bg-yellow-600 active:bg-yellow-700 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
                 >
-                  <Pause size={24} />
+                  <Pause size={20} className="sm:w-6 sm:h-6" />
                   Pause
                 </button>
                 <button
                   onClick={handleStop}
-                  className="flex items-center gap-2 px-8 py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-all shadow-lg hover:shadow-xl"
+                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
                 >
-                  <Square size={24} />
+                  <Square size={20} className="sm:w-6 sm:h-6" />
                   Stop
                 </button>
               </>
@@ -248,16 +248,16 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               <>
                 <button
                   onClick={handleResume}
-                  className="flex items-center gap-2 px-8 py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl"
+                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
                 >
-                  <Play size={24} />
+                  <Play size={20} className="sm:w-6 sm:h-6" />
                   Weiter
                 </button>
                 <button
                   onClick={handleStop}
-                  className="flex items-center gap-2 px-8 py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-all shadow-lg hover:shadow-xl"
+                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
                 >
-                  <Square size={24} />
+                  <Square size={20} className="sm:w-6 sm:h-6" />
                   Stop
                 </button>
               </>

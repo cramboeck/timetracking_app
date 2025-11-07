@@ -189,4 +189,15 @@
   .btn-accent:disabled {
     @apply opacity-50 cursor-not-allowed;
   }
+
+  /* Horizontal scroll for mobile */
+  .scroll-touch {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .scroll-touch::-webkit-scrollbar {
+    display: none; /* Chrome, Safari */
+  }
 }
