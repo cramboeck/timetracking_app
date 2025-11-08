@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText } from 'lucide-react';
-import { TimeEntry, Project, Customer } from '../types';
+import { TimeEntry, Project, Customer, Activity } from '../types';
 import jsPDF from 'jspdf';
 import { storage } from '../utils/storage';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,6 +10,7 @@ interface DashboardProps {
   entries: TimeEntry[];
   projects: Project[];
   customers: Customer[];
+  activities: Activity[];
 }
 
 interface ProjectStats {
@@ -25,7 +26,7 @@ interface ProjectStats {
 
 type TimeframeType = 'month' | 'quarter' | 'year' | 'custom';
 
-export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
+export const Dashboard = ({ entries, projects, customers, activities }: DashboardProps) => {
   const { currentUser } = useAuth();
   const [timeframeType, setTimeframeType] = useState<TimeframeType>('month');
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -40,6 +41,23 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
 
   const getProjectById = (id: string) => projects.find(p => p.id === id);
   const getCustomerById = (id: string) => customers.find(c => c.id === id);
+  const getActivityById = (id: string) => activities.find(a => a.id === id);
+
+  const calculateAmount = (entry: TimeEntry): number => {
+    const hours = entry.duration / 3600;
+    const project = getProjectById(entry.projectId);
+
+    // Check if entry has an activity with flat rate
+    if (entry.activityId) {
+      const activity = getActivityById(entry.activityId);
+      if (activity && activity.pricingType === 'flat' && activity.flatRate) {
+        return activity.flatRate;
+      }
+    }
+
+    // Otherwise use hourly rate
+    return project ? hours * project.hourlyRate : 0;
+  };
 
   // Get current quarter/year based on selected month
   const getCurrentQuarter = () => {
@@ -88,7 +106,7 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
 
       return true;
     });
-  }, [entries, selectedMonth, selectedCustomer, selectedProject, timeframeType, customStartDate, customEndDate, getProjectById]);
+  }, [entries, selectedMonth, selectedCustomer, selectedProject, timeframeType, customStartDate, customEndDate, projects]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -101,8 +119,7 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
       if (!project || !customer) return;
 
       const existing = projectMap.get(entry.projectId);
-      const hours = entry.duration / 3600;
-      const amount = hours * project.hourlyRate;
+      const amount = calculateAmount(entry);
 
       if (existing) {
         existing.totalSeconds += entry.duration;
@@ -123,7 +140,7 @@ export const Dashboard = ({ entries, projects, customers }: DashboardProps) => {
     });
 
     return Array.from(projectMap.values()).sort((a, b) => b.totalSeconds - a.totalSeconds);
-  }, [filteredEntries, projects, customers]);
+  }, [filteredEntries, projects, customers, activities]);
 
   const totalSeconds = stats.reduce((sum, s) => sum + s.totalSeconds, 0);
   const totalAmount = stats.reduce((sum, s) => sum + s.totalAmount, 0);

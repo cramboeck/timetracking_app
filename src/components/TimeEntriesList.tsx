@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Trash2, Clock, Edit2, Download } from 'lucide-react';
-import { TimeEntry, Project, Customer } from '../types';
+import { TimeEntry, Project, Customer, Activity } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -9,11 +9,12 @@ interface TimeEntriesListProps {
   entries: TimeEntry[];
   projects: Project[];
   customers: Customer[];
+  activities: Activity[];
   onDelete: (id: string) => void;
   onEdit: (id: string, updates: Partial<TimeEntry>) => void;
 }
 
-export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit }: TimeEntriesListProps) => {
+export const TimeEntriesList = ({ entries, projects, customers, activities, onDelete, onEdit }: TimeEntriesListProps) => {
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editProjectId, setEditProjectId] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -28,11 +29,28 @@ export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit
 
   const getProjectById = (id: string) => projects.find(p => p.id === id);
   const getCustomerById = (id: string) => customers.find(c => c.id === id);
+  const getActivityById = (id: string) => activities.find(a => a.id === id);
 
   const getProjectDisplay = (entry: TimeEntry) => {
     const project = getProjectById(entry.projectId);
     const customer = project ? getCustomerById(project.customerId) : null;
     return project && customer ? `${customer.name} - ${project.name}` : 'Unbekanntes Projekt';
+  };
+
+  const calculateAmount = (entry: TimeEntry): number => {
+    const hours = entry.duration / 3600;
+    const project = getProjectById(entry.projectId);
+
+    // Check if entry has an activity with flat rate
+    if (entry.activityId) {
+      const activity = getActivityById(entry.activityId);
+      if (activity && activity.pricingType === 'flat' && activity.flatRate) {
+        return activity.flatRate;
+      }
+    }
+
+    // Otherwise use hourly rate
+    return project ? hours * project.hourlyRate : 0;
   };
   const sortedEntries = [...entries].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -99,12 +117,21 @@ export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit
   };
 
   const exportToCSV = () => {
-    const headers = ['Datum', 'Start', 'Ende', 'Dauer (Std)', 'Kunde', 'Projekt', 'Beschreibung', 'Stundensatz', 'Betrag'];
+    const headers = ['Datum', 'Start', 'Ende', 'Dauer (Std)', 'Kunde', 'Projekt', 'Tätigkeit', 'Beschreibung', 'Stundensatz/Pauschale', 'Betrag'];
     const rows = entries.map(entry => {
       const project = getProjectById(entry.projectId);
       const customer = project ? getCustomerById(project.customerId) : null;
+      const activity = entry.activityId ? getActivityById(entry.activityId) : null;
       const hours = entry.duration / 3600;
-      const amount = project ? hours * project.hourlyRate : 0;
+      const amount = calculateAmount(entry);
+
+      // Determine rate display
+      let rateDisplay = '-';
+      if (activity && activity.pricingType === 'flat' && activity.flatRate) {
+        rateDisplay = `Pauschale: ${activity.flatRate.toFixed(2)}€`;
+      } else if (project) {
+        rateDisplay = `${project.hourlyRate.toFixed(2)}€/Std`;
+      }
 
       return [
         formatDate(entry.startTime),
@@ -113,8 +140,9 @@ export const TimeEntriesList = ({ entries, projects, customers, onDelete, onEdit
         hours.toFixed(2),
         customer?.name || '-',
         project?.name || '-',
+        activity?.name || '-',
         entry.description || '-',
-        project ? project.hourlyRate.toFixed(2) : '-',
+        rateDisplay,
         amount.toFixed(2)
       ];
     });

@@ -137,6 +137,7 @@ export interface TimeEntry {
   endTime?: string;
   duration: number; // in seconds
   projectId: string; // Changed from project string to projectId
+  activityId?: string; // Optional: link to activity for flat-rate pricing
   description: string;
   isRunning: boolean;
   createdAt: string;

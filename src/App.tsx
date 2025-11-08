@@ -357,6 +357,7 @@ function App() {
             entries={entries}
             projects={projects}
             customers={customers}
+            activities={activities}
             onDelete={handleDeleteEntry}
             onEdit={handleEditEntry}
           />
@@ -366,6 +367,7 @@ function App() {
             entries={entries}
             projects={projects}
             customers={customers}
+            activities={activities}
           />
         )}
         {currentView === 'settings' && (

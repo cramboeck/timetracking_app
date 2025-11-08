@@ -19,6 +19,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [projectId, setProjectId] = useState('');
+  const [activityId, setActivityId] = useState('');
   const [description, setDescription] = useState('');
   const startTimeRef = useRef<string | null>(null);
   const intervalRef = useRef<number | null>(null);
@@ -30,6 +31,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       setIsRunning(true);
       startTimeRef.current = runningEntry.startTime;
       setProjectId(runningEntry.projectId);
+      setActivityId(runningEntry.activityId || '');
       setDescription(runningEntry.description);
 
       const elapsed = Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000);
@@ -73,6 +75,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       startTime: now,
       duration: 0,
       projectId,
+      activityId: activityId || undefined,
       description: description || '',
       isRunning: true,
       createdAt: now,
@@ -104,6 +107,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       endTime,
       duration: roundedDuration, // Use rounded duration
       projectId,
+      activityId: activityId || undefined,
       description: description || '',
       isRunning: false,
       createdAt: runningEntry?.createdAt || startTimeRef.current,
@@ -114,6 +118,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     setElapsedSeconds(0);
     startTimeRef.current = null;
     setProjectId('');
+    setActivityId('');
     setDescription('');
   };
 
@@ -189,6 +194,30 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Tätigkeit (optional)
+              </label>
+              <select
+                value={activityId}
+                onChange={(e) => setActivityId(e.target.value)}
+                disabled={isRunning}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
+              >
+                <option value="">Keine Tätigkeit</option>
+                {activities.map(activity => (
+                  <option key={activity.id} value={activity.id}>
+                    {activity.name} {activity.pricingType === 'flat' && activity.flatRate ? `(Pauschale: ${activity.flatRate.toFixed(2)}€)` : ''}
+                  </option>
+                ))}
+              </select>
+              {activityId && activities.find(a => a.id === activityId)?.description && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                  {activities.find(a => a.id === activityId)?.description}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Beschreibung (optional)
               </label>
               <textarea
@@ -199,21 +228,6 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 rows={3}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed resize-none transition-colors"
               />
-              {activities.length > 0 && !isRunning && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {activities.map(activity => (
-                    <button
-                      key={activity.id}
-                      type="button"
-                      onClick={() => setDescription(activity.name)}
-                      className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                      title={activity.description}
-                    >
-                      {activity.name}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 

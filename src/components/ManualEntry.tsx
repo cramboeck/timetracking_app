@@ -19,6 +19,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('17:00');
   const [projectId, setProjectId] = useState('');
+  const [activityId, setActivityId] = useState('');
   const [description, setDescription] = useState('');
 
   const activeProjects = projects.filter(p => p.isActive);
@@ -55,6 +56,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
       endTime: endDateTime,
       duration: roundedDuration, // Use rounded duration
       projectId,
+      activityId: activityId || undefined,
       description: description || '',
       isRunning: false,
       createdAt: new Date().toISOString(),
@@ -64,6 +66,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
 
     // Reset form
     setProjectId('');
+    setActivityId('');
     setDescription('');
     setStartTime('09:00');
     setEndTime('17:00');
@@ -144,6 +147,29 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              Tätigkeit (optional)
+            </label>
+            <select
+              value={activityId}
+              onChange={(e) => setActivityId(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Keine Tätigkeit</option>
+              {activities.map(activity => (
+                <option key={activity.id} value={activity.id}>
+                  {activity.name} {activity.pricingType === 'flat' && activity.flatRate ? `(Pauschale: ${activity.flatRate.toFixed(2)}€)` : ''}
+                </option>
+              ))}
+            </select>
+            {activityId && activities.find(a => a.id === activityId)?.description && (
+              <p className="text-sm text-gray-500 mt-2">
+                {activities.find(a => a.id === activityId)?.description}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Beschreibung
             </label>
             <textarea
@@ -153,21 +179,6 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
               rows={4}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
-            {activities.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {activities.map(activity => (
-                  <button
-                    key={activity.id}
-                    type="button"
-                    onClick={() => setDescription(activity.name)}
-                    className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-blue-100 hover:text-blue-700 transition-colors"
-                    title={activity.description}
-                  >
-                    {activity.name}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
