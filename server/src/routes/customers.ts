@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/database';
+import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
@@ -33,7 +33,8 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
-    const customers = db.prepare('SELECT * FROM customers WHERE user_id = ? ORDER BY name').all(userId);
+    const result = await pool.query('SELECT * FROM customers WHERE user_id = $1 ORDER BY name', [userId]);
+    const customers = result.rows;
 
     res.json({
       success: true,
@@ -54,12 +55,14 @@ router.post('/', authenticateToken, validate(createCustomerSchema), async (req: 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
-    db.prepare(`
-      INSERT INTO customers (id, user_id, name, color, customer_number, contact_person, email, address, report_title, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, userId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, createdAt);
+    await pool.query(
+      `INSERT INTO customers (id, user_id, name, color, customer_number, contact_person, email, address, report_title, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [id, userId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, createdAt]
+    );
 
-    const newCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
+    const newCustomer = customerResult.rows[0];
 
     auditLog.log({
       userId,
@@ -88,41 +91,42 @@ router.put('/:id', authenticateToken, validate(updateCustomerSchema), async (req
     const updates = req.body;
 
     // Verify customer belongs to user
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ? AND user_id = ?').get(id, userId);
-    if (!customer) {
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [id, userId]);
+    if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Build dynamic update query
     const fields: string[] = [];
     const values: any[] = [];
+    let paramCount = 1;
 
     if (updates.name !== undefined) {
-      fields.push('name = ?');
+      fields.push(`name = $${paramCount++}`);
       values.push(updates.name);
     }
     if (updates.color !== undefined) {
-      fields.push('color = ?');
+      fields.push(`color = $${paramCount++}`);
       values.push(updates.color);
     }
     if (updates.customerNumber !== undefined) {
-      fields.push('customer_number = ?');
+      fields.push(`customer_number = $${paramCount++}`);
       values.push(updates.customerNumber || null);
     }
     if (updates.contactPerson !== undefined) {
-      fields.push('contact_person = ?');
+      fields.push(`contact_person = $${paramCount++}`);
       values.push(updates.contactPerson || null);
     }
     if (updates.email !== undefined) {
-      fields.push('email = ?');
+      fields.push(`email = $${paramCount++}`);
       values.push(updates.email || null);
     }
     if (updates.address !== undefined) {
-      fields.push('address = ?');
+      fields.push(`address = $${paramCount++}`);
       values.push(updates.address || null);
     }
     if (updates.reportTitle !== undefined) {
-      fields.push('report_title = ?');
+      fields.push(`report_title = $${paramCount++}`);
       values.push(updates.reportTitle || null);
     }
 
@@ -131,10 +135,11 @@ router.put('/:id', authenticateToken, validate(updateCustomerSchema), async (req
     }
 
     values.push(id);
-    const query = `UPDATE customers SET ${fields.join(', ')} WHERE id = ?`;
-    db.prepare(query).run(...values);
+    const query = `UPDATE customers SET ${fields.join(', ')} WHERE id = $${paramCount}`;
+    await pool.query(query, values);
 
-    const updatedCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+    const updatedResult = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
+    const updatedCustomer = updatedResult.rows[0];
 
     auditLog.log({
       userId,
@@ -162,18 +167,19 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
     const { id } = req.params;
 
     // Verify customer belongs to user
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ? AND user_id = ?').get(id, userId);
-    if (!customer) {
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [id, userId]);
+    if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Check if customer has projects
-    const projectCount = db.prepare('SELECT COUNT(*) as count FROM projects WHERE customer_id = ?').get(id) as any;
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM projects WHERE customer_id = $1', [id]);
+    const projectCount = countResult.rows[0];
     if (projectCount.count > 0) {
       return res.status(400).json({ error: 'Cannot delete customer with existing projects. Please delete projects first.' });
     }
 
-    db.prepare('DELETE FROM customers WHERE id = ?').run(id);
+    await pool.query('DELETE FROM customers WHERE id = $1', [id]);
 
     auditLog.log({
       userId,

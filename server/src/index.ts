@@ -48,8 +48,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Rate limiting
 app.use('/api/', apiLimiter);
 
-// Initialize database
-initializeDatabase();
+// Initialize database (async for PostgreSQL)
+initializeDatabase().catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
+});
 
 // Routes
 app.use('/api/auth', authRoutes);

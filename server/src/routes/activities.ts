@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/database';
+import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
@@ -29,7 +29,8 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
-    const activities = db.prepare('SELECT * FROM activities WHERE user_id = ? ORDER BY name').all(userId);
+    const result = await pool.query('SELECT * FROM activities WHERE user_id = $1 ORDER BY name', [userId]);
+    const activities = result.rows;
 
     res.json({
       success: true,
@@ -50,12 +51,14 @@ router.post('/', authenticateToken, validate(createActivitySchema), async (req: 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
-    db.prepare(`
-      INSERT INTO activities (id, user_id, name, description, is_billable, pricing_type, flat_rate, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, userId, name, description || null, isBillable ? 1 : 0, pricingType, flatRate || null, createdAt);
+    await pool.query(
+      `INSERT INTO activities (id, user_id, name, description, is_billable, pricing_type, flat_rate, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [id, userId, name, description || null, isBillable, pricingType, flatRate || null, createdAt]
+    );
 
-    const newActivity = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
+    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1', [id]);
+    const newActivity = activityResult.rows[0];
 
     auditLog.log({
       userId,
@@ -84,33 +87,34 @@ router.put('/:id', authenticateToken, validate(updateActivitySchema), async (req
     const updates = req.body;
 
     // Verify activity belongs to user
-    const activity = db.prepare('SELECT * FROM activities WHERE id = ? AND user_id = ?').get(id, userId);
-    if (!activity) {
+    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND user_id = $2', [id, userId]);
+    if (activityResult.rows.length === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
 
     // Build dynamic update query
     const fields: string[] = [];
     const values: any[] = [];
+    let paramCount = 1;
 
     if (updates.name !== undefined) {
-      fields.push('name = ?');
+      fields.push(`name = $${paramCount++}`);
       values.push(updates.name);
     }
     if (updates.description !== undefined) {
-      fields.push('description = ?');
+      fields.push(`description = $${paramCount++}`);
       values.push(updates.description || null);
     }
     if (updates.isBillable !== undefined) {
-      fields.push('is_billable = ?');
-      values.push(updates.isBillable ? 1 : 0);
+      fields.push(`is_billable = $${paramCount++}`);
+      values.push(updates.isBillable); // PostgreSQL uses boolean
     }
     if (updates.pricingType !== undefined) {
-      fields.push('pricing_type = ?');
+      fields.push(`pricing_type = $${paramCount++}`);
       values.push(updates.pricingType);
     }
     if (updates.flatRate !== undefined) {
-      fields.push('flat_rate = ?');
+      fields.push(`flat_rate = $${paramCount++}`);
       values.push(updates.flatRate || null);
     }
 
@@ -119,10 +123,11 @@ router.put('/:id', authenticateToken, validate(updateActivitySchema), async (req
     }
 
     values.push(id);
-    const query = `UPDATE activities SET ${fields.join(', ')} WHERE id = ?`;
-    db.prepare(query).run(...values);
+    const query = `UPDATE activities SET ${fields.join(', ')} WHERE id = $${paramCount}`;
+    await pool.query(query, values);
 
-    const updatedActivity = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
+    const updatedResult = await pool.query('SELECT * FROM activities WHERE id = $1', [id]);
+    const updatedActivity = updatedResult.rows[0];
 
     auditLog.log({
       userId,
@@ -150,18 +155,19 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
     const { id } = req.params;
 
     // Verify activity belongs to user
-    const activity = db.prepare('SELECT * FROM activities WHERE id = ? AND user_id = ?').get(id, userId);
-    if (!activity) {
+    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND user_id = $2', [id, userId]);
+    if (activityResult.rows.length === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
 
     // Check if activity is used in time entries
-    const entryCount = db.prepare('SELECT COUNT(*) as count FROM time_entries WHERE activity_id = ?').get(id) as any;
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM time_entries WHERE activity_id = $1', [id]);
+    const entryCount = countResult.rows[0];
     if (entryCount.count > 0) {
       return res.status(400).json({ error: 'Cannot delete activity with existing time entries. Time entries will be updated to have no activity.' });
     }
 
-    db.prepare('DELETE FROM activities WHERE id = ?').run(id);
+    await pool.query('DELETE FROM activities WHERE id = $1', [id]);
 
     auditLog.log({
       userId,

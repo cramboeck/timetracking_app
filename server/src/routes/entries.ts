@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db, queries } from '../config/database';
+import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
@@ -33,7 +33,8 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
-    const entries = queries.getEntriesByUserId.all(userId);
+    const result = await pool.query('SELECT * FROM time_entries WHERE user_id = $1', [userId]);
+    const entries = result.rows;
 
     res.json({
       success: true,
@@ -51,7 +52,8 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.userId!;
     const { id } = req.params;
 
-    const entry = db.prepare('SELECT * FROM time_entries WHERE id = ? AND user_id = ?').get(id, userId);
+    const result = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND user_id = $2', [id, userId]);
+    const entry = result.rows[0];
 
     if (!entry) {
       return res.status(404).json({ error: 'Entry not found' });
@@ -74,15 +76,15 @@ router.post('/', authenticateToken, validate(createEntrySchema), async (req: Aut
     const { startTime, endTime, duration, projectId, activityId, description, isRunning } = req.body;
 
     // Verify project belongs to user
-    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
-    if (!project) {
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND user_id = $2', [projectId, userId]);
+    if (projectResult.rows.length === 0) {
       return res.status(400).json({ error: 'Project not found or does not belong to you' });
     }
 
     // Verify activity belongs to user (if provided)
     if (activityId) {
-      const activity = db.prepare('SELECT * FROM activities WHERE id = ? AND user_id = ?').get(activityId, userId);
-      if (!activity) {
+      const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND user_id = $2', [activityId, userId]);
+      if (activityResult.rows.length === 0) {
         return res.status(400).json({ error: 'Activity not found or does not belong to you' });
       }
     }
@@ -90,24 +92,25 @@ router.post('/', authenticateToken, validate(createEntrySchema), async (req: Aut
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
-    queries.createTimeEntry.run(
-      id,
-      userId,
-      projectId,
-      startTime,
-      endTime || null,
-      duration,
-      description || '',
-      isRunning ? 1 : 0,
-      createdAt
+    await pool.query(
+      `INSERT INTO time_entries (id, user_id, project_id, activity_id, start_time, end_time, duration, description, is_running, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        id,
+        userId,
+        projectId,
+        activityId || null,
+        startTime,
+        endTime || null,
+        duration,
+        description || '',
+        isRunning, // PostgreSQL uses boolean, not 0/1
+        createdAt
+      ]
     );
 
-    // If there's an activityId, update the entry (workaround since createTimeEntry doesn't have activityId yet)
-    if (activityId) {
-      db.prepare('UPDATE time_entries SET activity_id = ? WHERE id = ?').run(activityId, id);
-    }
-
-    const newEntry = db.prepare('SELECT * FROM time_entries WHERE id = ?').get(id);
+    const entryResult = await pool.query('SELECT * FROM time_entries WHERE id = $1', [id]);
+    const newEntry = entryResult.rows[0];
 
     auditLog.log({
       userId,
@@ -136,23 +139,23 @@ router.put('/:id', authenticateToken, validate(updateEntrySchema), async (req: A
     const updates = req.body;
 
     // Verify entry belongs to user
-    const entry = db.prepare('SELECT * FROM time_entries WHERE id = ? AND user_id = ?').get(id, userId);
-    if (!entry) {
+    const entryResult = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND user_id = $2', [id, userId]);
+    if (entryResult.rows.length === 0) {
       return res.status(404).json({ error: 'Entry not found' });
     }
 
     // Verify project belongs to user (if updating projectId)
     if (updates.projectId) {
-      const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(updates.projectId, userId);
-      if (!project) {
+      const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND user_id = $2', [updates.projectId, userId]);
+      if (projectResult.rows.length === 0) {
         return res.status(400).json({ error: 'Project not found or does not belong to you' });
       }
     }
 
     // Verify activity belongs to user (if updating activityId)
     if (updates.activityId) {
-      const activity = db.prepare('SELECT * FROM activities WHERE id = ? AND user_id = ?').get(updates.activityId, userId);
-      if (!activity) {
+      const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND user_id = $2', [updates.activityId, userId]);
+      if (activityResult.rows.length === 0) {
         return res.status(400).json({ error: 'Activity not found or does not belong to you' });
       }
     }
@@ -160,34 +163,35 @@ router.put('/:id', authenticateToken, validate(updateEntrySchema), async (req: A
     // Build dynamic update query
     const fields: string[] = [];
     const values: any[] = [];
+    let paramCount = 1;
 
     if (updates.startTime !== undefined) {
-      fields.push('start_time = ?');
+      fields.push(`start_time = $${paramCount++}`);
       values.push(updates.startTime);
     }
     if (updates.endTime !== undefined) {
-      fields.push('end_time = ?');
+      fields.push(`end_time = $${paramCount++}`);
       values.push(updates.endTime);
     }
     if (updates.duration !== undefined) {
-      fields.push('duration = ?');
+      fields.push(`duration = $${paramCount++}`);
       values.push(updates.duration);
     }
     if (updates.projectId !== undefined) {
-      fields.push('project_id = ?');
+      fields.push(`project_id = $${paramCount++}`);
       values.push(updates.projectId);
     }
     if (updates.activityId !== undefined) {
-      fields.push('activity_id = ?');
+      fields.push(`activity_id = $${paramCount++}`);
       values.push(updates.activityId);
     }
     if (updates.description !== undefined) {
-      fields.push('description = ?');
+      fields.push(`description = $${paramCount++}`);
       values.push(updates.description);
     }
     if (updates.isRunning !== undefined) {
-      fields.push('is_running = ?');
-      values.push(updates.isRunning ? 1 : 0);
+      fields.push(`is_running = $${paramCount++}`);
+      values.push(updates.isRunning); // PostgreSQL uses boolean
     }
 
     if (fields.length === 0) {
@@ -195,10 +199,11 @@ router.put('/:id', authenticateToken, validate(updateEntrySchema), async (req: A
     }
 
     values.push(id);
-    const query = `UPDATE time_entries SET ${fields.join(', ')} WHERE id = ?`;
-    db.prepare(query).run(...values);
+    const query = `UPDATE time_entries SET ${fields.join(', ')} WHERE id = $${paramCount}`;
+    await pool.query(query, values);
 
-    const updatedEntry = db.prepare('SELECT * FROM time_entries WHERE id = ?').get(id);
+    const updatedResult = await pool.query('SELECT * FROM time_entries WHERE id = $1', [id]);
+    const updatedEntry = updatedResult.rows[0];
 
     auditLog.log({
       userId,
@@ -226,12 +231,12 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
     const { id } = req.params;
 
     // Verify entry belongs to user
-    const entry = db.prepare('SELECT * FROM time_entries WHERE id = ? AND user_id = ?').get(id, userId);
-    if (!entry) {
+    const entryResult = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND user_id = $2', [id, userId]);
+    if (entryResult.rows.length === 0) {
       return res.status(404).json({ error: 'Entry not found' });
     }
 
-    queries.deleteTimeEntry.run(id);
+    await pool.query('DELETE FROM time_entries WHERE id = $1', [id]);
 
     auditLog.log({
       userId,

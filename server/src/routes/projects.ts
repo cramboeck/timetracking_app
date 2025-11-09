@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/database';
+import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
@@ -29,7 +29,8 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
-    const projects = db.prepare('SELECT * FROM projects WHERE user_id = ? ORDER BY name').all(userId);
+    const result = await pool.query('SELECT * FROM projects WHERE user_id = $1 ORDER BY name', [userId]);
+    const projects = result.rows;
 
     res.json({
       success: true,
@@ -48,20 +49,22 @@ router.post('/', authenticateToken, validate(createProjectSchema), async (req: A
     const { customerId, name, rateType, hourlyRate, isActive } = req.body;
 
     // Verify customer belongs to user
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ? AND user_id = ?').get(customerId, userId);
-    if (!customer) {
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [customerId, userId]);
+    if (customerResult.rows.length === 0) {
       return res.status(400).json({ error: 'Customer not found or does not belong to you' });
     }
 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
-    db.prepare(`
-      INSERT INTO projects (id, user_id, customer_id, name, rate_type, hourly_rate, is_active, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, userId, customerId, name, rateType, hourlyRate, isActive ? 1 : 0, createdAt);
+    await pool.query(
+      `INSERT INTO projects (id, user_id, customer_id, name, rate_type, hourly_rate, is_active, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [id, userId, customerId, name, rateType, hourlyRate, isActive, createdAt]
+    );
 
-    const newProject = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1', [id]);
+    const newProject = projectResult.rows[0];
 
     auditLog.log({
       userId,
@@ -90,15 +93,15 @@ router.put('/:id', authenticateToken, validate(updateProjectSchema), async (req:
     const updates = req.body;
 
     // Verify project belongs to user
-    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(id, userId);
-    if (!project) {
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND user_id = $2', [id, userId]);
+    if (projectResult.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     // Verify customer belongs to user (if updating customerId)
     if (updates.customerId) {
-      const customer = db.prepare('SELECT * FROM customers WHERE id = ? AND user_id = ?').get(updates.customerId, userId);
-      if (!customer) {
+      const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [updates.customerId, userId]);
+      if (customerResult.rows.length === 0) {
         return res.status(400).json({ error: 'Customer not found or does not belong to you' });
       }
     }
@@ -106,26 +109,27 @@ router.put('/:id', authenticateToken, validate(updateProjectSchema), async (req:
     // Build dynamic update query
     const fields: string[] = [];
     const values: any[] = [];
+    let paramCount = 1;
 
     if (updates.customerId !== undefined) {
-      fields.push('customer_id = ?');
+      fields.push(`customer_id = $${paramCount++}`);
       values.push(updates.customerId);
     }
     if (updates.name !== undefined) {
-      fields.push('name = ?');
+      fields.push(`name = $${paramCount++}`);
       values.push(updates.name);
     }
     if (updates.rateType !== undefined) {
-      fields.push('rate_type = ?');
+      fields.push(`rate_type = $${paramCount++}`);
       values.push(updates.rateType);
     }
     if (updates.hourlyRate !== undefined) {
-      fields.push('hourly_rate = ?');
+      fields.push(`hourly_rate = $${paramCount++}`);
       values.push(updates.hourlyRate);
     }
     if (updates.isActive !== undefined) {
-      fields.push('is_active = ?');
-      values.push(updates.isActive ? 1 : 0);
+      fields.push(`is_active = $${paramCount++}`);
+      values.push(updates.isActive); // PostgreSQL uses boolean
     }
 
     if (fields.length === 0) {
@@ -133,10 +137,11 @@ router.put('/:id', authenticateToken, validate(updateProjectSchema), async (req:
     }
 
     values.push(id);
-    const query = `UPDATE projects SET ${fields.join(', ')} WHERE id = ?`;
-    db.prepare(query).run(...values);
+    const query = `UPDATE projects SET ${fields.join(', ')} WHERE id = $${paramCount}`;
+    await pool.query(query, values);
 
-    const updatedProject = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+    const updatedResult = await pool.query('SELECT * FROM projects WHERE id = $1', [id]);
+    const updatedProject = updatedResult.rows[0];
 
     auditLog.log({
       userId,
@@ -164,18 +169,19 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
     const { id } = req.params;
 
     // Verify project belongs to user
-    const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?').get(id, userId);
-    if (!project) {
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND user_id = $2', [id, userId]);
+    if (projectResult.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     // Check if project has time entries
-    const entryCount = db.prepare('SELECT COUNT(*) as count FROM time_entries WHERE project_id = ?').get(id) as any;
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM time_entries WHERE project_id = $1', [id]);
+    const entryCount = countResult.rows[0];
     if (entryCount.count > 0) {
       return res.status(400).json({ error: 'Cannot delete project with existing time entries. Please delete entries first or mark project as inactive.' });
     }
 
-    db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+    await pool.query('DELETE FROM projects WHERE id = $1', [id]);
 
     auditLog.log({
       userId,

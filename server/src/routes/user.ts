@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/database';
+import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
@@ -20,11 +20,13 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
-    const user = db.prepare(`
-      SELECT id, username, email, account_type, organization_name, team_id, team_role,
-             mfa_enabled, accent_color, gray_tone, time_rounding_interval, created_at, last_login
-      FROM users WHERE id = ?
-    `).get(userId);
+    const result = await pool.query(
+      `SELECT id, username, email, account_type, organization_name, team_id, team_role,
+              mfa_enabled, accent_color, gray_tone, time_rounding_interval, created_at, last_login
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+    const user = result.rows[0];
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -49,21 +51,22 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
     // Build dynamic update query
     const fields: string[] = [];
     const values: any[] = [];
+    let paramCount = 1;
 
     if (updates.accentColor !== undefined) {
-      fields.push('accent_color = ?');
+      fields.push(`accent_color = $${paramCount++}`);
       values.push(updates.accentColor);
     }
     if (updates.grayTone !== undefined) {
-      fields.push('gray_tone = ?');
+      fields.push(`gray_tone = $${paramCount++}`);
       values.push(updates.grayTone);
     }
     if (updates.timeRoundingInterval !== undefined) {
-      fields.push('time_rounding_interval = ?');
+      fields.push(`time_rounding_interval = $${paramCount++}`);
       values.push(updates.timeRoundingInterval);
     }
     if (updates.organizationName !== undefined) {
-      fields.push('organization_name = ?');
+      fields.push(`organization_name = $${paramCount++}`);
       values.push(updates.organizationName || null);
     }
 
@@ -72,14 +75,16 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
     }
 
     values.push(userId);
-    const query = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
-    db.prepare(query).run(...values);
+    const query = `UPDATE users SET ${fields.join(', ')} WHERE id = $${paramCount}`;
+    await pool.query(query, values);
 
-    const updatedUser = db.prepare(`
-      SELECT id, username, email, account_type, organization_name, team_id, team_role,
-             mfa_enabled, accent_color, gray_tone, time_rounding_interval, created_at, last_login
-      FROM users WHERE id = ?
-    `).get(userId);
+    const userResult = await pool.query(
+      `SELECT id, username, email, account_type, organization_name, team_id, team_role,
+              mfa_enabled, accent_color, gray_tone, time_rounding_interval, created_at, last_login
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+    const updatedUser = userResult.rows[0];
 
     auditLog.log({
       userId,
@@ -105,11 +110,12 @@ router.get('/company', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
-    const company = db.prepare('SELECT * FROM company_info WHERE user_id = ?').get(userId);
+    const result = await pool.query('SELECT * FROM company_info WHERE user_id = $1', [userId]);
+    const company = result.rows[0] || null;
 
     res.json({
       success: true,
-      data: company || null
+      data: company
     });
   } catch (error) {
     console.error('Get company error:', error);
@@ -124,26 +130,30 @@ router.post('/company', authenticateToken, async (req: AuthRequest, res) => {
     const { name, address, city, zipCode, country, email, phone, website, taxId, logo } = req.body;
 
     // Check if company info already exists
-    const existing = db.prepare('SELECT * FROM company_info WHERE user_id = ?').get(userId);
+    const existingResult = await pool.query('SELECT * FROM company_info WHERE user_id = $1', [userId]);
+    const existing = existingResult.rows[0];
 
     if (existing) {
       // Update existing
-      db.prepare(`
-        UPDATE company_info
-        SET name = ?, address = ?, city = ?, zip_code = ?, country = ?, email = ?,
-            phone = ?, website = ?, tax_id = ?, logo = ?
-        WHERE user_id = ?
-      `).run(name, address, city, zipCode, country, email, phone || null, website || null, taxId || null, logo || null, userId);
+      await pool.query(
+        `UPDATE company_info
+         SET name = $1, address = $2, city = $3, zip_code = $4, country = $5, email = $6,
+             phone = $7, website = $8, tax_id = $9, logo = $10
+         WHERE user_id = $11`,
+        [name, address, city, zipCode, country, email, phone || null, website || null, taxId || null, logo || null, userId]
+      );
     } else {
       // Create new
       const id = crypto.randomUUID();
-      db.prepare(`
-        INSERT INTO company_info (id, user_id, name, address, city, zip_code, country, email, phone, website, tax_id, logo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, userId, name, address, city, zipCode, country, email, phone || null, website || null, taxId || null, logo || null);
+      await pool.query(
+        `INSERT INTO company_info (id, user_id, name, address, city, zip_code, country, email, phone, website, tax_id, logo)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [id, userId, name, address, city, zipCode, country, email, phone || null, website || null, taxId || null, logo || null]
+      );
     }
 
-    const company = db.prepare('SELECT * FROM company_info WHERE user_id = ?').get(userId);
+    const companyResult = await pool.query('SELECT * FROM company_info WHERE user_id = $1', [userId]);
+    const company = companyResult.rows[0];
 
     auditLog.log({
       userId,
@@ -170,12 +180,23 @@ router.post('/export', authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.userId!;
 
     // Gather all user data
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
-    const customers = db.prepare('SELECT * FROM customers WHERE user_id = ?').all(userId);
-    const projects = db.prepare('SELECT * FROM projects WHERE user_id = ?').all(userId);
-    const activities = db.prepare('SELECT * FROM activities WHERE user_id = ?').all(userId);
-    const entries = db.prepare('SELECT * FROM time_entries WHERE user_id = ?').all(userId);
-    const company = db.prepare('SELECT * FROM company_info WHERE user_id = ?').get(userId);
+    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    const user = userResult.rows[0];
+
+    const customersResult = await pool.query('SELECT * FROM customers WHERE user_id = $1', [userId]);
+    const customers = customersResult.rows;
+
+    const projectsResult = await pool.query('SELECT * FROM projects WHERE user_id = $1', [userId]);
+    const projects = projectsResult.rows;
+
+    const activitiesResult = await pool.query('SELECT * FROM activities WHERE user_id = $1', [userId]);
+    const activities = activitiesResult.rows;
+
+    const entriesResult = await pool.query('SELECT * FROM time_entries WHERE user_id = $1', [userId]);
+    const entries = entriesResult.rows;
+
+    const companyResult = await pool.query('SELECT * FROM company_info WHERE user_id = $1', [userId]);
+    const company = companyResult.rows[0];
 
     const exportData = {
       user,
@@ -221,7 +242,7 @@ router.delete('/account', authenticateToken, async (req: AuthRequest, res) => {
     });
 
     // Delete user (cascades to all related data due to foreign keys)
-    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
 
     res.json({
       success: true,

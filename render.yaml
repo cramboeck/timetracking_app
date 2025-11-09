@@ -1,3 +1,11 @@
+databases:
+  # PostgreSQL Database (FREE - 90 Tage Datenaufbewahrung)
+  - name: timetracking-db
+    databaseName: timetracking
+    user: timetracking
+    region: frankfurt
+    plan: free
+
 services:
   # Backend API Service
   - type: web
@@ -6,13 +14,17 @@ services:
     region: frankfurt
     plan: free
     buildCommand: cd server && npm install && npm run build
-    startCommand: cd server && npm start
+    startCommand: cd server && npm run db:migrate && npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: timetracking-db
+          property: connectionString
       - key: JWT_SECRET
         generateValue: true
         sync: false
@@ -33,7 +45,3 @@ services:
       #   sync: false
       # - key: EMAIL_TEST_RECIPIENT
       #   sync: false
-    # HINWEIS: Persistent Disks sind im Free Plan nicht verfügbar
-    # Daten gehen bei jedem Deployment verloren!
-    # Für dauerhafte Datenspeicherung: Upgrade zu Paid Plan ($7/Monat)
-    # oder nutze PostgreSQL Database (kostenlos verfügbar)

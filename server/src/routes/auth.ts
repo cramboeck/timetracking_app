@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { queries } from '../config/database';
+import { pool } from '../config/database';
 import { emailService } from '../services/emailService';
 import { auditLog } from '../services/auditLog';
 import { authLimiter } from '../middleware/rateLimiter';
@@ -14,11 +14,13 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
     const { username, email, password, accountType, organizationName, inviteCode } = req.body;
 
     // Check if user exists
-    if (queries.getUserByUsername.get(username)) {
+    const existingUsername = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    if (existingUsername.rows.length > 0) {
       return res.status(400).json({ error: 'Username already exists' });
     }
 
-    if (queries.getUserByEmail.get(email)) {
+    const existingEmail = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (existingEmail.rows.length > 0) {
       return res.status(400).json({ error: 'Email already exists' });
     }
 
@@ -27,21 +29,27 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
 
     // Create user
     const userId = crypto.randomUUID();
-    queries.createUser.run(
-      userId,
-      username,
-      email,
-      passwordHash,
-      accountType,
-      organizationName || null,
-      null, // teamId
-      null, // teamRole
-      0, // mfaEnabled
-      'blue', // accentColor
-      'medium', // grayTone
-      15, // timeRoundingInterval
-      new Date().toISOString(),
-      new Date().toISOString()
+    await pool.query(
+      `INSERT INTO users (id, username, email, password_hash, account_type, organization_name,
+       team_id, team_role, mfa_enabled, accent_color, gray_tone, time_rounding_interval,
+       created_at, last_login)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      [
+        userId,
+        username,
+        email,
+        passwordHash,
+        accountType,
+        organizationName || null,
+        null, // teamId
+        null, // teamRole
+        false, // mfaEnabled (changed from 0 to false)
+        'blue', // accentColor
+        'medium', // grayTone
+        15, // timeRoundingInterval
+        new Date().toISOString(),
+        new Date().toISOString()
+      ]
     );
 
     // Audit log
@@ -84,7 +92,8 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    const user = queries.getUserByUsername.get(username) as any;
+    const userResult = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    const user = userResult.rows[0] as any;
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -97,7 +106,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
     }
 
     // Update last login
-    queries.updateUserLastLogin.run(new Date().toISOString(), user.id);
+    await pool.query('UPDATE users SET last_login = $1 WHERE id = $2', [new Date().toISOString(), user.id]);
 
     // Audit log
     auditLog.log({
