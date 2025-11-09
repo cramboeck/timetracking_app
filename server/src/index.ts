@@ -5,6 +5,11 @@ import helmet from 'helmet';
 import { initializeDatabase } from './config/database';
 import { startNotificationJobs } from './jobs/notificationJobs';
 import authRoutes from './routes/auth';
+import entriesRoutes from './routes/entries';
+import projectsRoutes from './routes/projects';
+import customersRoutes from './routes/customers';
+import activitiesRoutes from './routes/activities';
+import userRoutes from './routes/user';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -48,6 +53,11 @@ initializeDatabase();
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/entries', entriesRoutes);
+app.use('/api/projects', projectsRoutes);
+app.use('/api/customers', customersRoutes);
+app.use('/api/activities', activitiesRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

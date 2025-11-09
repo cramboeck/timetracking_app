@@ -48,6 +48,7 @@ export function initializeDatabase() {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       project_id TEXT NOT NULL,
+      activity_id TEXT,
       start_time TEXT NOT NULL,
       end_time TEXT,
       duration INTEGER,
@@ -55,7 +56,8 @@ export function initializeDatabase() {
       is_running INTEGER DEFAULT 0,
       created_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE SET NULL
     )
   `);
 
@@ -100,6 +102,8 @@ export function initializeDatabase() {
       name TEXT NOT NULL,
       description TEXT,
       is_billable INTEGER DEFAULT 1,
+      pricing_type TEXT DEFAULT 'hourly' CHECK(pricing_type IN ('hourly', 'flat')),
+      flat_rate REAL,
       created_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
