@@ -10,6 +10,7 @@ import projectsRoutes from './routes/projects';
 import customersRoutes from './routes/customers';
 import activitiesRoutes from './routes/activities';
 import userRoutes from './routes/user';
+import adminRoutes from './routes/admin';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -61,6 +62,7 @@ app.use('/api/entries', entriesRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/customers', customersRoutes);
 app.use('/api/activities', activitiesRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

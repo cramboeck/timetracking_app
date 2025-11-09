@@ -75,6 +75,7 @@ export async function initializeDatabase() {
         organization_name TEXT,
         team_id TEXT REFERENCES teams(id) ON DELETE SET NULL,
         team_role TEXT CHECK(team_role IN ('owner', 'admin', 'member')),
+        role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin')),
         mfa_enabled BOOLEAN DEFAULT FALSE,
         mfa_secret TEXT,
         accent_color TEXT DEFAULT 'blue',
@@ -239,6 +240,20 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_activities_user_id ON activities(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
+
+    // Add role column to users table if it doesn't exist (migration)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'role'
+        ) THEN
+          ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin'));
+          UPDATE users SET role = 'user' WHERE role IS NULL;
+        END IF;
+      END $$;
+    `);
 
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
