@@ -1,0 +1,39 @@
+services:
+  # Backend API Service
+  - type: web
+    name: timetracking-backend
+    runtime: node
+    region: frankfurt
+    plan: free
+    buildCommand: cd server && npm install && npm run build
+    startCommand: cd server && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+        sync: false
+      - key: EMAIL_TEST_MODE
+        value: true
+      - key: NOTIFICATIONS_ENABLED
+        value: true
+      - key: FRONTEND_URL
+        value: https://your-frontend-url.com
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: 587
+      # Optionale Email-Konfiguration - über Render Dashboard hinzufügen
+      # - key: EMAIL_USER
+      #   sync: false
+      # - key: EMAIL_PASSWORD
+      #   sync: false
+      # - key: EMAIL_TEST_RECIPIENT
+      #   sync: false
+    disk:
+      name: timetracking-db
+      mountPath: /opt/render/project/src/server/data
+      sizeGB: 1
