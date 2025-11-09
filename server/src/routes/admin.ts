@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
-import { authenticate } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/adminAuth';
 import { auditLog } from '../services/auditLog';
 
@@ -187,7 +187,7 @@ router.get('/users/:id', async (req, res) => {
 });
 
 // PUT /api/admin/users/:id/role - Update user role
-router.put('/users/:id/role', async (req, res) => {
+router.put('/users/:id/role', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { role } = req.body;
@@ -222,7 +222,7 @@ router.put('/users/:id/role', async (req, res) => {
 });
 
 // DELETE /api/admin/users/:id - Delete user
-router.delete('/users/:id', async (req, res) => {
+router.delete('/users/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
