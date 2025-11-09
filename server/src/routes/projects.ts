@@ -69,7 +69,6 @@ router.post('/', authenticateToken, validate(createProjectSchema), async (req: A
     auditLog.log({
       userId,
       action: 'project.create',
-      details: `project:${id}`,
       details: JSON.stringify({ name, customerId }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
@@ -146,7 +145,6 @@ router.put('/:id', authenticateToken, validate(updateProjectSchema), async (req:
     auditLog.log({
       userId,
       action: 'project.update',
-      details: `project:${id}`,
       details: JSON.stringify(updates),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
@@ -186,7 +184,6 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
     auditLog.log({
       userId,
       action: 'project.delete',
-      details: `project:${id}`,
       details: JSON.stringify({ id }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
