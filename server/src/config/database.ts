@@ -1,216 +1,274 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import { Pool, PoolClient, QueryResult } from 'pg';
 
-const dbPath = process.env.DATABASE_URL || path.join(__dirname, '../../database.sqlite');
-export const db = new Database(dbPath);
+// Create PostgreSQL connection pool
+const connectionString = process.env.DATABASE_URL;
 
-// Enable foreign keys
-db.pragma('foreign_keys = ON');
-
-// Initialize database schema
-export function initializeDatabase() {
-  // Users table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      username TEXT UNIQUE NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      account_type TEXT NOT NULL CHECK(account_type IN ('personal', 'business', 'team')),
-      organization_name TEXT,
-      team_id TEXT,
-      team_role TEXT CHECK(team_role IN ('owner', 'admin', 'member')),
-      mfa_enabled INTEGER DEFAULT 0,
-      mfa_secret TEXT,
-      accent_color TEXT DEFAULT 'blue',
-      gray_tone TEXT DEFAULT 'medium',
-      time_rounding_interval INTEGER DEFAULT 15,
-      created_at TEXT NOT NULL,
-      last_login TEXT,
-      FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL
-    )
-  `);
-
-  // Teams table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS teams (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      owner_id TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Time entries table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS time_entries (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      project_id TEXT NOT NULL,
-      activity_id TEXT,
-      start_time TEXT NOT NULL,
-      end_time TEXT,
-      duration INTEGER,
-      description TEXT,
-      is_running INTEGER DEFAULT 0,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-      FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE SET NULL
-    )
-  `);
-
-  // Customers table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS customers (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      color TEXT NOT NULL,
-      customer_number TEXT,
-      contact_person TEXT,
-      email TEXT,
-      address TEXT,
-      report_title TEXT,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Projects table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      customer_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      is_active INTEGER DEFAULT 1,
-      rate_type TEXT NOT NULL CHECK(rate_type IN ('hourly', 'daily')),
-      hourly_rate REAL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Activities table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS activities (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT,
-      is_billable INTEGER DEFAULT 1,
-      pricing_type TEXT DEFAULT 'hourly' CHECK(pricing_type IN ('hourly', 'flat')),
-      flat_rate REAL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Company info table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS company_info (
-      id TEXT PRIMARY KEY,
-      user_id TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      address TEXT NOT NULL,
-      city TEXT NOT NULL,
-      zip_code TEXT NOT NULL,
-      country TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      website TEXT,
-      tax_id TEXT,
-      logo TEXT,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Team invitations table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS team_invitations (
-      id TEXT PRIMARY KEY,
-      team_id TEXT NOT NULL,
-      invitation_code TEXT UNIQUE NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('admin', 'member')),
-      created_by TEXT NOT NULL,
-      expires_at TEXT NOT NULL,
-      used_by TEXT,
-      used_at TEXT,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (used_by) REFERENCES users(id) ON DELETE SET NULL
-    )
-  `);
-
-  // Email notifications log table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS email_notifications (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      notification_type TEXT NOT NULL,
-      sent_at TEXT NOT NULL,
-      status TEXT NOT NULL CHECK(status IN ('sent', 'failed', 'pending')),
-      error_message TEXT,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  console.log('✅ Database initialized successfully');
+if (!connectionString) {
+  throw new Error('DATABASE_URL environment variable is not set');
 }
 
-// Initialize database immediately when this module is loaded
-initializeDatabase();
+export const pool = new Pool({
+  connectionString,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
 
-// Export prepared statements for common queries
-export const queries = {
-  // Users
-  getUserByUsername: db.prepare('SELECT * FROM users WHERE username = ?'),
-  getUserByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
-  getUserById: db.prepare('SELECT * FROM users WHERE id = ?'),
-  createUser: db.prepare(`
-    INSERT INTO users (
-      id, username, email, password_hash, account_type, organization_name,
-      team_id, team_role, mfa_enabled, accent_color, gray_tone,
-      time_rounding_interval, created_at, last_login
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `),
-  updateUserLastLogin: db.prepare('UPDATE users SET last_login = ? WHERE id = ?'),
+// Test database connection
+pool.on('connect', () => {
+  console.log('✅ Connected to PostgreSQL database');
+});
 
-  // Time Entries
-  getEntriesByUserId: db.prepare('SELECT * FROM time_entries WHERE user_id = ? ORDER BY start_time DESC'),
-  createTimeEntry: db.prepare(`
-    INSERT INTO time_entries (
-      id, user_id, project_id, start_time, end_time, duration, description, is_running, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `),
-  updateTimeEntry: db.prepare(`
-    UPDATE time_entries
-    SET end_time = ?, duration = ?, description = ?, is_running = ?
-    WHERE id = ?
-  `),
-  deleteTimeEntry: db.prepare('DELETE FROM time_entries WHERE id = ?'),
+pool.on('error', (err) => {
+  console.error('❌ Unexpected error on idle client', err);
+  process.exit(-1);
+});
 
-  // Projects
-  getProjectsByUserId: db.prepare('SELECT * FROM projects WHERE user_id = ? ORDER BY name'),
+// Helper function to run queries
+export async function query(text: string, params?: any[]): Promise<QueryResult> {
+  const start = Date.now();
+  try {
+    const res = await pool.query(text, params);
+    const duration = Date.now() - start;
+    console.log('Executed query', { text, duration, rows: res.rowCount });
+    return res;
+  } catch (error) {
+    console.error('Query error:', { text, error });
+    throw error;
+  }
+}
 
-  // Customers
-  getCustomersByUserId: db.prepare('SELECT * FROM customers WHERE user_id = ? ORDER BY name'),
+// Helper function to get a client from the pool
+export async function getClient(): Promise<PoolClient> {
+  return await pool.connect();
+}
 
-  // Activities
-  getActivitiesByUserId: db.prepare('SELECT * FROM activities WHERE user_id = ? ORDER BY name'),
+// Initialize database schema
+export async function initializeDatabase() {
+  const client = await pool.connect();
 
-  // Email notifications
-  logEmailNotification: db.prepare(`
-    INSERT INTO email_notifications (id, user_id, notification_type, sent_at, status, error_message)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `),
-  getLastNotification: db.prepare(`
-    SELECT * FROM email_notifications
-    WHERE user_id = ? AND notification_type = ?
-    ORDER BY sent_at DESC LIMIT 1
-  `),
-};
+  try {
+    await client.query('BEGIN');
+
+    // Enable UUID extension
+    await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
+
+    // Teams table (create first because users references it)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS teams (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        owner_id TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Users table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        account_type TEXT NOT NULL CHECK(account_type IN ('personal', 'business', 'team', 'freelancer')),
+        organization_name TEXT,
+        team_id TEXT REFERENCES teams(id) ON DELETE SET NULL,
+        team_role TEXT CHECK(team_role IN ('owner', 'admin', 'member')),
+        role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin')),
+        mfa_enabled BOOLEAN DEFAULT FALSE,
+        mfa_secret TEXT,
+        accent_color TEXT DEFAULT 'blue',
+        gray_tone TEXT DEFAULT 'medium',
+        time_rounding_interval INTEGER DEFAULT 15,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_login TIMESTAMP
+      )
+    `);
+
+    // Add foreign key to teams after users table exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'teams_owner_id_fkey'
+        ) THEN
+          ALTER TABLE teams ADD CONSTRAINT teams_owner_id_fkey
+          FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+
+    // Customers table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL,
+        customer_number TEXT,
+        contact_person TEXT,
+        email TEXT,
+        address TEXT,
+        report_title TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Projects table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        rate_type TEXT NOT NULL CHECK(rate_type IN ('hourly', 'daily')),
+        hourly_rate DECIMAL(10, 2),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Activities table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS activities (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        is_billable BOOLEAN DEFAULT TRUE,
+        pricing_type TEXT DEFAULT 'hourly' CHECK(pricing_type IN ('hourly', 'flat')),
+        flat_rate DECIMAL(10, 2),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Time entries table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS time_entries (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        activity_id TEXT REFERENCES activities(id) ON DELETE SET NULL,
+        start_time TIMESTAMP NOT NULL,
+        end_time TIMESTAMP,
+        duration INTEGER,
+        description TEXT,
+        is_running BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Company info table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS company_info (
+        id TEXT PRIMARY KEY,
+        user_id TEXT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        address TEXT NOT NULL,
+        city TEXT NOT NULL,
+        zip_code TEXT NOT NULL,
+        country TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT,
+        website TEXT,
+        tax_id TEXT,
+        logo TEXT
+      )
+    `);
+
+    // Team invitations table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS team_invitations (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        invitation_code TEXT UNIQUE NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('admin', 'member')),
+        created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMP NOT NULL,
+        used_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        used_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Email notifications log table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS email_notifications (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        notification_type TEXT NOT NULL,
+        sent_at TIMESTAMP NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('sent', 'failed', 'pending')),
+        error_message TEXT
+      )
+    `);
+
+    // Audit logs table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        action TEXT NOT NULL,
+        details TEXT,
+        ip_address TEXT,
+        user_agent TEXT,
+        timestamp TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Notification settings table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notification_settings (
+        id TEXT PRIMARY KEY,
+        user_id TEXT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        weekly_summary_enabled BOOLEAN DEFAULT TRUE,
+        weekly_summary_day INTEGER DEFAULT 5 CHECK(weekly_summary_day BETWEEN 0 AND 6),
+        missing_entries_enabled BOOLEAN DEFAULT TRUE,
+        missing_entries_threshold INTEGER DEFAULT 3,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Create indexes for better performance
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_user_id ON time_entries(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_project_id ON time_entries(project_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_start_time ON time_entries(start_time)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customers_user_id ON customers(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_activities_user_id ON activities(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
+
+    // Add role column to users table if it doesn't exist (migration)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'role'
+        ) THEN
+          ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin'));
+          UPDATE users SET role = 'user' WHERE role IS NULL;
+        END IF;
+      END $$;
+    `);
+
+    await client.query('COMMIT');
+    console.log('✅ Database schema initialized successfully');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Error initializing database:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  pool.end(() => {
+    console.log('Database pool has ended');
+  });
+});

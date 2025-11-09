@@ -1,0 +1,46 @@
+databases:
+  # PostgreSQL Database (FREE - 90 Tage Datenaufbewahrung)
+  - name: timetracking-db
+    databaseName: timetracking
+    user: timetracking
+    region: frankfurt
+    plan: free
+
+services:
+  # Backend API Service
+  - type: web
+    name: timetracking-backend
+    runtime: node
+    region: frankfurt
+    plan: free
+    buildCommand: cd server && npm install --include=dev && npm run build
+    startCommand: cd server && npm run db:migrate && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: timetracking-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: EMAIL_TEST_MODE
+        value: true
+      - key: NOTIFICATIONS_ENABLED
+        value: true
+      - key: FRONTEND_URL
+        value: https://your-frontend-url.com
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: 587
+      # Optionale Email-Konfiguration - über Render Dashboard hinzufügen
+      # - key: EMAIL_USER
+      #   sync: false
+      # - key: EMAIL_PASSWORD
+      #   sync: false
+      # - key: EMAIL_TEST_RECIPIENT
+      #   sync: false

@@ -1,5 +1,5 @@
 import nodemailer, { Transporter } from 'nodemailer';
-import { db, queries } from '../config/database';
+import { pool } from '../config/database';
 
 interface EmailOptions {
   to: string;
@@ -110,7 +110,7 @@ class EmailService {
     });
 
     // Log notification
-    this.logNotification(data.userId, 'welcome', success);
+    await this.logNotification(data.userId, 'welcome', success);
 
     return success;
   }
@@ -126,7 +126,7 @@ class EmailService {
       text,
     });
 
-    this.logNotification(data.userId, 'month_end', success);
+    await this.logNotification(data.userId, 'month_end', success);
     return success;
   }
 
@@ -141,7 +141,7 @@ class EmailService {
       text,
     });
 
-    this.logNotification(data.userId, 'daily_reminder', success);
+    await this.logNotification(data.userId, 'daily_reminder', success);
     return success;
   }
 
@@ -156,7 +156,7 @@ class EmailService {
       text,
     });
 
-    this.logNotification(data.userId, 'quality_check', success);
+    await this.logNotification(data.userId, 'quality_check', success);
     return success;
   }
 
@@ -171,7 +171,7 @@ class EmailService {
       text,
     });
 
-    this.logNotification(data.userId, 'weekly_report', success);
+    await this.logNotification(data.userId, 'weekly_report', success);
     return success;
   }
 
@@ -506,29 +506,40 @@ Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5
   }
 
   // Helper methods
-  private logNotification(userId: string, type: string, success: boolean) {
+  private async logNotification(userId: string, type: string, success: boolean): Promise<void> {
     try {
-      queries.logEmailNotification.run(
-        crypto.randomUUID(),
-        userId,
-        type,
-        new Date().toISOString(),
-        success ? 'sent' : 'failed',
-        success ? null : 'Failed to send email'
+      await pool.query(
+        `INSERT INTO email_notifications (id, user_id, notification_type, sent_at, status, error_message)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          crypto.randomUUID(),
+          userId,
+          type,
+          new Date().toISOString(),
+          success ? 'sent' : 'failed',
+          success ? null : 'Failed to send email'
+        ]
       );
     } catch (error) {
       console.error('Failed to log email notification:', error);
     }
   }
 
-  canSendNotification(userId: string, type: string, minHoursBetween: number = 24): boolean {
+  async canSendNotification(userId: string, type: string, minHoursBetween: number = 24): Promise<boolean> {
     try {
-      const lastNotification = queries.getLastNotification.get(userId, type) as any;
+      const result = await pool.query(
+        `SELECT sent_at FROM email_notifications
+         WHERE user_id = $1 AND notification_type = $2
+         ORDER BY sent_at DESC
+         LIMIT 1`,
+        [userId, type]
+      );
 
-      if (!lastNotification) {
+      if (result.rows.length === 0) {
         return true;
       }
 
+      const lastNotification = result.rows[0];
       const lastSent = new Date(lastNotification.sent_at).getTime();
       const now = Date.now();
       const hoursPassed = (now - lastSent) / (1000 * 60 * 60);

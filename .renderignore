@@ -1,0 +1,26 @@
+# Development files
+node_modules/
+.git/
+.vscode/
+
+# Environment files (will be set in Render Dashboard)
+.env
+.env.local
+.env.*.local
+
+# Build artifacts (frontend)
+dist/
+build/
+
+# Database (will be stored in persistent disk)
+server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
