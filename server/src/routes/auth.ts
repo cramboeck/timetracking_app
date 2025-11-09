@@ -56,7 +56,7 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
     auditLog.log({
       userId,
       action: 'user.register',
-      resource: `user:${userId}`,
+      details: `user:${userId}`,
       details: JSON.stringify({ username, email, accountType }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
@@ -112,7 +112,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
     auditLog.log({
       userId: user.id,
       action: 'user.login',
-      resource: `user:${user.id}`,
+      details: `user:${user.id}`,
       details: JSON.stringify({ username }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']

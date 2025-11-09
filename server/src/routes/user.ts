@@ -89,7 +89,7 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
     auditLog.log({
       userId,
       action: 'settings.update',
-      resource: `user:${userId}`,
+      details: `user:${userId}`,
       details: JSON.stringify(updates),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
@@ -158,7 +158,7 @@ router.post('/company', authenticateToken, async (req: AuthRequest, res) => {
     auditLog.log({
       userId,
       action: 'settings.update',
-      resource: `company:${userId}`,
+      details: `company:${userId}`,
       details: JSON.stringify({ name }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
@@ -211,7 +211,7 @@ router.post('/export', authenticateToken, async (req: AuthRequest, res) => {
     auditLog.log({
       userId,
       action: 'data.export',
-      resource: `user:${userId}`,
+      details: `user:${userId}`,
       details: JSON.stringify({ exportDate: exportData.exportDate }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
@@ -235,7 +235,7 @@ router.delete('/account', authenticateToken, async (req: AuthRequest, res) => {
     auditLog.log({
       userId,
       action: 'user.delete',
-      resource: `user:${userId}`,
+      details: `user:${userId}`,
       details: JSON.stringify({ deletedAt: new Date().toISOString() }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']

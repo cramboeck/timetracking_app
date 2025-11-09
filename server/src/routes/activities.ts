@@ -63,7 +63,7 @@ router.post('/', authenticateToken, validate(createActivitySchema), async (req: 
     auditLog.log({
       userId,
       action: 'activity.create',
-      resource: `activity:${id}`,
+      details: `activity:${id}`,
       details: JSON.stringify({ name }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
@@ -132,7 +132,7 @@ router.put('/:id', authenticateToken, validate(updateActivitySchema), async (req
     auditLog.log({
       userId,
       action: 'activity.update',
-      resource: `activity:${id}`,
+      details: `activity:${id}`,
       details: JSON.stringify(updates),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
@@ -172,7 +172,7 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
     auditLog.log({
       userId,
       action: 'activity.delete',
-      resource: `activity:${id}`,
+      details: `activity:${id}`,
       details: JSON.stringify({ id }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
