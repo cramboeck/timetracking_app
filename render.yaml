@@ -27,7 +27,6 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
-        sync: false
       - key: EMAIL_TEST_MODE
         value: true
       - key: NOTIFICATIONS_ENABLED
