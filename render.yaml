@@ -33,7 +33,7 @@ services:
       #   sync: false
       # - key: EMAIL_TEST_RECIPIENT
       #   sync: false
-    disk:
-      name: timetracking-db
-      mountPath: /opt/render/project/src/server/data
-      sizeGB: 1
+    # HINWEIS: Persistent Disks sind im Free Plan nicht verfügbar
+    # Daten gehen bei jedem Deployment verloren!
+    # Für dauerhafte Datenspeicherung: Upgrade zu Paid Plan ($7/Monat)
+    # oder nutze PostgreSQL Database (kostenlos verfügbar)
