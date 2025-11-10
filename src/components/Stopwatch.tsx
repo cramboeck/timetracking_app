@@ -4,6 +4,7 @@ import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { roundTimeUp } from '../utils/timeRounding';
+import { generateUUID } from '../utils/uuid';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => void;
@@ -73,7 +74,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     setElapsedSeconds(0);
 
     const entry: TimeEntry = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       userId: currentUser!.id,
       startTime: now,
       duration: 0,
@@ -104,7 +105,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     const roundedDuration = roundTimeUp(elapsedSeconds, currentUser.timeRoundingInterval);
 
     const entry: TimeEntry = {
-      id: runningEntry?.id || crypto.randomUUID(),
+      id: runningEntry?.id || generateUUID(),
       userId: currentUser.id,
       startTime: startTimeRef.current,
       endTime,

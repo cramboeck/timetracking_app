@@ -10,6 +10,7 @@ import { notificationService } from '../utils/notifications';
 import { userApi, teamsApi } from '../services/api';
 import Papa from 'papaparse';
 import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
+import { generateUUID } from '../utils/uuid';
 
 interface SettingsProps {
   customers: Customer[];
@@ -152,7 +153,7 @@ export const Settings = ({
       });
     } else {
       onAddCustomer({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         userId: currentUser!.id,
         name: customerName.trim(),
         color: customerColor,
@@ -313,7 +314,7 @@ export const Settings = ({
 
         // Create customer
         const customer: Customer = {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           userId: currentUser!.id,
           name: name,
           color: COLORS[Math.floor(Math.random() * COLORS.length)],
@@ -368,7 +369,7 @@ export const Settings = ({
       });
     } else {
       onAddProject({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         userId: currentUser!.id,
         name: projectName.trim(),
         customerId: projectCustomerId,
@@ -418,7 +419,7 @@ export const Settings = ({
       });
     } else {
       onAddActivity({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         userId: currentUser!.id,
         name: activityName.trim(),
         description: activityDescription.trim() || undefined,
