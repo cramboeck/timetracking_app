@@ -8,6 +8,7 @@ import { storage } from '../utils/storage';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
 import { notificationService } from '../utils/notifications';
+import { userApi, teamsApi } from '../services/api';
 
 interface SettingsProps {
   customers: Customer[];
@@ -297,36 +298,51 @@ export const Settings = ({
   // Load company info on mount
   useEffect(() => {
     if (currentUser) {
-      const info = storage.getCompanyInfoByUserId(currentUser.id);
-      if (info) {
-        setCompanyInfo(info);
-        setCompanyName(info.name);
-        setCompanyAddress(info.address);
-        setCompanyCity(info.city);
-        setCompanyZipCode(info.zipCode);
-        setCompanyCountry(info.country);
-        setCompanyEmail(info.email);
-        setCompanyPhone(info.phone || '');
-        setCompanyWebsite(info.website || '');
-        setCompanyTaxId(info.taxId || '');
-        setCompanyLogo(info.logo || null);
-      }
+      const loadCompanyInfo = async () => {
+        try {
+          const info = await userApi.getCompany();
+          if (info) {
+            setCompanyInfo(info);
+            setCompanyName(info.name);
+            setCompanyAddress(info.address);
+            setCompanyCity(info.city);
+            setCompanyZipCode(info.zipCode);
+            setCompanyCountry(info.country);
+            setCompanyEmail(info.email);
+            setCompanyPhone(info.phone || '');
+            setCompanyWebsite(info.website || '');
+            setCompanyTaxId(info.taxId || '');
+            setCompanyLogo(info.logo || null);
+          }
+        } catch (error) {
+          console.error('Error loading company info:', error);
+        }
+      };
+      loadCompanyInfo();
     }
   }, [currentUser]);
 
   // Load team data
   useEffect(() => {
     if (currentUser && currentUser.teamId && (currentUser.accountType === 'business' || currentUser.accountType === 'team')) {
-      // Load team members
-      const allUsers = storage.getUsers();
-      const members = allUsers.filter(u => u.teamId === currentUser.teamId);
-      setTeamMembers(members);
+      const loadTeamData = async () => {
+        try {
+          // Load team and members
+          const team = await teamsApi.getMyTeam();
+          if (team && team.members) {
+            setTeamMembers(team.members as any);
+          }
 
-      // Load team invitations (only for owners/admins)
-      if (currentUser.teamRole === 'owner' || currentUser.teamRole === 'admin') {
-        const invitations = storage.getTeamInvitationsByTeamId(currentUser.teamId);
-        setTeamInvitations(invitations);
-      }
+          // Load team invitations (only for owners/admins)
+          if (currentUser.teamRole === 'owner' || currentUser.teamRole === 'admin') {
+            const invitations = await teamsApi.getInvitations(currentUser.teamId);
+            setTeamInvitations(invitations);
+          }
+        } catch (error) {
+          console.error('Error loading team data:', error);
+        }
+      };
+      loadTeamData();
     }
   }, [currentUser, activeTab]);
 
@@ -334,21 +350,20 @@ export const Settings = ({
     return `INVITE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
   };
 
-  const handleCreateInvitation = () => {
+  const handleCreateInvitation = async () => {
     if (!currentUser || !currentUser.teamId) return;
 
-    const invitation: TeamInvitation = {
-      id: crypto.randomUUID(),
-      teamId: currentUser.teamId,
-      invitationCode: generateInvitationCode(),
-      role: newInvitationRole,
-      createdBy: currentUser.id,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-      createdAt: new Date().toISOString()
-    };
-
-    storage.createTeamInvitation(invitation);
-    setTeamInvitations([...teamInvitations, invitation]);
+    try {
+      const invitation = await teamsApi.createInvitation(
+        currentUser.teamId,
+        newInvitationRole,
+        7 * 24 // 7 days in hours
+      );
+      setTeamInvitations([...teamInvitations, invitation]);
+    } catch (error) {
+      console.error('Error creating invitation:', error);
+      alert('Fehler beim Erstellen der Einladung');
+    }
   };
 
   const handleCopyInvitationCode = (code: string) => {
@@ -356,34 +371,45 @@ export const Settings = ({
     alert('Einladungscode kopiert!');
   };
 
-  const handleDeleteInvitation = (id: string) => {
-    storage.deleteTeamInvitation(id);
-    setTeamInvitations(teamInvitations.filter(inv => inv.id !== id));
+  const handleDeleteInvitation = async (id: string) => {
+    try {
+      await teamsApi.deleteInvitation(id);
+      setTeamInvitations(teamInvitations.filter(inv => inv.id !== id));
+    } catch (error) {
+      console.error('Error deleting invitation:', error);
+      alert('Fehler beim Löschen der Einladung');
+    }
   };
 
-  const handleSaveCompanyInfo = () => {
+  const handleSaveCompanyInfo = async () => {
     if (!currentUser) return;
 
-    const info: CompanyInfo = {
-      id: companyInfo?.id || crypto.randomUUID(),
-      userId: currentUser.id,
-      name: companyName.trim(),
-      address: companyAddress.trim(),
-      city: companyCity.trim(),
-      zipCode: companyZipCode.trim(),
-      country: companyCountry.trim(),
-      email: companyEmail.trim(),
-      phone: companyPhone.trim() || undefined,
-      website: companyWebsite.trim() || undefined,
-      taxId: companyTaxId.trim() || undefined,
-      logo: companyLogo || undefined,
-      createdAt: companyInfo?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    // Validation
+    if (!companyName.trim() || !companyAddress.trim() || !companyCity.trim() ||
+        !companyZipCode.trim() || !companyCountry.trim() || !companyEmail.trim()) {
+      alert('Bitte fülle alle Pflichtfelder aus');
+      return;
+    }
 
-    storage.saveCompanyInfo(info);
-    setCompanyInfo(info);
-    alert('Firmendaten gespeichert!');
+    try {
+      const info = await userApi.updateCompany({
+        name: companyName.trim(),
+        address: companyAddress.trim(),
+        city: companyCity.trim(),
+        zipCode: companyZipCode.trim(),
+        country: companyCountry.trim(),
+        email: companyEmail.trim(),
+        phone: companyPhone.trim() || undefined,
+        website: companyWebsite.trim() || undefined,
+        taxId: companyTaxId.trim() || undefined,
+        logo: companyLogo || undefined,
+      });
+      setCompanyInfo(info);
+      alert('Firmendaten gespeichert!');
+    } catch (error) {
+      console.error('Error saving company info:', error);
+      alert('Fehler beim Speichern der Firmendaten');
+    }
   };
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {

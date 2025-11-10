@@ -1,4 +1,4 @@
-import { TimeEntry, Project, Customer, Activity } from '../types';
+import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -117,8 +117,8 @@ export const userApi = {
     });
   },
 
-  getCompany: async () => {
-    return authFetch('/user/company');
+  getCompany: async (): Promise<CompanyInfo | null> => {
+    return authFetch('/company-info');
   },
 
   updateCompany: async (company: {
@@ -132,10 +132,16 @@ export const userApi = {
     website?: string;
     taxId?: string;
     logo?: string;
-  }) => {
-    return authFetch('/user/company', {
+  }): Promise<CompanyInfo> => {
+    return authFetch('/company-info', {
       method: 'POST',
       body: JSON.stringify(company),
+    });
+  },
+
+  deleteCompany: async (): Promise<{ success: boolean }> => {
+    return authFetch('/company-info', {
+      method: 'DELETE',
     });
   },
 
@@ -297,6 +303,56 @@ export const passwordResetApi = {
   },
 };
 
+// Teams API
+export const teamsApi = {
+  getMyTeam: async (): Promise<Team & { members: Array<{ id: string; username: string; email: string; role: string }> } | null> => {
+    return authFetch('/teams/my-team');
+  },
+
+  createTeam: async (name: string): Promise<Team> => {
+    return authFetch('/teams', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  updateTeam: async (teamId: string, name: string): Promise<Team> => {
+    return authFetch(`/teams/${teamId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  leaveTeam: async (): Promise<{ success: boolean }> => {
+    return authFetch('/teams/leave', {
+      method: 'DELETE',
+    });
+  },
+
+  createInvitation: async (teamId: string, role: 'admin' | 'member', expiresInHours: number = 168): Promise<TeamInvitation> => {
+    return authFetch(`/teams/${teamId}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({ role, expiresInHours }),
+    });
+  },
+
+  getInvitations: async (teamId: string): Promise<TeamInvitation[]> => {
+    return authFetch(`/teams/${teamId}/invitations`);
+  },
+
+  deleteInvitation: async (invitationId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/teams/invitations/${invitationId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  joinTeam: async (invitationCode: string): Promise<Team> => {
+    return authFetch(`/teams/join/${invitationCode}`, {
+      method: 'POST',
+    });
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -305,4 +361,5 @@ export default {
   customers: customersApi,
   activities: activitiesApi,
   passwordReset: passwordResetApi,
+  teams: teamsApi,
 };
