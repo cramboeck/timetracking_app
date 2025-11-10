@@ -9,7 +9,9 @@ if (!connectionString) {
 
 export const pool = new Pool({
   connectionString,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // Disable SSL for Docker internal connections (database hostname)
+  // Enable SSL only for external database connections (e.g., managed databases)
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
