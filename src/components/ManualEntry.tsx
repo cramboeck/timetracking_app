@@ -4,6 +4,7 @@ import { TimeEntry, Project, Customer, Activity } from '../types';
 import { calculateDuration } from '../utils/time';
 import { useAuth } from '../contexts/AuthContext';
 import { roundTimeUp } from '../utils/timeRounding';
+import { generateUUID } from '../utils/uuid';
 
 interface ManualEntryProps {
   onSave: (entry: TimeEntry) => void;
@@ -50,7 +51,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
     const roundedDuration = roundTimeUp(duration, currentUser.timeRoundingInterval);
 
     const entry: TimeEntry = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       userId: currentUser.id,
       startTime: startDateTime,
       endTime: endDateTime,
