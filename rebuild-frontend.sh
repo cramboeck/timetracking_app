@@ -103,8 +103,8 @@ sleep 15
 print_info "Starte Frontend..."
 docker compose --env-file .env.production -f docker-compose.production.yml up -d frontend
 
-print_info "Warte auf Frontend (20 Sekunden)..."
-sleep 20
+print_info "Warte auf Frontend (30 Sekunden)..."
+sleep 30
 
 print_info "Starte Nginx..."
 docker compose --env-file .env.production -f docker-compose.production.yml up -d nginx
@@ -125,8 +125,8 @@ docker ps --filter "name=ramboflow" --format "table {{.Names}}\t{{.Status}}\t{{.
 
 print_header "Step 6: Health Checks"
 
-print_info "Warte 30 Sekunden auf Health-Checks..."
-sleep 30
+print_info "Warte 20 Sekunden auf Health-Checks..."
+sleep 20
 
 echo ""
 print_info "Frontend Container Status:"
