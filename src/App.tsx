@@ -276,29 +276,56 @@ function App() {
     });
   };
 
-  // Project handlers
-  const handleAddProject = (project: Project) => {
-    setProjects(prev => {
-      const updated = [...prev, project];
-      storage.saveProjects(updated);
-      return updated;
-    });
+  // Project handlers (API-based)
+  const handleAddProject = async (project: Project) => {
+    try {
+      console.log('➕ [PROJECT] Adding project:', project.name);
+
+      // Call API to create project
+      const response = await projectsApi.create(project);
+      console.log('✅ [PROJECT] Project created:', response);
+
+      // Update local state with API response
+      setProjects(prev => [...prev, response.data]);
+      console.log('✅ [PROJECT] Local state updated');
+    } catch (error) {
+      console.error('❌ [PROJECT] Failed to add project:', error);
+      // TODO: Show error to user
+    }
   };
 
-  const handleUpdateProject = (id: string, updates: Partial<Project>) => {
-    setProjects(prev => {
-      const updated = prev.map(p => p.id === id ? { ...p, ...updates } : p);
-      storage.saveProjects(updated);
-      return updated;
-    });
+  const handleUpdateProject = async (id: string, updates: Partial<Project>) => {
+    try {
+      console.log('✏️ [PROJECT] Updating project:', id, updates);
+
+      // Call API to update project
+      const response = await projectsApi.update(id, updates);
+      console.log('✅ [PROJECT] Project updated:', response);
+
+      // Update local state with API response
+      setProjects(prev => prev.map(p => p.id === id ? response.data : p));
+      console.log('✅ [PROJECT] Local state updated');
+    } catch (error) {
+      console.error('❌ [PROJECT] Failed to update project:', error);
+      // TODO: Show error to user
+    }
   };
 
-  const handleDeleteProject = (id: string) => {
-    setProjects(prev => {
-      const filtered = prev.filter(p => p.id !== id);
-      storage.saveProjects(filtered);
-      return filtered;
-    });
+  const handleDeleteProject = async (id: string) => {
+    try {
+      console.log('🗑️ [PROJECT] Deleting project:', id);
+
+      // Call API to delete project
+      await projectsApi.delete(id);
+      console.log('✅ [PROJECT] Project deleted');
+
+      // Update local state
+      setProjects(prev => prev.filter(p => p.id !== id));
+      console.log('✅ [PROJECT] Local state updated');
+    } catch (error) {
+      console.error('❌ [PROJECT] Failed to delete project:', error);
+      // TODO: Show error to user
+    }
   };
 
   // Activity handlers
