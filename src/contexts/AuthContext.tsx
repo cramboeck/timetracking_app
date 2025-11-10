@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, LoginCredentials, RegisterData, AccentColor, GrayTone, TimeRoundingInterval } from '../types';
 import { storage } from '../utils/storage';
-import { hashPassword, verifyPassword, validatePassword, validateEmail, validateUsername } from '../utils/auth';
+import { validatePassword, validateEmail, validateUsername } from '../utils/auth';
 import { accentColor } from '../utils/accentColor';
 import { grayTone } from '../utils/theme';
 import { authApi, userApi } from '../services/api';

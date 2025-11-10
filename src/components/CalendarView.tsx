@@ -1,5 +1,5 @@
 import { Calendar, dateFnsLocalizer, View, SlotInfo } from 'react-big-calendar';
-import withDragAndDrop, { withDragAndDropProps } from 'react-big-calendar/lib/addons/dragAndDrop';
+import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -9,7 +9,6 @@ import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useState, useMemo } from 'react';
 import { formatDuration } from '../utils/time';
 import { Modal } from './Modal';
-import { X } from 'lucide-react';
 
 const locales = {
   'de': de,
@@ -55,7 +54,7 @@ export const CalendarView = ({
   projects,
   customers,
   activities,
-  onEditEntry,
+  onEditEntry: _onEditEntry,
   onUpdateEntry,
   onCreateEntry
 }: CalendarViewProps) => {
@@ -267,8 +266,7 @@ export const CalendarView = ({
       endTime: slotInfo.end.toISOString(),
       duration,
       description: '',
-      isRunning: false,
-      isBillable: true
+      isRunning: false
     };
 
     onCreateEntry(newEntry);

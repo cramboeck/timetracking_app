@@ -1,16 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown } from 'lucide-react';
-import { Customer, Project, Activity, GrayTone, CompanyInfo, TeamInvitation, User, TimeRoundingInterval } from '../types';
+import { Customer, Project, Activity, GrayTone, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
-import { storage } from '../utils/storage';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
 import { notificationService } from '../utils/notifications';
 import { userApi, teamsApi } from '../services/api';
 import Papa from 'papaparse';
-import { ACTIVITY_TEMPLATES, getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
+import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 
 interface SettingsProps {
   customers: Customer[];
@@ -55,7 +54,6 @@ export const Settings = ({
   const [timeTrackingSubTab, setTimeTrackingSubTab] = useState<'customers' | 'projects' | 'activities'>('customers');
 
   // Company Info State
-  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
   const [companyName, setCompanyName] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
   const [companyCity, setCompanyCity] = useState('');
@@ -81,6 +79,9 @@ export const Settings = ({
   // CSV Import
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const [csvPreviewData, setCsvPreviewData] = useState<{ headers: string[]; rows: any[]; allData: any[] } | null>(null);
+  const [columnMappings, setColumnMappings] = useState<Record<string, string>>({});
+  const [mappingModalOpen, setMappingModalOpen] = useState(false);
 
   // Project Modal
   const [projectModalOpen, setProjectModalOpen] = useState(false);
@@ -172,17 +173,6 @@ export const Settings = ({
     fileInputRef.current?.click();
   };
 
-  // Helper function to get value from row with multiple possible column names
-  const getFieldValue = (row: any, fieldNames: string[]): string | undefined => {
-    for (const fieldName of fieldNames) {
-      const value = row[fieldName];
-      if (value && typeof value === 'string' && value.trim()) {
-        return value.trim();
-      }
-    }
-    return undefined;
-  };
-
   const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -197,92 +187,58 @@ export const Settings = ({
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        const errors: string[] = [];
-        let successCount = 0;
-        let failedCount = 0;
+        if (!results.data || results.data.length === 0) {
+          alert('Die CSV-Datei enthält keine Daten.');
+          return;
+        }
 
-        results.data.forEach((row: any, index) => {
-          try {
-            // Get name from various possible column names (sevDesk, Papierkram, Lexoffice)
-            const name = getFieldValue(row, [
-              'name', 'Name', 'Firmenname', 'Firma', 'Kundenname', 'company', 'Company', 'customer', 'Customer'
-            ]);
+        // Extract headers from the first row
+        const headers = Object.keys(results.data[0] as object);
 
-            if (!name) {
-              errors.push(`Zeile ${index + 2}: Name/Firmenname fehlt`);
-              failedCount++;
-              return;
+        // Get preview rows (first 3 rows)
+        const previewRows = results.data.slice(0, 3);
+
+        // Store all data for later processing
+        const allData = results.data;
+
+        // Generate intelligent mapping suggestions
+        const suggestedMappings: Record<string, string> = {};
+
+        // Field definitions with their possible column name variants
+        const fieldMappings = {
+          name: ['name', 'Name', 'Firmenname', 'Firma', 'Kundenname', 'company', 'Company', 'customer', 'Customer'],
+          customerNumber: ['customerNumber', 'number', 'Kundennummer', 'Debitorennummer', 'Kunden-Nr', 'customer_number', 'Nummer'],
+          contactPerson: ['Ansprechpartner', 'contactPerson', 'contact', 'Contact', 'Kontaktperson'],
+          firstName: ['Vorname', 'firstname', 'first_name', 'FirstName'],
+          lastName: ['Nachname', 'lastname', 'last_name', 'LastName'],
+          email: ['email', 'Email', 'E-Mail', 'e-mail', 'mail', 'Mail', 'emailAddress'],
+          street: ['Straße', 'Strasse', 'street', 'Street'],
+          address: ['Adresse', 'address', 'Address'],
+          zip: ['PLZ', 'Postleitzahl', 'zip', 'Zip', 'zipcode', 'postal_code'],
+          city: ['Stadt', 'Ort', 'city', 'City', 'place'],
+          country: ['Land', 'country', 'Country'],
+          phone: ['Telefon', 'Tel', 'Telefonnummer', 'phone', 'Phone', 'telephone', 'mobile', 'Mobil'],
+          taxId: ['USt-IdNr', 'Steuernummer', 'taxId', 'tax_id', 'vat_id', 'vatId', 'UStID']
+        };
+
+        // For each CSV column, suggest the best matching field
+        headers.forEach(header => {
+          for (const [field, variants] of Object.entries(fieldMappings)) {
+            if (variants.some(variant => variant.toLowerCase() === header.toLowerCase())) {
+              suggestedMappings[header] = field;
+              break;
             }
-
-            // Get customer number from various formats
-            const customerNumber = getFieldValue(row, [
-              'customerNumber', 'number', 'Kundennummer', 'Debitorennummer', 'Kunden-Nr', 'customer_number', 'Nummer'
-            ]);
-
-            // Get contact person (can be combined or separate)
-            const firstName = getFieldValue(row, ['Vorname', 'firstname', 'first_name', 'FirstName']);
-            const lastName = getFieldValue(row, ['Nachname', 'lastname', 'last_name', 'LastName']);
-            const fullName = getFieldValue(row, ['Ansprechpartner', 'contactPerson', 'contact', 'Contact', 'Kontaktperson']);
-
-            let contactPerson = fullName;
-            if (!contactPerson && (firstName || lastName)) {
-              contactPerson = [firstName, lastName].filter(Boolean).join(' ');
-            }
-
-            // Get email
-            const email = getFieldValue(row, [
-              'email', 'Email', 'E-Mail', 'e-mail', 'mail', 'Mail', 'emailAddress'
-            ]);
-
-            // Build address from various formats
-            const street = getFieldValue(row, ['Straße', 'Strasse', 'street', 'Street', 'Adresse', 'address', 'Address']);
-            const zip = getFieldValue(row, ['PLZ', 'Postleitzahl', 'zip', 'Zip', 'zipcode', 'postal_code']);
-            const city = getFieldValue(row, ['Stadt', 'Ort', 'city', 'City', 'place']);
-            const country = getFieldValue(row, ['Land', 'country', 'Country']);
-
-            // Combine address parts
-            let address = street || '';
-            if (zip || city) {
-              const cityLine = [zip, city].filter(Boolean).join(' ');
-              address = [address, cityLine].filter(Boolean).join(', ');
-            }
-            if (country && country !== 'Deutschland' && country !== 'Germany' && country !== 'DE') {
-              address = [address, country].filter(Boolean).join(', ');
-            }
-
-            // Get phone
-            const phone = getFieldValue(row, [
-              'Telefon', 'Tel', 'Telefonnummer', 'phone', 'Phone', 'telephone', 'mobile', 'Mobil'
-            ]);
-
-            // Get tax ID
-            const taxId = getFieldValue(row, [
-              'USt-IdNr', 'Steuernummer', 'taxId', 'tax_id', 'vat_id', 'vatId', 'UStID'
-            ]);
-
-            // Create customer
-            const customer: Customer = {
-              id: crypto.randomUUID(),
-              userId: currentUser!.id,
-              name: name,
-              color: COLORS[Math.floor(Math.random() * COLORS.length)],
-              customerNumber: customerNumber,
-              contactPerson: contactPerson,
-              email: email,
-              address: address || undefined,
-              reportTitle: undefined,
-              createdAt: new Date().toISOString()
-            };
-
-            onAddCustomer(customer);
-            successCount++;
-          } catch (error) {
-            errors.push(`Zeile ${index + 2}: ${error}`);
-            failedCount++;
+          }
+          // If no match found, leave unmapped (empty string)
+          if (!suggestedMappings[header]) {
+            suggestedMappings[header] = '';
           }
         });
 
-        setImportResult({ success: successCount, failed: failedCount, errors });
+        // Set state and show mapping modal
+        setCsvPreviewData({ headers, rows: previewRows, allData });
+        setColumnMappings(suggestedMappings);
+        setMappingModalOpen(true);
 
         // Clear file input
         if (fileInputRef.current) {
@@ -293,6 +249,94 @@ export const Settings = ({
         alert(`Fehler beim Lesen der Datei: ${error.message}`);
       }
     });
+  };
+
+  const processImportWithMappings = () => {
+    if (!csvPreviewData) return;
+
+    const errors: string[] = [];
+    let successCount = 0;
+    let failedCount = 0;
+
+    // Create a reverse mapping from field names to CSV columns
+    const fieldToColumn: Record<string, string> = {};
+    Object.entries(columnMappings).forEach(([csvColumn, fieldName]) => {
+      if (fieldName) {
+        fieldToColumn[fieldName] = csvColumn;
+      }
+    });
+
+    csvPreviewData.allData.forEach((row: any, index) => {
+      try {
+        // Get name (required field)
+        const name = row[fieldToColumn['name']]?.trim();
+
+        if (!name) {
+          errors.push(`Zeile ${index + 2}: Name/Firmenname fehlt`);
+          failedCount++;
+          return;
+        }
+
+        // Get customer number
+        const customerNumber = row[fieldToColumn['customerNumber']]?.trim();
+
+        // Get contact person (can be from separate fields or combined)
+        let contactPerson = row[fieldToColumn['contactPerson']]?.trim();
+        if (!contactPerson) {
+          const firstName = row[fieldToColumn['firstName']]?.trim();
+          const lastName = row[fieldToColumn['lastName']]?.trim();
+          if (firstName || lastName) {
+            contactPerson = [firstName, lastName].filter(Boolean).join(' ');
+          }
+        }
+
+        // Get email
+        const email = row[fieldToColumn['email']]?.trim();
+
+        // Build address from separate fields or use combined field
+        let address = row[fieldToColumn['address']]?.trim() || '';
+        if (!address) {
+          const street = row[fieldToColumn['street']]?.trim();
+          const zip = row[fieldToColumn['zip']]?.trim();
+          const city = row[fieldToColumn['city']]?.trim();
+          const country = row[fieldToColumn['country']]?.trim();
+
+          address = street || '';
+          if (zip || city) {
+            const cityLine = [zip, city].filter(Boolean).join(' ');
+            address = [address, cityLine].filter(Boolean).join(', ');
+          }
+          if (country && country !== 'Deutschland' && country !== 'Germany' && country !== 'DE') {
+            address = [address, country].filter(Boolean).join(', ');
+          }
+        }
+
+        // Create customer
+        const customer: Customer = {
+          id: crypto.randomUUID(),
+          userId: currentUser!.id,
+          name: name,
+          color: COLORS[Math.floor(Math.random() * COLORS.length)],
+          customerNumber: customerNumber || undefined,
+          contactPerson: contactPerson || undefined,
+          email: email || undefined,
+          address: address || undefined,
+          reportTitle: undefined,
+          createdAt: new Date().toISOString()
+        };
+
+        onAddCustomer(customer);
+        successCount++;
+      } catch (error) {
+        errors.push(`Zeile ${index + 2}: ${error}`);
+        failedCount++;
+      }
+    });
+
+    setImportResult({ success: successCount, failed: failedCount, errors });
+    setMappingModalOpen(false);
+    setCsvPreviewData(null);
+    setColumnMappings({});
   };
 
   const openProjectModal = (project?: Project) => {
@@ -447,7 +491,6 @@ export const Settings = ({
         try {
           const info = await userApi.getCompany();
           if (info) {
-            setCompanyInfo(info);
             setCompanyName(info.name);
             setCompanyAddress(info.address);
             setCompanyCity(info.city);
@@ -479,7 +522,7 @@ export const Settings = ({
           }
 
           // Load team invitations (only for owners/admins)
-          if (currentUser.teamRole === 'owner' || currentUser.teamRole === 'admin') {
+          if ((currentUser.teamRole === 'owner' || currentUser.teamRole === 'admin') && currentUser.teamId) {
             const invitations = await teamsApi.getInvitations(currentUser.teamId);
             setTeamInvitations(invitations);
           }
@@ -490,10 +533,6 @@ export const Settings = ({
       loadTeamData();
     }
   }, [currentUser, activeTab]);
-
-  const generateInvitationCode = () => {
-    return `INVITE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-  };
 
   const handleCreateInvitation = async () => {
     if (!currentUser || !currentUser.teamId) return;
@@ -537,7 +576,7 @@ export const Settings = ({
     }
 
     try {
-      const info = await userApi.updateCompany({
+      await userApi.updateCompany({
         name: companyName.trim(),
         address: companyAddress.trim(),
         city: companyCity.trim(),
@@ -549,7 +588,6 @@ export const Settings = ({
         taxId: companyTaxId.trim() || undefined,
         logo: companyLogo || undefined,
       });
-      setCompanyInfo(info);
       alert('Firmendaten gespeichert!');
     } catch (error) {
       console.error('Error saving company info:', error);
@@ -2290,6 +2328,147 @@ export const Settings = ({
               Abbrechen
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* CSV Column Mapping Modal */}
+      <Modal
+        isOpen={mappingModalOpen}
+        onClose={() => {
+          setMappingModalOpen(false);
+          setCsvPreviewData(null);
+          setColumnMappings({});
+        }}
+        title="CSV Spalten zuordnen"
+      >
+        <div className="space-y-6">
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            Ordne die Spalten aus deiner CSV-Datei den entsprechenden Feldern zu.
+            Vorschläge wurden automatisch erkannt. Du kannst diese anpassen oder Spalten ignorieren.
+          </p>
+
+          {csvPreviewData && (
+            <>
+              {/* Column Mapping Table */}
+              <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                <div className="max-h-[400px] overflow-y-auto">
+                  <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-600">
+                    <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                          CSV Spalte
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                          Zuordnung
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                          Vorschau
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                      {csvPreviewData.headers.map((header, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                            {header}
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={columnMappings[header] || ''}
+                              onChange={(e) => setColumnMappings(prev => ({
+                                ...prev,
+                                [header]: e.target.value
+                              }))}
+                              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">Ignorieren</option>
+                              <option value="name">Name / Firmenname (Pflicht)</option>
+                              <option value="customerNumber">Kundennummer</option>
+                              <option value="contactPerson">Ansprechpartner</option>
+                              <option value="firstName">Vorname</option>
+                              <option value="lastName">Nachname</option>
+                              <option value="email">E-Mail</option>
+                              <option value="address">Adresse (komplett)</option>
+                              <option value="street">Straße</option>
+                              <option value="zip">PLZ</option>
+                              <option value="city">Stadt/Ort</option>
+                              <option value="country">Land</option>
+                              <option value="phone">Telefon</option>
+                              <option value="taxId">Steuernummer/USt-IdNr</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            <div className="max-w-xs truncate">
+                              {csvPreviewData.rows[0]?.[header] || <span className="text-gray-400 dark:text-gray-500 italic">leer</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Preview Section */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">
+                  Datenvorschau ({csvPreviewData.allData.length} Zeilen)
+                </h4>
+                <div className="text-xs text-blue-800 dark:text-blue-400 space-y-1">
+                  {csvPreviewData.rows.slice(0, 2).map((row, idx) => {
+                    const fieldToColumn: Record<string, string> = {};
+                    Object.entries(columnMappings).forEach(([csvCol, field]) => {
+                      if (field) fieldToColumn[field] = csvCol;
+                    });
+
+                    const name = row[fieldToColumn['name']];
+                    const email = row[fieldToColumn['email']];
+
+                    return (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="font-mono">#{idx + 1}:</span>
+                        <span className="font-semibold">{name || '(kein Name)'}</span>
+                        {email && <span className="text-blue-600 dark:text-blue-400">• {email}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Warning if no name field mapped */}
+              {!Object.values(columnMappings).includes('name') && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                    ⚠ Achtung: Das Feld "Name / Firmenname" muss zugeordnet werden!
+                  </p>
+                  <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                    Ohne Namen können keine Kunden importiert werden.
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => {
+                    setMappingModalOpen(false);
+                    setCsvPreviewData(null);
+                    setColumnMappings({});
+                  }}
+                  className="px-6 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={processImportWithMappings}
+                  disabled={!Object.values(columnMappings).includes('name')}
+                  className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
+                >
+                  {csvPreviewData.allData.length} {csvPreviewData.allData.length === 1 ? 'Kunde' : 'Kunden'} importieren
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 

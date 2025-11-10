@@ -12,7 +12,6 @@ import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TimeEntry, ViewMode, Customer, Project, Activity } from './types';
-import { storage } from './utils/storage';
 import { darkMode } from './utils/darkMode';
 import { useAuth } from './contexts/AuthContext';
 import { notificationService } from './utils/notifications';
