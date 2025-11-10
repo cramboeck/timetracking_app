@@ -3,6 +3,7 @@ import { Navigation } from './components/Navigation';
 import { Stopwatch } from './components/Stopwatch';
 import { ManualEntry } from './components/ManualEntry';
 import { TimeEntriesList } from './components/TimeEntriesList';
+import { CalendarView } from './components/CalendarView';
 import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
 import { Auth } from './components/Auth';
@@ -11,10 +12,10 @@ import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TimeEntry, ViewMode, Customer, Project, Activity } from './types';
-import { storage } from './utils/storage';
 import { darkMode } from './utils/darkMode';
 import { useAuth } from './contexts/AuthContext';
 import { notificationService } from './utils/notifications';
+import { projectsApi, customersApi, activitiesApi, entriesApi } from './services/api';
 
 function App() {
   const { currentUser, isAuthenticated, isLoading } = useAuth();
@@ -29,38 +30,55 @@ function App() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
-  // Load all data from localStorage on mount (filtered by current user)
+  // Load all data from API on mount
   useEffect(() => {
-    if (!currentUser) return;
+    const loadData = async () => {
+      if (!currentUser) return;
 
-    const allEntries = storage.getEntries();
-    const allCustomers = storage.getCustomers();
-    const allProjects = storage.getProjects();
-    const allActivities = storage.getActivities();
-    const isDark = darkMode.initialize();
+      console.log('📦 [DATA] Loading data for user:', currentUser.username);
 
-    // Filter data by current user ID
-    const userEntries = allEntries.filter(e => e.userId === currentUser.id);
-    const userCustomers = allCustomers.filter(c => c.userId === currentUser.id);
-    const userProjects = allProjects.filter(p => p.userId === currentUser.id);
-    const userActivities = allActivities.filter(a => a.userId === currentUser.id);
+      try {
+        // Load all data from API in parallel
+        console.log('📦 [DATA] Fetching all data from API...');
+        const [projectsResponse, customersResponse, activitiesResponse, entriesResponse] = await Promise.all([
+          projectsApi.getAll(),
+          customersApi.getAll(),
+          activitiesApi.getAll(),
+          entriesApi.getAll()
+        ]);
 
-    setEntries(userEntries);
-    setCustomers(userCustomers);
-    setProjects(userProjects);
-    setActivities(userActivities);
-    setIsDarkMode(isDark);
+        console.log('✅ [DATA] Projects loaded:', projectsResponse);
+        console.log('✅ [DATA] Customers loaded:', customersResponse);
+        console.log('✅ [DATA] Activities loaded:', activitiesResponse);
+        console.log('✅ [DATA] Entries loaded:', entriesResponse);
 
-    // Find any running entry for current user
-    const running = userEntries.find(e => e.isRunning);
-    if (running) {
-      setRunningEntry(running);
-    }
+        setProjects(projectsResponse.data || []);
+        setCustomers(customersResponse.data || []);
+        setActivities(activitiesResponse.data || []);
+        setEntries(entriesResponse.data || []);
 
-    // If there are customers/projects, switch to stopwatch view
-    if (userCustomers.length > 0 && userProjects.length > 0) {
-      setCurrentView('stopwatch');
-    }
+        // Initialize dark mode
+        const isDark = darkMode.initialize();
+        setIsDarkMode(isDark);
+
+        // Find any running entry
+        const running = (entriesResponse.data || []).find(e => e.isRunning);
+        if (running) {
+          setRunningEntry(running);
+        }
+
+        // If there are customers/projects, switch to stopwatch view
+        if (customersResponse.data.length > 0 && projectsResponse.data.length > 0) {
+          setCurrentView('stopwatch');
+        }
+
+        console.log('✅ [DATA] All data loaded successfully');
+      } catch (error) {
+        console.error('❌ [DATA] Error loading data:', error);
+      }
+    };
+
+    loadData();
   }, [currentUser]);
 
   // Show welcome modal for new users
@@ -194,116 +212,189 @@ function App() {
     return () => clearInterval(interval);
   }, [currentUser, isAuthenticated, entries]);
 
-  // Time Entry handlers
-  const handleSaveEntry = (entry: TimeEntry) => {
-    setEntries(prev => {
-      const filtered = prev.filter(e => e.id !== entry.id);
-      const updated = [...filtered, entry];
-      storage.saveEntries(updated);
-      return updated;
-    });
-    setRunningEntry(null);
+  // Time Entry handlers (API-based)
+  const handleSaveEntry = async (entry: TimeEntry) => {
+    try {
+      console.log('💾 [ENTRY] Saving entry:', entry.id);
+
+      if (entry.id && entries.find(e => e.id === entry.id)) {
+        // Update existing entry
+        const response = await entriesApi.update(entry.id, entry);
+        console.log('✅ [ENTRY] Entry updated:', response);
+        setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
+      } else {
+        // Create new entry
+        const response = await entriesApi.create(entry);
+        console.log('✅ [ENTRY] Entry created:', response);
+        setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
+      }
+      setRunningEntry(null);
+    } catch (error) {
+      console.error('❌ [ENTRY] Failed to save entry:', error);
+    }
   };
 
-  const handleUpdateRunning = (entry: TimeEntry) => {
-    setRunningEntry(entry);
-    setEntries(prev => {
-      const filtered = prev.filter(e => !e.isRunning);
-      const updated = [...filtered, entry];
-      storage.saveEntries(updated);
-      return updated;
-    });
+  const handleUpdateRunning = async (entry: TimeEntry) => {
+    try {
+      console.log('⏱️ [ENTRY] Updating running entry:', entry.id);
+      setRunningEntry(entry);
+
+      if (entry.id && entries.find(e => e.id === entry.id)) {
+        // Update existing entry
+        const response = await entriesApi.update(entry.id, entry);
+        console.log('✅ [ENTRY] Running entry updated:', response);
+        setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
+      } else {
+        // Create new entry
+        const response = await entriesApi.create(entry);
+        console.log('✅ [ENTRY] Running entry created:', response);
+        setEntries(prev => [...prev.filter(e => !e.isRunning), response.data]);
+      }
+    } catch (error) {
+      console.error('❌ [ENTRY] Failed to update running entry:', error);
+    }
   };
 
-  const handleDeleteEntry = (id: string) => {
-    setEntries(prev => {
-      const filtered = prev.filter(e => e.id !== id);
-      storage.saveEntries(filtered);
-      return filtered;
-    });
+  const handleDeleteEntry = async (id: string) => {
+    try {
+      console.log('🗑️ [ENTRY] Deleting entry:', id);
+      await entriesApi.delete(id);
+      console.log('✅ [ENTRY] Entry deleted');
+      setEntries(prev => prev.filter(e => e.id !== id));
+    } catch (error) {
+      console.error('❌ [ENTRY] Failed to delete entry:', error);
+    }
   };
 
-  const handleEditEntry = (id: string, updates: Partial<TimeEntry>) => {
-    setEntries(prev => {
-      const updated = prev.map(e => e.id === id ? { ...e, ...updates } : e);
-      storage.saveEntries(updated);
-      return updated;
-    });
+  const handleEditEntry = async (id: string, updates: Partial<TimeEntry>) => {
+    try {
+      console.log('✏️ [ENTRY] Editing entry:', id);
+      const response = await entriesApi.update(id, updates);
+      console.log('✅ [ENTRY] Entry edited:', response);
+      setEntries(prev => prev.map(e => e.id === id ? response.data : e));
+    } catch (error) {
+      console.error('❌ [ENTRY] Failed to edit entry:', error);
+    }
   };
 
-  // Customer handlers
-  const handleAddCustomer = (customer: Customer) => {
-    setCustomers(prev => {
-      const updated = [...prev, customer];
-      storage.saveCustomers(updated);
-      return updated;
-    });
+  // Customer handlers (API-based)
+  const handleAddCustomer = async (customer: Customer) => {
+    try {
+      console.log('➕ [CUSTOMER] Adding customer:', customer.name);
+      const response = await customersApi.create(customer);
+      console.log('✅ [CUSTOMER] Customer created:', response);
+      setCustomers(prev => [...prev, response.data]);
+    } catch (error) {
+      console.error('❌ [CUSTOMER] Failed to add customer:', error);
+    }
   };
 
-  const handleUpdateCustomer = (id: string, updates: Partial<Customer>) => {
-    setCustomers(prev => {
-      const updated = prev.map(c => c.id === id ? { ...c, ...updates } : c);
-      storage.saveCustomers(updated);
-      return updated;
-    });
+  const handleUpdateCustomer = async (id: string, updates: Partial<Customer>) => {
+    try {
+      console.log('✏️ [CUSTOMER] Updating customer:', id);
+      const response = await customersApi.update(id, updates);
+      console.log('✅ [CUSTOMER] Customer updated:', response);
+      setCustomers(prev => prev.map(c => c.id === id ? response.data : c));
+    } catch (error) {
+      console.error('❌ [CUSTOMER] Failed to update customer:', error);
+    }
   };
 
-  const handleDeleteCustomer = (id: string) => {
-    setCustomers(prev => {
-      const filtered = prev.filter(c => c.id !== id);
-      storage.saveCustomers(filtered);
-      return filtered;
-    });
+  const handleDeleteCustomer = async (id: string) => {
+    try {
+      console.log('🗑️ [CUSTOMER] Deleting customer:', id);
+      await customersApi.delete(id);
+      console.log('✅ [CUSTOMER] Customer deleted');
+      setCustomers(prev => prev.filter(c => c.id !== id));
+    } catch (error) {
+      console.error('❌ [CUSTOMER] Failed to delete customer:', error);
+    }
   };
 
-  // Project handlers
-  const handleAddProject = (project: Project) => {
-    setProjects(prev => {
-      const updated = [...prev, project];
-      storage.saveProjects(updated);
-      return updated;
-    });
+  // Project handlers (API-based)
+  const handleAddProject = async (project: Project) => {
+    try {
+      console.log('➕ [PROJECT] Adding project:', project.name);
+
+      // Call API to create project
+      const response = await projectsApi.create(project);
+      console.log('✅ [PROJECT] Project created:', response);
+
+      // Update local state with API response
+      setProjects(prev => [...prev, response.data]);
+      console.log('✅ [PROJECT] Local state updated');
+    } catch (error) {
+      console.error('❌ [PROJECT] Failed to add project:', error);
+      // TODO: Show error to user
+    }
   };
 
-  const handleUpdateProject = (id: string, updates: Partial<Project>) => {
-    setProjects(prev => {
-      const updated = prev.map(p => p.id === id ? { ...p, ...updates } : p);
-      storage.saveProjects(updated);
-      return updated;
-    });
+  const handleUpdateProject = async (id: string, updates: Partial<Project>) => {
+    try {
+      console.log('✏️ [PROJECT] Updating project:', id, updates);
+
+      // Call API to update project
+      const response = await projectsApi.update(id, updates);
+      console.log('✅ [PROJECT] Project updated:', response);
+
+      // Update local state with API response
+      setProjects(prev => prev.map(p => p.id === id ? response.data : p));
+      console.log('✅ [PROJECT] Local state updated');
+    } catch (error) {
+      console.error('❌ [PROJECT] Failed to update project:', error);
+      // TODO: Show error to user
+    }
   };
 
-  const handleDeleteProject = (id: string) => {
-    setProjects(prev => {
-      const filtered = prev.filter(p => p.id !== id);
-      storage.saveProjects(filtered);
-      return filtered;
-    });
+  const handleDeleteProject = async (id: string) => {
+    try {
+      console.log('🗑️ [PROJECT] Deleting project:', id);
+
+      // Call API to delete project
+      await projectsApi.delete(id);
+      console.log('✅ [PROJECT] Project deleted');
+
+      // Update local state
+      setProjects(prev => prev.filter(p => p.id !== id));
+      console.log('✅ [PROJECT] Local state updated');
+    } catch (error) {
+      console.error('❌ [PROJECT] Failed to delete project:', error);
+      // TODO: Show error to user
+    }
   };
 
-  // Activity handlers
-  const handleAddActivity = (activity: Activity) => {
-    setActivities(prev => {
-      const updated = [...prev, activity];
-      storage.saveActivities(updated);
-      return updated;
-    });
+  // Activity handlers (API-based)
+  const handleAddActivity = async (activity: Activity) => {
+    try {
+      console.log('➕ [ACTIVITY] Adding activity:', activity.name);
+      const response = await activitiesApi.create(activity);
+      console.log('✅ [ACTIVITY] Activity created:', response);
+      setActivities(prev => [...prev, response.data]);
+    } catch (error) {
+      console.error('❌ [ACTIVITY] Failed to add activity:', error);
+    }
   };
 
-  const handleUpdateActivity = (id: string, updates: Partial<Activity>) => {
-    setActivities(prev => {
-      const updated = prev.map(a => a.id === id ? { ...a, ...updates } : a);
-      storage.saveActivities(updated);
-      return updated;
-    });
+  const handleUpdateActivity = async (id: string, updates: Partial<Activity>) => {
+    try {
+      console.log('✏️ [ACTIVITY] Updating activity:', id);
+      const response = await activitiesApi.update(id, updates);
+      console.log('✅ [ACTIVITY] Activity updated:', response);
+      setActivities(prev => prev.map(a => a.id === id ? response.data : a));
+    } catch (error) {
+      console.error('❌ [ACTIVITY] Failed to update activity:', error);
+    }
   };
 
-  const handleDeleteActivity = (id: string) => {
-    setActivities(prev => {
-      const filtered = prev.filter(a => a.id !== id);
-      storage.saveActivities(filtered);
-      return filtered;
-    });
+  const handleDeleteActivity = async (id: string) => {
+    try {
+      console.log('🗑️ [ACTIVITY] Deleting activity:', id);
+      await activitiesApi.delete(id);
+      console.log('✅ [ACTIVITY] Activity deleted');
+      setActivities(prev => prev.filter(a => a.id !== id));
+    } catch (error) {
+      console.error('❌ [ACTIVITY] Failed to delete activity:', error);
+    }
   };
 
   // Dark Mode handler
@@ -360,6 +451,28 @@ function App() {
             activities={activities}
             onDelete={handleDeleteEntry}
             onEdit={handleEditEntry}
+          />
+        )}
+        {currentView === 'calendar' && (
+          <CalendarView
+            entries={entries}
+            projects={projects}
+            customers={customers}
+            activities={activities}
+            onEditEntry={(entry) => {
+              // Open edit modal - for now, just log
+              console.log('Edit entry:', entry);
+              // TODO: Implement edit modal
+            }}
+            onUpdateEntry={handleEditEntry}
+            onCreateEntry={async (entry) => {
+              try {
+                const response = await entriesApi.create(entry);
+                setEntries(prev => [...prev, response.data]);
+              } catch (error) {
+                console.error('Failed to create entry:', error);
+              }
+            }}
           />
         )}
         {currentView === 'dashboard' && (

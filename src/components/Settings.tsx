@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight } from 'lucide-react';
-import { Customer, Project, Activity, GrayTone, CompanyInfo, TeamInvitation, User, TimeRoundingInterval } from '../types';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown } from 'lucide-react';
+import { Customer, Project, Activity, GrayTone, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
-import { storage } from '../utils/storage';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
+import { notificationService } from '../utils/notifications';
+import { userApi, teamsApi } from '../services/api';
+import Papa from 'papaparse';
+import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 
 interface SettingsProps {
   customers: Customer[];
@@ -51,7 +54,6 @@ export const Settings = ({
   const [timeTrackingSubTab, setTimeTrackingSubTab] = useState<'customers' | 'projects' | 'activities'>('customers');
 
   // Company Info State
-  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
   const [companyName, setCompanyName] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
   const [companyCity, setCompanyCity] = useState('');
@@ -74,6 +76,13 @@ export const Settings = ({
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerReportTitle, setCustomerReportTitle] = useState('');
 
+  // CSV Import
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const [csvPreviewData, setCsvPreviewData] = useState<{ headers: string[]; rows: any[]; allData: any[] } | null>(null);
+  const [columnMappings, setColumnMappings] = useState<Record<string, string>>({});
+  const [mappingModalOpen, setMappingModalOpen] = useState(false);
+
   // Project Modal
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -90,6 +99,7 @@ export const Settings = ({
   const [activityIsBillable, setActivityIsBillable] = useState(true);
   const [activityPricingType, setActivityPricingType] = useState<'hourly' | 'flat'>('hourly');
   const [activityFlatRate, setActivityFlatRate] = useState('');
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
 
   // Team State
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
@@ -156,6 +166,177 @@ export const Settings = ({
     }
 
     setCustomerModalOpen(false);
+  };
+
+  // CSV Import Handler
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    if (!file.name.endsWith('.csv')) {
+      alert('Bitte wähle eine CSV-Datei aus.');
+      return;
+    }
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (!results.data || results.data.length === 0) {
+          alert('Die CSV-Datei enthält keine Daten.');
+          return;
+        }
+
+        // Extract headers from the first row
+        const headers = Object.keys(results.data[0] as object);
+
+        // Get preview rows (first 3 rows)
+        const previewRows = results.data.slice(0, 3);
+
+        // Store all data for later processing
+        const allData = results.data;
+
+        // Generate intelligent mapping suggestions
+        const suggestedMappings: Record<string, string> = {};
+
+        // Field definitions with their possible column name variants
+        const fieldMappings = {
+          name: ['name', 'Name', 'Firmenname', 'Firma', 'Kundenname', 'company', 'Company', 'customer', 'Customer'],
+          customerNumber: ['customerNumber', 'number', 'Kundennummer', 'Debitorennummer', 'Kunden-Nr', 'customer_number', 'Nummer'],
+          contactPerson: ['Ansprechpartner', 'contactPerson', 'contact', 'Contact', 'Kontaktperson'],
+          firstName: ['Vorname', 'firstname', 'first_name', 'FirstName'],
+          lastName: ['Nachname', 'lastname', 'last_name', 'LastName'],
+          email: ['email', 'Email', 'E-Mail', 'e-mail', 'mail', 'Mail', 'emailAddress'],
+          street: ['Straße', 'Strasse', 'street', 'Street'],
+          address: ['Adresse', 'address', 'Address'],
+          zip: ['PLZ', 'Postleitzahl', 'zip', 'Zip', 'zipcode', 'postal_code'],
+          city: ['Stadt', 'Ort', 'city', 'City', 'place'],
+          country: ['Land', 'country', 'Country'],
+          phone: ['Telefon', 'Tel', 'Telefonnummer', 'phone', 'Phone', 'telephone', 'mobile', 'Mobil'],
+          taxId: ['USt-IdNr', 'Steuernummer', 'taxId', 'tax_id', 'vat_id', 'vatId', 'UStID']
+        };
+
+        // For each CSV column, suggest the best matching field
+        headers.forEach(header => {
+          for (const [field, variants] of Object.entries(fieldMappings)) {
+            if (variants.some(variant => variant.toLowerCase() === header.toLowerCase())) {
+              suggestedMappings[header] = field;
+              break;
+            }
+          }
+          // If no match found, leave unmapped (empty string)
+          if (!suggestedMappings[header]) {
+            suggestedMappings[header] = '';
+          }
+        });
+
+        // Set state and show mapping modal
+        setCsvPreviewData({ headers, rows: previewRows, allData });
+        setColumnMappings(suggestedMappings);
+        setMappingModalOpen(true);
+
+        // Clear file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      },
+      error: (error) => {
+        alert(`Fehler beim Lesen der Datei: ${error.message}`);
+      }
+    });
+  };
+
+  const processImportWithMappings = () => {
+    if (!csvPreviewData) return;
+
+    const errors: string[] = [];
+    let successCount = 0;
+    let failedCount = 0;
+
+    // Create a reverse mapping from field names to CSV columns
+    const fieldToColumn: Record<string, string> = {};
+    Object.entries(columnMappings).forEach(([csvColumn, fieldName]) => {
+      if (fieldName) {
+        fieldToColumn[fieldName] = csvColumn;
+      }
+    });
+
+    csvPreviewData.allData.forEach((row: any, index) => {
+      try {
+        // Get name (required field)
+        const name = row[fieldToColumn['name']]?.trim();
+
+        if (!name) {
+          errors.push(`Zeile ${index + 2}: Name/Firmenname fehlt`);
+          failedCount++;
+          return;
+        }
+
+        // Get customer number
+        const customerNumber = row[fieldToColumn['customerNumber']]?.trim();
+
+        // Get contact person (can be from separate fields or combined)
+        let contactPerson = row[fieldToColumn['contactPerson']]?.trim();
+        if (!contactPerson) {
+          const firstName = row[fieldToColumn['firstName']]?.trim();
+          const lastName = row[fieldToColumn['lastName']]?.trim();
+          if (firstName || lastName) {
+            contactPerson = [firstName, lastName].filter(Boolean).join(' ');
+          }
+        }
+
+        // Get email
+        const email = row[fieldToColumn['email']]?.trim();
+
+        // Build address from separate fields or use combined field
+        let address = row[fieldToColumn['address']]?.trim() || '';
+        if (!address) {
+          const street = row[fieldToColumn['street']]?.trim();
+          const zip = row[fieldToColumn['zip']]?.trim();
+          const city = row[fieldToColumn['city']]?.trim();
+          const country = row[fieldToColumn['country']]?.trim();
+
+          address = street || '';
+          if (zip || city) {
+            const cityLine = [zip, city].filter(Boolean).join(' ');
+            address = [address, cityLine].filter(Boolean).join(', ');
+          }
+          if (country && country !== 'Deutschland' && country !== 'Germany' && country !== 'DE') {
+            address = [address, country].filter(Boolean).join(', ');
+          }
+        }
+
+        // Create customer
+        const customer: Customer = {
+          id: crypto.randomUUID(),
+          userId: currentUser!.id,
+          name: name,
+          color: COLORS[Math.floor(Math.random() * COLORS.length)],
+          customerNumber: customerNumber || undefined,
+          contactPerson: contactPerson || undefined,
+          email: email || undefined,
+          address: address || undefined,
+          reportTitle: undefined,
+          createdAt: new Date().toISOString()
+        };
+
+        onAddCustomer(customer);
+        successCount++;
+      } catch (error) {
+        errors.push(`Zeile ${index + 2}: ${error}`);
+        failedCount++;
+      }
+    });
+
+    setImportResult({ success: successCount, failed: failedCount, errors });
+    setMappingModalOpen(false);
+    setCsvPreviewData(null);
+    setColumnMappings({});
   };
 
   const openProjectModal = (project?: Project) => {
@@ -251,6 +432,16 @@ export const Settings = ({
     setActivityModalOpen(false);
   };
 
+  const handleUseTemplate = (template: ActivityTemplate) => {
+    setActivityName(template.name);
+    setActivityDescription(template.description);
+    setActivityIsBillable(template.isBillable);
+    setActivityPricingType(template.pricingType);
+    setActivityFlatRate('');
+    setTemplateModalOpen(false);
+    setActivityModalOpen(true);
+  };
+
   const handleDeleteCustomer = (customer: Customer) => {
     const customerProjects = projects.filter(p => p.customerId === customer.id);
     if (customerProjects.length > 0) {
@@ -296,58 +487,67 @@ export const Settings = ({
   // Load company info on mount
   useEffect(() => {
     if (currentUser) {
-      const info = storage.getCompanyInfoByUserId(currentUser.id);
-      if (info) {
-        setCompanyInfo(info);
-        setCompanyName(info.name);
-        setCompanyAddress(info.address);
-        setCompanyCity(info.city);
-        setCompanyZipCode(info.zipCode);
-        setCompanyCountry(info.country);
-        setCompanyEmail(info.email);
-        setCompanyPhone(info.phone || '');
-        setCompanyWebsite(info.website || '');
-        setCompanyTaxId(info.taxId || '');
-        setCompanyLogo(info.logo || null);
-      }
+      const loadCompanyInfo = async () => {
+        try {
+          const info = await userApi.getCompany();
+          if (info) {
+            setCompanyName(info.name);
+            setCompanyAddress(info.address);
+            setCompanyCity(info.city);
+            setCompanyZipCode(info.zipCode);
+            setCompanyCountry(info.country);
+            setCompanyEmail(info.email);
+            setCompanyPhone(info.phone || '');
+            setCompanyWebsite(info.website || '');
+            setCompanyTaxId(info.taxId || '');
+            setCompanyLogo(info.logo || null);
+          }
+        } catch (error) {
+          console.error('Error loading company info:', error);
+        }
+      };
+      loadCompanyInfo();
     }
   }, [currentUser]);
 
   // Load team data
   useEffect(() => {
     if (currentUser && currentUser.teamId && (currentUser.accountType === 'business' || currentUser.accountType === 'team')) {
-      // Load team members
-      const allUsers = storage.getUsers();
-      const members = allUsers.filter(u => u.teamId === currentUser.teamId);
-      setTeamMembers(members);
+      const loadTeamData = async () => {
+        try {
+          // Load team and members
+          const team = await teamsApi.getMyTeam();
+          if (team && team.members) {
+            setTeamMembers(team.members as any);
+          }
 
-      // Load team invitations (only for owners/admins)
-      if (currentUser.teamRole === 'owner' || currentUser.teamRole === 'admin') {
-        const invitations = storage.getTeamInvitationsByTeamId(currentUser.teamId);
-        setTeamInvitations(invitations);
-      }
+          // Load team invitations (only for owners/admins)
+          if ((currentUser.teamRole === 'owner' || currentUser.teamRole === 'admin') && currentUser.teamId) {
+            const invitations = await teamsApi.getInvitations(currentUser.teamId);
+            setTeamInvitations(invitations);
+          }
+        } catch (error) {
+          console.error('Error loading team data:', error);
+        }
+      };
+      loadTeamData();
     }
   }, [currentUser, activeTab]);
 
-  const generateInvitationCode = () => {
-    return `INVITE-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-  };
-
-  const handleCreateInvitation = () => {
+  const handleCreateInvitation = async () => {
     if (!currentUser || !currentUser.teamId) return;
 
-    const invitation: TeamInvitation = {
-      id: crypto.randomUUID(),
-      teamId: currentUser.teamId,
-      invitationCode: generateInvitationCode(),
-      role: newInvitationRole,
-      createdBy: currentUser.id,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-      createdAt: new Date().toISOString()
-    };
-
-    storage.createTeamInvitation(invitation);
-    setTeamInvitations([...teamInvitations, invitation]);
+    try {
+      const invitation = await teamsApi.createInvitation(
+        currentUser.teamId,
+        newInvitationRole,
+        7 * 24 // 7 days in hours
+      );
+      setTeamInvitations([...teamInvitations, invitation]);
+    } catch (error) {
+      console.error('Error creating invitation:', error);
+      alert('Fehler beim Erstellen der Einladung');
+    }
   };
 
   const handleCopyInvitationCode = (code: string) => {
@@ -355,34 +555,44 @@ export const Settings = ({
     alert('Einladungscode kopiert!');
   };
 
-  const handleDeleteInvitation = (id: string) => {
-    storage.deleteTeamInvitation(id);
-    setTeamInvitations(teamInvitations.filter(inv => inv.id !== id));
+  const handleDeleteInvitation = async (id: string) => {
+    try {
+      await teamsApi.deleteInvitation(id);
+      setTeamInvitations(teamInvitations.filter(inv => inv.id !== id));
+    } catch (error) {
+      console.error('Error deleting invitation:', error);
+      alert('Fehler beim Löschen der Einladung');
+    }
   };
 
-  const handleSaveCompanyInfo = () => {
+  const handleSaveCompanyInfo = async () => {
     if (!currentUser) return;
 
-    const info: CompanyInfo = {
-      id: companyInfo?.id || crypto.randomUUID(),
-      userId: currentUser.id,
-      name: companyName.trim(),
-      address: companyAddress.trim(),
-      city: companyCity.trim(),
-      zipCode: companyZipCode.trim(),
-      country: companyCountry.trim(),
-      email: companyEmail.trim(),
-      phone: companyPhone.trim() || undefined,
-      website: companyWebsite.trim() || undefined,
-      taxId: companyTaxId.trim() || undefined,
-      logo: companyLogo || undefined,
-      createdAt: companyInfo?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    // Validation
+    if (!companyName.trim() || !companyAddress.trim() || !companyCity.trim() ||
+        !companyZipCode.trim() || !companyCountry.trim() || !companyEmail.trim()) {
+      alert('Bitte fülle alle Pflichtfelder aus');
+      return;
+    }
 
-    storage.saveCompanyInfo(info);
-    setCompanyInfo(info);
-    alert('Firmendaten gespeichert!');
+    try {
+      await userApi.updateCompany({
+        name: companyName.trim(),
+        address: companyAddress.trim(),
+        city: companyCity.trim(),
+        zipCode: companyZipCode.trim(),
+        country: companyCountry.trim(),
+        email: companyEmail.trim(),
+        phone: companyPhone.trim() || undefined,
+        website: companyWebsite.trim() || undefined,
+        taxId: companyTaxId.trim() || undefined,
+        logo: companyLogo || undefined,
+      });
+      alert('Firmendaten gespeichert!');
+    } catch (error) {
+      console.error('Error saving company info:', error);
+      alert('Fehler beim Speichern der Firmendaten');
+    }
   };
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -734,36 +944,120 @@ export const Settings = ({
               </div>
 
               <div className="space-y-6">
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <p className="text-sm text-blue-900 dark:text-blue-200">
-                    🚀 Browser-Benachrichtigungen und E-Mail-Notifications werden in Kürze verfügbar sein!
-                  </p>
+                {/* Browser Permission */}
+                {!notificationService.hasPermission() && notificationService.isSupported() && (
+                  <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-yellow-900 dark:text-yellow-200 mb-1">
+                          Browser-Benachrichtigungen aktivieren
+                        </p>
+                        <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                          Erlaube Browser-Benachrichtigungen, um wichtige Erinnerungen zu erhalten.
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const granted = await notificationService.requestPermission();
+                          if (granted) {
+                            window.location.reload(); // Reload to update UI
+                          }
+                        }}
+                        className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+                      >
+                        Aktivieren
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Notification Settings */}
+                <div className="space-y-4">
+                  <h3 className="font-medium text-gray-900 dark:text-white">Browser-Benachrichtigungen</h3>
+
+                  <div className="space-y-3">
+                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white mb-1">Monatserinnerung</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          Benachrichtigung 3 Tage vor Monatsende zur Prüfung deiner Zeiteinträge
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={localStorage.getItem('notification_month_end') !== 'false'}
+                        onChange={(e) => {
+                          localStorage.setItem('notification_month_end', e.target.checked ? 'true' : 'false');
+                        }}
+                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        disabled={!notificationService.hasPermission()}
+                      />
+                    </label>
+
+                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white mb-1">Fehlende Einträge</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          Tägliche Erinnerung um 18:00 Uhr, wenn noch keine Stunden eingetragen wurden
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={localStorage.getItem('notification_missing_entries') !== 'false'}
+                        onChange={(e) => {
+                          localStorage.setItem('notification_missing_entries', e.target.checked ? 'true' : 'false');
+                        }}
+                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        disabled={!notificationService.hasPermission()}
+                      />
+                    </label>
+
+                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white mb-1">Qualitätsprüfung</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          Warnung bei Zeiteinträgen ohne Beschreibung oder Projekt
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={localStorage.getItem('notification_quality_check') !== 'false'}
+                        onChange={(e) => {
+                          localStorage.setItem('notification_quality_check', e.target.checked ? 'true' : 'false');
+                        }}
+                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        disabled={!notificationService.hasPermission()}
+                      />
+                    </label>
+
+                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white mb-1">Wochenreport</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          Jeden Freitag um 16:00 Uhr eine Zusammenfassung deiner Arbeitswoche
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={localStorage.getItem('notification_weekly_report') !== 'false'}
+                        onChange={(e) => {
+                          localStorage.setItem('notification_weekly_report', e.target.checked ? 'true' : 'false');
+                        }}
+                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        disabled={!notificationService.hasPermission()}
+                      />
+                    </label>
+                  </div>
                 </div>
 
-                <div className="space-y-4">
-                  <h3 className="font-medium text-gray-900 dark:text-white">Geplante Features:</h3>
-                  <ul className="space-y-2 text-sm text-gray-600 dark:text-dark-300">
-                    <li className="flex items-start gap-2">
-                      <span className="text-accent-primary mt-0.5">•</span>
-                      <span><strong>Monatserinnerung:</strong> Browser-Benachrichtigung 3 Tage vor Monatsende</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-accent-primary mt-0.5">•</span>
-                      <span><strong>Tägliche Erinnerung:</strong> Benachrichtigung wenn keine Stunden eingetragen wurden</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-accent-primary mt-0.5">•</span>
-                      <span><strong>Qualitätsprüfung:</strong> Warnung bei fehlenden Beschreibungen</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-accent-primary mt-0.5">•</span>
-                      <span><strong>Wochenreport:</strong> Zusammenfassung zur Selbstprüfung jeden Freitag</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-accent-primary mt-0.5">•</span>
-                      <span><strong>E-Mail-Benachrichtigungen:</strong> Alle Reports auch per E-Mail</span>
-                    </li>
-                  </ul>
+                {/* Email Notifications (Coming Soon) */}
+                <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <h3 className="font-medium text-gray-900 dark:text-white">E-Mail-Benachrichtigungen</h3>
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-sm text-blue-900 dark:text-blue-200">
+                      📧 E-Mail-Benachrichtigungen werden in Kürze verfügbar sein!
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -817,14 +1111,76 @@ export const Settings = ({
               <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
-                  <button
-                    onClick={() => openCustomerModal()}
-                    className="flex items-center gap-2 px-4 py-2 btn-accent"
-                  >
-                    <Plus size={20} />
-                    Kunde hinzufügen
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleImportClick}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                      title="CSV importieren"
+                    >
+                      <FileDown size={20} />
+                      Importieren
+                    </button>
+                    <button
+                      onClick={() => openCustomerModal()}
+                      className="flex items-center gap-2 px-4 py-2 btn-accent"
+                    >
+                      <Plus size={20} />
+                      Kunde hinzufügen
+                    </button>
+                  </div>
                 </div>
+
+                {/* Hidden file input for CSV import */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileImport}
+                  className="hidden"
+                />
+
+                {/* Import result notification */}
+                {importResult && (
+                  <div className={`mb-4 p-4 rounded-lg ${
+                    importResult.failed === 0 ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' :
+                    importResult.success === 0 ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' :
+                    'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
+                  }`}>
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className={`font-semibold ${
+                          importResult.failed === 0 ? 'text-green-800 dark:text-green-200' :
+                          importResult.success === 0 ? 'text-red-800 dark:text-red-200' :
+                          'text-yellow-800 dark:text-yellow-200'
+                        }`}>
+                          Import abgeschlossen
+                        </p>
+                        <p className="text-sm mt-1 text-gray-700 dark:text-gray-300">
+                          {importResult.success} erfolgreich, {importResult.failed} fehlgeschlagen
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setImportResult(null)}
+                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                    {importResult.errors.length > 0 && (
+                      <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                        <p className="font-medium mb-1">Fehler:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          {importResult.errors.slice(0, 5).map((error, idx) => (
+                            <li key={idx}>{error}</li>
+                          ))}
+                          {importResult.errors.length > 5 && (
+                            <li>... und {importResult.errors.length - 5} weitere</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {customers.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 dark:text-dark-400">
@@ -920,7 +1276,7 @@ export const Settings = ({
                             <h3 className="font-semibold text-gray-900">{project.name}</h3>
                             <p className="text-sm text-gray-500">{customer?.name}</p>
                             <p className="text-sm font-medium text-blue-600 mt-1">
-                              {project.hourlyRate.toFixed(2)} € / Stunde
+                              {(project.hourlyRate || 0).toFixed(2)} € / Stunde
                             </p>
                           </div>
                         </div>
@@ -951,13 +1307,23 @@ export const Settings = ({
               <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{activities.length} Tätigkeit(en)</p>
-                  <button
-                    onClick={() => openActivityModal()}
-                    className="flex items-center gap-2 px-4 py-2 btn-accent"
-                  >
-                    <Plus size={20} />
-                    Tätigkeit hinzufügen
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setTemplateModalOpen(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                      title="Aus Vorlage wählen"
+                    >
+                      <ListChecks size={20} />
+                      Aus Vorlage
+                    </button>
+                    <button
+                      onClick={() => openActivityModal()}
+                      className="flex items-center gap-2 px-4 py-2 btn-accent"
+                    >
+                      <Plus size={20} />
+                      Neu erstellen
+                    </button>
+                  </div>
                 </div>
 
                 {activities.length === 0 ? (
@@ -1903,6 +2269,206 @@ export const Settings = ({
               Speichern
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Activity Templates Modal */}
+      <Modal
+        isOpen={templateModalOpen}
+        onClose={() => setTemplateModalOpen(false)}
+        title="Tätigkeit aus Vorlage wählen"
+      >
+        <div className="space-y-6">
+          <p className="text-base text-gray-700 dark:text-gray-300">
+            Wähle eine vorgefertigte Tätigkeit aus und passe sie nach Bedarf an.
+          </p>
+
+          <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2">
+            {Object.entries(getTemplatesByCategory()).map(([category, templates]) => (
+              <div key={category}>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 pb-2 border-b-2 border-gray-200 dark:border-gray-700">
+                  {category}
+                </h3>
+                <div className="space-y-2">
+                  {templates.map((template, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleUseTemplate(template)}
+                      className="w-full text-left p-4 rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all group shadow-sm hover:shadow-md"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-base font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 mb-1">
+                            {template.name}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">
+                            {template.description}
+                          </p>
+                        </div>
+                        {template.isBillable && (
+                          <div className="flex-shrink-0">
+                            <span className="inline-block text-xs font-semibold px-3 py-1.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-md border border-green-200 dark:border-green-800">
+                              ✓ Abrechenbar
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end pt-4 border-t-2 border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setTemplateModalOpen(false)}
+              className="px-6 py-2.5 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* CSV Column Mapping Modal */}
+      <Modal
+        isOpen={mappingModalOpen}
+        onClose={() => {
+          setMappingModalOpen(false);
+          setCsvPreviewData(null);
+          setColumnMappings({});
+        }}
+        title="CSV Spalten zuordnen"
+      >
+        <div className="space-y-6">
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            Ordne die Spalten aus deiner CSV-Datei den entsprechenden Feldern zu.
+            Vorschläge wurden automatisch erkannt. Du kannst diese anpassen oder Spalten ignorieren.
+          </p>
+
+          {csvPreviewData && (
+            <>
+              {/* Column Mapping Table */}
+              <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                <div className="max-h-[400px] overflow-y-auto">
+                  <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-600">
+                    <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                          CSV Spalte
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                          Zuordnung
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                          Vorschau
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                      {csvPreviewData.headers.map((header, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                            {header}
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={columnMappings[header] || ''}
+                              onChange={(e) => setColumnMappings(prev => ({
+                                ...prev,
+                                [header]: e.target.value
+                              }))}
+                              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">Ignorieren</option>
+                              <option value="name">Name / Firmenname (Pflicht)</option>
+                              <option value="customerNumber">Kundennummer</option>
+                              <option value="contactPerson">Ansprechpartner</option>
+                              <option value="firstName">Vorname</option>
+                              <option value="lastName">Nachname</option>
+                              <option value="email">E-Mail</option>
+                              <option value="address">Adresse (komplett)</option>
+                              <option value="street">Straße</option>
+                              <option value="zip">PLZ</option>
+                              <option value="city">Stadt/Ort</option>
+                              <option value="country">Land</option>
+                              <option value="phone">Telefon</option>
+                              <option value="taxId">Steuernummer/USt-IdNr</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            <div className="max-w-xs truncate">
+                              {csvPreviewData.rows[0]?.[header] || <span className="text-gray-400 dark:text-gray-500 italic">leer</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Preview Section */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">
+                  Datenvorschau ({csvPreviewData.allData.length} Zeilen)
+                </h4>
+                <div className="text-xs text-blue-800 dark:text-blue-400 space-y-1">
+                  {csvPreviewData.rows.slice(0, 2).map((row, idx) => {
+                    const fieldToColumn: Record<string, string> = {};
+                    Object.entries(columnMappings).forEach(([csvCol, field]) => {
+                      if (field) fieldToColumn[field] = csvCol;
+                    });
+
+                    const name = row[fieldToColumn['name']];
+                    const email = row[fieldToColumn['email']];
+
+                    return (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="font-mono">#{idx + 1}:</span>
+                        <span className="font-semibold">{name || '(kein Name)'}</span>
+                        {email && <span className="text-blue-600 dark:text-blue-400">• {email}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Warning if no name field mapped */}
+              {!Object.values(columnMappings).includes('name') && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                    ⚠ Achtung: Das Feld "Name / Firmenname" muss zugeordnet werden!
+                  </p>
+                  <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                    Ohne Namen können keine Kunden importiert werden.
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => {
+                    setMappingModalOpen(false);
+                    setCsvPreviewData(null);
+                    setColumnMappings({});
+                  }}
+                  className="px-6 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={processImportWithMappings}
+                  disabled={!Object.values(columnMappings).includes('name')}
+                  className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
+                >
+                  {csvPreviewData.allData.length} {csvPreviewData.allData.length === 1 ? 'Kunde' : 'Kunden'} importieren
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 

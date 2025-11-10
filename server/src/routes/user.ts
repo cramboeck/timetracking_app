@@ -4,6 +4,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
+import { transformRow, transformRows } from '../utils/dbTransform';
 
 const router = Router();
 
@@ -26,7 +27,7 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res) => {
        FROM users WHERE id = $1`,
       [userId]
     );
-    const user = result.rows[0];
+    const user = transformRow(result.rows[0]);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -84,7 +85,7 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
        FROM users WHERE id = $1`,
       [userId]
     );
-    const updatedUser = userResult.rows[0];
+    const updatedUser = transformRow(userResult.rows[0]);
 
     auditLog.log({
       userId,
@@ -110,7 +111,7 @@ router.get('/company', authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.userId!;
 
     const result = await pool.query('SELECT * FROM company_info WHERE user_id = $1', [userId]);
-    const company = result.rows[0] || null;
+    const company = result.rows.length > 0 ? transformRow(result.rows[0]) : null;
 
     res.json({
       success: true,
@@ -152,7 +153,7 @@ router.post('/company', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     const companyResult = await pool.query('SELECT * FROM company_info WHERE user_id = $1', [userId]);
-    const company = companyResult.rows[0];
+    const company = transformRow(companyResult.rows[0]);
 
     auditLog.log({
       userId,
@@ -179,22 +180,22 @@ router.post('/export', authenticateToken, async (req: AuthRequest, res) => {
 
     // Gather all user data
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-    const user = userResult.rows[0];
+    const user = transformRow(userResult.rows[0]);
 
     const customersResult = await pool.query('SELECT * FROM customers WHERE user_id = $1', [userId]);
-    const customers = customersResult.rows;
+    const customers = transformRows(customersResult.rows);
 
     const projectsResult = await pool.query('SELECT * FROM projects WHERE user_id = $1', [userId]);
-    const projects = projectsResult.rows;
+    const projects = transformRows(projectsResult.rows);
 
     const activitiesResult = await pool.query('SELECT * FROM activities WHERE user_id = $1', [userId]);
-    const activities = activitiesResult.rows;
+    const activities = transformRows(activitiesResult.rows);
 
     const entriesResult = await pool.query('SELECT * FROM time_entries WHERE user_id = $1', [userId]);
-    const entries = entriesResult.rows;
+    const entries = transformRows(entriesResult.rows);
 
     const companyResult = await pool.query('SELECT * FROM company_info WHERE user_id = $1', [userId]);
-    const company = companyResult.rows[0];
+    const company = companyResult.rows.length > 0 ? transformRow(companyResult.rows[0]) : null;
 
     const exportData = {
       user,

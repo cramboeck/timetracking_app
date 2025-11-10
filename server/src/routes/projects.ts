@@ -4,6 +4,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
+import { transformRow, transformRows } from '../utils/dbTransform';
 
 const router = Router();
 
@@ -30,7 +31,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.userId!;
 
     const result = await pool.query('SELECT * FROM projects WHERE user_id = $1 ORDER BY name', [userId]);
-    const projects = result.rows;
+    const projects = transformRows(result.rows);
 
     res.json({
       success: true,
@@ -64,7 +65,7 @@ router.post('/', authenticateToken, validate(createProjectSchema), async (req: A
     );
 
     const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1', [id]);
-    const newProject = projectResult.rows[0];
+    const newProject = transformRow(projectResult.rows[0]);
 
     auditLog.log({
       userId,
@@ -140,7 +141,7 @@ router.put('/:id', authenticateToken, validate(updateProjectSchema), async (req:
     await pool.query(query, values);
 
     const updatedResult = await pool.query('SELECT * FROM projects WHERE id = $1', [id]);
-    const updatedProject = updatedResult.rows[0];
+    const updatedProject = transformRow(updatedResult.rows[0]);
 
     auditLog.log({
       userId,

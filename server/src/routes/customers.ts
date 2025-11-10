@@ -4,6 +4,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
+import { transformRow, transformRows } from '../utils/dbTransform';
 
 const router = Router();
 
@@ -34,7 +35,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.userId!;
 
     const result = await pool.query('SELECT * FROM customers WHERE user_id = $1 ORDER BY name', [userId]);
-    const customers = result.rows;
+    const customers = transformRows(result.rows);
 
     res.json({
       success: true,
@@ -62,7 +63,7 @@ router.post('/', authenticateToken, validate(createCustomerSchema), async (req: 
     );
 
     const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
-    const newCustomer = customerResult.rows[0];
+    const newCustomer = transformRow(customerResult.rows[0]);
 
     auditLog.log({
       userId,
@@ -138,7 +139,7 @@ router.put('/:id', authenticateToken, validate(updateCustomerSchema), async (req
     await pool.query(query, values);
 
     const updatedResult = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
-    const updatedCustomer = updatedResult.rows[0];
+    const updatedCustomer = transformRow(updatedResult.rows[0]);
 
     auditLog.log({
       userId,

@@ -1,4 +1,4 @@
-import { TimeEntry, Project, Customer, Activity } from '../types';
+import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -47,29 +47,49 @@ export const authApi = {
     organizationName?: string;
     inviteCode?: string;
   }) => {
+    console.log('🌐 [API] Calling POST /auth/register with:', data);
     const response = await fetch(`${API_BASE_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    console.log('🌐 [API] Register response status:', response.status);
     const result = await handleResponse(response);
-    // Store token
-    if (result.data.token) {
-      localStorage.setItem('auth_token', result.data.token);
+    console.log('🌐 [API] Register result:', result);
+
+    // Store token - backend returns { data: { token, user } }
+    const token = result?.data?.token || result?.token;
+    console.log('🌐 [API] Extracted token:', token ? '✅ Found' : '❌ Not found', { result });
+
+    if (token) {
+      localStorage.setItem('auth_token', token);
+      console.log('✅ [API] Token stored in localStorage');
+    } else {
+      console.error('❌ [API] No token in response!', result);
     }
     return result;
   },
 
   login: async (username: string, password: string) => {
+    console.log('🌐 [API] Calling POST /auth/login');
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
+    console.log('🌐 [API] Login response status:', response.status);
     const result = await handleResponse(response);
-    // Store token
-    if (result.data.token) {
-      localStorage.setItem('auth_token', result.data.token);
+    console.log('🌐 [API] Login result:', result);
+
+    // Store token - backend returns { data: { token, user } }
+    const token = result?.data?.token || result?.token;
+    console.log('🌐 [API] Extracted token:', token ? '✅ Found' : '❌ Not found');
+
+    if (token) {
+      localStorage.setItem('auth_token', token);
+      console.log('✅ [API] Token stored in localStorage');
+    } else {
+      console.error('❌ [API] No token in response!', result);
     }
     return result;
   },
@@ -97,8 +117,8 @@ export const userApi = {
     });
   },
 
-  getCompany: async () => {
-    return authFetch('/user/company');
+  getCompany: async (): Promise<CompanyInfo | null> => {
+    return authFetch('/company-info');
   },
 
   updateCompany: async (company: {
@@ -112,10 +132,16 @@ export const userApi = {
     website?: string;
     taxId?: string;
     logo?: string;
-  }) => {
-    return authFetch('/user/company', {
+  }): Promise<CompanyInfo> => {
+    return authFetch('/company-info', {
       method: 'POST',
       body: JSON.stringify(company),
+    });
+  },
+
+  deleteCompany: async (): Promise<{ success: boolean }> => {
+    return authFetch('/company-info', {
+      method: 'DELETE',
     });
   },
 
@@ -244,6 +270,89 @@ export const activitiesApi = {
   },
 };
 
+// Password Reset API
+export const passwordResetApi = {
+  requestReset: async (email: string): Promise<{ success: boolean; message: string; devToken?: string }> => {
+    console.log('🔑 [API] Requesting password reset for:', email);
+    const response = await fetch(`${API_BASE_URL}/password-reset/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const result = await handleResponse(response);
+    console.log('🔑 [API] Password reset request result:', result);
+    return result;
+  },
+
+  verifyToken: async (token: string): Promise<{ valid: boolean; error?: string }> => {
+    console.log('🔑 [API] Verifying reset token');
+    const response = await fetch(`${API_BASE_URL}/password-reset/verify/${token}`);
+    return handleResponse(response);
+  },
+
+  resetPassword: async (token: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+    console.log('🔑 [API] Resetting password with token');
+    const response = await fetch(`${API_BASE_URL}/password-reset/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword }),
+    });
+    const result = await handleResponse(response);
+    console.log('🔑 [API] Password reset result:', result);
+    return result;
+  },
+};
+
+// Teams API
+export const teamsApi = {
+  getMyTeam: async (): Promise<Team & { members: Array<{ id: string; username: string; email: string; role: string }> } | null> => {
+    return authFetch('/teams/my-team');
+  },
+
+  createTeam: async (name: string): Promise<Team> => {
+    return authFetch('/teams', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  updateTeam: async (teamId: string, name: string): Promise<Team> => {
+    return authFetch(`/teams/${teamId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  leaveTeam: async (): Promise<{ success: boolean }> => {
+    return authFetch('/teams/leave', {
+      method: 'DELETE',
+    });
+  },
+
+  createInvitation: async (teamId: string, role: 'admin' | 'member', expiresInHours: number = 168): Promise<TeamInvitation> => {
+    return authFetch(`/teams/${teamId}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({ role, expiresInHours }),
+    });
+  },
+
+  getInvitations: async (teamId: string): Promise<TeamInvitation[]> => {
+    return authFetch(`/teams/${teamId}/invitations`);
+  },
+
+  deleteInvitation: async (invitationId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/teams/invitations/${invitationId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  joinTeam: async (invitationCode: string): Promise<Team> => {
+    return authFetch(`/teams/join/${invitationCode}`, {
+      method: 'POST',
+    });
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -251,4 +360,6 @@ export default {
   projects: projectsApi,
   customers: customersApi,
   activities: activitiesApi,
+  passwordReset: passwordResetApi,
+  teams: teamsApi,
 };

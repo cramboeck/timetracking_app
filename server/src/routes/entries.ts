@@ -4,6 +4,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
+import { transformRow, transformRows } from '../utils/dbTransform';
 
 const router = Router();
 
@@ -34,7 +35,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.userId!;
 
     const result = await pool.query('SELECT * FROM time_entries WHERE user_id = $1', [userId]);
-    const entries = result.rows;
+    const entries = transformRows(result.rows);
 
     res.json({
       success: true,
@@ -53,7 +54,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
     const { id } = req.params;
 
     const result = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND user_id = $2', [id, userId]);
-    const entry = result.rows[0];
+    const entry = transformRow(result.rows[0]);
 
     if (!entry) {
       return res.status(404).json({ error: 'Entry not found' });
@@ -110,7 +111,7 @@ router.post('/', authenticateToken, validate(createEntrySchema), async (req: Aut
     );
 
     const entryResult = await pool.query('SELECT * FROM time_entries WHERE id = $1', [id]);
-    const newEntry = entryResult.rows[0];
+    const newEntry = transformRow(entryResult.rows[0]);
 
     auditLog.log({
       userId,
@@ -202,7 +203,7 @@ router.put('/:id', authenticateToken, validate(updateEntrySchema), async (req: A
     await pool.query(query, values);
 
     const updatedResult = await pool.query('SELECT * FROM time_entries WHERE id = $1', [id]);
-    const updatedEntry = updatedResult.rows[0];
+    const updatedEntry = transformRow(updatedResult.rows[0]);
 
     auditLog.log({
       userId,

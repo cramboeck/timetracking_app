@@ -1,0 +1,106 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database (same as production)
+  database:
+    image: postgres:16-alpine
+    container_name: timetracking-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: timetracking
+      POSTGRES_USER: timetracking
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U timetracking"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - timetracking-network
+
+  # Backend API - Development mode with hot reload
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: timetracking-backend-dev
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://timetracking:${DB_PASSWORD:-dev_password}@database:5432/timetracking
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_for_local_development}
+      FRONTEND_URL: http://localhost:5173
+      EMAIL_TEST_MODE: "true"
+    ports:
+      - "3001:3001"
+    volumes:
+      # Mount source code for hot reload
+      - ./server/src:/app/src:ro
+      - ./server/package.json:/app/package.json:ro
+      - /app/node_modules
+    command: npm run dev
+    networks:
+      - timetracking-network
+
+  # Database Admin UI (Adminer)
+  adminer:
+    image: adminer:latest
+    container_name: timetracking-adminer
+    restart: unless-stopped
+    depends_on:
+      - database
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: database
+      ADMINER_DESIGN: nette
+    networks:
+      - timetracking-network
+
+  # Frontend - Development mode with hot reload (using Vite dev server)
+  frontend:
+    image: node:20-alpine
+    container_name: timetracking-frontend-dev
+    restart: unless-stopped
+    depends_on:
+      - backend
+    working_dir: /app
+    environment:
+      VITE_API_URL: http://localhost:3001/api
+    ports:
+      - "5173:5173"
+    volumes:
+      # Mount source code for hot reload
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.node.json:/app/tsconfig.node.json
+      - ./vite.config.ts:/app/vite.config.ts
+      - ./tailwind.config.js:/app/tailwind.config.js
+      - ./postcss.config.js:/app/postcss.config.js
+      - ./.env:/app/.env
+      - frontend_node_modules:/app/node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    networks:
+      - timetracking-network
+
+volumes:
+  postgres_data_dev:
+    driver: local
+  frontend_node_modules:
+    driver: local
+
+networks:
+  timetracking-network:
+    driver: bridge
