@@ -47,29 +47,49 @@ export const authApi = {
     organizationName?: string;
     inviteCode?: string;
   }) => {
+    console.log('🌐 [API] Calling POST /auth/register with:', data);
     const response = await fetch(`${API_BASE_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    console.log('🌐 [API] Register response status:', response.status);
     const result = await handleResponse(response);
-    // Store token
-    if (result.data.token) {
-      localStorage.setItem('auth_token', result.data.token);
+    console.log('🌐 [API] Register result:', result);
+
+    // Store token - backend returns { data: { token, user } }
+    const token = result?.data?.token || result?.token;
+    console.log('🌐 [API] Extracted token:', token ? '✅ Found' : '❌ Not found', { result });
+
+    if (token) {
+      localStorage.setItem('auth_token', token);
+      console.log('✅ [API] Token stored in localStorage');
+    } else {
+      console.error('❌ [API] No token in response!', result);
     }
     return result;
   },
 
   login: async (username: string, password: string) => {
+    console.log('🌐 [API] Calling POST /auth/login');
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
+    console.log('🌐 [API] Login response status:', response.status);
     const result = await handleResponse(response);
-    // Store token
-    if (result.data.token) {
-      localStorage.setItem('auth_token', result.data.token);
+    console.log('🌐 [API] Login result:', result);
+
+    // Store token - backend returns { data: { token, user } }
+    const token = result?.data?.token || result?.token;
+    console.log('🌐 [API] Extracted token:', token ? '✅ Found' : '❌ Not found');
+
+    if (token) {
+      localStorage.setItem('auth_token', token);
+      console.log('✅ [API] Token stored in localStorage');
+    } else {
+      console.error('❌ [API] No token in response!', result);
     }
     return result;
   },
