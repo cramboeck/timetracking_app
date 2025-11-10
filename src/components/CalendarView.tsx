@@ -85,6 +85,44 @@ export const CalendarView = ({ entries, projects, customers, activities, onEditE
 
   console.log('📅 [CALENDAR] Generated events:', events);
 
+  // Calculate total hours for visible date range
+  const visibleHours = useMemo(() => {
+    const now = date;
+    let start: Date, end: Date;
+
+    if (view === 'day') {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    } else if (view === 'week') {
+      start = startOfWeek(now, { locale: de });
+      end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      end.setHours(23, 59, 59);
+    } else if (view === 'month') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    } else {
+      // agenda view - show next 30 days
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      end = new Date(start);
+      end.setDate(end.getDate() + 30);
+    }
+
+    const filtered = events.filter(event => {
+      return event.start >= start && event.start <= end;
+    });
+
+    const totalSeconds = filtered.reduce((sum, event) => sum + event.resource.entry.duration, 0);
+    const hours = totalSeconds / 3600;
+
+    return {
+      hours: hours.toFixed(2),
+      count: filtered.length,
+      startDate: start,
+      endDate: end
+    };
+  }, [events, date, view]);
+
   // Custom event style
   const eventStyleGetter = (event: CalendarEvent) => {
     const backgroundColor = event.resource.color;
@@ -125,21 +163,27 @@ export const CalendarView = ({ entries, projects, customers, activities, onEditE
     showMore: (total: number) => `+ ${total} weitere`,
   };
 
-  // Calculate total hours for current view
-  const totalHours = useMemo(() => {
-    return events.reduce((sum, event) => {
-      return sum + (event.resource.entry.duration / 3600);
-    }, 0);
-  }, [events]);
-
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
           <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Kalender</h1>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            {events.length} Einträge • {totalHours.toFixed(2)} Stunden
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+              <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                {view === 'day' && 'Heute'}
+                {view === 'week' && 'Diese Woche'}
+                {view === 'month' && 'Dieser Monat'}
+                {view === 'agenda' && 'Nächste 30 Tage'}
+              </span>
+              <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                {visibleHours.hours}h
+              </span>
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {visibleHours.count} {visibleHours.count === 1 ? 'Eintrag' : 'Einträge'}
+            </div>
           </div>
         </div>
       </div>

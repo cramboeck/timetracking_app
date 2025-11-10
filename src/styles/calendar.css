@@ -1,29 +1,33 @@
-/* React Big Calendar Dark Mode Support */
+/* React Big Calendar - Soft & Clean Design */
 
 /* Light mode (default) */
 .calendar-container {
   --rbc-bg: white;
   --rbc-text: #1f2937;
-  --rbc-border: #e5e7eb;
-  --rbc-header-bg: #f9fafb;
-  --rbc-today-bg: #dbeafe;
-  --rbc-selected-bg: #bfdbfe;
-  --rbc-off-range-color: #9ca3af;
+  --rbc-border: #f0f0f0;
+  --rbc-border-strong: #e5e7eb;
+  --rbc-header-bg: #fafbfc;
+  --rbc-today-bg: #f0f7ff;
+  --rbc-selected-bg: #dbeafe;
+  --rbc-off-range-color: #d1d5db;
   --rbc-event-bg: #3b82f6;
-  --rbc-slot-color: #6b7280;
+  --rbc-slot-color: #9ca3af;
+  --rbc-hover-bg: #f9fafb;
 }
 
 /* Dark mode */
 .dark .calendar-container {
   --rbc-bg: #1f2937;
   --rbc-text: #f3f4f6;
-  --rbc-border: #374151;
+  --rbc-border: #2d3748;
+  --rbc-border-strong: #374151;
   --rbc-header-bg: #111827;
-  --rbc-today-bg: #1e3a8a;
+  --rbc-today-bg: #1e3a5f;
   --rbc-selected-bg: #1e40af;
-  --rbc-off-range-color: #6b7280;
+  --rbc-off-range-color: #4b5563;
   --rbc-event-bg: #3b82f6;
   --rbc-slot-color: #9ca3af;
+  --rbc-hover-bg: #2d3748;
 }
 
 /* Apply variables */
@@ -36,21 +40,39 @@
   background-color: var(--rbc-header-bg);
   color: var(--rbc-text);
   border-bottom: 1px solid var(--rbc-border);
-  padding: 8px 4px;
+  padding: 12px 8px;
   font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .rbc-month-view,
 .rbc-time-view,
 .rbc-agenda-view {
   background-color: var(--rbc-bg);
-  border: 1px solid var(--rbc-border);
+  border: none;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.rbc-month-row,
-.rbc-day-bg,
+.rbc-month-row {
+  border-color: var(--rbc-border);
+  border-width: 1px;
+}
+
+.rbc-day-bg {
+  border-color: var(--rbc-border);
+  transition: background-color 0.2s;
+}
+
+.rbc-day-bg:hover {
+  background-color: var(--rbc-hover-bg);
+}
+
 .rbc-time-slot {
   border-color: var(--rbc-border);
+  border-width: 1px 0 0 0;
 }
 
 .rbc-day-bg.rbc-today {
@@ -67,32 +89,51 @@
 }
 
 .rbc-date-cell {
-  padding: 4px;
+  padding: 8px;
+  text-align: right;
 }
 
 .rbc-date-cell > a {
   color: var(--rbc-text);
+  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.rbc-date-cell > a:hover {
+  background-color: var(--rbc-hover-bg);
 }
 
 .rbc-date-cell.rbc-now > a {
   font-weight: 700;
-  color: #2563eb;
+  background-color: #3b82f6;
+  color: white;
 }
 
 .dark .rbc-date-cell.rbc-now > a {
-  color: #60a5fa;
+  background-color: #60a5fa;
+  color: #1f2937;
 }
 
 .rbc-event {
-  padding: 2px 5px;
-  border-radius: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.875rem;
-  transition: opacity 0.2s;
+  font-size: 0.8125rem;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s;
+  font-weight: 500;
 }
 
 .rbc-event:hover {
-  opacity: 0.8;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .rbc-event.rbc-selected {
