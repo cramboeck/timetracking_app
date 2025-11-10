@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { storage } from '../utils/storage';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
+import { notificationService } from '../utils/notifications';
 
 interface SettingsProps {
   customers: Customer[];
@@ -734,36 +735,120 @@ export const Settings = ({
               </div>
 
               <div className="space-y-6">
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <p className="text-sm text-blue-900 dark:text-blue-200">
-                    🚀 Browser-Benachrichtigungen und E-Mail-Notifications werden in Kürze verfügbar sein!
-                  </p>
+                {/* Browser Permission */}
+                {!notificationService.hasPermission() && notificationService.isSupported() && (
+                  <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-yellow-900 dark:text-yellow-200 mb-1">
+                          Browser-Benachrichtigungen aktivieren
+                        </p>
+                        <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                          Erlaube Browser-Benachrichtigungen, um wichtige Erinnerungen zu erhalten.
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const granted = await notificationService.requestPermission();
+                          if (granted) {
+                            window.location.reload(); // Reload to update UI
+                          }
+                        }}
+                        className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+                      >
+                        Aktivieren
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Notification Settings */}
+                <div className="space-y-4">
+                  <h3 className="font-medium text-gray-900 dark:text-white">Browser-Benachrichtigungen</h3>
+
+                  <div className="space-y-3">
+                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white mb-1">Monatserinnerung</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          Benachrichtigung 3 Tage vor Monatsende zur Prüfung deiner Zeiteinträge
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={localStorage.getItem('notification_month_end') !== 'false'}
+                        onChange={(e) => {
+                          localStorage.setItem('notification_month_end', e.target.checked ? 'true' : 'false');
+                        }}
+                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        disabled={!notificationService.hasPermission()}
+                      />
+                    </label>
+
+                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white mb-1">Fehlende Einträge</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          Tägliche Erinnerung um 18:00 Uhr, wenn noch keine Stunden eingetragen wurden
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={localStorage.getItem('notification_missing_entries') !== 'false'}
+                        onChange={(e) => {
+                          localStorage.setItem('notification_missing_entries', e.target.checked ? 'true' : 'false');
+                        }}
+                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        disabled={!notificationService.hasPermission()}
+                      />
+                    </label>
+
+                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white mb-1">Qualitätsprüfung</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          Warnung bei Zeiteinträgen ohne Beschreibung oder Projekt
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={localStorage.getItem('notification_quality_check') !== 'false'}
+                        onChange={(e) => {
+                          localStorage.setItem('notification_quality_check', e.target.checked ? 'true' : 'false');
+                        }}
+                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        disabled={!notificationService.hasPermission()}
+                      />
+                    </label>
+
+                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white mb-1">Wochenreport</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          Jeden Freitag um 16:00 Uhr eine Zusammenfassung deiner Arbeitswoche
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={localStorage.getItem('notification_weekly_report') !== 'false'}
+                        onChange={(e) => {
+                          localStorage.setItem('notification_weekly_report', e.target.checked ? 'true' : 'false');
+                        }}
+                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        disabled={!notificationService.hasPermission()}
+                      />
+                    </label>
+                  </div>
                 </div>
 
-                <div className="space-y-4">
-                  <h3 className="font-medium text-gray-900 dark:text-white">Geplante Features:</h3>
-                  <ul className="space-y-2 text-sm text-gray-600 dark:text-dark-300">
-                    <li className="flex items-start gap-2">
-                      <span className="text-accent-primary mt-0.5">•</span>
-                      <span><strong>Monatserinnerung:</strong> Browser-Benachrichtigung 3 Tage vor Monatsende</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-accent-primary mt-0.5">•</span>
-                      <span><strong>Tägliche Erinnerung:</strong> Benachrichtigung wenn keine Stunden eingetragen wurden</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-accent-primary mt-0.5">•</span>
-                      <span><strong>Qualitätsprüfung:</strong> Warnung bei fehlenden Beschreibungen</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-accent-primary mt-0.5">•</span>
-                      <span><strong>Wochenreport:</strong> Zusammenfassung zur Selbstprüfung jeden Freitag</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-accent-primary mt-0.5">•</span>
-                      <span><strong>E-Mail-Benachrichtigungen:</strong> Alle Reports auch per E-Mail</span>
-                    </li>
-                  </ul>
+                {/* Email Notifications (Coming Soon) */}
+                <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <h3 className="font-medium text-gray-900 dark:text-white">E-Mail-Benachrichtigungen</h3>
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-sm text-blue-900 dark:text-blue-200">
+                      📧 E-Mail-Benachrichtigungen werden in Kürze verfügbar sein!
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

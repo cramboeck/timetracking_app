@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
-import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText } from 'lucide-react';
+import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText, PieChart as PieChartIcon } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import jsPDF from 'jspdf';
 import { storage } from '../utils/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { ReportAssistant } from './ReportAssistant';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 interface DashboardProps {
   entries: TimeEntry[];
@@ -145,6 +146,38 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
   const totalSeconds = stats.reduce((sum, s) => sum + s.totalSeconds, 0);
   const totalAmount = stats.reduce((sum, s) => sum + s.totalAmount, 0);
   const totalHours = totalSeconds / 3600;
+
+  // Prepare data for pie chart (by customer)
+  const pieChartData = useMemo(() => {
+    const customerMap = new Map<string, { name: string; hours: number; color: string }>();
+
+    filteredEntries.forEach(entry => {
+      const project = getProjectById(entry.projectId);
+      const customer = project ? getCustomerById(project.customerId) : null;
+
+      if (!customer) return;
+
+      const hours = entry.duration / 3600;
+      const existing = customerMap.get(customer.id);
+
+      if (existing) {
+        existing.hours += hours;
+      } else {
+        customerMap.set(customer.id, {
+          name: customer.name,
+          hours: hours,
+          color: customer.color || '#3B82F6'
+        });
+      }
+    });
+
+    return Array.from(customerMap.values())
+      .sort((a, b) => b.hours - a.hours)
+      .map(item => ({
+        ...item,
+        hours: Math.round(item.hours * 100) / 100 // Round to 2 decimals
+      }));
+  }, [filteredEntries, projects, customers]);
 
   // Generate available months
   const availableMonths = useMemo(() => {
@@ -585,6 +618,49 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
             <p className="text-3xl font-bold dark:text-white">{stats.length}</p>
           </div>
         </div>
+
+        {/* Pie Chart - Hours by Customer */}
+        {pieChartData.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <PieChartIcon className="text-blue-600" size={24} />
+              <h2 className="text-lg font-semibold dark:text-white">Stundenverteilung nach Kunde</h2>
+            </div>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieChartData}
+                    dataKey="hours"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    label={(entry) => `${entry.name}: ${entry.hours}h`}
+                  >
+                    {pieChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => `${value.toFixed(2)} Stunden`}
+                    contentStyle={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      border: '1px solid #ccc',
+                      borderRadius: '8px',
+                      padding: '10px'
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    formatter={(value, entry: any) => `${value} (${entry.payload.hours}h)`}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
 
         {/* Project Breakdown */}
         {filteredEntries.length === 0 ? (
