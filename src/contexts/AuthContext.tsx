@@ -4,6 +4,7 @@ import { storage } from '../utils/storage';
 import { hashPassword, verifyPassword, validatePassword, validateEmail, validateUsername } from '../utils/auth';
 import { accentColor } from '../utils/accentColor';
 import { grayTone } from '../utils/theme';
+import { authApi, userApi } from '../services/api';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -61,39 +62,39 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const login = async (credentials: LoginCredentials): Promise<{ success: boolean; message?: string }> => {
     try {
-      const user = storage.getUserByUsername(credentials.username);
+      console.log('🔐 [AUTH] Starting login process...');
+      console.log('🔐 [AUTH] Username:', credentials.username);
 
-      if (!user) {
-        return { success: false, message: 'Benutzername oder Passwort falsch' };
-      }
+      // Call backend API
+      console.log('🔐 [AUTH] Calling backend API: POST /auth/login');
+      const loginResponse = await authApi.login(credentials.username, credentials.password);
+      console.log('✅ [AUTH] Backend login successful!', loginResponse);
 
-      // Verify password
-      const isValid = await verifyPassword(credentials.password, user.passwordHash);
+      // Token is automatically stored by authApi.login()
+      console.log('🔐 [AUTH] JWT Token stored in localStorage');
 
-      if (!isValid) {
-        return { success: false, message: 'Benutzername oder Passwort falsch' };
-      }
+      // Fetch user data from backend
+      console.log('🔐 [AUTH] Fetching user data from backend...');
+      const userResponse = await userApi.getMe();
+      console.log('✅ [AUTH] User data received:', userResponse);
 
-      // TODO: MFA verification here when implemented
-      if (user.mfaEnabled && !credentials.mfaCode) {
-        return { success: false, message: 'MFA-Code erforderlich' };
-      }
+      const user = userResponse.data as User;
 
-      // Update last login
-      const updatedUser = { ...user, lastLogin: new Date().toISOString() };
-      storage.updateUser(user.id, { lastLogin: updatedUser.lastLogin });
-      storage.setCurrentUser(updatedUser);
-      setCurrentUser(updatedUser);
+      // Store user in state
+      setCurrentUser(user);
+      console.log('✅ [AUTH] User stored in React state');
 
       // Apply user's theme
-      accentColor.set(updatedUser.accentColor);
-      grayTone.set(updatedUser.grayTone);
-      applyAccentColorToRoot(updatedUser.accentColor);
+      accentColor.set(user.accentColor);
+      grayTone.set(user.grayTone);
+      applyAccentColorToRoot(user.accentColor);
+      console.log('✅ [AUTH] Theme applied:', { accentColor: user.accentColor, grayTone: user.grayTone });
 
+      console.log('🎉 [AUTH] Login complete!');
       return { success: true };
     } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, message: 'Ein Fehler ist aufgetreten' };
+      console.error('❌ [AUTH] Login error:', error);
+      return { success: false, message: 'Benutzername oder Passwort falsch' };
     }
   };
 
