@@ -83,7 +83,7 @@ startNotificationJobs();
 app.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════════════════╗
-║   🚀 TimeTrack Backend Server Started    ║
+║   🚀 RamboFlow Backend Server Started    ║
 ║                                          ║
 ║   Port: ${PORT}                             ║
 ║   Environment: ${process.env.NODE_ENV || 'development'.padEnd(23)}║
