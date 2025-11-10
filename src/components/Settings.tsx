@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, CompanyInfo, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -9,6 +9,7 @@ import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
 import { notificationService } from '../utils/notifications';
 import { userApi, teamsApi } from '../services/api';
+import Papa from 'papaparse';
 
 interface SettingsProps {
   customers: Customer[];
@@ -75,6 +76,10 @@ export const Settings = ({
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerReportTitle, setCustomerReportTitle] = useState('');
+
+  // CSV Import
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
 
   // Project Modal
   const [projectModalOpen, setProjectModalOpen] = useState(false);
@@ -158,6 +163,73 @@ export const Settings = ({
     }
 
     setCustomerModalOpen(false);
+  };
+
+  // CSV Import Handler
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    if (!file.name.endsWith('.csv')) {
+      alert('Bitte wähle eine CSV-Datei aus.');
+      return;
+    }
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const errors: string[] = [];
+        let successCount = 0;
+        let failedCount = 0;
+
+        results.data.forEach((row: any, index) => {
+          try {
+            // Validate required field
+            if (!row.name || !row.name.trim()) {
+              errors.push(`Zeile ${index + 2}: Name fehlt`);
+              failedCount++;
+              return;
+            }
+
+            // Create customer
+            const customer: Customer = {
+              id: crypto.randomUUID(),
+              userId: currentUser!.id,
+              name: row.name.trim(),
+              color: row.color && /^#[0-9A-F]{6}$/i.test(row.color) ? row.color : COLORS[Math.floor(Math.random() * COLORS.length)],
+              customerNumber: row.customerNumber?.trim() || row.number?.trim() || undefined,
+              contactPerson: row.contactPerson?.trim() || row.contact?.trim() || undefined,
+              email: row.email?.trim() || undefined,
+              address: row.address?.trim() || undefined,
+              reportTitle: row.reportTitle?.trim() || undefined,
+              createdAt: new Date().toISOString()
+            };
+
+            onAddCustomer(customer);
+            successCount++;
+          } catch (error) {
+            errors.push(`Zeile ${index + 2}: ${error}`);
+            failedCount++;
+          }
+        });
+
+        setImportResult({ success: successCount, failed: failedCount, errors });
+
+        // Clear file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      },
+      error: (error) => {
+        alert(`Fehler beim Lesen der Datei: ${error.message}`);
+      }
+    });
   };
 
   const openProjectModal = (project?: Project) => {
@@ -928,14 +1000,76 @@ export const Settings = ({
               <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
-                  <button
-                    onClick={() => openCustomerModal()}
-                    className="flex items-center gap-2 px-4 py-2 btn-accent"
-                  >
-                    <Plus size={20} />
-                    Kunde hinzufügen
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleImportClick}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                      title="CSV importieren"
+                    >
+                      <FileDown size={20} />
+                      Importieren
+                    </button>
+                    <button
+                      onClick={() => openCustomerModal()}
+                      className="flex items-center gap-2 px-4 py-2 btn-accent"
+                    >
+                      <Plus size={20} />
+                      Kunde hinzufügen
+                    </button>
+                  </div>
                 </div>
+
+                {/* Hidden file input for CSV import */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileImport}
+                  className="hidden"
+                />
+
+                {/* Import result notification */}
+                {importResult && (
+                  <div className={`mb-4 p-4 rounded-lg ${
+                    importResult.failed === 0 ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' :
+                    importResult.success === 0 ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' :
+                    'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
+                  }`}>
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className={`font-semibold ${
+                          importResult.failed === 0 ? 'text-green-800 dark:text-green-200' :
+                          importResult.success === 0 ? 'text-red-800 dark:text-red-200' :
+                          'text-yellow-800 dark:text-yellow-200'
+                        }`}>
+                          Import abgeschlossen
+                        </p>
+                        <p className="text-sm mt-1 text-gray-700 dark:text-gray-300">
+                          {importResult.success} erfolgreich, {importResult.failed} fehlgeschlagen
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setImportResult(null)}
+                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                    {importResult.errors.length > 0 && (
+                      <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                        <p className="font-medium mb-1">Fehler:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          {importResult.errors.slice(0, 5).map((error, idx) => (
+                            <li key={idx}>{error}</li>
+                          ))}
+                          {importResult.errors.length > 5 && (
+                            <li>... und {importResult.errors.length - 5} weitere</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {customers.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 dark:text-dark-400">
