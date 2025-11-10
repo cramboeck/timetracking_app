@@ -1,0 +1,185 @@
+version: '3.9'
+
+services:
+  # =============================================================================
+  # PostgreSQL Database
+  # =============================================================================
+  database:
+    image: postgres:16-alpine
+    container_name: ramboflow-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-timetracking}
+      POSTGRES_USER: ${DB_USER:-timetracking}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-timetracking}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ramboflow-network
+    # Sicherheit: Datenbank nicht nach außen exponieren
+    expose:
+      - "5432"
+
+  # =============================================================================
+  # Backend API (Express + TypeScript)
+  # =============================================================================
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+    container_name: ramboflow-backend
+    restart: always
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: ${BACKEND_PORT:-3001}
+      DATABASE_URL: postgresql://${DB_USER:-timetracking}:${DB_PASSWORD}@database:5432/${DB_NAME:-timetracking}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-604800}
+      FRONTEND_URL: ${FRONTEND_URL}
+      # Email
+      EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-true}
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT}
+      EMAIL_SECURE: ${EMAIL_SECURE:-false}
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      EMAIL_FROM: ${EMAIL_FROM}
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    volumes:
+      - backend_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - ramboflow-network
+    expose:
+      - "${BACKEND_PORT:-3001}"
+
+  # =============================================================================
+  # Frontend (React + Vite + Nginx)
+  # =============================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # API URL ist relativ (/api) da Nginx als Reverse Proxy dient
+        VITE_API_URL: /api
+    container_name: ramboflow-frontend
+    restart: always
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - ramboflow-network
+    expose:
+      - "${FRONTEND_PORT:-8080}"
+
+  # =============================================================================
+  # Nginx Reverse Proxy (mit SSL-Unterstützung)
+  # =============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: ramboflow-nginx
+    restart: always
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.production.conf:/etc/nginx/nginx.conf:ro
+      - certbot_data:/var/www/certbot:ro
+      - letsencrypt:/etc/letsencrypt:ro
+    environment:
+      - DOMAIN=${DOMAIN}
+    networks:
+      - ramboflow-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =============================================================================
+  # Certbot (SSL-Zertifikate von Let's Encrypt)
+  # =============================================================================
+  certbot:
+    image: certbot/certbot:arm64v8-latest
+    container_name: ramboflow-certbot
+    restart: unless-stopped
+    volumes:
+      - certbot_data:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+      - certbot_logs:/var/log/letsencrypt
+    # Auto-renewal alle 12 Stunden
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot; sleep 12h & wait $${!}; done;'"
+    networks:
+      - ramboflow-network
+
+# =============================================================================
+# Volumes (Persistente Daten)
+# =============================================================================
+volumes:
+  # Datenbank-Daten
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/ramboflow/postgres
+
+  # Backend-Logs
+  backend_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/ramboflow/logs
+
+  # Certbot Challenge-Dateien
+  certbot_data:
+    driver: local
+
+  # SSL-Zertifikate
+  letsencrypt:
+    driver: local
+
+  # Certbot Logs
+  certbot_logs:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  ramboflow-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
