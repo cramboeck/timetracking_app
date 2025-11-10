@@ -1,0 +1,46 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Build output
+dist
+.vite
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Development files
+*.md
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage
+.nyc_output
+
+# Logs
+logs
+*.log
+
+# Server directory (not needed for frontend)
+server
+
+# Deployment configs (not needed in container)
+vercel.json
+render.yaml
+.renderignore
+netlify.toml

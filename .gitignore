@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 server/database.sqlite
 server/*.db
+
+# Docker environment files (contains secrets)
+.env.docker
