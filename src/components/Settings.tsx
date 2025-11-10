@@ -172,6 +172,17 @@ export const Settings = ({
     fileInputRef.current?.click();
   };
 
+  // Helper function to get value from row with multiple possible column names
+  const getFieldValue = (row: any, fieldNames: string[]): string | undefined => {
+    for (const fieldName of fieldNames) {
+      const value = row[fieldName];
+      if (value && typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+    return undefined;
+  };
+
   const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -192,24 +203,74 @@ export const Settings = ({
 
         results.data.forEach((row: any, index) => {
           try {
-            // Validate required field
-            if (!row.name || !row.name.trim()) {
-              errors.push(`Zeile ${index + 2}: Name fehlt`);
+            // Get name from various possible column names (sevDesk, Papierkram, Lexoffice)
+            const name = getFieldValue(row, [
+              'name', 'Name', 'Firmenname', 'Firma', 'Kundenname', 'company', 'Company', 'customer', 'Customer'
+            ]);
+
+            if (!name) {
+              errors.push(`Zeile ${index + 2}: Name/Firmenname fehlt`);
               failedCount++;
               return;
             }
+
+            // Get customer number from various formats
+            const customerNumber = getFieldValue(row, [
+              'customerNumber', 'number', 'Kundennummer', 'Debitorennummer', 'Kunden-Nr', 'customer_number', 'Nummer'
+            ]);
+
+            // Get contact person (can be combined or separate)
+            const firstName = getFieldValue(row, ['Vorname', 'firstname', 'first_name', 'FirstName']);
+            const lastName = getFieldValue(row, ['Nachname', 'lastname', 'last_name', 'LastName']);
+            const fullName = getFieldValue(row, ['Ansprechpartner', 'contactPerson', 'contact', 'Contact', 'Kontaktperson']);
+
+            let contactPerson = fullName;
+            if (!contactPerson && (firstName || lastName)) {
+              contactPerson = [firstName, lastName].filter(Boolean).join(' ');
+            }
+
+            // Get email
+            const email = getFieldValue(row, [
+              'email', 'Email', 'E-Mail', 'e-mail', 'mail', 'Mail', 'emailAddress'
+            ]);
+
+            // Build address from various formats
+            const street = getFieldValue(row, ['Straße', 'Strasse', 'street', 'Street', 'Adresse', 'address', 'Address']);
+            const zip = getFieldValue(row, ['PLZ', 'Postleitzahl', 'zip', 'Zip', 'zipcode', 'postal_code']);
+            const city = getFieldValue(row, ['Stadt', 'Ort', 'city', 'City', 'place']);
+            const country = getFieldValue(row, ['Land', 'country', 'Country']);
+
+            // Combine address parts
+            let address = street || '';
+            if (zip || city) {
+              const cityLine = [zip, city].filter(Boolean).join(' ');
+              address = [address, cityLine].filter(Boolean).join(', ');
+            }
+            if (country && country !== 'Deutschland' && country !== 'Germany' && country !== 'DE') {
+              address = [address, country].filter(Boolean).join(', ');
+            }
+
+            // Get phone
+            const phone = getFieldValue(row, [
+              'Telefon', 'Tel', 'Telefonnummer', 'phone', 'Phone', 'telephone', 'mobile', 'Mobil'
+            ]);
+
+            // Get tax ID
+            const taxId = getFieldValue(row, [
+              'USt-IdNr', 'Steuernummer', 'taxId', 'tax_id', 'vat_id', 'vatId', 'UStID'
+            ]);
 
             // Create customer
             const customer: Customer = {
               id: crypto.randomUUID(),
               userId: currentUser!.id,
-              name: row.name.trim(),
-              color: row.color && /^#[0-9A-F]{6}$/i.test(row.color) ? row.color : COLORS[Math.floor(Math.random() * COLORS.length)],
-              customerNumber: row.customerNumber?.trim() || row.number?.trim() || undefined,
-              contactPerson: row.contactPerson?.trim() || row.contact?.trim() || undefined,
-              email: row.email?.trim() || undefined,
-              address: row.address?.trim() || undefined,
-              reportTitle: row.reportTitle?.trim() || undefined,
+              name: name,
+              color: COLORS[Math.floor(Math.random() * COLORS.length)],
+              customerNumber: customerNumber,
+              contactPerson: contactPerson,
+              email: email,
+              address: address || undefined,
+              reportTitle: undefined,
               createdAt: new Date().toISOString()
             };
 
