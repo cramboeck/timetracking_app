@@ -1,4 +1,6 @@
-import { Calendar, dateFnsLocalizer, View } from 'react-big-calendar';
+import { Calendar, dateFnsLocalizer, View, SlotInfo } from 'react-big-calendar';
+import withDragAndDrop, { withDragAndDropProps } from 'react-big-calendar/lib/addons/dragAndDrop';
+import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -6,6 +8,8 @@ import '../styles/calendar.css';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useState, useMemo } from 'react';
 import { formatDuration } from '../utils/time';
+import { Modal } from './Modal';
+import { X } from 'lucide-react';
 
 const locales = {
   'de': de,
@@ -19,12 +23,17 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
+// Create DnD Calendar
+const DnDCalendar = withDragAndDrop(Calendar);
+
 interface CalendarViewProps {
   entries: TimeEntry[];
   projects: Project[];
   customers: Customer[];
   activities: Activity[];
   onEditEntry: (entry: TimeEntry) => void;
+  onUpdateEntry: (id: string, updates: Partial<TimeEntry>) => void;
+  onCreateEntry?: (entry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'>) => void;
 }
 
 interface CalendarEvent {
@@ -41,9 +50,26 @@ interface CalendarEvent {
   };
 }
 
-export const CalendarView = ({ entries, projects, customers, activities, onEditEntry }: CalendarViewProps) => {
+export const CalendarView = ({
+  entries,
+  projects,
+  customers,
+  activities,
+  onEditEntry,
+  onUpdateEntry,
+  onCreateEntry
+}: CalendarViewProps) => {
   const [view, setView] = useState<View>('month');
   const [date, setDate] = useState(new Date());
+
+  // Edit modal state
+  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
+  const [editProjectId, setEditProjectId] = useState('');
+  const [editActivityId, setEditActivityId] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editStartTime, setEditStartTime] = useState('');
+  const [editEndTime, setEditEndTime] = useState('');
 
   // Convert time entries to calendar events
   const events: CalendarEvent[] = useMemo(() => {
@@ -141,10 +167,111 @@ export const CalendarView = ({ entries, projects, customers, activities, onEditE
     };
   };
 
+  // Open edit modal
+  const openEditModal = (entry: TimeEntry) => {
+    setEditingEntry(entry);
+    setEditProjectId(entry.projectId);
+    setEditActivityId(entry.activityId || '');
+    setEditDescription(entry.description);
+
+    // Extract date and times
+    const startDate = new Date(entry.startTime);
+    const endDate = entry.endTime ? new Date(entry.endTime) : new Date();
+
+    setEditDate(startDate.toISOString().split('T')[0]);
+    setEditStartTime(startDate.toTimeString().slice(0, 5)); // HH:MM
+    setEditEndTime(endDate.toTimeString().slice(0, 5)); // HH:MM
+  };
+
+  // Save edit
+  const handleSaveEdit = () => {
+    if (!editingEntry || !editProjectId || !editDate || !editStartTime || !editEndTime) return;
+
+    const startDateTime = new Date(`${editDate}T${editStartTime}`).toISOString();
+    const endDateTime = new Date(`${editDate}T${editEndTime}`).toISOString();
+    const duration = Math.floor((new Date(endDateTime).getTime() - new Date(startDateTime).getTime()) / 1000);
+
+    if (duration <= 0) {
+      alert('Die Endzeit muss nach der Startzeit liegen!');
+      return;
+    }
+
+    onUpdateEntry(editingEntry.id, {
+      projectId: editProjectId,
+      activityId: editActivityId || undefined,
+      description: editDescription,
+      startTime: startDateTime,
+      endTime: endDateTime,
+      duration
+    });
+
+    setEditingEntry(null);
+  };
+
   // Handle event click
   const handleSelectEvent = (event: CalendarEvent) => {
     console.log('📅 [CALENDAR] Event clicked:', event);
-    onEditEntry(event.resource.entry);
+    openEditModal(event.resource.entry);
+  };
+
+  // Handle event drag & drop (move event to different time)
+  const handleEventDrop = ({ event, start, end }: { event: CalendarEvent; start: Date; end: Date }) => {
+    console.log('📅 [CALENDAR] Event dropped:', { event, start, end });
+
+    const entry = event.resource.entry;
+    const duration = Math.floor((end.getTime() - start.getTime()) / 1000);
+
+    onUpdateEntry(entry.id, {
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      duration
+    });
+  };
+
+  // Handle event resize (change duration)
+  const handleEventResize = ({ event, start, end }: { event: CalendarEvent; start: Date; end: Date }) => {
+    console.log('📅 [CALENDAR] Event resized:', { event, start, end });
+
+    const entry = event.resource.entry;
+    const duration = Math.floor((end.getTime() - start.getTime()) / 1000);
+
+    onUpdateEntry(entry.id, {
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      duration
+    });
+  };
+
+  // Handle slot selection (create new entry by clicking/dragging on calendar)
+  const handleSelectSlot = (slotInfo: SlotInfo) => {
+    if (!onCreateEntry) return;
+
+    console.log('📅 [CALENDAR] Slot selected:', slotInfo);
+
+    // Check if user has at least one active project
+    const activeProjects = projects.filter(p => p.isActive);
+    if (activeProjects.length === 0) {
+      alert('Bitte erstelle zuerst ein Projekt in den Einstellungen.');
+      return;
+    }
+
+    // Use first active project as default
+    const defaultProject = activeProjects[0];
+    const duration = Math.floor((slotInfo.end.getTime() - slotInfo.start.getTime()) / 1000);
+
+    // Create entry and open edit modal
+    const newEntry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'> = {
+      projectId: defaultProject.id,
+      activityId: activities.length > 0 ? activities[0].id : undefined,
+      startTime: slotInfo.start.toISOString(),
+      endTime: slotInfo.end.toISOString(),
+      duration,
+      description: '',
+      isRunning: false,
+      isBillable: true
+    };
+
+    onCreateEntry(newEntry);
   };
 
   // Custom toolbar messages
@@ -191,7 +318,7 @@ export const CalendarView = ({ entries, projects, customers, activities, onEditE
       {/* Calendar */}
       <div className="flex-1 p-4 sm:p-6 overflow-auto">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 h-full calendar-container">
-          <Calendar
+          <DnDCalendar
             localizer={localizer}
             events={events}
             startAccessor="start"
@@ -203,13 +330,134 @@ export const CalendarView = ({ entries, projects, customers, activities, onEditE
             onNavigate={setDate}
             eventPropGetter={eventStyleGetter}
             onSelectEvent={handleSelectEvent}
+            onEventDrop={handleEventDrop}
+            onEventResize={handleEventResize}
+            onSelectSlot={handleSelectSlot}
             messages={messages}
             culture="de"
             popup
             selectable
+            resizable
+            draggableAccessor={() => true}
           />
         </div>
       </div>
+
+      {/* Edit Entry Modal */}
+      {editingEntry && (
+        <Modal isOpen={true} onClose={() => setEditingEntry(null)} title="Zeiteintrag bearbeiten">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Projekt *
+              </label>
+              <select
+                value={editProjectId}
+                onChange={(e) => setEditProjectId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                required
+              >
+                <option value="">Projekt wählen...</option>
+                {projects.filter(p => p.isActive).map(project => {
+                  const customer = customers.find(c => c.id === project.customerId);
+                  return (
+                    <option key={project.id} value={project.id}>
+                      {customer?.name} - {project.name}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Tätigkeit
+              </label>
+              <select
+                value={editActivityId}
+                onChange={(e) => setEditActivityId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">Keine Tätigkeit</option>
+                {activities.map(activity => (
+                  <option key={activity.id} value={activity.id}>
+                    {activity.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Datum *
+              </label>
+              <input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Startzeit *
+                </label>
+                <input
+                  type="time"
+                  value={editStartTime}
+                  onChange={(e) => setEditStartTime(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Endzeit *
+                </label>
+                <input
+                  type="time"
+                  value={editEndTime}
+                  onChange={(e) => setEditEndTime(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Beschreibung
+              </label>
+              <textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="Optional: Details zur Tätigkeit..."
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <button
+                onClick={() => setEditingEntry(null)}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              >
+                Speichern
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

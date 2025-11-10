@@ -460,7 +460,20 @@ function App() {
             projects={projects}
             customers={customers}
             activities={activities}
-            onEditEntry={handleEditEntry}
+            onEditEntry={(entry) => {
+              // Open edit modal - for now, just log
+              console.log('Edit entry:', entry);
+              // TODO: Implement edit modal
+            }}
+            onUpdateEntry={handleEditEntry}
+            onCreateEntry={async (entry) => {
+              try {
+                const response = await entriesApi.create(entry);
+                setEntries(prev => [...prev, response.data]);
+              } catch (error) {
+                console.error('Failed to create entry:', error);
+              }
+            }}
           />
         )}
         {currentView === 'dashboard' && (
