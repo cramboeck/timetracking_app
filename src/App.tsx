@@ -15,6 +15,7 @@ import { storage } from './utils/storage';
 import { darkMode } from './utils/darkMode';
 import { useAuth } from './contexts/AuthContext';
 import { notificationService } from './utils/notifications';
+import { projectsApi, customersApi, activitiesApi, entriesApi } from './services/api';
 
 function App() {
   const { currentUser, isAuthenticated, isLoading } = useAuth();
@@ -29,38 +30,57 @@ function App() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
-  // Load all data from localStorage on mount (filtered by current user)
+  // Load all data from API on mount
   useEffect(() => {
-    if (!currentUser) return;
+    const loadData = async () => {
+      if (!currentUser) return;
 
-    const allEntries = storage.getEntries();
-    const allCustomers = storage.getCustomers();
-    const allProjects = storage.getProjects();
-    const allActivities = storage.getActivities();
-    const isDark = darkMode.initialize();
+      console.log('📦 [DATA] Loading data for user:', currentUser.username);
 
-    // Filter data by current user ID
-    const userEntries = allEntries.filter(e => e.userId === currentUser.id);
-    const userCustomers = allCustomers.filter(c => c.userId === currentUser.id);
-    const userProjects = allProjects.filter(p => p.userId === currentUser.id);
-    const userActivities = allActivities.filter(a => a.userId === currentUser.id);
+      try {
+        // Load Projects from API
+        console.log('📦 [DATA] Fetching projects from API...');
+        const projectsResponse = await projectsApi.getAll();
+        console.log('✅ [DATA] Projects loaded:', projectsResponse);
+        setProjects(projectsResponse.data || []);
 
-    setEntries(userEntries);
-    setCustomers(userCustomers);
-    setProjects(userProjects);
-    setActivities(userActivities);
-    setIsDarkMode(isDark);
+        // TODO: Load other data from API
+        // For now, still load from localStorage
+        console.log('⚠️ [DATA] Still loading entries, customers, activities from localStorage (TODO)');
+        const allEntries = storage.getEntries();
+        const allCustomers = storage.getCustomers();
+        const allActivities = storage.getActivities();
 
-    // Find any running entry for current user
-    const running = userEntries.find(e => e.isRunning);
-    if (running) {
-      setRunningEntry(running);
-    }
+        const userEntries = allEntries.filter(e => e.userId === currentUser.id);
+        const userCustomers = allCustomers.filter(c => c.userId === currentUser.id);
+        const userActivities = allActivities.filter(a => a.userId === currentUser.id);
 
-    // If there are customers/projects, switch to stopwatch view
-    if (userCustomers.length > 0 && userProjects.length > 0) {
-      setCurrentView('stopwatch');
-    }
+        setEntries(userEntries);
+        setCustomers(userCustomers);
+        setActivities(userActivities);
+
+        // Initialize dark mode
+        const isDark = darkMode.initialize();
+        setIsDarkMode(isDark);
+
+        // Find any running entry for current user
+        const running = userEntries.find(e => e.isRunning);
+        if (running) {
+          setRunningEntry(running);
+        }
+
+        // If there are customers/projects, switch to stopwatch view
+        if (userCustomers.length > 0 && projectsResponse.data.length > 0) {
+          setCurrentView('stopwatch');
+        }
+
+        console.log('✅ [DATA] All data loaded successfully');
+      } catch (error) {
+        console.error('❌ [DATA] Error loading data:', error);
+      }
+    };
+
+    loadData();
   }, [currentUser]);
 
   // Show welcome modal for new users
