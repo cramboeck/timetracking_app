@@ -10,6 +10,7 @@ import { gdprService } from '../utils/gdpr';
 import { notificationService } from '../utils/notifications';
 import { userApi, teamsApi } from '../services/api';
 import Papa from 'papaparse';
+import { ACTIVITY_TEMPLATES, getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 
 interface SettingsProps {
   customers: Customer[];
@@ -97,6 +98,7 @@ export const Settings = ({
   const [activityIsBillable, setActivityIsBillable] = useState(true);
   const [activityPricingType, setActivityPricingType] = useState<'hourly' | 'flat'>('hourly');
   const [activityFlatRate, setActivityFlatRate] = useState('');
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
 
   // Team State
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
@@ -323,6 +325,16 @@ export const Settings = ({
     }
 
     setActivityModalOpen(false);
+  };
+
+  const handleUseTemplate = (template: ActivityTemplate) => {
+    setActivityName(template.name);
+    setActivityDescription(template.description);
+    setActivityIsBillable(template.isBillable);
+    setActivityPricingType(template.pricingType);
+    setActivityFlatRate('');
+    setTemplateModalOpen(false);
+    setActivityModalOpen(true);
   };
 
   const handleDeleteCustomer = (customer: Customer) => {
@@ -1196,13 +1208,23 @@ export const Settings = ({
               <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{activities.length} Tätigkeit(en)</p>
-                  <button
-                    onClick={() => openActivityModal()}
-                    className="flex items-center gap-2 px-4 py-2 btn-accent"
-                  >
-                    <Plus size={20} />
-                    Tätigkeit hinzufügen
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setTemplateModalOpen(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                      title="Aus Vorlage wählen"
+                    >
+                      <ListChecks size={20} />
+                      Aus Vorlage
+                    </button>
+                    <button
+                      onClick={() => openActivityModal()}
+                      className="flex items-center gap-2 px-4 py-2 btn-accent"
+                    >
+                      <Plus size={20} />
+                      Neu erstellen
+                    </button>
+                  </div>
                 </div>
 
                 {activities.length === 0 ? (
@@ -2146,6 +2168,63 @@ export const Settings = ({
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               Speichern
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Activity Templates Modal */}
+      <Modal
+        isOpen={templateModalOpen}
+        onClose={() => setTemplateModalOpen(false)}
+        title="Tätigkeit aus Vorlage wählen"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Wähle eine vorgefertigte Tätigkeit aus und passe sie nach Bedarf an.
+          </p>
+
+          {Object.entries(getTemplatesByCategory()).map(([category, templates]) => (
+            <div key={category}>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                {category}
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {templates.map((template, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleUseTemplate(template)}
+                    className="text-left p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                          {template.name}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                          {template.description}
+                        </p>
+                      </div>
+                      <div className="ml-2 flex flex-col items-end gap-1">
+                        {template.isBillable && (
+                          <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
+                            Abrechenbar
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setTemplateModalOpen(false)}
+              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+            >
+              Abbrechen
             </button>
           </div>
         </div>
