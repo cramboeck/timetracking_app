@@ -32,7 +32,8 @@ FROM nginx:alpine AS runner
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy custom nginx config
+# Copy nginx configurations
+COPY nginx-main.conf /etc/nginx/nginx.conf
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Setup nginx to run as non-root user
@@ -48,7 +49,8 @@ RUN mkdir -p /var/cache/nginx/client_temp \
     chown -R nginx:nginx /var/log/nginx && \
     chown -R nginx:nginx /usr/share/nginx/html && \
     chown -R nginx:nginx /etc/nginx/conf.d && \
-    # Make nginx.conf writable for pid file changes
+    chown -R nginx:nginx /etc/nginx/nginx.conf && \
+    # Create PID file with correct permissions
     touch /tmp/nginx.pid && \
     chown nginx:nginx /tmp/nginx.pid && \
     # Allow nginx user to write to /var/run
@@ -65,5 +67,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
 
-# Start nginx with custom pid location
-CMD ["nginx", "-g", "daemon off; pid /tmp/nginx.pid;"]
+# Start nginx (pid is set in nginx-main.conf)
+CMD ["nginx", "-g", "daemon off;"]
