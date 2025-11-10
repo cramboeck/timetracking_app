@@ -24,7 +24,10 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const startTimeRef = useRef<string | null>(null);
   const intervalRef = useRef<number | null>(null);
 
+  console.log('⏱️ [STOPWATCH] Received projects:', projects);
+  console.log('⏱️ [STOPWATCH] Received customers:', customers);
   const activeProjects = projects.filter(p => p.isActive);
+  console.log('⏱️ [STOPWATCH] Active projects after filter:', activeProjects);
 
   useEffect(() => {
     if (runningEntry) {
