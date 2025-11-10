@@ -128,9 +128,9 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       // Determine rate display
       let rateDisplay = '-';
       if (activity && activity.pricingType === 'flat' && activity.flatRate) {
-        rateDisplay = `Pauschale: ${activity.flatRate.toFixed(2)}€`;
-      } else if (project) {
-        rateDisplay = `${project.hourlyRate.toFixed(2)}€/Std`;
+        rateDisplay = `Pauschale: ${(activity.flatRate || 0).toFixed(2)}€`;
+      } else if (project && project.hourlyRate) {
+        rateDisplay = `${(project.hourlyRate || 0).toFixed(2)}€/Std`;
       }
 
       return [

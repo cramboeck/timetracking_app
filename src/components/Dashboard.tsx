@@ -301,8 +301,8 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
       doc.text(stat.customerName.substring(0, 22), 20, y);
       doc.text(stat.projectName.substring(0, 22), 70, y);
       doc.text(hours.toFixed(2), 120, y);
-      doc.text(stat.hourlyRate.toFixed(2), 145, y);
-      doc.text(stat.totalAmount.toFixed(2), 172, y);
+      doc.text((stat.hourlyRate || 0).toFixed(2), 145, y);
+      doc.text((stat.totalAmount || 0).toFixed(2), 172, y);
       y += 6;
     });
 

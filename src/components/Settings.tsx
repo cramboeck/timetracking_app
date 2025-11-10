@@ -920,7 +920,7 @@ export const Settings = ({
                             <h3 className="font-semibold text-gray-900">{project.name}</h3>
                             <p className="text-sm text-gray-500">{customer?.name}</p>
                             <p className="text-sm font-medium text-blue-600 mt-1">
-                              {project.hourlyRate.toFixed(2)} € / Stunde
+                              {(project.hourlyRate || 0).toFixed(2)} € / Stunde
                             </p>
                           </div>
                         </div>
