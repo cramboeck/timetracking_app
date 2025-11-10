@@ -3,6 +3,7 @@ import { Navigation } from './components/Navigation';
 import { Stopwatch } from './components/Stopwatch';
 import { ManualEntry } from './components/ManualEntry';
 import { TimeEntriesList } from './components/TimeEntriesList';
+import { CalendarView } from './components/CalendarView';
 import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
 import { Auth } from './components/Auth';
@@ -451,6 +452,15 @@ function App() {
             activities={activities}
             onDelete={handleDeleteEntry}
             onEdit={handleEditEntry}
+          />
+        )}
+        {currentView === 'calendar' && (
+          <CalendarView
+            entries={entries}
+            projects={projects}
+            customers={customers}
+            activities={activities}
+            onEditEntry={handleEditEntry}
           />
         )}
         {currentView === 'dashboard' && (
