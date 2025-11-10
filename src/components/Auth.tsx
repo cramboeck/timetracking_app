@@ -1,13 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Clock, Mail, Lock, User, Shield, Building2, Users, Ticket } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AccountType } from '../types';
+import { ForgotPassword } from './ForgotPassword';
+import { ResetPassword } from './ResetPassword';
+
+type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
 
 export const Auth = () => {
   const { login, register } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const [authView, setAuthView] = useState<AuthView>('login');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resetToken, setResetToken] = useState<string | null>(null);
+
+  // Check URL for reset token
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+
+    if (token) {
+      setResetToken(token);
+      setAuthView('reset-password');
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   // Login form
   const [loginUsername, setLoginUsername] = useState('');
@@ -74,6 +92,30 @@ export const Auth = () => {
     // On success, AuthContext will update and user will be logged in
   };
 
+  // Show ForgotPassword component
+  if (authView === 'forgot-password') {
+    return <ForgotPassword onBack={() => setAuthView('login')} />;
+  }
+
+  // Show ResetPassword component
+  if (authView === 'reset-password' && resetToken) {
+    return (
+      <ResetPassword
+        token={resetToken}
+        onSuccess={() => {
+          setAuthView('login');
+          setResetToken(null);
+        }}
+        onBack={() => {
+          setAuthView('login');
+          setResetToken(null);
+        }}
+      />
+    );
+  }
+
+  const isLogin = authView === 'login';
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -96,7 +138,7 @@ export const Auth = () => {
           <div className="flex border-b border-gray-200 dark:border-gray-700">
             <button
               onClick={() => {
-                setIsLogin(true);
+                setAuthView('login');
                 setError('');
               }}
               className={`flex-1 px-6 py-4 font-semibold transition-colors ${
@@ -109,7 +151,7 @@ export const Auth = () => {
             </button>
             <button
               onClick={() => {
-                setIsLogin(false);
+                setAuthView('register');
                 setError('');
               }}
               className={`flex-1 px-6 py-4 font-semibold transition-colors ${
@@ -152,9 +194,18 @@ export const Auth = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Passwort
-                  </label>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Passwort
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setAuthView('forgot-password')}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors"
+                    >
+                      Passwort vergessen?
+                    </button>
+                  </div>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                     <input

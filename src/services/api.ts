@@ -264,6 +264,39 @@ export const activitiesApi = {
   },
 };
 
+// Password Reset API
+export const passwordResetApi = {
+  requestReset: async (email: string): Promise<{ success: boolean; message: string; devToken?: string }> => {
+    console.log('🔑 [API] Requesting password reset for:', email);
+    const response = await fetch(`${API_BASE_URL}/password-reset/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const result = await handleResponse(response);
+    console.log('🔑 [API] Password reset request result:', result);
+    return result;
+  },
+
+  verifyToken: async (token: string): Promise<{ valid: boolean; error?: string }> => {
+    console.log('🔑 [API] Verifying reset token');
+    const response = await fetch(`${API_BASE_URL}/password-reset/verify/${token}`);
+    return handleResponse(response);
+  },
+
+  resetPassword: async (token: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+    console.log('🔑 [API] Resetting password with token');
+    const response = await fetch(`${API_BASE_URL}/password-reset/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword }),
+    });
+    const result = await handleResponse(response);
+    console.log('🔑 [API] Password reset result:', result);
+    return result;
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -271,4 +304,5 @@ export default {
   projects: projectsApi,
   customers: customersApi,
   activities: activitiesApi,
+  passwordReset: passwordResetApi,
 };
