@@ -214,6 +214,7 @@ DB_NAME=timetracking
 DB_USER=timetracking
 DB_HOST=database
 DB_PORT=5432
+DB_SSL=false
 
 # JWT
 JWT_SECRET=$JWT_SECRET
