@@ -47,17 +47,44 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Load current user on mount
   useEffect(() => {
-    const user = storage.getCurrentUser();
-    setCurrentUser(user);
+    const loadUser = async () => {
+      console.log('🔄 [INIT] Checking for existing session...');
 
-    // Initialize theme
-    if (user) {
-      accentColor.set(user.accentColor);
-      grayTone.set(user.grayTone);
-      applyAccentColorToRoot(user.accentColor);
-    }
+      // Check if JWT token exists
+      const token = localStorage.getItem('auth_token');
 
-    setIsLoading(false);
+      if (!token) {
+        console.log('ℹ️ [INIT] No token found - user not logged in');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('🔄 [INIT] Token found, fetching user data...');
+
+      try {
+        // Fetch user data from backend
+        const userResponse = await userApi.getMe();
+        console.log('✅ [INIT] User data loaded:', userResponse);
+
+        const user = userResponse.data as User;
+        setCurrentUser(user);
+
+        // Initialize theme
+        accentColor.set(user.accentColor);
+        grayTone.set(user.grayTone);
+        applyAccentColorToRoot(user.accentColor);
+        console.log('✅ [INIT] Theme initialized');
+      } catch (error) {
+        console.error('❌ [INIT] Failed to load user, clearing token:', error);
+        // Token is invalid, clear it
+        localStorage.removeItem('auth_token');
+      }
+
+      setIsLoading(false);
+      console.log('✅ [INIT] Initialization complete');
+    };
+
+    loadUser();
   }, []);
 
   const login = async (credentials: LoginCredentials): Promise<{ success: boolean; message?: string }> => {
@@ -100,135 +127,83 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const register = async (data: RegisterData): Promise<{ success: boolean; message?: string }> => {
     try {
+      console.log('📝 [REGISTER] Starting registration process...');
+      console.log('📝 [REGISTER] Data:', { username: data.username, email: data.email, accountType: data.accountType });
+
       // Validate username
+      console.log('📝 [REGISTER] Validating username...');
       const usernameValidation = validateUsername(data.username);
       if (!usernameValidation.valid) {
+        console.log('❌ [REGISTER] Username validation failed:', usernameValidation.message);
         return { success: false, message: usernameValidation.message };
       }
 
       // Validate email
+      console.log('📝 [REGISTER] Validating email...');
       if (!validateEmail(data.email)) {
+        console.log('❌ [REGISTER] Email validation failed');
         return { success: false, message: 'Ungültige E-Mail-Adresse' };
       }
 
       // Validate password
+      console.log('📝 [REGISTER] Validating password...');
       const passwordValidation = validatePassword(data.password);
       if (!passwordValidation.valid) {
+        console.log('❌ [REGISTER] Password validation failed:', passwordValidation.message);
         return { success: false, message: passwordValidation.message };
       }
 
-      // Check if username already exists
-      if (storage.getUserByUsername(data.username)) {
-        return { success: false, message: 'Benutzername bereits vergeben' };
-      }
+      console.log('✅ [REGISTER] All validations passed');
 
-      // Check if email already exists
-      if (storage.getUserByEmail(data.email)) {
-        return { success: false, message: 'E-Mail-Adresse bereits registriert' };
-      }
-
-      // Hash password
-      const passwordHash = await hashPassword(data.password);
-
-      // Check for invite code first
-      let teamId: string | undefined;
-      let teamRole: 'owner' | 'admin' | 'member' | undefined;
-
-      if (data.inviteCode) {
-        // User is joining via invite code
-        const invitation = storage.getTeamInvitationByCode(data.inviteCode.trim().toUpperCase());
-
-        if (!invitation) {
-          return { success: false, message: 'Ungültiger Einladungscode' };
-        }
-
-        // Check if invitation is already used
-        if (invitation.usedBy) {
-          return { success: false, message: 'Dieser Einladungscode wurde bereits verwendet' };
-        }
-
-        // Check if invitation is expired
-        const expiresAt = new Date(invitation.expiresAt);
-        if (expiresAt < new Date()) {
-          return { success: false, message: 'Dieser Einladungscode ist abgelaufen' };
-        }
-
-        // Get the team
-        const team = storage.getTeamById(invitation.teamId);
-        if (!team) {
-          return { success: false, message: 'Team nicht gefunden' };
-        }
-
-        teamId = team.id;
-        teamRole = invitation.role;
-
-        // Override account type to match team
-        data.accountType = 'team';
-        data.organizationName = team.name;
-      } else {
-        // Create team if account type is team (creating new team, not joining)
-        teamId = data.accountType === 'team' ? crypto.randomUUID() : undefined;
-
-        if (teamId && data.organizationName) {
-          storage.addTeam({
-            id: teamId,
-            name: data.organizationName,
-            ownerId: crypto.randomUUID(), // Will be updated with user id
-            createdAt: new Date().toISOString()
-          });
-        }
-
-        teamRole = data.accountType === 'team' ? 'owner' : undefined;
-      }
-
-      // Create new user
-      const newUser: User = {
-        id: crypto.randomUUID(),
+      // Call backend API
+      console.log('📝 [REGISTER] Calling backend API: POST /auth/register');
+      const registerResponse = await authApi.register({
         username: data.username,
         email: data.email,
-        passwordHash,
+        password: data.password,
         accountType: data.accountType,
         organizationName: data.organizationName,
-        teamId: teamId,
-        teamRole: teamRole,
-        mfaEnabled: false,
-        accentColor: 'blue', // Default accent color
-        grayTone: 'medium', // Default gray tone
-        timeRoundingInterval: 15, // Default: 15 minutes rounding
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString()
-      };
+        inviteCode: data.inviteCode
+      });
+      console.log('✅ [REGISTER] Backend registration successful!', registerResponse);
 
-      // Update team owner if creating new team
-      if (teamId && !data.inviteCode && data.accountType === 'team') {
-        storage.updateTeam(teamId, { ownerId: newUser.id });
-      }
+      // Token is automatically stored by authApi.register()
+      console.log('📝 [REGISTER] JWT Token stored in localStorage');
 
-      // Mark invitation as used if joining via invite code
-      if (data.inviteCode) {
-        storage.useTeamInvitation(data.inviteCode.trim().toUpperCase(), newUser.id);
-      }
+      // Fetch user data from backend
+      console.log('📝 [REGISTER] Fetching user data from backend...');
+      const userResponse = await userApi.getMe();
+      console.log('✅ [REGISTER] User data received:', userResponse);
 
-      // Save user
-      storage.addUser(newUser);
-      storage.setCurrentUser(newUser);
-      setCurrentUser(newUser);
+      const user = userResponse.data as User;
+
+      // Store user in state
+      setCurrentUser(user);
+      console.log('✅ [REGISTER] User stored in React state');
 
       // Apply default theme
-      accentColor.set(newUser.accentColor);
-      grayTone.set(newUser.grayTone);
-      applyAccentColorToRoot(newUser.accentColor);
+      accentColor.set(user.accentColor);
+      grayTone.set(user.grayTone);
+      applyAccentColorToRoot(user.accentColor);
+      console.log('✅ [REGISTER] Theme applied:', { accentColor: user.accentColor, grayTone: user.grayTone });
 
+      console.log('🎉 [REGISTER] Registration complete!');
       return { success: true };
-    } catch (error) {
-      console.error('Registration error:', error);
-      return { success: false, message: 'Ein Fehler ist aufgetreten' };
+    } catch (error: any) {
+      console.error('❌ [REGISTER] Registration error:', error);
+      // Extract error message from API response if available
+      const errorMessage = error.message || 'Ein Fehler ist aufgetreten';
+      console.error('❌ [REGISTER] Error message:', errorMessage);
+      return { success: false, message: errorMessage };
     }
   };
 
   const logout = () => {
-    storage.clearCurrentUser();
+    console.log('👋 [LOGOUT] Logging out...');
+    // Remove JWT token from localStorage
+    authApi.logout();
     setCurrentUser(null);
+    console.log('✅ [LOGOUT] Logged out successfully');
   };
 
   const updateAccentColor = (color: AccentColor) => {
