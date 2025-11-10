@@ -2179,50 +2179,52 @@ export const Settings = ({
         onClose={() => setTemplateModalOpen(false)}
         title="Tätigkeit aus Vorlage wählen"
       >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+        <div className="space-y-6">
+          <p className="text-base text-gray-700 dark:text-gray-300">
             Wähle eine vorgefertigte Tätigkeit aus und passe sie nach Bedarf an.
           </p>
 
-          {Object.entries(getTemplatesByCategory()).map(([category, templates]) => (
-            <div key={category}>
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-                {category}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {templates.map((template, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleUseTemplate(template)}
-                    className="text-left p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                          {template.name}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
-                          {template.description}
-                        </p>
-                      </div>
-                      <div className="ml-2 flex flex-col items-end gap-1">
+          <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2">
+            {Object.entries(getTemplatesByCategory()).map(([category, templates]) => (
+              <div key={category}>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 pb-2 border-b-2 border-gray-200 dark:border-gray-700">
+                  {category}
+                </h3>
+                <div className="space-y-2">
+                  {templates.map((template, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleUseTemplate(template)}
+                      className="w-full text-left p-4 rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all group shadow-sm hover:shadow-md"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-base font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 mb-1">
+                            {template.name}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">
+                            {template.description}
+                          </p>
+                        </div>
                         {template.isBillable && (
-                          <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
-                            Abrechenbar
-                          </span>
+                          <div className="flex-shrink-0">
+                            <span className="inline-block text-xs font-semibold px-3 py-1.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-md border border-green-200 dark:border-green-800">
+                              ✓ Abrechenbar
+                            </span>
+                          </div>
                         )}
                       </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
 
-          <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end pt-4 border-t-2 border-gray-200 dark:border-gray-700">
             <button
               onClick={() => setTemplateModalOpen(false)}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+              className="px-6 py-2.5 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Abbrechen
             </button>

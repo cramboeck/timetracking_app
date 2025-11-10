@@ -8,67 +8,182 @@ export interface ActivityTemplate {
 }
 
 export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
-  // Development & Engineering
+  // Büroarbeit
   {
-    name: 'Entwicklung',
-    description: 'Software-Entwicklung und Programmierung',
+    name: 'Telefonat',
+    description: 'Telefonate mit Kunden und Geschäftspartnern',
     isBillable: true,
     pricingType: 'hourly',
-    category: 'Entwicklung'
+    category: 'Büroarbeit'
   },
   {
-    name: 'Code Review',
-    description: 'Überprüfung und Qualitätssicherung von Code',
+    name: 'E-Mail Korrespondenz',
+    description: 'Bearbeitung von E-Mails und Anfragen',
     isBillable: true,
     pricingType: 'hourly',
-    category: 'Entwicklung'
+    category: 'Büroarbeit'
   },
   {
-    name: 'Testing',
-    description: 'Qualitätssicherung und Softwaretests',
+    name: 'Schriftverkehr',
+    description: 'Briefe, Angebote und Verträge erstellen',
     isBillable: true,
     pricingType: 'hourly',
-    category: 'Entwicklung'
+    category: 'Büroarbeit'
   },
   {
-    name: 'Bug-Fixing',
-    description: 'Behebung von Softwarefehlern',
-    isBillable: true,
+    name: 'Ablage & Archivierung',
+    description: 'Dokumentenablage und Archivierung',
+    isBillable: false,
     pricingType: 'hourly',
-    category: 'Entwicklung'
-  },
-  {
-    name: 'Deployment',
-    description: 'Bereitstellung und Veröffentlichung',
-    isBillable: true,
-    pricingType: 'hourly',
-    category: 'Entwicklung'
+    category: 'Büroarbeit'
   },
 
-  // Project Management
+  // Kundenbetreuung
+  {
+    name: 'Kundengespräch',
+    description: 'Persönliche Gespräche und Beratung',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Kundenbetreuung'
+  },
+  {
+    name: 'Angebotserstellung',
+    description: 'Erstellung und Kalkulation von Angeboten',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Kundenbetreuung'
+  },
+  {
+    name: 'Kundentermin',
+    description: 'Termin beim Kunden vor Ort',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Kundenbetreuung'
+  },
+  {
+    name: 'Nachbearbeitung',
+    description: 'Nachbereitung von Kundenkontakten',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Kundenbetreuung'
+  },
+
+  // Projektarbeit
   {
     name: 'Projektplanung',
-    description: 'Planung und Organisation von Projekten',
+    description: 'Planung und Vorbereitung von Projekten',
     isBillable: true,
     pricingType: 'hourly',
-    category: 'Projektmanagement'
+    category: 'Projektarbeit'
   },
   {
-    name: 'Meeting',
-    description: 'Besprechungen und Abstimmungen',
+    name: 'Projektdurchführung',
+    description: 'Umsetzung und Bearbeitung von Projekten',
     isBillable: true,
     pricingType: 'hourly',
-    category: 'Projektmanagement'
+    category: 'Projektarbeit'
   },
   {
-    name: 'Statusreport',
-    description: 'Erstellung von Projektberichten',
+    name: 'Qualitätsprüfung',
+    description: 'Prüfung und Kontrolle der Arbeitsergebnisse',
     isBillable: true,
     pricingType: 'hourly',
-    category: 'Projektmanagement'
+    category: 'Projektarbeit'
+  },
+  {
+    name: 'Projektdokumentation',
+    description: 'Dokumentation von Projektabläufen',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Projektarbeit'
   },
 
-  // Consulting & Analysis
+  // Besprechungen
+  {
+    name: 'Besprechung',
+    description: 'Meetings und Abstimmungen',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Besprechungen'
+  },
+  {
+    name: 'Videokonferenz',
+    description: 'Online-Meetings und Video-Calls',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Besprechungen'
+  },
+  {
+    name: 'Teambesprechung',
+    description: 'Interne Team-Meetings',
+    isBillable: false,
+    pricingType: 'hourly',
+    category: 'Besprechungen'
+  },
+
+  // Verwaltung
+  {
+    name: 'Buchhaltung',
+    description: 'Rechnungsstellung und Buchhaltung',
+    isBillable: false,
+    pricingType: 'hourly',
+    category: 'Verwaltung'
+  },
+  {
+    name: 'Administration',
+    description: 'Allgemeine Verwaltungsaufgaben',
+    isBillable: false,
+    pricingType: 'hourly',
+    category: 'Verwaltung'
+  },
+  {
+    name: 'Recherche',
+    description: 'Informationsbeschaffung und Recherche',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Verwaltung'
+  },
+
+  // Außendienst
+  {
+    name: 'Fahrtzeit',
+    description: 'Fahrt zum Kunden oder zur Baustelle',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Außendienst'
+  },
+  {
+    name: 'Vor-Ort-Termin',
+    description: 'Arbeiten beim Kunden vor Ort',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Außendienst'
+  },
+
+  // Kreatives & Konzeption
+  {
+    name: 'Konzeption',
+    description: 'Konzeptentwicklung und Ideenfindung',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Kreatives'
+  },
+  {
+    name: 'Design',
+    description: 'Gestaltung und Design-Arbeiten',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Kreatives'
+  },
+  {
+    name: 'Präsentation',
+    description: 'Erstellung von Präsentationen',
+    isBillable: true,
+    pricingType: 'hourly',
+    category: 'Kreatives'
+  },
+
+  // Schulung & Beratung
   {
     name: 'Beratung',
     description: 'Fachliche Beratung und Consulting',
@@ -77,112 +192,18 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
     category: 'Beratung'
   },
   {
-    name: 'Konzeption',
-    description: 'Konzeptentwicklung und Design',
+    name: 'Schulung',
+    description: 'Training und Einarbeitung',
     isBillable: true,
     pricingType: 'hourly',
     category: 'Beratung'
   },
-  {
-    name: 'Anforderungsanalyse',
-    description: 'Analyse von Anforderungen und Spezifikationen',
-    isBillable: true,
-    pricingType: 'hourly',
-    category: 'Beratung'
-  },
-
-  // Documentation
-  {
-    name: 'Dokumentation',
-    description: 'Technische Dokumentation und Handbücher',
-    isBillable: true,
-    pricingType: 'hourly',
-    category: 'Dokumentation'
-  },
-  {
-    name: 'Wissensdatenbank',
-    description: 'Pflege von Wiki und Wissensdatenbank',
-    isBillable: false,
-    pricingType: 'hourly',
-    category: 'Dokumentation'
-  },
-
-  // Support & Maintenance
   {
     name: 'Support',
-    description: 'Technischer Support und Helpdesk',
+    description: 'Kundenbetreuung und Hilfestellung',
     isBillable: true,
     pricingType: 'hourly',
-    category: 'Support'
-  },
-  {
-    name: 'Wartung',
-    description: 'System- und Softwarewartung',
-    isBillable: true,
-    pricingType: 'hourly',
-    category: 'Support'
-  },
-  {
-    name: 'Schulung',
-    description: 'Schulung und Training von Mitarbeitern',
-    isBillable: true,
-    pricingType: 'hourly',
-    category: 'Support'
-  },
-
-  // Administration
-  {
-    name: 'Administration',
-    description: 'Verwaltungsaufgaben und Administration',
-    isBillable: false,
-    pricingType: 'hourly',
-    category: 'Administration'
-  },
-  {
-    name: 'Reisezeit',
-    description: 'Fahrt- und Reisezeiten',
-    isBillable: true,
-    pricingType: 'hourly',
-    category: 'Administration'
-  },
-  {
-    name: 'Internes Meeting',
-    description: 'Interne Besprechungen und Abstimmungen',
-    isBillable: false,
-    pricingType: 'hourly',
-    category: 'Administration'
-  },
-
-  // Design & Creative
-  {
-    name: 'Design',
-    description: 'Grafik- und UI/UX-Design',
-    isBillable: true,
-    pricingType: 'hourly',
-    category: 'Design'
-  },
-  {
-    name: 'Prototyping',
-    description: 'Erstellung von Prototypen und Mockups',
-    isBillable: true,
-    pricingType: 'hourly',
-    category: 'Design'
-  },
-
-  // Research
-  {
-    name: 'Recherche',
-    description: 'Recherche und Analyse',
-    isBillable: true,
-    pricingType: 'hourly',
-    category: 'Recherche'
-  },
-  {
-    name: 'Weiterbildung',
-    description: 'Fortbildung und Selbststudium',
-    isBillable: false,
-    pricingType: 'hourly',
-    category: 'Recherche'
+    category: 'Beratung'
   }
 ];
 
