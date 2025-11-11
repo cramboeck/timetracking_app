@@ -151,18 +151,35 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
   const pieChartData = useMemo(() => {
     const customerMap = new Map<string, { name: string; hours: number; color: string }>();
 
-    filteredEntries.forEach(entry => {
+    console.log('📊 [PIE CHART DEBUG] Total filtered entries:', filteredEntries.length);
+
+    filteredEntries.forEach((entry, index) => {
       const project = getProjectById(entry.projectId);
       const customer = project ? getCustomerById(project.customerId) : null;
 
-      if (!customer) return;
+      console.log(`📊 [PIE CHART DEBUG] Entry ${index}:`, {
+        entryId: entry.id,
+        projectId: entry.projectId,
+        projectName: project?.name,
+        customerId: project?.customerId,
+        customerName: customer?.name,
+        duration: entry.duration,
+        hours: entry.duration / 3600
+      });
+
+      if (!customer) {
+        console.warn(`⚠️ [PIE CHART DEBUG] Entry ${index}: Kunde nicht gefunden! ProjectId: ${entry.projectId}, CustomerId: ${project?.customerId}`);
+        return;
+      }
 
       const hours = entry.duration / 3600;
       const existing = customerMap.get(customer.id);
 
       if (existing) {
+        console.log(`📊 [PIE CHART DEBUG] Adding ${hours}h to existing customer: ${customer.name}`);
         existing.hours += hours;
       } else {
+        console.log(`📊 [PIE CHART DEBUG] Creating new customer entry: ${customer.name} with ${hours}h`);
         customerMap.set(customer.id, {
           name: customer.name,
           hours: hours,
@@ -171,12 +188,17 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
       }
     });
 
-    return Array.from(customerMap.values())
+    const result = Array.from(customerMap.values())
       .sort((a, b) => b.hours - a.hours)
       .map(item => ({
         ...item,
         hours: Math.round(item.hours * 100) / 100 // Round to 2 decimals
       }));
+
+    console.log('📊 [PIE CHART DEBUG] Final pie chart data:', result);
+    console.log('📊 [PIE CHART DEBUG] Number of unique customers:', result.length);
+
+    return result;
   }, [filteredEntries, projects, customers]);
 
   // Generate available months
