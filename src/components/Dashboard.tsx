@@ -1,11 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText, PieChart as PieChartIcon, ChevronDown, ChevronRight } from 'lucide-react';
-import { TimeEntry, Project, Customer, Activity } from '../types';
+import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
-import { storage } from '../utils/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { ReportAssistant } from './ReportAssistant';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { userApi } from '../services/api';
 
 interface DashboardProps {
   entries: TimeEntry[];
@@ -40,6 +40,20 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
   const [customEndDate, setCustomEndDate] = useState('');
   const [reportAssistantOpen, setReportAssistantOpen] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
+
+  // Load company info from API
+  useEffect(() => {
+    const loadCompanyInfo = async () => {
+      try {
+        const info = await userApi.getCompany();
+        setCompanyInfo(info);
+      } catch (error) {
+        console.error('Error loading company info:', error);
+      }
+    };
+    loadCompanyInfo();
+  }, []);
 
   const getProjectById = (id: string) => projects.find(p => p.id === id);
   const getCustomerById = (id: string) => customers.find(c => c.id === id);
@@ -234,9 +248,6 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
     const doc = new jsPDF();
     const periodLabel = getPeriodLabel();
     const customerFilter = selectedCustomer !== 'all' ? getCustomerById(selectedCustomer) : null;
-
-    // Load company info
-    const companyInfo = currentUser ? storage.getCompanyInfoByUserId(currentUser.id) : null;
 
     let y = 20;
 
