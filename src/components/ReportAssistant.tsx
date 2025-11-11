@@ -104,14 +104,32 @@ export const ReportAssistant = ({
     const companyInfo = currentUser ? storage.getCompanyInfoByUserId(currentUser.id) : null;
     const now = new Date();
     const monthName = now.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     let y = 20;
 
-    // Company Header
+    // Company Header with proper logo scaling
     if (companyInfo) {
       if (companyInfo.logo) {
         try {
-          doc.addImage(companyInfo.logo, 'PNG', 20, y, 30, 20);
+          // Create temporary image to get dimensions
+          const img = new Image();
+          img.src = companyInfo.logo;
+
+          // Calculate scaled dimensions (max 30mm width, max 20mm height, maintain aspect ratio)
+          const maxWidth = 30;
+          const maxHeight = 20;
+          const aspectRatio = img.width / img.height;
+
+          let logoWidth = maxWidth;
+          let logoHeight = maxWidth / aspectRatio;
+
+          if (logoHeight > maxHeight) {
+            logoHeight = maxHeight;
+            logoWidth = maxHeight * aspectRatio;
+          }
+
+          doc.addImage(companyInfo.logo, 'PNG', 20, y, logoWidth, logoHeight);
         } catch (error) {
           console.error('Error adding logo:', error);
         }
@@ -128,6 +146,10 @@ export const ReportAssistant = ({
       doc.text(`${companyInfo.zipCode} ${companyInfo.city}`, 190, y, { align: 'right' });
       y += 4;
       doc.text(companyInfo.email, 190, y, { align: 'right' });
+      if (companyInfo.phone) {
+        y += 4;
+        doc.text(`Tel: ${companyInfo.phone}`, 190, y, { align: 'right' });
+      }
     }
 
     y = Math.max(y, 45);
@@ -163,9 +185,14 @@ export const ReportAssistant = ({
       doc.text(`Ansprechpartner: ${customerData.customer.contactPerson}`, 40, y);
       y += 6;
     }
+    if (customerData.customer.email) {
+      doc.text(`E-Mail: ${customerData.customer.email}`, 40, y);
+      y += 6;
+    }
 
-    // Summary
-    y += 10;
+    y += 5;
+
+    // Summary Box
     doc.setFillColor(240, 240, 240);
     doc.rect(20, y, 170, 20, 'F');
     doc.setFontSize(10);
@@ -173,11 +200,171 @@ export const ReportAssistant = ({
     doc.text(`Gesamtstunden: ${customerData.totalHours.toFixed(2)} h`, 25, y + 8);
     doc.text(`Gesamtbetrag: ${customerData.totalAmount.toFixed(2)} EUR`, 25, y + 15);
 
+    y += 30;
+
+    // Get all entries for this customer in current month
+    const customerEntries = entries.filter(entry => {
+      if (entry.isRunning) return false;
+      const entryDate = new Date(entry.startTime);
+      const entryMonth = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}`;
+      if (entryMonth !== currentMonth) return false;
+
+      const project = projects.find(p => p.id === entry.projectId);
+      return project?.customerId === customerData.customer.id;
+    });
+
+    // Group by project
+    const projectMap = new Map<string, {
+      project: Project;
+      entries: TimeEntry[];
+      totalHours: number;
+      totalAmount: number;
+    }>();
+
+    customerEntries.forEach(entry => {
+      const project = projects.find(p => p.id === entry.projectId);
+      if (!project) return;
+
+      const hours = entry.duration / 3600;
+      const amount = hours * project.hourlyRate;
+
+      const existing = projectMap.get(project.id);
+      if (existing) {
+        existing.entries.push(entry);
+        existing.totalHours += hours;
+        existing.totalAmount += amount;
+      } else {
+        projectMap.set(project.id, {
+          project,
+          entries: [entry],
+          totalHours: hours,
+          totalAmount: amount
+        });
+      }
+    });
+
+    // Render each project with its entries
+    Array.from(projectMap.values()).forEach((projectData) => {
+      // Check if we need a new page
+      if (y > 240) {
+        doc.addPage();
+        y = 20;
+      }
+
+      // Project Header
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Projekt: ${projectData.project.name}`, 20, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(`${projectData.totalHours.toFixed(2)} h × ${projectData.project.hourlyRate.toFixed(2)} €/h = ${projectData.totalAmount.toFixed(2)} €`, 20, y + 5);
+
+      y += 12;
+
+      // Table Header
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Datum', 22, y);
+      doc.text('Beschreibung', 50, y);
+      doc.text('Stunden', 155, y);
+      doc.text('Betrag', 175, y);
+      doc.setLineWidth(0.3);
+      doc.line(20, y + 1, 190, y + 1);
+
+      y += 5;
+      doc.setFont('helvetica', 'normal');
+
+      // Sort entries by date
+      const sortedEntries = projectData.entries.sort((a, b) =>
+        new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+      );
+
+      // Render each entry
+      sortedEntries.forEach(entry => {
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+
+        const date = new Date(entry.startTime).toLocaleDateString('de-DE');
+        const hours = entry.duration / 3600;
+        const amount = hours * projectData.project.hourlyRate;
+        const description = entry.description || '(keine Beschreibung)';
+
+        // Truncate description if too long
+        const maxDescLength = 60;
+        const truncatedDesc = description.length > maxDescLength
+          ? description.substring(0, maxDescLength) + '...'
+          : description;
+
+        doc.text(date, 22, y);
+        doc.text(truncatedDesc, 50, y);
+        doc.text(hours.toFixed(2), 155, y);
+        doc.text(amount.toFixed(2) + ' €', 175, y);
+
+        y += 5;
+      });
+
+      // Project subtotal
+      y += 2;
+      doc.setFont('helvetica', 'bold');
+      doc.line(20, y - 1, 190, y - 1);
+      doc.text('Zwischensumme:', 120, y + 3);
+      doc.text(projectData.totalHours.toFixed(2) + ' h', 155, y + 3);
+      doc.text(projectData.totalAmount.toFixed(2) + ' €', 175, y + 3);
+      doc.setFont('helvetica', 'normal');
+
+      y += 10;
+    });
+
+    // Grand Total
+    if (y > 250) {
+      doc.addPage();
+      y = 20;
+    }
+
+    y += 5;
+    doc.setLineWidth(0.5);
+    doc.line(20, y, 190, y);
+    y += 7;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Gesamtsumme:', 120, y);
+    doc.text(customerData.totalHours.toFixed(2) + ' h', 155, y);
+    doc.text(customerData.totalAmount.toFixed(2) + ' €', 175, y);
+
+    // Signature section
+    y += 20;
+    if (y > 220) {
+      doc.addPage();
+      y = 30;
+    }
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Hiermit bestätige ich die Richtigkeit der aufgeführten Stunden:', 20, y);
+
+    y += 20;
+    doc.line(20, y, 90, y);
+    doc.line(120, y, 190, y);
+    y += 5;
+    doc.setFontSize(8);
+    doc.text('Ort, Datum', 20, y);
+    doc.text('Unterschrift Auftragnehmer', 120, y);
+
+    y += 15;
+    doc.line(20, y, 90, y);
+    doc.line(120, y, 190, y);
+    y += 5;
+    doc.text('Ort, Datum', 20, y);
+    doc.text('Unterschrift Auftraggeber', 120, y);
+
     // Footer
     if (companyInfo?.taxId) {
       doc.setFontSize(7);
       doc.setTextColor(100, 100, 100);
-      doc.text(`Steuernummer: ${companyInfo.taxId}`, 105, 280, { align: 'center' });
+      doc.text(`Steuernummer: ${companyInfo.taxId}`, 105, 285, { align: 'center' });
     }
 
     return doc;

@@ -241,11 +241,27 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
 
     // Company Header with Logo
     if (companyInfo) {
-      // Add logo if available
+      // Add logo if available with proper scaling
       if (companyInfo.logo) {
         try {
-          // Add logo at top left (max height 20mm)
-          doc.addImage(companyInfo.logo, 'PNG', 20, y, 30, 20);
+          // Create temporary image to get dimensions
+          const img = new Image();
+          img.src = companyInfo.logo;
+
+          // Calculate scaled dimensions (max 30mm width, max 20mm height, maintain aspect ratio)
+          const maxWidth = 30;
+          const maxHeight = 20;
+          const aspectRatio = img.width / img.height;
+
+          let logoWidth = maxWidth;
+          let logoHeight = maxWidth / aspectRatio;
+
+          if (logoHeight > maxHeight) {
+            logoHeight = maxHeight;
+            logoWidth = maxHeight * aspectRatio;
+          }
+
+          doc.addImage(companyInfo.logo, 'PNG', 20, y, logoWidth, logoHeight);
         } catch (error) {
           console.error('Error adding logo to PDF:', error);
         }
