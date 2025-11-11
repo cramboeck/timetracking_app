@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown, Key, Save, XCircle } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
 import { notificationService } from '../utils/notifications';
-import { userApi, teamsApi } from '../services/api';
+import { authApi, userApi, teamsApi } from '../services/api';
 import Papa from 'papaparse';
 import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 import { generateUUID } from '../utils/uuid';
@@ -84,6 +84,21 @@ export const Settings = ({
   const [columnMappings, setColumnMappings] = useState<Record<string, string>>({});
   const [mappingModalOpen, setMappingModalOpen] = useState(false);
 
+  // Profile Edit State
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [profileError, setProfileError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
+
+  // Password Change State
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
   // Project Modal
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -136,6 +151,98 @@ export const Settings = ({
       setCustomerReportTitle('');
     }
     setCustomerModalOpen(true);
+  };
+
+  // Profile Edit Handlers
+  const handleOpenEditProfile = () => {
+    setNewUsername(currentUser?.username || '');
+    setNewEmail(currentUser?.email || '');
+    setProfileError('');
+    setProfileSuccess('');
+    setEditProfileOpen(true);
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setProfileError('');
+      setProfileSuccess('');
+
+      if (!newUsername.trim() && !newEmail.trim()) {
+        setProfileError('Bitte gib einen Benutzernamen oder eine E-Mail ein');
+        return;
+      }
+
+      const updates: { username?: string; email?: string } = {};
+
+      if (newUsername.trim() && newUsername !== currentUser?.username) {
+        updates.username = newUsername.trim();
+      }
+
+      if (newEmail.trim() && newEmail !== currentUser?.email) {
+        updates.email = newEmail.trim();
+      }
+
+      if (Object.keys(updates).length === 0) {
+        setProfileError('Keine Änderungen vorgenommen');
+        return;
+      }
+
+      const result = await authApi.updateProfile(updates);
+
+      // Update user in context
+      if (result.user) {
+        // Trigger a re-fetch of user data
+        window.location.reload();
+      }
+
+      setProfileSuccess('Profil erfolgreich aktualisiert!');
+      setTimeout(() => {
+        setEditProfileOpen(false);
+      }, 1500);
+    } catch (error: any) {
+      setProfileError(error.message || 'Fehler beim Aktualisieren des Profils');
+    }
+  };
+
+  // Password Change Handlers
+  const handleOpenChangePassword = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setPasswordSuccess('');
+    setChangePasswordOpen(true);
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      setPasswordError('');
+      setPasswordSuccess('');
+
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        setPasswordError('Bitte fülle alle Felder aus');
+        return;
+      }
+
+      if (newPassword.length < 6) {
+        setPasswordError('Das neue Passwort muss mindestens 6 Zeichen lang sein');
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        setPasswordError('Die neuen Passwörter stimmen nicht überein');
+        return;
+      }
+
+      await authApi.changePassword(currentPassword, newPassword);
+
+      setPasswordSuccess('Passwort erfolgreich geändert!');
+      setTimeout(() => {
+        setChangePasswordOpen(false);
+      }, 1500);
+    } catch (error: any) {
+      setPasswordError(error.message || 'Fehler beim Ändern des Passworts');
+    }
   };
 
   const handleSaveCustomer = () => {
@@ -774,6 +881,26 @@ export const Settings = ({
                       year: 'numeric'
                     })}
                   </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-4 border-t border-gray-200 dark:border-dark-200">
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={handleOpenEditProfile}
+                      className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-darker text-white rounded-lg transition-colors"
+                    >
+                      <Edit2 size={18} />
+                      Profil bearbeiten
+                    </button>
+                    <button
+                      onClick={handleOpenChangePassword}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg transition-colors"
+                    >
+                      <Key size={18} />
+                      Passwort ändern
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2470,6 +2597,151 @@ export const Settings = ({
               </div>
             </>
           )}
+        </div>
+      </Modal>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        isOpen={editProfileOpen}
+        onClose={() => setEditProfileOpen(false)}
+        title="Profil bearbeiten"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+              Benutzername
+            </label>
+            <input
+              type="text"
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              placeholder="Benutzername"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+              E-Mail
+            </label>
+            <input
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              placeholder="E-Mail"
+            />
+          </div>
+
+          {profileError && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <XCircle size={18} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+              <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p>
+            </div>
+          )}
+
+          {profileSuccess && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <Save size={18} className="text-green-600 dark:text-green-400 flex-shrink-0" />
+              <p className="text-sm text-green-600 dark:text-green-400">{profileSuccess}</p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-4">
+            <button
+              onClick={handleSaveProfile}
+              disabled={!!profileSuccess}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-darker disabled:bg-gray-400 text-white rounded-lg transition-colors"
+            >
+              <Save size={18} />
+              Speichern
+            </button>
+            <button
+              onClick={() => setEditProfileOpen(false)}
+              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg transition-colors"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Change Password Modal */}
+      <Modal
+        isOpen={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+        title="Passwort ändern"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+              Aktuelles Passwort
+            </label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              placeholder="Aktuelles Passwort"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+              Neues Passwort
+            </label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              placeholder="Neues Passwort (min. 6 Zeichen)"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+              Passwort bestätigen
+            </label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              placeholder="Passwort wiederholen"
+            />
+          </div>
+
+          {passwordError && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <XCircle size={18} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+              <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p>
+            </div>
+          )}
+
+          {passwordSuccess && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <Key size={18} className="text-green-600 dark:text-green-400 flex-shrink-0" />
+              <p className="text-sm text-green-600 dark:text-green-400">{passwordSuccess}</p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-4">
+            <button
+              onClick={handleChangePassword}
+              disabled={!!passwordSuccess}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-darker disabled:bg-gray-400 text-white rounded-lg transition-colors"
+            >
+              <Key size={18} />
+              Passwort ändern
+            </button>
+            <button
+              onClick={() => setChangePasswordOpen(false)}
+              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg transition-colors"
+            >
+              Abbrechen
+            </button>
+          </div>
         </div>
       </Modal>
 
