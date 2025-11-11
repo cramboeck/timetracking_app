@@ -94,6 +94,22 @@ export const authApi = {
     return result;
   },
 
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    console.log('🌐 [API] Calling POST /auth/change-password');
+    return authFetch('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  },
+
+  updateProfile: async (data: { username?: string; email?: string }) => {
+    console.log('🌐 [API] Calling PATCH /auth/profile');
+    return authFetch('/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
   logout: () => {
     localStorage.removeItem('auth_token');
   },
