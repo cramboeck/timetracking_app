@@ -438,7 +438,7 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
   const showMonthEndNotification = daysRemaining <= 3;
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col min-h-full bg-gray-50 dark:bg-gray-900 overflow-y-auto">
       {/* Month-End Notification Banner */}
       {showMonthEndNotification && entries.length > 0 && (
         <div className="bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-700 px-6 py-3">
