@@ -4,6 +4,8 @@ export type AuditAction =
   | 'user.register'
   | 'user.login'
   | 'user.logout'
+  | 'user.change_password'
+  | 'user.update_profile'
   | 'user.update'
   | 'user.delete'
   | 'data.export'
