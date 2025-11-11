@@ -223,15 +223,35 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Beschreibung (optional)
+                {isRunning && (
+                  <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
+                    · editierbar während der Erfassung
+                  </span>
+                )}
               </label>
               <textarea
                 placeholder="Was wurde gemacht?"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={isRunning}
+                onChange={(e) => {
+                  const newDescription = e.target.value;
+                  setDescription(newDescription);
+
+                  // Update running entry if timer is running
+                  if (isRunning && runningEntry) {
+                    onUpdateRunning({
+                      ...runningEntry,
+                      description: newDescription
+                    });
+                  }
+                }}
                 rows={3}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed resize-none transition-colors"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none transition-colors"
               />
+              {isRunning && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Die Beschreibung wird automatisch gespeichert
+                </p>
+              )}
             </div>
           </div>
 
