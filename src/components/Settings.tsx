@@ -1635,7 +1635,7 @@ export const Settings = ({
                     </label>
                     <input
                       type="text"
-                      value={companyName}
+                      value={companyName || ''}
                       onChange={(e) => setCompanyName(e.target.value)}
                       placeholder="z.B. Musterfirma GmbH"
                       className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
@@ -1659,7 +1659,7 @@ export const Settings = ({
                       </label>
                       <input
                         type="text"
-                        value={companyAddress}
+                        value={companyAddress || ''}
                         onChange={(e) => setCompanyAddress(e.target.value)}
                         placeholder="z.B. Musterstraße 123"
                         className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
@@ -1673,7 +1673,7 @@ export const Settings = ({
                         </label>
                         <input
                           type="text"
-                          value={companyZipCode}
+                          value={companyZipCode || ''}
                           onChange={(e) => setCompanyZipCode(e.target.value)}
                           placeholder="12345"
                           className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
@@ -1686,7 +1686,7 @@ export const Settings = ({
                         </label>
                         <input
                           type="text"
-                          value={companyCity}
+                          value={companyCity || ''}
                           onChange={(e) => setCompanyCity(e.target.value)}
                           placeholder="Berlin"
                           className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
@@ -1700,7 +1700,7 @@ export const Settings = ({
                       </label>
                       <input
                         type="text"
-                        value={companyCountry}
+                        value={companyCountry || ''}
                         onChange={(e) => setCompanyCountry(e.target.value)}
                         placeholder="Deutschland"
                         className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
@@ -1719,7 +1719,7 @@ export const Settings = ({
                       </label>
                       <input
                         type="email"
-                        value={companyEmail}
+                        value={companyEmail || ''}
                         onChange={(e) => setCompanyEmail(e.target.value)}
                         placeholder="kontakt@musterfirma.de"
                         className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
@@ -1732,7 +1732,7 @@ export const Settings = ({
                       </label>
                       <input
                         type="tel"
-                        value={companyPhone}
+                        value={companyPhone || ''}
                         onChange={(e) => setCompanyPhone(e.target.value)}
                         placeholder="+49 30 12345678"
                         className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
@@ -1745,7 +1745,7 @@ export const Settings = ({
                       </label>
                       <input
                         type="url"
-                        value={companyWebsite}
+                        value={companyWebsite || ''}
                         onChange={(e) => setCompanyWebsite(e.target.value)}
                         placeholder="https://musterfirma.de"
                         className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
@@ -1765,7 +1765,7 @@ export const Settings = ({
                 </label>
                 <input
                   type="text"
-                  value={companyTaxId}
+                  value={companyTaxId || ''}
                   onChange={(e) => setCompanyTaxId(e.target.value)}
                   placeholder="z.B. DE123456789"
                   className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
@@ -1789,7 +1789,7 @@ export const Settings = ({
                 </div>
                 <button
                   onClick={handleSaveCompanyInfo}
-                  disabled={!companyName.trim() || !companyAddress.trim() || !companyCity.trim() || !companyZipCode.trim() || !companyCountry.trim() || !companyEmail.trim()}
+                  disabled={!companyName?.trim() || !companyAddress?.trim() || !companyCity?.trim() || !companyZipCode?.trim() || !companyCountry?.trim() || !companyEmail?.trim()}
                   className="flex items-center gap-2 px-6 py-3 bg-accent-primary hover:bg-accent-darker text-white rounded-lg font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-md"
                 >
                   <Save size={20} />
