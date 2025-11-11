@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { X, FileText, Download, Mail, CheckCircle2 } from 'lucide-react';
-import { TimeEntry, Project, Customer } from '../types';
+import { TimeEntry, Project, Customer, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
-import { storage } from '../utils/storage';
 import { useAuth } from '../contexts/AuthContext';
+import { userApi } from '../services/api';
 
 interface ReportAssistantProps {
   isOpen: boolean;
@@ -32,6 +32,20 @@ export const ReportAssistant = ({
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [emailTemplate, setEmailTemplate] = useState('');
   const [showEmailTemplate, setShowEmailTemplate] = useState(false);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
+
+  // Load company info from API
+  useEffect(() => {
+    const loadCompanyInfo = async () => {
+      try {
+        const info = await userApi.getCompany();
+        setCompanyInfo(info);
+      } catch (error) {
+        console.error('Error loading company info:', error);
+      }
+    };
+    loadCompanyInfo();
+  }, []);
 
   // Calculate current month data for all customers
   const currentMonthData = useMemo(() => {
@@ -101,7 +115,6 @@ export const ReportAssistant = ({
 
   const generatePDFForCustomer = (customerData: CustomerReportData) => {
     const doc = new jsPDF();
-    const companyInfo = currentUser ? storage.getCompanyInfoByUserId(currentUser.id) : null;
     const now = new Date();
     const monthName = now.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -385,7 +398,6 @@ export const ReportAssistant = ({
   const generateEmailTemplate = () => {
     const now = new Date();
     const monthName = now.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
-    const companyInfo = currentUser ? storage.getCompanyInfoByUserId(currentUser.id) : null;
 
     const selectedData = currentMonthData.filter(d => selectedCustomers.has(d.customer.id));
 

@@ -424,7 +424,7 @@ function App() {
   // Authenticated - show main app
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-      <main className="flex-1 overflow-hidden pb-16">
+      <main className="flex-1 overflow-y-auto pb-16">
         {currentView === 'stopwatch' && (
           <Stopwatch
             onSave={handleSaveEntry}
