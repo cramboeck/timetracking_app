@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown, Key, Save, XCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -11,6 +11,7 @@ import { authApi, userApi, teamsApi } from '../services/api';
 import Papa from 'papaparse';
 import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 import { generateUUID } from '../utils/uuid';
+import { storage } from '../utils/storage';
 
 interface SettingsProps {
   customers: Customer[];
@@ -830,51 +831,95 @@ export const Settings = ({
         <div className="p-4 sm:p-6 lg:p-8">
         {/* Account Tab */}
         {activeTab === 'account' && (
-          <div className="max-w-4xl mx-auto space-y-6">
+          <div className="max-w-5xl mx-auto space-y-6">
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800 p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-blue-500 rounded-lg">
+                    <ActivityIcon size={20} className="text-white" />
+                  </div>
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-200">Zeiteinträge</p>
+                </div>
+                <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
+                  {storage.getEntries().filter(e => e.userId === currentUser?.id).length}
+                </p>
+                <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">Gesamt erfasst</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl border border-green-200 dark:border-green-800 p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-green-500 rounded-lg">
+                    <Clock size={20} className="text-white" />
+                  </div>
+                  <p className="text-sm font-medium text-green-900 dark:text-green-200">Projekte</p>
+                </div>
+                <p className="text-3xl font-bold text-green-900 dark:text-green-100">
+                  {projects.length}
+                </p>
+                <p className="text-xs text-green-700 dark:text-green-300 mt-1">Aktive Projekte</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl border border-purple-200 dark:border-purple-800 p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-purple-500 rounded-lg">
+                    <Users size={20} className="text-white" />
+                  </div>
+                  <p className="text-sm font-medium text-purple-900 dark:text-purple-200">Kunden</p>
+                </div>
+                <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
+                  {customers.length}
+                </p>
+                <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">Registrierte Kunden</p>
+              </div>
+            </div>
+
             {/* Account Details */}
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
               <div className="flex items-center gap-3 mb-6">
-                <UserIcon size={20} className="text-accent-primary" />
+                <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
+                  <UserIcon size={24} className="text-accent-primary" />
+                </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Mein Account</h3>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">Persönliche Informationen</p>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">Mein Account</h3>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">Persönliche Informationen und Einstellungen</p>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Account-Typ</p>
-                    <p className="mt-1 font-medium text-gray-900 dark:text-white">
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="p-4 bg-gray-50 dark:bg-dark-50 rounded-lg border border-gray-200 dark:border-dark-200">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">Account-Typ</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">
                       {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
                       {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
                       {currentUser?.accountType === 'team' && '👥 Team'}
                     </p>
                   </div>
                   {currentUser?.organizationName && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-dark-400">
+                    <div className="p-4 bg-gray-50 dark:bg-dark-50 rounded-lg border border-gray-200 dark:border-dark-200">
+                      <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">
                         {currentUser?.accountType === 'business' ? 'Firmenname' : 'Team-Name'}
                       </p>
-                      <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser.organizationName}</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser.organizationName}</p>
                     </div>
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Benutzername</p>
-                    <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser?.username}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="p-4 bg-gray-50 dark:bg-dark-50 rounded-lg border border-gray-200 dark:border-dark-200">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">Benutzername</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser?.username}</p>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-dark-400">E-Mail</p>
-                    <p className="mt-1 font-medium text-gray-900 dark:text-white">{currentUser?.email}</p>
+                  <div className="p-4 bg-gray-50 dark:bg-dark-50 rounded-lg border border-gray-200 dark:border-dark-200">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">E-Mail</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser?.email}</p>
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-dark-400">Mitglied seit</p>
-                  <p className="mt-1 font-medium text-gray-900 dark:text-white">
+                <div className="p-4 bg-gradient-to-r from-accent-light to-accent-lighter/50 dark:from-accent-lighter/10 dark:to-accent-lighter/5 rounded-lg border border-accent-primary/20">
+                  <p className="text-xs font-semibold text-accent-primary uppercase tracking-wider mb-1">Mitglied seit</p>
+                  <p className="text-lg font-bold text-gray-900 dark:text-white">
                     {currentUser?.createdAt && new Date(currentUser.createdAt).toLocaleDateString('de-DE', {
                       day: 'numeric',
                       month: 'long',
@@ -884,18 +929,18 @@ export const Settings = ({
                 </div>
 
                 {/* Action Buttons */}
-                <div className="pt-4 border-t border-gray-200 dark:border-dark-200">
+                <div className="pt-5 border-t border-gray-200 dark:border-dark-200">
                   <div className="flex flex-wrap gap-3">
                     <button
                       onClick={handleOpenEditProfile}
-                      className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-darker text-white rounded-lg transition-colors"
+                      className="flex items-center gap-2 px-5 py-2.5 bg-accent-primary hover:bg-accent-darker text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
                     >
                       <Edit2 size={18} />
                       Profil bearbeiten
                     </button>
                     <button
                       onClick={handleOpenChangePassword}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg transition-colors"
+                      className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
                     >
                       <Key size={18} />
                       Passwort ändern
@@ -906,11 +951,13 @@ export const Settings = ({
             </div>
 
             {/* Time Rounding Settings */}
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
-                  <Timer size={20} className="text-accent-primary" />
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
+                    <Timer size={24} className="text-accent-primary" />
+                  </div>
                   <div>
-                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">Zeitaufrundung</h3>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Zeitaufrundung</h3>
                     <p className="text-sm text-gray-500 dark:text-dark-400">Mindesteinheit für erfasste Zeiten</p>
                   </div>
                 </div>
@@ -939,11 +986,13 @@ export const Settings = ({
             </div>
 
             {/* GDPR / Data Protection */}
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
-                  <Shield size={20} className="text-gray-600 dark:text-gray-400" />
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                    <Shield size={24} className="text-blue-600 dark:text-blue-400" />
+                  </div>
                   <div>
-                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">Datenschutz (DSGVO)</h3>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Datenschutz (DSGVO)</h3>
                     <p className="text-sm text-gray-500 dark:text-dark-400">Deine Daten verwalten</p>
                   </div>
                 </div>
@@ -1047,12 +1096,12 @@ export const Settings = ({
             </div>
 
             {/* Logout Button */}
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-red-200 dark:border-red-800 p-6 shadow-md">
               <button
                 onClick={logout}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg transition-colors text-red-600 dark:text-red-400 font-medium"
+                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 border-2 border-red-200 dark:border-red-800 rounded-xl transition-all text-red-600 dark:text-red-400 font-bold shadow-sm hover:shadow-md"
               >
-                <LogOut size={18} />
+                <LogOut size={20} />
                 Abmelden
               </button>
             </div>
@@ -1501,50 +1550,70 @@ export const Settings = ({
         )}
 
         {activeTab === 'company' && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <Building size={24} className="text-accent-primary" />
+          <div className="max-w-6xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
+                  <Building size={28} className="text-accent-primary" />
+                </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Firmendaten</h2>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Firma & Branding</h2>
                   <p className="text-sm text-gray-500 dark:text-dark-400">
-                    Diese Informationen erscheinen in deinen PDF-Reports
+                    Diese Informationen erscheinen in deinen PDF-Reports und Dokumenten
                   </p>
                 </div>
               </div>
+            </div>
 
+            {/* Two Column Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left Column - Branding */}
               <div className="space-y-6">
-                {/* Logo Upload */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                {/* Logo Upload Card */}
+                <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Upload size={20} className="text-accent-primary" />
                     Firmenlogo
-                  </label>
+                  </h3>
 
                   {companyLogo ? (
-                    <div className="relative inline-block">
-                      <img
-                        src={companyLogo}
-                        alt="Company Logo"
-                        className="h-24 w-auto object-contain border border-gray-200 dark:border-dark-200 rounded-lg p-2 bg-white dark:bg-dark-50"
-                      />
-                      <button
-                        onClick={handleRemoveLogo}
-                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                        title="Logo entfernen"
-                      >
-                        <X size={16} />
-                      </button>
+                    <div className="space-y-4">
+                      <div className="relative inline-block">
+                        <img
+                          src={companyLogo}
+                          alt="Company Logo"
+                          className="h-32 w-auto object-contain border-2 border-gray-200 dark:border-dark-200 rounded-xl p-4 bg-gray-50 dark:bg-dark-50"
+                        />
+                        <button
+                          onClick={handleRemoveLogo}
+                          className="absolute -top-2 -right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-md hover:shadow-lg"
+                          title="Logo entfernen"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        💡 Das Logo wird automatisch skaliert (max. 30mm × 20mm) ohne Verzerrung
+                      </p>
                     </div>
                   ) : (
                     <div>
                       <label
                         htmlFor="logo-upload"
-                        className="inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 dark:border-dark-200 rounded-lg cursor-pointer hover:border-accent-primary hover:bg-accent-light dark:hover:bg-accent-lighter/10 transition-colors"
+                        className="flex flex-col items-center gap-3 px-6 py-8 border-3 border-dashed border-gray-300 dark:border-dark-200 rounded-xl cursor-pointer hover:border-accent-primary hover:bg-accent-light/30 dark:hover:bg-accent-lighter/5 transition-all"
                       >
-                        <Upload size={20} className="text-gray-500" />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Logo hochladen
-                        </span>
+                        <div className="p-4 bg-gray-100 dark:bg-dark-50 rounded-full">
+                          <Upload size={28} className="text-gray-500" />
+                        </div>
+                        <div className="text-center">
+                          <span className="text-base font-semibold text-gray-900 dark:text-white block mb-1">
+                            Logo hochladen
+                          </span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            PNG, JPG oder SVG • Max. 2MB
+                          </span>
+                        </div>
                       </label>
                       <input
                         id="logo-upload"
@@ -1553,162 +1622,179 @@ export const Settings = ({
                         onChange={handleLogoUpload}
                         className="hidden"
                       />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                        PNG, JPG oder SVG • Max. 2MB
-                      </p>
                     </div>
                   )}
                 </div>
 
                 {/* Company Name */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Firmenname *
-                  </label>
-                  <input
-                    type="text"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="z.B. Musterfirma GmbH"
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-                  />
-                </div>
-
-                {/* Address Fields Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Straße & Hausnummer *
-                    </label>
-                    <input
-                      type="text"
-                      value={companyAddress}
-                      onChange={(e) => setCompanyAddress(e.target.value)}
-                      placeholder="z.B. Musterstraße 123"
-                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-                    />
-                  </div>
-
+                <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Grundinformationen</h3>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      PLZ *
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Firmenname <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
-                      value={companyZipCode}
-                      onChange={(e) => setCompanyZipCode(e.target.value)}
-                      placeholder="z.B. 12345"
-                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="z.B. Musterfirma GmbH"
+                      className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Stadt *
-                    </label>
-                    <input
-                      type="text"
-                      value={companyCity}
-                      onChange={(e) => setCompanyCity(e.target.value)}
-                      placeholder="z.B. Berlin"
-                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Land *
-                    </label>
-                    <input
-                      type="text"
-                      value={companyCountry}
-                      onChange={(e) => setCompanyCountry(e.target.value)}
-                      placeholder="z.B. Deutschland"
-                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      Dieser Name erscheint auf allen PDF-Dokumenten
+                    </p>
                   </div>
                 </div>
+              </div>
 
-                {/* Contact Fields */}
-                <div className="pt-4 border-t border-gray-200 dark:border-dark-200">
-                  <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">Kontaktdaten</h3>
-
+              {/* Right Column - Address & Contact */}
+              <div className="space-y-6">
+                {/* Address Card */}
+                <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Adresse</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        E-Mail *
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Straße & Hausnummer <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={companyAddress}
+                        onChange={(e) => setCompanyAddress(e.target.value)}
+                        placeholder="z.B. Musterstraße 123"
+                        className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                          PLZ <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={companyZipCode}
+                          onChange={(e) => setCompanyZipCode(e.target.value)}
+                          placeholder="12345"
+                          className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                          Stadt <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={companyCity}
+                          onChange={(e) => setCompanyCity(e.target.value)}
+                          placeholder="Berlin"
+                          className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Land <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={companyCountry}
+                        onChange={(e) => setCompanyCountry(e.target.value)}
+                        placeholder="Deutschland"
+                        className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact Card */}
+                <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Kontaktdaten</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        E-Mail <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="email"
                         value={companyEmail}
                         onChange={(e) => setCompanyEmail(e.target.value)}
-                        placeholder="z.B. kontakt@musterfirma.de"
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                        placeholder="kontakt@musterfirma.de"
+                        className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Telefon
-                        </label>
-                        <input
-                          type="tel"
-                          value={companyPhone}
-                          onChange={(e) => setCompanyPhone(e.target.value)}
-                          placeholder="z.B. +49 30 12345678"
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Telefon
+                      </label>
+                      <input
+                        type="tel"
+                        value={companyPhone}
+                        onChange={(e) => setCompanyPhone(e.target.value)}
+                        placeholder="+49 30 12345678"
+                        className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
+                      />
+                    </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Website
-                        </label>
-                        <input
-                          type="url"
-                          value={companyWebsite}
-                          onChange={(e) => setCompanyWebsite(e.target.value)}
-                          placeholder="z.B. https://musterfirma.de"
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Website
+                      </label>
+                      <input
+                        type="url"
+                        value={companyWebsite}
+                        onChange={(e) => setCompanyWebsite(e.target.value)}
+                        placeholder="https://musterfirma.de"
+                        className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
+                      />
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                {/* Tax ID */}
-                <div className="pt-4 border-t border-gray-200 dark:border-dark-200">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Steuernummer / USt-IdNr.
-                    </label>
-                    <input
-                      type="text"
-                      value={companyTaxId}
-                      onChange={(e) => setCompanyTaxId(e.target.value)}
-                      placeholder="z.B. DE123456789"
-                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                      Optional: Für Rechnungen und offizielle Dokumente
-                    </p>
-                  </div>
-                </div>
+            {/* Tax ID - Full Width */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Steuerinformationen</h3>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Steuernummer / USt-IdNr.
+                </label>
+                <input
+                  type="text"
+                  value={companyTaxId}
+                  onChange={(e) => setCompanyTaxId(e.target.value)}
+                  placeholder="z.B. DE123456789"
+                  className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  Optional: Für Rechnungen und offizielle Dokumente
+                </p>
+              </div>
+            </div>
 
-                {/* Save Button */}
-                <div className="pt-6 border-t border-gray-200 dark:border-dark-200">
-                  <button
-                    onClick={handleSaveCompanyInfo}
-                    disabled={!companyName.trim() || !companyAddress.trim() || !companyCity.trim() || !companyZipCode.trim() || !companyCountry.trim() || !companyEmail.trim()}
-                    className="btn-accent px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Firmendaten speichern
-                  </button>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-                    * Pflichtfelder
+            {/* Save Button */}
+            <div className="bg-gradient-to-r from-accent-light to-accent-lighter/50 dark:from-accent-lighter/10 dark:to-accent-lighter/5 rounded-xl border border-accent-primary/30 p-6 shadow-md">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                    Änderungen speichern
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    <span className="text-red-500">*</span> Pflichtfelder müssen ausgefüllt sein
                   </p>
                 </div>
+                <button
+                  onClick={handleSaveCompanyInfo}
+                  disabled={!companyName.trim() || !companyAddress.trim() || !companyCity.trim() || !companyZipCode.trim() || !companyCountry.trim() || !companyEmail.trim()}
+                  className="flex items-center gap-2 px-6 py-3 bg-accent-primary hover:bg-accent-darker text-white rounded-lg font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-md"
+                >
+                  <Save size={20} />
+                  Firmendaten speichern
+                </button>
               </div>
             </div>
           </div>
