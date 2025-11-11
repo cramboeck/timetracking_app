@@ -678,8 +678,8 @@ export const Settings = ({
     if (!currentUser) return;
 
     // Validation
-    if (!companyName.trim() || !companyAddress.trim() || !companyCity.trim() ||
-        !companyZipCode.trim() || !companyCountry.trim() || !companyEmail.trim()) {
+    if (!companyName?.trim() || !companyAddress?.trim() || !companyCity?.trim() ||
+        !companyZipCode?.trim() || !companyCountry?.trim() || !companyEmail?.trim()) {
       alert('Bitte fülle alle Pflichtfelder aus');
       return;
     }
@@ -692,9 +692,9 @@ export const Settings = ({
         zipCode: companyZipCode.trim(),
         country: companyCountry.trim(),
         email: companyEmail.trim(),
-        phone: companyPhone.trim() || undefined,
-        website: companyWebsite.trim() || undefined,
-        taxId: companyTaxId.trim() || undefined,
+        phone: companyPhone?.trim() || undefined,
+        website: companyWebsite?.trim() || undefined,
+        taxId: companyTaxId?.trim() || undefined,
         logo: companyLogo || undefined,
       });
       alert('Firmendaten gespeichert!');
