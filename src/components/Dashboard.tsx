@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText, PieChart as PieChartIcon } from 'lucide-react';
+import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText, PieChart as PieChartIcon, ChevronDown, ChevronRight } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import jsPDF from 'jspdf';
 import { storage } from '../utils/storage';
@@ -39,6 +39,7 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [reportAssistantOpen, setReportAssistantOpen] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
   const getProjectById = (id: string) => projects.find(p => p.id === id);
   const getCustomerById = (id: string) => customers.find(c => c.id === id);
@@ -454,7 +455,7 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
   const showMonthEndNotification = daysRemaining <= 3;
 
   return (
-    <div className="flex flex-col min-h-full bg-gray-50 dark:bg-gray-900 overflow-y-auto">
+    <div className="flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Month-End Notification Banner */}
       {showMonthEndNotification && entries.length > 0 && (
         <div className="bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-700 px-6 py-3">
@@ -713,21 +714,43 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
               {stats.map((stat) => {
                 const hours = stat.totalSeconds / 3600;
                 const percentage = (stat.totalSeconds / totalSeconds) * 100;
+                const isExpanded = expandedProjects.has(stat.projectId);
+
+                // Get entries for this project
+                const projectEntries = filteredEntries
+                  .filter(entry => entry.projectId === stat.projectId)
+                  .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
 
                 return (
                   <div key={stat.projectId} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                    <div
+                      className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors"
+                      onClick={() => {
+                        const newExpanded = new Set(expandedProjects);
+                        if (newExpanded.has(stat.projectId)) {
+                          newExpanded.delete(stat.projectId);
+                        } else {
+                          newExpanded.add(stat.projectId);
+                        }
+                        setExpandedProjects(newExpanded);
+                      }}
+                    >
+                      <div className="flex items-center gap-3 flex-1">
+                        {isExpanded ? (
+                          <ChevronDown size={20} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                        ) : (
+                          <ChevronRight size={20} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                        )}
                         <div
-                          className="w-4 h-4 rounded"
+                          className="w-4 h-4 rounded flex-shrink-0"
                           style={{ backgroundColor: stat.customerColor }}
                         />
-                        <div>
-                          <p className="font-medium dark:text-white">{stat.projectName}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{stat.customerName}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium dark:text-white truncate">{stat.projectName}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{stat.customerName}</p>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right flex-shrink-0 ml-4">
                         <p className="font-semibold dark:text-white">{hours.toFixed(2)} h</p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">{stat.totalAmount.toFixed(2)} €</p>
                       </div>
@@ -741,10 +764,68 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
                         }}
                       />
                     </div>
-                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 px-2">
                       <span>{stat.entryCount} Einträge</span>
                       <span>{percentage.toFixed(1)}% der Gesamtzeit</span>
                     </div>
+
+                    {/* Expanded entries list */}
+                    {isExpanded && projectEntries.length > 0 && (
+                      <div className="ml-8 mt-3 space-y-2 border-l-2 border-gray-200 dark:border-gray-700 pl-4">
+                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Zeiteinträge:
+                        </h3>
+                        {projectEntries.map(entry => {
+                          const entryHours = entry.duration / 3600;
+                          const entryAmount = calculateAmount(entry);
+                          const activity = entry.activityId ? getActivityById(entry.activityId) : null;
+
+                          return (
+                            <div
+                              key={entry.id}
+                              className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-sm"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-gray-900 dark:text-white font-medium">
+                                      {new Date(entry.startTime).toLocaleDateString('de-DE', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: 'numeric'
+                                      })}
+                                    </span>
+                                    {activity && (
+                                      <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                                        {activity.name}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {entry.description && (
+                                    <p className="text-gray-600 dark:text-gray-400 break-words">
+                                      {entry.description}
+                                    </p>
+                                  )}
+                                  {!entry.description && (
+                                    <p className="text-gray-400 dark:text-gray-500 italic">
+                                      (keine Beschreibung)
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className="text-gray-900 dark:text-white font-medium">
+                                    {entryHours.toFixed(2)} h
+                                  </p>
+                                  <p className="text-gray-500 dark:text-gray-400">
+                                    {entryAmount.toFixed(2)} €
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
