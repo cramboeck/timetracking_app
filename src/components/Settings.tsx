@@ -600,12 +600,12 @@ export const Settings = ({
         try {
           const info = await userApi.getCompany();
           if (info) {
-            setCompanyName(info.name);
-            setCompanyAddress(info.address);
-            setCompanyCity(info.city);
-            setCompanyZipCode(info.zipCode);
-            setCompanyCountry(info.country);
-            setCompanyEmail(info.email);
+            setCompanyName(info.name || '');
+            setCompanyAddress(info.address || '');
+            setCompanyCity(info.city || '');
+            setCompanyZipCode(info.zipCode || '');
+            setCompanyCountry(info.country || 'Deutschland');
+            setCompanyEmail(info.email || '');
             setCompanyPhone(info.phone || '');
             setCompanyWebsite(info.website || '');
             setCompanyTaxId(info.taxId || '');
