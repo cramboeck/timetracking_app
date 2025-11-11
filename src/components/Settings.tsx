@@ -686,12 +686,12 @@ export const Settings = ({
 
     try {
       await userApi.updateCompany({
-        name: companyName.trim(),
-        address: companyAddress.trim(),
-        city: companyCity.trim(),
-        zipCode: companyZipCode.trim(),
-        country: companyCountry.trim(),
-        email: companyEmail.trim(),
+        name: (companyName || '').trim(),
+        address: (companyAddress || '').trim(),
+        city: (companyCity || '').trim(),
+        zipCode: (companyZipCode || '').trim(),
+        country: (companyCountry || '').trim(),
+        email: (companyEmail || '').trim(),
         phone: companyPhone?.trim() || undefined,
         website: companyWebsite?.trim() || undefined,
         taxId: companyTaxId?.trim() || undefined,
