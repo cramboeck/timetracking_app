@@ -188,21 +188,36 @@ cmd_reset_password() {
     print_info "Hash Passwort..."
 
     # Create a temporary Node.js script to hash the password
+    # Password is read from stdin to handle special characters
     HASH_SCRIPT=$(cat <<'EOF'
 const bcrypt = require('bcryptjs');
-const password = process.argv[2];
-bcrypt.hash(password, 10).then(hash => {
-    console.log(hash);
-    process.exit(0);
-}).catch(err => {
-    console.error(err);
-    process.exit(1);
+const readline = require('readline');
+
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: false
+});
+
+rl.on('line', (password) => {
+    if (!password) {
+        console.error('Error: No password provided');
+        process.exit(1);
+    }
+    bcrypt.hash(password, 10).then(hash => {
+        console.log(hash);
+        process.exit(0);
+    }).catch(err => {
+        console.error(err);
+        process.exit(1);
+    });
 });
 EOF
 )
 
     # Hash password in backend container (has bcrypt installed)
-    PASSWORD_HASH=$(docker exec ramboflow-backend node -e "$HASH_SCRIPT" "$NEW_PASSWORD")
+    # Pass password via stdin to handle special characters like #, $, etc.
+    PASSWORD_HASH=$(echo "$NEW_PASSWORD" | docker exec -i ramboflow-backend node -e "$HASH_SCRIPT")
 
     if [ -z "$PASSWORD_HASH" ]; then
         print_error "Fehler beim Hashen des Passworts!"
