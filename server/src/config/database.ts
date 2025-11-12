@@ -1,4 +1,8 @@
 import { Pool, PoolClient, QueryResult } from 'pg';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 // Create PostgreSQL connection pool
 const connectionString = process.env.DATABASE_URL;
