@@ -677,24 +677,31 @@ export const Settings = ({
   const handleSaveCompanyInfo = async () => {
     if (!currentUser) return;
 
-    // Validation
-    if (!companyName?.trim() || !companyAddress?.trim() || !companyCity?.trim() ||
-        !companyZipCode?.trim() || !companyCountry?.trim() || !companyEmail?.trim()) {
+    // Validation - Ensure all values are strings first
+    const nameStr = String(companyName || '');
+    const addressStr = String(companyAddress || '');
+    const cityStr = String(companyCity || '');
+    const zipCodeStr = String(companyZipCode || '');
+    const countryStr = String(companyCountry || '');
+    const emailStr = String(companyEmail || '');
+
+    if (!nameStr.trim() || !addressStr.trim() || !cityStr.trim() ||
+        !zipCodeStr.trim() || !countryStr.trim() || !emailStr.trim()) {
       alert('Bitte fülle alle Pflichtfelder aus');
       return;
     }
 
     try {
       await userApi.updateCompany({
-        name: (companyName || '').trim(),
-        address: (companyAddress || '').trim(),
-        city: (companyCity || '').trim(),
-        zipCode: (companyZipCode || '').trim(),
-        country: (companyCountry || '').trim(),
-        email: (companyEmail || '').trim(),
-        phone: companyPhone?.trim() || undefined,
-        website: companyWebsite?.trim() || undefined,
-        taxId: companyTaxId?.trim() || undefined,
+        name: nameStr.trim(),
+        address: addressStr.trim(),
+        city: cityStr.trim(),
+        zipCode: zipCodeStr.trim(),
+        country: countryStr.trim(),
+        email: emailStr.trim(),
+        phone: companyPhone ? String(companyPhone).trim() : undefined,
+        website: companyWebsite ? String(companyWebsite).trim() : undefined,
+        taxId: companyTaxId ? String(companyTaxId).trim() : undefined,
         logo: companyLogo || undefined,
       });
       alert('Firmendaten gespeichert!');
@@ -1789,7 +1796,14 @@ export const Settings = ({
                 </div>
                 <button
                   onClick={handleSaveCompanyInfo}
-                  disabled={!companyName?.trim() || !companyAddress?.trim() || !companyCity?.trim() || !companyZipCode?.trim() || !companyCountry?.trim() || !companyEmail?.trim()}
+                  disabled={
+                    !String(companyName || '').trim() ||
+                    !String(companyAddress || '').trim() ||
+                    !String(companyCity || '').trim() ||
+                    !String(companyZipCode || '').trim() ||
+                    !String(companyCountry || '').trim() ||
+                    !String(companyEmail || '').trim()
+                  }
                   className="flex items-center gap-2 px-6 py-3 bg-accent-primary hover:bg-accent-darker text-white rounded-lg font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-md"
                 >
                   <Save size={20} />
