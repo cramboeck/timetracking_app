@@ -3,7 +3,6 @@ import { Save } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { calculateDuration } from '../utils/time';
 import { useAuth } from '../contexts/AuthContext';
-import { roundTimeUp } from '../utils/timeRounding';
 import { generateUUID } from '../utils/uuid';
 
 interface ManualEntryProps {
@@ -47,15 +46,12 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
       return;
     }
 
-    // Apply time rounding based on user preference
-    const roundedDuration = roundTimeUp(duration, currentUser.timeRoundingInterval);
-
     const entry: TimeEntry = {
       id: generateUUID(),
       userId: currentUser.id,
       startTime: startDateTime,
       endTime: endDateTime,
-      duration: roundedDuration, // Use rounded duration
+      duration: duration, // Exact duration - rounding happens in reports
       projectId,
       activityId: activityId || undefined,
       description: description || '',

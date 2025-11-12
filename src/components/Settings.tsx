@@ -51,7 +51,7 @@ export const Settings = ({
   onUpdateActivity,
   onDeleteActivity
 }: SettingsProps) => {
-  const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval } = useAuth();
+  const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'timetracking'>('account');
   const [timeTrackingSubTab, setTimeTrackingSubTab] = useState<'customers' | 'projects' | 'activities'>('customers');
 
@@ -957,40 +957,6 @@ export const Settings = ({
               </div>
             </div>
 
-            {/* Time Rounding Settings */}
-            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
-                    <Timer size={24} className="text-accent-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Zeitaufrundung</h3>
-                    <p className="text-sm text-gray-500 dark:text-dark-400">Mindesteinheit für erfasste Zeiten</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                  {([1, 5, 10, 15, 30, 60] as TimeRoundingInterval[]).map((interval) => (
-                    <button
-                      key={interval}
-                      onClick={() => updateTimeRoundingInterval(interval)}
-                      className={`p-3 rounded-lg border-2 transition-all text-center ${
-                        currentUser?.timeRoundingInterval === interval
-                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-semibold'
-                          : 'border-gray-200 dark:border-dark-200 hover:border-gray-300 dark:hover:border-dark-300 text-gray-700 dark:text-dark-300'
-                      }`}
-                    >
-                      <div className="text-sm font-medium">{getRoundingIntervalLabel(interval)}</div>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <p className="text-sm text-blue-900 dark:text-blue-200">
-                    ℹ️ Zeiten werden immer <strong>aufgerundet</strong>. Beispiel mit 15 Minuten: 1 Min → 15 Min, 16 Min → 30 Min
-                  </p>
-                </div>
-            </div>
 
             {/* GDPR / Data Protection */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
@@ -2012,6 +1978,57 @@ export const Settings = ({
                 >
                   <LogOut size={18} />
                   Abmelden
+                </button>
+              </div>
+            </div>
+
+            {/* Time Format Settings */}
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Zeitformat</h2>
+              <div className="space-y-3">
+                <button
+                  onClick={() => updateTimeFormat('24h')}
+                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                    currentUser?.timeFormat === '24h'
+                      ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
+                      : 'border-gray-200 dark:border-dark-200 hover:border-gray-300 dark:hover:border-dark-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">24-Stunden-Format</h3>
+                      <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+                        Beispiel: 14:30, 23:45
+                      </p>
+                    </div>
+                    {currentUser?.timeFormat === '24h' && (
+                      <div className="w-5 h-5 rounded-full bg-accent-primary flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+                <button
+                  onClick={() => updateTimeFormat('12h')}
+                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                    currentUser?.timeFormat === '12h'
+                      ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
+                      : 'border-gray-200 dark:border-dark-200 hover:border-gray-300 dark:hover:border-dark-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">12-Stunden-Format (AM/PM)</h3>
+                      <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+                        Beispiel: 2:30 PM, 11:45 PM
+                      </p>
+                    </div>
+                    {currentUser?.timeFormat === '12h' && (
+                      <div className="w-5 h-5 rounded-full bg-accent-primary flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                    )}
+                  </div>
                 </button>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginCredentials, RegisterData, AccentColor, GrayTone, TimeRoundingInterval } from '../types';
+import { User, LoginCredentials, RegisterData, AccentColor, GrayTone, TimeRoundingInterval, TimeFormat } from '../types';
 import { storage } from '../utils/storage';
 import { validatePassword, validateEmail, validateUsername } from '../utils/auth';
 import { accentColor } from '../utils/accentColor';
@@ -16,6 +16,7 @@ interface AuthContextType {
   updateAccentColor: (color: AccentColor) => void;
   updateGrayTone: (tone: GrayTone) => void;
   updateTimeRoundingInterval: (interval: TimeRoundingInterval) => void;
+  updateTimeFormat: (format: TimeFormat) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -249,6 +250,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     storage.setCurrentUser(updatedUser);
   };
 
+  const updateTimeFormat = (format: TimeFormat) => {
+    if (!currentUser) return;
+
+    // Update user in storage
+    storage.updateUser(currentUser.id, { timeFormat: format });
+
+    // Update local state
+    const updatedUser = { ...currentUser, timeFormat: format };
+    setCurrentUser(updatedUser);
+    storage.setCurrentUser(updatedUser);
+  };
+
   const value: AuthContextType = {
     currentUser,
     isAuthenticated: !!currentUser,
@@ -258,7 +271,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     logout,
     updateAccentColor,
     updateGrayTone,
-    updateTimeRoundingInterval
+    updateTimeRoundingInterval,
+    updateTimeFormat
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

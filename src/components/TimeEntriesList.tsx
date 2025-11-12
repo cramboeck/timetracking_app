@@ -300,7 +300,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Von *
               </label>
               <input
@@ -308,11 +308,12 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                 value={editStartTime}
                 onChange={(e) => setEditStartTime(e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                step="60"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Bis *
               </label>
               <input
@@ -320,7 +321,8 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                 value={editEndTime}
                 onChange={(e) => setEditEndTime(e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                step="60"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>

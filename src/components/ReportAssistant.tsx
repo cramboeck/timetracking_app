@@ -4,6 +4,7 @@ import { TimeEntry, Project, Customer, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import { useAuth } from '../contexts/AuthContext';
 import { userApi } from '../services/api';
+import { roundTimeUp } from '../utils/timeRounding';
 
 interface ReportAssistantProps {
   isOpen: boolean;
@@ -67,7 +68,9 @@ export const ReportAssistant = ({
 
       if (!project || !customer) return;
 
-      const hours = entry.duration / 3600;
+      // Apply time rounding for reports
+      const roundedDuration = roundTimeUp(entry.duration, currentUser?.timeRoundingInterval || 15);
+      const hours = roundedDuration / 3600;
       const amount = hours * project.hourlyRate;
 
       const existing = customerMap.get(customer.id);
@@ -238,7 +241,9 @@ export const ReportAssistant = ({
       const project = projects.find(p => p.id === entry.projectId);
       if (!project) return;
 
-      const hours = entry.duration / 3600;
+      // Apply time rounding for reports
+      const roundedDuration = roundTimeUp(entry.duration, currentUser?.timeRoundingInterval || 15);
+      const hours = roundedDuration / 3600;
       const amount = hours * project.hourlyRate;
 
       const existing = projectMap.get(project.id);
@@ -301,7 +306,9 @@ export const ReportAssistant = ({
         }
 
         const date = new Date(entry.startTime).toLocaleDateString('de-DE');
-        const hours = entry.duration / 3600;
+        // Apply time rounding for reports
+        const roundedDuration = roundTimeUp(entry.duration, currentUser?.timeRoundingInterval || 15);
+        const hours = roundedDuration / 3600;
         const amount = hours * projectData.project.hourlyRate;
         const description = entry.description || '(keine Beschreibung)';
 
