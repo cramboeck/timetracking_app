@@ -3,6 +3,7 @@ import { pool } from '../config/database';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import bcrypt from 'bcryptjs';
+import { emailService } from '../services/emailService';
 
 const router = Router();
 
@@ -46,25 +47,33 @@ router.post('/request', validate(requestResetSchema), async (req, res) => {
       [tokenId, user.id, token, expiresAt.toISOString()]
     );
 
-    // For development: Log token to console instead of sending email
-    console.log('\n==============================================');
-    console.log('🔑 PASSWORD RESET TOKEN (DEV MODE)');
-    console.log('==============================================');
-    console.log(`User: ${user.email}`);
-    console.log(`Token: ${token}`);
-    console.log(`Expires: ${expiresAt.toISOString()}`);
-    console.log('Reset URL:', `http://localhost:5173/reset-password?token=${token}`);
-    console.log('==============================================\n');
+    // Send password reset email
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
 
-    // TODO: In production, send email with reset link
-    // const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-    // await sendPasswordResetEmail(user.email, resetUrl);
+    const emailSent = await emailService.sendEmail({
+      to: user.email,
+      subject: '🔑 Passwort zurücksetzen - RamboFlow',
+      html: generatePasswordResetEmailHTML(user.username || user.email, resetUrl, expiresAt),
+      text: generatePasswordResetEmailText(user.username || user.email, resetUrl, expiresAt)
+    });
+
+    // Log to console in development mode
+    if (process.env.NODE_ENV === 'development') {
+      console.log('\n==============================================');
+      console.log('🔑 PASSWORD RESET TOKEN (DEV MODE)');
+      console.log('==============================================');
+      console.log(`User: ${user.email}`);
+      console.log(`Token: ${token}`);
+      console.log(`Expires: ${expiresAt.toISOString()}`);
+      console.log('Reset URL:', resetUrl);
+      console.log('==============================================\n');
+    }
+
+    console.log(`📧 Password reset email ${emailSent ? 'sent' : 'failed'} for user: ${user.email}`);
 
     res.json({
       success: true,
-      message: 'Wenn ein Account mit dieser E-Mail existiert, wurde ein Reset-Link gesendet.',
-      // Development only - remove in production!
-      devToken: process.env.NODE_ENV === 'development' ? token : undefined
+      message: 'Wenn ein Account mit dieser E-Mail existiert, wurde ein Reset-Link gesendet.'
     });
   } catch (error) {
     console.error('Password reset request error:', error);
@@ -146,5 +155,109 @@ router.get('/verify/:token', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Email templates
+function generatePasswordResetEmailHTML(userName: string, resetUrl: string, expiresAt: Date): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Passwort zurücksetzen</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 40px 20px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 32px;">🔑 Passwort zurücksetzen</h1>
+                  </td>
+                </tr>
+
+                <!-- Content -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <h2 style="color: #1f2937; margin-top: 0;">Hallo ${userName}!</h2>
+                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
+                      Du hast eine Anfrage zum Zurücksetzen deines Passworts gestellt.
+                      Klicke auf den Button unten, um ein neues Passwort zu vergeben.
+                    </p>
+
+                    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+                      <p style="color: #92400e; margin: 0; font-size: 14px;">
+                        ⚠️ <strong>Dieser Link ist nur 1 Stunde gültig!</strong><br>
+                        Gültig bis: ${expiresAt.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr
+                      </p>
+                    </div>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${resetUrl}" style="display: inline-block; background-color: #ef4444; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: bold; font-size: 16px;">
+                        Passwort zurücksetzen →
+                      </a>
+                    </div>
+
+                    <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 15px; margin: 20px 0;">
+                      <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">
+                        Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:
+                      </p>
+                      <p style="color: #3b82f6; font-size: 12px; word-break: break-all; margin: 0;">
+                        ${resetUrl}
+                      </p>
+                    </div>
+
+                    <p style="color: #6b7280; font-size: 14px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                      <strong>Du hast diese E-Mail nicht angefordert?</strong><br>
+                      Falls du keine Passwort-Zurücksetzung angefordert hast, ignoriere diese E-Mail einfach.
+                      Dein Passwort bleibt unverändert.
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                    <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                      RamboFlow - Professionelle Zeiterfassung<br>
+                      © ${new Date().getFullYear()} Alle Rechte vorbehalten
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
+function generatePasswordResetEmailText(userName: string, resetUrl: string, expiresAt: Date): string {
+  return `
+Passwort zurücksetzen
+
+Hallo ${userName}!
+
+Du hast eine Anfrage zum Zurücksetzen deines Passworts gestellt.
+Klicke auf den Link unten, um ein neues Passwort zu vergeben.
+
+⚠️ Dieser Link ist nur 1 Stunde gültig!
+Gültig bis: ${expiresAt.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr
+
+Passwort zurücksetzen:
+${resetUrl}
+
+Du hast diese E-Mail nicht angefordert?
+Falls du keine Passwort-Zurücksetzung angefordert hast, ignoriere diese E-Mail einfach.
+Dein Passwort bleibt unverändert.
+
+--
+RamboFlow - Professionelle Zeiterfassung
+© ${new Date().getFullYear()} Alle Rechte vorbehalten
+  `;
+}
 
 export default router;
