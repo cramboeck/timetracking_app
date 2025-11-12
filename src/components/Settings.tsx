@@ -957,40 +957,6 @@ export const Settings = ({
               </div>
             </div>
 
-            {/* Time Rounding Settings */}
-            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
-                    <Timer size={24} className="text-accent-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Zeitaufrundung</h3>
-                    <p className="text-sm text-gray-500 dark:text-dark-400">Mindesteinheit für erfasste Zeiten</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                  {([1, 5, 10, 15, 30, 60] as TimeRoundingInterval[]).map((interval) => (
-                    <button
-                      key={interval}
-                      onClick={() => updateTimeRoundingInterval(interval)}
-                      className={`p-3 rounded-lg border-2 transition-all text-center ${
-                        currentUser?.timeRoundingInterval === interval
-                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-semibold'
-                          : 'border-gray-200 dark:border-dark-200 hover:border-gray-300 dark:hover:border-dark-300 text-gray-700 dark:text-dark-300'
-                      }`}
-                    >
-                      <div className="text-sm font-medium">{getRoundingIntervalLabel(interval)}</div>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <p className="text-sm text-blue-900 dark:text-blue-200">
-                    ℹ️ Zeiten werden immer <strong>aufgerundet</strong>. Beispiel mit 15 Minuten: 1 Min → 15 Min, 16 Min → 30 Min
-                  </p>
-                </div>
-            </div>
 
             {/* GDPR / Data Protection */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
