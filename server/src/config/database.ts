@@ -273,6 +273,20 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Add time_format column to users table if it doesn't exist (migration)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'time_format'
+        ) THEN
+          ALTER TABLE users ADD COLUMN time_format TEXT DEFAULT '24h' CHECK(time_format IN ('12h', '24h'));
+          UPDATE users SET time_format = '24h' WHERE time_format IS NULL;
+        END IF;
+      END $$;
+    `);
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

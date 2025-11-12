@@ -51,7 +51,7 @@ export const Settings = ({
   onUpdateActivity,
   onDeleteActivity
 }: SettingsProps) => {
-  const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval } = useAuth();
+  const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'timetracking'>('account');
   const [timeTrackingSubTab, setTimeTrackingSubTab] = useState<'customers' | 'projects' | 'activities'>('customers');
 
@@ -1978,6 +1978,57 @@ export const Settings = ({
                 >
                   <LogOut size={18} />
                   Abmelden
+                </button>
+              </div>
+            </div>
+
+            {/* Time Format Settings */}
+            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Zeitformat</h2>
+              <div className="space-y-3">
+                <button
+                  onClick={() => updateTimeFormat('24h')}
+                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                    currentUser?.timeFormat === '24h'
+                      ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
+                      : 'border-gray-200 dark:border-dark-200 hover:border-gray-300 dark:hover:border-dark-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">24-Stunden-Format</h3>
+                      <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+                        Beispiel: 14:30, 23:45
+                      </p>
+                    </div>
+                    {currentUser?.timeFormat === '24h' && (
+                      <div className="w-5 h-5 rounded-full bg-accent-primary flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+                <button
+                  onClick={() => updateTimeFormat('12h')}
+                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                    currentUser?.timeFormat === '12h'
+                      ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
+                      : 'border-gray-200 dark:border-dark-200 hover:border-gray-300 dark:hover:border-dark-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">12-Stunden-Format (AM/PM)</h3>
+                      <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+                        Beispiel: 2:30 PM, 11:45 PM
+                      </p>
+                    </div>
+                    {currentUser?.timeFormat === '12h' && (
+                      <div className="w-5 h-5 rounded-full bg-accent-primary flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                    )}
+                  </div>
                 </button>
               </div>
             </div>

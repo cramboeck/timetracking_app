@@ -49,6 +49,8 @@ export type GrayTone = 'light' | 'medium' | 'dark';
 
 export type TimeRoundingInterval = 1 | 5 | 10 | 15 | 30 | 60; // minutes
 
+export type TimeFormat = '12h' | '24h'; // Time display format
+
 export type TeamRole = 'owner' | 'admin' | 'member';
 
 export interface TeamMembership {
@@ -92,6 +94,7 @@ export interface User {
   accentColor: AccentColor; // User's chosen accent color
   grayTone: GrayTone; // User's chosen gray tone intensity
   timeRoundingInterval: TimeRoundingInterval; // Minimum time unit for rounding (default: 15)
+  timeFormat: TimeFormat; // Time display format (12h/24h, default: 24h)
   createdAt: string;
   lastLogin?: string;
 }
