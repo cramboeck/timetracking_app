@@ -1,6 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App.tsx'
+import { ReportApprovalReview } from './components/ReportApprovalReview.tsx'
 import { AuthProvider } from './contexts/AuthContext.tsx'
 import { accentColor } from './utils/accentColor.ts'
 import { grayTone } from './utils/theme.ts'
@@ -23,8 +25,16 @@ initializeTheme();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          {/* Public route for report approval */}
+          <Route path="/approve/:token" element={<ReportApprovalReview />} />
+
+          {/* Main app */}
+          <Route path="/*" element={<App />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>,
 )
