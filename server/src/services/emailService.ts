@@ -550,6 +550,317 @@ Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5
       return true; // Allow sending if check fails
     }
   }
+
+  async sendReportApprovalRequest(data: {
+    to: string;
+    recipientName: string;
+    senderName: string;
+    reportData: any;
+    approvalUrl: string;
+    expiresAt: Date;
+  }): Promise<boolean> {
+    const { to, recipientName, senderName, reportData, approvalUrl, expiresAt } = data;
+
+    const html = this.generateReportApprovalRequestHTML(recipientName, senderName, reportData, approvalUrl, expiresAt);
+    const text = this.generateReportApprovalRequestText(recipientName, senderName, reportData, approvalUrl, expiresAt);
+
+    return await this.sendEmail({
+      to,
+      subject: `📊 Freigabe-Anfrage von ${senderName} - RamboFlow`,
+      html,
+      text
+    });
+  }
+
+  async sendReportApprovalNotification(data: {
+    to: string;
+    senderName: string;
+    recipientName: string;
+    status: 'approved' | 'rejected';
+    comment?: string;
+    reportData: any;
+  }): Promise<boolean> {
+    const { to, senderName, recipientName, status, comment, reportData } = data;
+
+    const html = this.generateReportApprovalNotificationHTML(senderName, recipientName, status, comment, reportData);
+    const text = this.generateReportApprovalNotificationText(senderName, recipientName, status, comment, reportData);
+
+    const subject = status === 'approved'
+      ? `✅ Report freigegeben von ${recipientName} - RamboFlow`
+      : `❌ Report abgelehnt von ${recipientName} - RamboFlow`;
+
+    return await this.sendEmail({
+      to,
+      subject,
+      html,
+      text
+    });
+  }
+
+  private generateReportApprovalRequestHTML(
+    recipientName: string,
+    senderName: string,
+    reportData: any,
+    approvalUrl: string,
+    expiresAt: Date
+  ): string {
+    const totalHours = reportData.totalHours?.toFixed(2) || '0';
+    const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Freigabe-Anfrage</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 40px 20px; text-align: center;">
+                      <h1 style="color: #ffffff; margin: 0; font-size: 32px;">📊 Freigabe-Anfrage</h1>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 40px 30px;">
+                      <h2 style="color: #1f2937; margin-top: 0;">Hallo ${recipientName}!</h2>
+                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
+                        <strong>${senderName}</strong> hat dir einen Zeiterfassungs-Report zur Freigabe geschickt.
+                      </p>
+
+                      <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 25px 0;">
+                        <h3 style="color: #1f2937; margin-top: 0; font-size: 18px;">Report-Details</h3>
+                        <table style="width: 100%; border-collapse: collapse;">
+                          <tr>
+                            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Zeitraum:</td>
+                            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${dateRange}</td>
+                          </tr>
+                          ${reportData.customerName ? `
+                            <tr>
+                              <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Kunde:</td>
+                              <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${reportData.customerName}</td>
+                            </tr>
+                          ` : ''}
+                          ${reportData.projectName ? `
+                            <tr>
+                              <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Projekt:</td>
+                              <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${reportData.projectName}</td>
+                            </tr>
+                          ` : ''}
+                          <tr>
+                            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Gesamtstunden:</td>
+                            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${totalHours}h</td>
+                          </tr>
+                          ${reportData.totalAmount ? `
+                            <tr>
+                              <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Gesamtbetrag:</td>
+                              <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${reportData.totalAmount.toFixed(2)}€</td>
+                            </tr>
+                          ` : ''}
+                        </table>
+                      </div>
+
+                      <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+                        <p style="color: #92400e; margin: 0; font-size: 14px;">
+                          ⚠️ <strong>Dieser Link läuft ab am:</strong><br>
+                          ${expiresAt.toLocaleString('de-DE', { dateStyle: 'full', timeStyle: 'short' })} Uhr
+                        </p>
+                      </div>
+
+                      <div style="text-align: center; margin: 30px 0;">
+                        <a href="${approvalUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: bold; font-size: 16px;">
+                          Report prüfen und freigeben →
+                        </a>
+                      </div>
+
+                      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 15px; margin: 20px 0;">
+                        <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">
+                          Falls der Button nicht funktioniert, kopiere diesen Link:
+                        </p>
+                        <p style="color: #3b82f6; font-size: 12px; word-break: break-all; margin: 0;">
+                          ${approvalUrl}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                        RamboFlow - Professionelle Zeiterfassung<br>
+                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `;
+  }
+
+  private generateReportApprovalRequestText(
+    recipientName: string,
+    senderName: string,
+    reportData: any,
+    approvalUrl: string,
+    expiresAt: Date
+  ): string {
+    const totalHours = reportData.totalHours?.toFixed(2) || '0';
+    const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
+
+    return `
+Freigabe-Anfrage von ${senderName}
+
+Hallo ${recipientName}!
+
+${senderName} hat dir einen Zeiterfassungs-Report zur Freigabe geschickt.
+
+Report-Details:
+- Zeitraum: ${dateRange}
+${reportData.customerName ? `- Kunde: ${reportData.customerName}` : ''}
+${reportData.projectName ? `- Projekt: ${reportData.projectName}` : ''}
+- Gesamtstunden: ${totalHours}h
+${reportData.totalAmount ? `- Gesamtbetrag: ${reportData.totalAmount.toFixed(2)}€` : ''}
+
+⚠️ Dieser Link läuft ab am: ${expiresAt.toLocaleString('de-DE', { dateStyle: 'full', timeStyle: 'short' })} Uhr
+
+Report prüfen und freigeben:
+${approvalUrl}
+
+--
+RamboFlow - Professionelle Zeiterfassung
+© ${new Date().getFullYear()} Alle Rechte vorbehalten
+    `;
+  }
+
+  private generateReportApprovalNotificationHTML(
+    senderName: string,
+    recipientName: string,
+    status: 'approved' | 'rejected',
+    comment: string | undefined,
+    reportData: any
+  ): string {
+    const isApproved = status === 'approved';
+    const statusColor = isApproved ? '#10b981' : '#ef4444';
+    const statusIcon = isApproved ? '✅' : '❌';
+    const statusText = isApproved ? 'freigegeben' : 'abgelehnt';
+    const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Report ${statusText}</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                  <tr>
+                    <td style="background: linear-gradient(135deg, ${statusColor} 0%, ${statusColor}dd 100%); padding: 40px 20px; text-align: center;">
+                      <h1 style="color: #ffffff; margin: 0; font-size: 32px;">${statusIcon} Report ${statusText}</h1>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 40px 30px;">
+                      <h2 style="color: #1f2937; margin-top: 0;">Hallo ${senderName}!</h2>
+                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
+                        <strong>${recipientName}</strong> hat deinen Report <strong>${statusText}</strong>.
+                      </p>
+
+                      <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 25px 0;">
+                        <h3 style="color: #1f2937; margin-top: 0; font-size: 18px;">Report-Details</h3>
+                        <p style="color: #6b7280; font-size: 14px; margin: 5px 0;">
+                          <strong>Zeitraum:</strong> ${dateRange}
+                        </p>
+                        ${reportData.customerName ? `
+                          <p style="color: #6b7280; font-size: 14px; margin: 5px 0;">
+                            <strong>Kunde:</strong> ${reportData.customerName}
+                          </p>
+                        ` : ''}
+                      </div>
+
+                      ${comment ? `
+                        <div style="background-color: #f9fafb; border-left: 4px solid ${statusColor}; padding: 15px; margin: 20px 0;">
+                          <h4 style="color: #1f2937; margin: 0 0 10px 0; font-size: 16px;">Kommentar:</h4>
+                          <p style="color: #4b5563; margin: 0; font-size: 14px; line-height: 1.5;">
+                            ${comment}
+                          </p>
+                        </div>
+                      ` : ''}
+
+                      ${isApproved ? `
+                        <p style="color: #10b981; font-size: 16px; font-weight: 600; margin: 25px 0;">
+                          ✅ Du kannst jetzt mit der Rechnungserstellung fortfahren!
+                        </p>
+                      ` : `
+                        <p style="color: #ef4444; font-size: 16px; font-weight: 600; margin: 25px 0;">
+                          ℹ️ Bitte überarbeite den Report entsprechend dem Feedback.
+                        </p>
+                      `}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                        RamboFlow - Professionelle Zeiterfassung<br>
+                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `;
+  }
+
+  private generateReportApprovalNotificationText(
+    senderName: string,
+    recipientName: string,
+    status: 'approved' | 'rejected',
+    comment: string | undefined,
+    reportData: any
+  ): string {
+    const isApproved = status === 'approved';
+    const statusIcon = isApproved ? '✅' : '❌';
+    const statusText = isApproved ? 'freigegeben' : 'abgelehnt';
+    const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
+
+    return `
+${statusIcon} Report ${statusText}
+
+Hallo ${senderName}!
+
+${recipientName} hat deinen Report ${statusText}.
+
+Report-Details:
+- Zeitraum: ${dateRange}
+${reportData.customerName ? `- Kunde: ${reportData.customerName}` : ''}
+
+${comment ? `Kommentar:\n${comment}\n` : ''}
+
+${isApproved
+      ? '✅ Du kannst jetzt mit der Rechnungserstellung fortfahren!'
+      : 'ℹ️ Bitte überarbeite den Report entsprechend dem Feedback.'
+    }
+
+--
+RamboFlow - Professionelle Zeiterfassung
+© ${new Date().getFullYear()} Alle Rechte vorbehalten
+    `;
+  }
 }
 
 export const emailService = new EmailService();

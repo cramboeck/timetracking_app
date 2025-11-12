@@ -287,6 +287,29 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Create report_approvals table if it doesn't exist (migration)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS report_approvals (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT UNIQUE NOT NULL,
+        recipient_email TEXT NOT NULL,
+        recipient_name TEXT,
+        report_data JSONB NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+        comment TEXT,
+        sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        reviewed_at TIMESTAMPTZ,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Create index for report_approvals
+    await client.query('CREATE INDEX IF NOT EXISTS idx_report_approvals_user_id ON report_approvals(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_report_approvals_token ON report_approvals(token)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_report_approvals_status ON report_approvals(status)');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {
