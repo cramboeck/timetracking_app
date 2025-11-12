@@ -272,6 +272,50 @@ export const CalendarView = ({
     onCreateEntry(newEntry);
   };
 
+  // Style weekends differently
+  const dayPropGetter = (date: Date) => {
+    const day = date.getDay();
+    const isWeekend = day === 0 || day === 6; // Sunday or Saturday
+
+    if (isWeekend) {
+      return {
+        className: 'weekend-day',
+        style: {
+          backgroundColor: '#f8fafc',
+        }
+      };
+    }
+    return {};
+  };
+
+  // Custom Agenda Date component to fix date display
+  const AgendaDateComponent = ({ event }: { event: CalendarEvent }) => {
+    const dateStr = format(event.start, 'EEE, dd.MM.yyyy', { locale: de });
+    return (
+      <div className="agenda-date-cell">
+        <span className="font-medium text-gray-900 dark:text-white">{dateStr}</span>
+      </div>
+    );
+  };
+
+  // Custom Agenda Time component
+  const AgendaTimeComponent = ({ event }: { event: CalendarEvent }) => {
+    const timeStr = `${format(event.start, 'HH:mm')} - ${format(event.end, 'HH:mm')}`;
+    return (
+      <div className="agenda-time-cell">
+        <span className="text-sm text-gray-600 dark:text-gray-400">{timeStr}</span>
+      </div>
+    );
+  };
+
+  // Custom components
+  const components = {
+    agenda: {
+      date: AgendaDateComponent,
+      time: AgendaTimeComponent,
+    }
+  };
+
   // Custom toolbar messages
   const messages = {
     today: 'Heute',
@@ -327,11 +371,13 @@ export const CalendarView = ({
             date={date}
             onNavigate={setDate}
             eventPropGetter={eventStyleGetter}
+            dayPropGetter={dayPropGetter}
             onSelectEvent={handleSelectEvent}
             onEventDrop={handleEventDrop}
             onEventResize={handleEventResize}
             onSelectSlot={handleSelectSlot}
             messages={messages}
+            components={components}
             culture="de"
             popup
             selectable
