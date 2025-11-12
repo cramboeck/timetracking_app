@@ -9,7 +9,6 @@ interface NavigationProps {
 export const Navigation = ({ currentView, onViewChange }: NavigationProps) => {
   const navItems: { view: ViewMode; icon: typeof Clock; label: string }[] = [
     { view: 'stopwatch', icon: Clock, label: 'Stoppuhr' },
-    { view: 'manual', icon: Edit, label: 'Manuell' },
     { view: 'list', icon: List, label: 'Übersicht' },
     { view: 'calendar', icon: Calendar, label: 'Kalender' },
     { view: 'dashboard', icon: BarChart3, label: 'Dashboard' },

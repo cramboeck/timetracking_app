@@ -53,11 +53,11 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     return project ? hours * project.hourlyRate : 0;
   };
   const sortedEntries = [...entries].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
   );
 
   const groupedEntries = sortedEntries.reduce((groups, entry) => {
-    const date = formatDate(entry.createdAt);
+    const date = formatDate(entry.startTime);
     if (!groups[date]) {
       groups[date] = [];
     }

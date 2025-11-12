@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square } from 'lucide-react';
+import { Play, Pause, Square, Plus } from 'lucide-react';
 import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,9 +13,10 @@ interface StopwatchProps {
   projects: Project[];
   customers: Customer[];
   activities: Activity[];
+  onOpenManualEntry?: () => void;
 }
 
-export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers, activities }: StopwatchProps) => {
+export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers, activities, onOpenManualEntry }: StopwatchProps) => {
   const { currentUser } = useAuth();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -138,7 +139,19 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
-        <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Zeiterfassung</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Zeiterfassung</h1>
+          {onOpenManualEntry && (
+            <button
+              onClick={onOpenManualEntry}
+              className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-darker text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
+              title="Manuelle Erfassung"
+            >
+              <Plus size={20} />
+              <span className="hidden sm:inline">Manuell</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center p-3 sm:p-6">

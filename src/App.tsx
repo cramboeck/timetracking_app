@@ -433,6 +433,7 @@ function App() {
             projects={projects}
             customers={customers}
             activities={activities}
+            onOpenManualEntry={() => setCurrentView('manual')}
           />
         )}
         {currentView === 'manual' && (
