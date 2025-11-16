@@ -489,6 +489,7 @@ function App() {
             customers={customers}
             projects={projects}
             activities={activities}
+            entries={entries}
             darkMode={isDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
             onAddCustomer={handleAddCustomer}

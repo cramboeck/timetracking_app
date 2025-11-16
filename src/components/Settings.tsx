@@ -17,6 +17,7 @@ interface SettingsProps {
   customers: Customer[];
   projects: Project[];
   activities: Activity[];
+  entries: TimeEntry[];
   darkMode: boolean;
   onToggleDarkMode: () => void;
   onAddCustomer: (customer: Customer) => void;
@@ -39,6 +40,7 @@ export const Settings = ({
   customers,
   projects,
   activities,
+  entries,
   darkMode,
   onToggleDarkMode,
   onAddCustomer,
@@ -52,8 +54,7 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'timetracking'>('account');
-  const [timeTrackingSubTab, setTimeTrackingSubTab] = useState<'customers' | 'projects' | 'activities'>('customers');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities'>('account');
 
   // Company Info State
   const [companyName, setCompanyName] = useState('');
@@ -757,7 +758,9 @@ export const Settings = ({
     {
       category: 'Zeiterfassung',
       items: [
-        { id: 'timetracking', label: 'Zeiterfassung', icon: Clock, desc: 'Kunden, Projekte & Tätigkeiten' }
+        { id: 'customers', label: 'Kunden', icon: Users, desc: 'Kunden verwalten' },
+        { id: 'projects', label: 'Projekte', icon: FolderOpen, desc: 'Projekte verwalten' },
+        { id: 'activities', label: 'Tätigkeiten', icon: ListChecks, desc: 'Tätigkeiten verwalten' }
       ]
     },
     {
@@ -857,7 +860,7 @@ export const Settings = ({
                   <p className="text-sm font-medium text-blue-900 dark:text-blue-200">Zeiteinträge</p>
                 </div>
                 <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
-                  {storage.getEntries().filter(e => e.userId === currentUser?.id).length}
+                  {entries.length}
                 </p>
                 <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">Gesamt erfasst</p>
               </div>
@@ -1240,51 +1243,10 @@ export const Settings = ({
           </div>
         )}
 
-        {/* Timetracking Tab with Sub-Tabs */}
-        {activeTab === 'timetracking' && (
+        {/* Customers Tab */}
+        {activeTab === 'customers' && (
           <div className="max-w-4xl mx-auto">
-            {/* Sub-Tab Navigation */}
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 mb-6 p-2 shadow-sm">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setTimeTrackingSubTab('customers')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                    timeTrackingSubTab === 'customers'
-                      ? 'bg-accent-primary text-white font-semibold'
-                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
-                  }`}
-                >
-                  <Users size={18} />
-                  Kunden
-                </button>
-                <button
-                  onClick={() => setTimeTrackingSubTab('projects')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                    timeTrackingSubTab === 'projects'
-                      ? 'bg-accent-primary text-white font-semibold'
-                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
-                  }`}
-                >
-                  <FolderOpen size={18} />
-                  Projekte
-                </button>
-                <button
-                  onClick={() => setTimeTrackingSubTab('activities')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                    timeTrackingSubTab === 'activities'
-                      ? 'bg-accent-primary text-white font-semibold'
-                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
-                  }`}
-                >
-                  <ListChecks size={18} />
-                  Tätigkeiten
-                </button>
-              </div>
-            </div>
-
-            {/* Sub-Tab Content */}
-            {timeTrackingSubTab === 'customers' && (
-              <div>
+            <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
                   <div className="flex gap-2">
@@ -1427,11 +1389,14 @@ export const Settings = ({
                     ))}
                   </div>
                 )}
-              </div>
-            )}
+            </div>
+          </div>
+        )}
 
-            {timeTrackingSubTab === 'projects' && (
-              <div>
+        {/* Projects Tab */}
+        {activeTab === 'projects' && (
+          <div className="max-w-4xl mx-auto">
+            <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{projects.length} Projekt(e)</p>
                   <button
@@ -1500,11 +1465,14 @@ export const Settings = ({
                 })}
               </div>
             )}
-              </div>
-            )}
+            </div>
+          </div>
+        )}
 
-            {timeTrackingSubTab === 'activities' && (
-              <div>
+        {/* Activities Tab */}
+        {activeTab === 'activities' && (
+          <div className="max-w-4xl mx-auto">
+            <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{activities.length} Tätigkeit(en)</p>
                   <div className="flex gap-2">
@@ -1567,8 +1535,7 @@ export const Settings = ({
                     ))}
                   </div>
                 )}
-              </div>
-            )}
+            </div>
           </div>
         )}
 
