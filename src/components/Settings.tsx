@@ -933,6 +933,23 @@ export const Settings = ({
                   </div>
                 </div>
 
+                {(currentUser?.customerNumber || currentUser?.displayName) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {currentUser?.customerNumber && (
+                      <div className="p-4 bg-gray-50 dark:bg-dark-50 rounded-lg border border-gray-200 dark:border-dark-200">
+                        <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">Kundennummer</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser.customerNumber}</p>
+                      </div>
+                    )}
+                    {currentUser?.displayName && (
+                      <div className="p-4 bg-gray-50 dark:bg-dark-50 rounded-lg border border-gray-200 dark:border-dark-200">
+                        <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">Anzeigename</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser.displayName}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="p-4 bg-gradient-to-r from-accent-light to-accent-lighter/50 dark:from-accent-lighter/10 dark:to-accent-lighter/5 rounded-lg border border-accent-primary/20">
                   <p className="text-xs font-semibold text-accent-primary uppercase tracking-wider mb-1">Mitglied seit</p>
                   <p className="text-lg font-bold text-gray-900 dark:text-white">
@@ -2014,6 +2031,18 @@ export const Settings = ({
                   <p className="text-sm text-gray-500 dark:text-dark-400">E-Mail</p>
                   <p className="font-medium text-gray-900 dark:text-white">{currentUser?.email}</p>
                 </div>
+                {currentUser?.customerNumber && (
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Kundennummer</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{currentUser.customerNumber}</p>
+                  </div>
+                )}
+                {currentUser?.displayName && (
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Anzeigename</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{currentUser.displayName}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-sm text-gray-500 dark:text-dark-400">Mitglied seit</p>
                   <p className="font-medium text-gray-900 dark:text-white">

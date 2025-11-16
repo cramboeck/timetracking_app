@@ -88,6 +88,8 @@ export interface User {
   passwordHash: string;
   accountType: AccountType;
   organizationName?: string; // For business/team accounts
+  customerNumber?: string; // User's customer number (e.g., RBF-000001)
+  displayName?: string; // User's display name
   teamId?: string; // For team members - which team they belong to
   teamRole?: TeamRole; // Role within the team
   mfaEnabled: boolean;
