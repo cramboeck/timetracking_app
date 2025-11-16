@@ -179,8 +179,22 @@ export async function initializeDatabase() {
         phone TEXT,
         website TEXT,
         tax_id TEXT,
+        customer_number TEXT,
         logo TEXT
       )
+    `);
+
+    // Migration: Add customer_number to company_info if it doesn't exist
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'company_info' AND column_name = 'customer_number'
+        ) THEN
+          ALTER TABLE company_info ADD COLUMN customer_number TEXT;
+        END IF;
+      END $$;
     `);
 
     // Team invitations table

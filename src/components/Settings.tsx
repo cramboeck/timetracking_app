@@ -65,6 +65,7 @@ export const Settings = ({
   const [companyPhone, setCompanyPhone] = useState('');
   const [companyWebsite, setCompanyWebsite] = useState('');
   const [companyTaxId, setCompanyTaxId] = useState('');
+  const [companyCustomerNumber, setCompanyCustomerNumber] = useState('');
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
 
   // Customer Modal
@@ -609,6 +610,7 @@ export const Settings = ({
             setCompanyPhone(info.phone || '');
             setCompanyWebsite(info.website || '');
             setCompanyTaxId(info.taxId || '');
+            setCompanyCustomerNumber(info.customerNumber || '');
             setCompanyLogo(info.logo || null);
           }
         } catch (error) {
@@ -702,6 +704,7 @@ export const Settings = ({
         phone: companyPhone ? String(companyPhone).trim() : undefined,
         website: companyWebsite ? String(companyWebsite).trim() : undefined,
         taxId: companyTaxId ? String(companyTaxId).trim() : undefined,
+        customerNumber: companyCustomerNumber ? String(companyCustomerNumber).trim() : undefined,
         logo: companyLogo || undefined,
       });
       alert('Firmendaten gespeichert!');
@@ -904,6 +907,7 @@ export const Settings = ({
                     <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">Account-Typ</p>
                     <p className="text-lg font-bold text-gray-900 dark:text-white">
                       {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
+                      {currentUser?.accountType === 'freelancer' && '🚀 Freelancer'}
                       {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
                       {currentUser?.accountType === 'team' && '👥 Team'}
                     </p>
@@ -1758,23 +1762,40 @@ export const Settings = ({
               </div>
             </div>
 
-            {/* Tax ID - Full Width */}
+            {/* Tax ID & Customer Number - Full Width */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Steuerinformationen</h3>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Steuernummer / USt-IdNr.
-                </label>
-                <input
-                  type="text"
-                  value={companyTaxId || ''}
-                  onChange={(e) => setCompanyTaxId(e.target.value)}
-                  placeholder="z.B. DE123456789"
-                  className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Optional: Für Rechnungen und offizielle Dokumente
-                </p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Steuer- & Buchhaltungsinformationen</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Kundennummer
+                  </label>
+                  <input
+                    type="text"
+                    value={companyCustomerNumber || ''}
+                    onChange={(e) => setCompanyCustomerNumber(e.target.value)}
+                    placeholder="z.B. K-12345"
+                    className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Optional: Deine Kundennummer (z.B. bei sevDesk)
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Steuernummer / USt-IdNr.
+                  </label>
+                  <input
+                    type="text"
+                    value={companyTaxId || ''}
+                    onChange={(e) => setCompanyTaxId(e.target.value)}
+                    placeholder="z.B. DE123456789"
+                    className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Optional: Für Rechnungen und offizielle Dokumente
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -1972,6 +1993,7 @@ export const Settings = ({
                   <p className="text-sm text-gray-500 dark:text-dark-400">Account-Typ</p>
                   <p className="font-medium text-gray-900 dark:text-white capitalize">
                     {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
+                    {currentUser?.accountType === 'freelancer' && '🚀 Freelancer'}
                     {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
                     {currentUser?.accountType === 'team' && '👥 Team'}
                   </p>

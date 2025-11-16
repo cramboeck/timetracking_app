@@ -23,6 +23,7 @@ export interface CompanyInfo {
   phone?: string;
   website?: string;
   taxId?: string;
+  customerNumber?: string; // Company's own customer number (e.g. for sevDesk)
   logo?: string; // Base64 encoded image or URL
   createdAt: string;
   updatedAt: string;

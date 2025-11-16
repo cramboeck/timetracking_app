@@ -18,6 +18,7 @@ const companyInfoSchema = z.object({
   phone: z.string().optional(),
   website: z.string().optional(),
   taxId: z.string().optional(),
+  customerNumber: z.string().optional(),
   logo: z.string().optional()
 });
 
@@ -47,7 +48,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
 router.post('/', authenticateToken, validate(companyInfoSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    const { name, address, city, zipCode, country, email, phone, website, taxId, logo } = req.body;
+    const { name, address, city, zipCode, country, email, phone, website, taxId, customerNumber, logo } = req.body;
 
     // Check if company info already exists
     const existing = await pool.query(
@@ -61,20 +62,20 @@ router.post('/', authenticateToken, validate(companyInfoSchema), async (req: Aut
       result = await pool.query(
         `UPDATE company_info
          SET name = $1, address = $2, city = $3, zip_code = $4, country = $5,
-             email = $6, phone = $7, website = $8, tax_id = $9, logo = $10
-         WHERE user_id = $11
+             email = $6, phone = $7, website = $8, tax_id = $9, customer_number = $10, logo = $11
+         WHERE user_id = $12
          RETURNING *`,
-        [name, address, city, zipCode, country, email, phone, website, taxId, logo, userId]
+        [name, address, city, zipCode, country, email, phone, website, taxId, customerNumber, logo, userId]
       );
     } else {
       // Insert new
       const id = crypto.randomUUID();
       result = await pool.query(
         `INSERT INTO company_info
-         (id, user_id, name, address, city, zip_code, country, email, phone, website, tax_id, logo)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         (id, user_id, name, address, city, zip_code, country, email, phone, website, tax_id, customer_number, logo)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING *`,
-        [id, userId, name, address, city, zipCode, country, email, phone, website, taxId, logo]
+        [id, userId, name, address, city, zipCode, country, email, phone, website, taxId, customerNumber, logo]
       );
     }
 
