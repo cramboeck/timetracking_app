@@ -1351,14 +1351,38 @@ export const Settings = ({
                               className="w-10 h-10 rounded-lg flex-shrink-0"
                               style={{ backgroundColor: customer.color }}
                             />
-                            <div className="min-w-0">
-                              <h3 className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</h3>
-                              <p className="text-sm text-gray-500 dark:text-dark-400">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</h3>
+                                {customer.customerNumber && (
+                                  <span className="text-xs bg-gray-100 dark:bg-dark-50 text-gray-600 dark:text-dark-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                    #{customer.customerNumber}
+                                  </span>
+                                )}
+                              </div>
+                              {customer.reportTitle && (
+                                <p className="text-sm text-gray-600 dark:text-dark-300 mt-0.5 truncate">
+                                  {customer.reportTitle}
+                                </p>
+                              )}
+                              <div className="mt-1 space-y-0.5">
+                                {customer.contactPerson && (
+                                  <p className="text-xs text-gray-500 dark:text-dark-400 truncate">
+                                    👤 {customer.contactPerson}
+                                  </p>
+                                )}
+                                {customer.email && (
+                                  <p className="text-xs text-gray-500 dark:text-dark-400 truncate">
+                                    ✉️ {customer.email}
+                                  </p>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
                                 {projects.filter(p => p.customerId === customer.id).length} Projekt(e)
                               </p>
                             </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 ml-2">
                             <button
                               onClick={() => openCustomerModal(customer)}
                               className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
