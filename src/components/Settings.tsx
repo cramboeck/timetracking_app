@@ -752,14 +752,19 @@ export const Settings = ({
       ]
     },
     {
+      category: 'Zeiterfassung',
+      items: [
+        { id: 'timetracking', label: 'Zeiterfassung', icon: Clock, desc: 'Kunden, Projekte & Tätigkeiten' }
+      ]
+    },
+    {
       category: 'Geschäftlich',
       items: [
         { id: 'company', label: 'Firma & Branding', icon: Building, desc: 'Logo & Kontaktdaten' },
         ...(currentUser?.accountType === 'business' || currentUser?.accountType === 'team'
           ? [{ id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }]
           : []
-        ),
-        { id: 'timetracking', label: 'Zeiterfassung', icon: Clock, desc: 'Kunden, Projekte & Tätigkeiten' }
+        )
       ]
     }
   ];
