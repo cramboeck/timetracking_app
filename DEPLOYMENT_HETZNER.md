@@ -564,15 +564,37 @@ docker compose -f docker-compose.production.yml restart
 
 ### Updates deployen
 
+**WICHTIG:** Immer `--env-file .env.production` verwenden, sonst werden keine ENV-Variablen geladen!
+
 ```bash
-# Code aktualisieren
+# 1. Backup erstellen (empfohlen)
+docker compose -f docker-compose.production.yml exec database pg_dump -U timetracking timetracking > /root/backup-$(date +%Y%m%d-%H%M%S).sql
+
+# 2. Code aktualisieren
 git pull
 
-# Neu bauen und starten
+# 3. Container stoppen
+docker compose -f docker-compose.production.yml down
+
+# 4. Neu bauen und starten (MIT ENV-Datei!)
 docker compose --env-file .env.production -f docker-compose.production.yml up -d --build
 
-# Alte Images aufräumen
+# 5. Logs prüfen
+docker compose -f docker-compose.production.yml logs -f backend
+
+# 6. Alte Images aufräumen
 docker image prune -f
+```
+
+**Bei Problemen nach dem Update:**
+
+```bash
+# ENV-Variablen prüfen
+docker compose -f docker-compose.production.yml exec backend env | grep JWT_SECRET
+
+# Falls leer: Mit ENV-Datei neu starten
+docker compose -f docker-compose.production.yml down
+docker compose --env-file .env.production -f docker-compose.production.yml up -d
 ```
 
 ### Datenbank-Backup
@@ -701,6 +723,51 @@ docker exec ramboflow-db pg_isready -U timetracking
 
 # DB Logs
 docker compose -f docker-compose.production.yml logs database
+```
+
+### Datenbank-Migration-Fehler (z.B. "column username does not exist")
+
+Wenn beim Update Fehler wie `column "username" does not exist` auftreten:
+
+```bash
+# 1. Backup erstellen
+docker compose -f docker-compose.production.yml exec database pg_dump -U timetracking timetracking > /root/backup-before-migration.sql
+
+# 2. In Datenbank connecten
+docker compose -f docker-compose.production.yml exec -it database psql -U timetracking -d timetracking
+
+# 3. Fehlende Spalten prüfen und hinzufügen
+\d users
+
+-- Falls username fehlt:
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;
+UPDATE users SET username = COALESCE(display_name, SUBSTRING(email FROM 1 FOR POSITION('@' IN email) - 1));
+ALTER TABLE users ALTER COLUMN username SET NOT NULL;
+
+-- Falls customer_number fehlt:
+ALTER TABLE users ADD COLUMN IF NOT EXISTS customer_number TEXT UNIQUE;
+
+-- Falls display_name fehlt:
+ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
+
+\q
+
+# 4. Backend neu starten
+docker compose -f docker-compose.production.yml restart backend
+```
+
+### Login funktioniert nicht / JWT-Fehler
+
+```bash
+# 1. Prüfen ob JWT_SECRET gesetzt ist
+docker compose -f docker-compose.production.yml exec backend env | grep JWT_SECRET
+
+# 2. Falls leer oder fehlt: .env.production prüfen
+cat .env.production | grep JWT_SECRET
+
+# 3. Mit ENV-Datei neu starten
+docker compose -f docker-compose.production.yml down
+docker compose --env-file .env.production -f docker-compose.production.yml up -d
 ```
 
 ### Application neu deployen
