@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, Clock, Edit2, Download } from 'lucide-react';
+import { Trash2, Clock, Edit2, Download, RotateCcw } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
@@ -13,9 +13,10 @@ interface TimeEntriesListProps {
   activities: Activity[];
   onDelete: (id: string) => void;
   onEdit: (id: string, updates: Partial<TimeEntry>) => void;
+  onRepeatEntry?: (entry: TimeEntry) => void;
 }
 
-export const TimeEntriesList = ({ entries, projects, customers, activities, onDelete, onEdit }: TimeEntriesListProps) => {
+export const TimeEntriesList = ({ entries, projects, customers, activities, onDelete, onEdit, onRepeatEntry }: TimeEntriesListProps) => {
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editProjectId, setEditProjectId] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -26,6 +27,10 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     isOpen: false,
     id: '',
     name: ''
+  });
+  const [repeatConfirm, setRepeatConfirm] = useState<{ isOpen: boolean; entry: TimeEntry | null }>({
+    isOpen: false,
+    entry: null
   });
 
   const getProjectById = (id: string) => projects.find(p => p.id === id);
@@ -227,16 +232,26 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                       </div>
                     </div>
                     <div className="flex gap-2">
+                      {onRepeatEntry && !entry.isRunning && (
+                        <button
+                          onClick={() => setRepeatConfirm({ isOpen: true, entry })}
+                          className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors touch-manipulation"
+                          aria-label="Wiederholen"
+                          title="Eintrag wiederholen"
+                        >
+                          <RotateCcw size={18} />
+                        </button>
+                      )}
                       <button
                         onClick={() => openEditModal(entry)}
-                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation"
+                        className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors touch-manipulation"
                         aria-label="Bearbeiten"
                       >
                         <Edit2 size={18} />
                       </button>
                       <button
                         onClick={() => handleDeleteClick(entry)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors touch-manipulation"
+                        className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors touch-manipulation"
                         aria-label="Löschen"
                       >
                         <Trash2 size={18} />
@@ -362,6 +377,24 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
         confirmText="Löschen"
         variant="danger"
       />
+
+      {/* Repeat Confirmation */}
+      {repeatConfirm.entry && (
+        <ConfirmDialog
+          isOpen={repeatConfirm.isOpen}
+          onClose={() => setRepeatConfirm({ isOpen: false, entry: null })}
+          onConfirm={() => {
+            if (repeatConfirm.entry) {
+              onRepeatEntry?.(repeatConfirm.entry);
+              setRepeatConfirm({ isOpen: false, entry: null });
+            }
+          }}
+          title="Eintrag wiederholen?"
+          message={`Möchtest du einen neuen Zeiteintrag mit denselben Daten starten?\n\nProjekt: ${getProjectById(repeatConfirm.entry.projectId)?.name || 'Unbekannt'}\n${repeatConfirm.entry.description ? `Beschreibung: ${repeatConfirm.entry.description}` : ''}`}
+          confirmText="Stoppuhr starten"
+          variant="primary"
+        />
+      )}
     </div>
   );
 };

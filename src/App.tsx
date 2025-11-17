@@ -25,6 +25,7 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
+  const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string } | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -405,6 +406,16 @@ function App() {
     }
   };
 
+  // Repeat Entry handler
+  const handleRepeatEntry = (entry: TimeEntry) => {
+    setPrefilledEntry({
+      projectId: entry.projectId,
+      activityId: entry.activityId,
+      description: entry.description
+    });
+    setCurrentView('stopwatch');
+  };
+
   // Dark Mode handler
   const handleToggleDarkMode = () => {
     const newMode = !isDarkMode;
@@ -442,6 +453,8 @@ function App() {
             customers={customers}
             activities={activities}
             onOpenManualEntry={() => setCurrentView('manual')}
+            prefilledEntry={prefilledEntry}
+            onPrefilledEntryUsed={() => setPrefilledEntry(null)}
           />
         )}
         {currentView === 'manual' && (
@@ -460,6 +473,7 @@ function App() {
             activities={activities}
             onDelete={handleDeleteEntry}
             onEdit={handleEditEntry}
+            onRepeatEntry={handleRepeatEntry}
           />
         )}
         {currentView === 'calendar' && (
