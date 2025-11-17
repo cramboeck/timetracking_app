@@ -212,7 +212,7 @@ router.patch('/profile', async (req, res) => {
     }
 
     // Check if new username is taken (case-insensitive)
-    if (username && username.toLowerCase() !== user.username.toLowerCase()) {
+    if (username && username.toLowerCase() !== (user.username || '').toLowerCase()) {
       const existingUsername = await pool.query(
         'SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND id != $2',
         [username, userId]
@@ -223,7 +223,7 @@ router.patch('/profile', async (req, res) => {
     }
 
     // Check if new email is taken (case-insensitive)
-    if (email && email.toLowerCase() !== user.email.toLowerCase()) {
+    if (email && email.toLowerCase() !== (user.email || '').toLowerCase()) {
       const existingEmail = await pool.query(
         'SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND id != $2',
         [email, userId]

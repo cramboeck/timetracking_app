@@ -79,6 +79,8 @@ export async function initializeDatabase() {
         password_hash TEXT NOT NULL,
         account_type TEXT NOT NULL CHECK(account_type IN ('personal', 'business', 'team', 'freelancer')),
         organization_name TEXT,
+        customer_number TEXT UNIQUE,
+        display_name TEXT,
         team_id TEXT REFERENCES teams(id) ON DELETE SET NULL,
         team_role TEXT CHECK(team_role IN ('owner', 'admin', 'member')),
         role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin')),
@@ -90,6 +92,26 @@ export async function initializeDatabase() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         last_login TIMESTAMP
       )
+    `);
+
+    // Migration: Add customer_number and display_name to users if they don't exist
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'customer_number'
+        ) THEN
+          ALTER TABLE users ADD COLUMN customer_number TEXT UNIQUE;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'display_name'
+        ) THEN
+          ALTER TABLE users ADD COLUMN display_name TEXT;
+        END IF;
+      END $$;
     `);
 
     // Add foreign key to teams after users table exists
@@ -179,8 +201,22 @@ export async function initializeDatabase() {
         phone TEXT,
         website TEXT,
         tax_id TEXT,
+        customer_number TEXT,
         logo TEXT
       )
+    `);
+
+    // Migration: Add customer_number to company_info if it doesn't exist
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'company_info' AND column_name = 'customer_number'
+        ) THEN
+          ALTER TABLE company_info ADD COLUMN customer_number TEXT;
+        END IF;
+      END $$;
     `);
 
     // Team invitations table

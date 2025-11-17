@@ -13,9 +13,11 @@ interface StopwatchProps {
   customers: Customer[];
   activities: Activity[];
   onOpenManualEntry?: () => void;
+  prefilledEntry?: { projectId: string; activityId?: string; description: string } | null;
+  onPrefilledEntryUsed?: () => void;
 }
 
-export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers, activities, onOpenManualEntry }: StopwatchProps) => {
+export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers, activities, onOpenManualEntry, prefilledEntry, onPrefilledEntryUsed }: StopwatchProps) => {
   const { currentUser } = useAuth();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -29,6 +31,17 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   console.log('⏱️ [STOPWATCH] Received customers:', customers);
   const activeProjects = projects.filter(p => p.isActive);
   console.log('⏱️ [STOPWATCH] Active projects after filter:', activeProjects);
+
+  // Handle prefilled entry (from repeat action)
+  useEffect(() => {
+    if (prefilledEntry && !isRunning) {
+      setProjectId(prefilledEntry.projectId);
+      setActivityId(prefilledEntry.activityId || '');
+      setDescription(prefilledEntry.description);
+      // Clear the prefilled entry
+      onPrefilledEntryUsed?.();
+    }
+  }, [prefilledEntry, isRunning, onPrefilledEntryUsed]);
 
   useEffect(() => {
     if (runningEntry) {

@@ -17,6 +17,7 @@ interface SettingsProps {
   customers: Customer[];
   projects: Project[];
   activities: Activity[];
+  entries: TimeEntry[];
   darkMode: boolean;
   onToggleDarkMode: () => void;
   onAddCustomer: (customer: Customer) => void;
@@ -39,6 +40,7 @@ export const Settings = ({
   customers,
   projects,
   activities,
+  entries,
   darkMode,
   onToggleDarkMode,
   onAddCustomer,
@@ -52,8 +54,7 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'timetracking'>('account');
-  const [timeTrackingSubTab, setTimeTrackingSubTab] = useState<'customers' | 'projects' | 'activities'>('customers');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities'>('account');
 
   // Company Info State
   const [companyName, setCompanyName] = useState('');
@@ -65,6 +66,7 @@ export const Settings = ({
   const [companyPhone, setCompanyPhone] = useState('');
   const [companyWebsite, setCompanyWebsite] = useState('');
   const [companyTaxId, setCompanyTaxId] = useState('');
+  const [companyCustomerNumber, setCompanyCustomerNumber] = useState('');
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
 
   // Customer Modal
@@ -609,6 +611,7 @@ export const Settings = ({
             setCompanyPhone(info.phone || '');
             setCompanyWebsite(info.website || '');
             setCompanyTaxId(info.taxId || '');
+            setCompanyCustomerNumber(info.customerNumber || '');
             setCompanyLogo(info.logo || null);
           }
         } catch (error) {
@@ -702,6 +705,7 @@ export const Settings = ({
         phone: companyPhone ? String(companyPhone).trim() : undefined,
         website: companyWebsite ? String(companyWebsite).trim() : undefined,
         taxId: companyTaxId ? String(companyTaxId).trim() : undefined,
+        customerNumber: companyCustomerNumber ? String(companyCustomerNumber).trim() : undefined,
         logo: companyLogo || undefined,
       });
       alert('Firmendaten gespeichert!');
@@ -752,14 +756,21 @@ export const Settings = ({
       ]
     },
     {
+      category: 'Zeiterfassung',
+      items: [
+        { id: 'customers', label: 'Kunden', icon: Users, desc: 'Kunden verwalten' },
+        { id: 'projects', label: 'Projekte', icon: FolderOpen, desc: 'Projekte verwalten' },
+        { id: 'activities', label: 'Tätigkeiten', icon: ListChecks, desc: 'Tätigkeiten verwalten' }
+      ]
+    },
+    {
       category: 'Geschäftlich',
       items: [
         { id: 'company', label: 'Firma & Branding', icon: Building, desc: 'Logo & Kontaktdaten' },
         ...(currentUser?.accountType === 'business' || currentUser?.accountType === 'team'
           ? [{ id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }]
           : []
-        ),
-        { id: 'timetracking', label: 'Zeiterfassung', icon: Clock, desc: 'Kunden, Projekte & Tätigkeiten' }
+        )
       ]
     }
   ];
@@ -849,7 +860,7 @@ export const Settings = ({
                   <p className="text-sm font-medium text-blue-900 dark:text-blue-200">Zeiteinträge</p>
                 </div>
                 <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
-                  {storage.getEntries().filter(e => e.userId === currentUser?.id).length}
+                  {entries.length}
                 </p>
                 <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">Gesamt erfasst</p>
               </div>
@@ -899,6 +910,7 @@ export const Settings = ({
                     <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">Account-Typ</p>
                     <p className="text-lg font-bold text-gray-900 dark:text-white">
                       {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
+                      {currentUser?.accountType === 'freelancer' && '🚀 Freelancer'}
                       {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
                       {currentUser?.accountType === 'team' && '👥 Team'}
                     </p>
@@ -923,6 +935,23 @@ export const Settings = ({
                     <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser?.email}</p>
                   </div>
                 </div>
+
+                {(currentUser?.customerNumber || currentUser?.displayName) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {currentUser?.customerNumber && (
+                      <div className="p-4 bg-gray-50 dark:bg-dark-50 rounded-lg border border-gray-200 dark:border-dark-200">
+                        <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">Kundennummer</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser.customerNumber}</p>
+                      </div>
+                    )}
+                    {currentUser?.displayName && (
+                      <div className="p-4 bg-gray-50 dark:bg-dark-50 rounded-lg border border-gray-200 dark:border-dark-200">
+                        <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">Anzeigename</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser.displayName}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="p-4 bg-gradient-to-r from-accent-light to-accent-lighter/50 dark:from-accent-lighter/10 dark:to-accent-lighter/5 rounded-lg border border-accent-primary/20">
                   <p className="text-xs font-semibold text-accent-primary uppercase tracking-wider mb-1">Mitglied seit</p>
@@ -1214,51 +1243,10 @@ export const Settings = ({
           </div>
         )}
 
-        {/* Timetracking Tab with Sub-Tabs */}
-        {activeTab === 'timetracking' && (
+        {/* Customers Tab */}
+        {activeTab === 'customers' && (
           <div className="max-w-4xl mx-auto">
-            {/* Sub-Tab Navigation */}
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 mb-6 p-2 shadow-sm">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setTimeTrackingSubTab('customers')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                    timeTrackingSubTab === 'customers'
-                      ? 'bg-accent-primary text-white font-semibold'
-                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
-                  }`}
-                >
-                  <Users size={18} />
-                  Kunden
-                </button>
-                <button
-                  onClick={() => setTimeTrackingSubTab('projects')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                    timeTrackingSubTab === 'projects'
-                      ? 'bg-accent-primary text-white font-semibold'
-                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
-                  }`}
-                >
-                  <FolderOpen size={18} />
-                  Projekte
-                </button>
-                <button
-                  onClick={() => setTimeTrackingSubTab('activities')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                    timeTrackingSubTab === 'activities'
-                      ? 'bg-accent-primary text-white font-semibold'
-                      : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
-                  }`}
-                >
-                  <ListChecks size={18} />
-                  Tätigkeiten
-                </button>
-              </div>
-            </div>
-
-            {/* Sub-Tab Content */}
-            {timeTrackingSubTab === 'customers' && (
-              <div>
+            <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
                   <div className="flex gap-2">
@@ -1351,14 +1339,38 @@ export const Settings = ({
                               className="w-10 h-10 rounded-lg flex-shrink-0"
                               style={{ backgroundColor: customer.color }}
                             />
-                            <div className="min-w-0">
-                              <h3 className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</h3>
-                              <p className="text-sm text-gray-500 dark:text-dark-400">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</h3>
+                                {customer.customerNumber && (
+                                  <span className="text-xs bg-gray-100 dark:bg-dark-50 text-gray-600 dark:text-dark-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                    #{customer.customerNumber}
+                                  </span>
+                                )}
+                              </div>
+                              {customer.reportTitle && (
+                                <p className="text-sm text-gray-600 dark:text-dark-300 mt-0.5 truncate">
+                                  {customer.reportTitle}
+                                </p>
+                              )}
+                              <div className="mt-1 space-y-0.5">
+                                {customer.contactPerson && (
+                                  <p className="text-xs text-gray-500 dark:text-dark-400 truncate">
+                                    👤 {customer.contactPerson}
+                                  </p>
+                                )}
+                                {customer.email && (
+                                  <p className="text-xs text-gray-500 dark:text-dark-400 truncate">
+                                    ✉️ {customer.email}
+                                  </p>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
                                 {projects.filter(p => p.customerId === customer.id).length} Projekt(e)
                               </p>
                             </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 ml-2">
                             <button
                               onClick={() => openCustomerModal(customer)}
                               className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
@@ -1377,11 +1389,14 @@ export const Settings = ({
                     ))}
                   </div>
                 )}
-              </div>
-            )}
+            </div>
+          </div>
+        )}
 
-            {timeTrackingSubTab === 'projects' && (
-              <div>
+        {/* Projects Tab */}
+        {activeTab === 'projects' && (
+          <div className="max-w-4xl mx-auto">
+            <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{projects.length} Projekt(e)</p>
                   <button
@@ -1450,11 +1465,14 @@ export const Settings = ({
                 })}
               </div>
             )}
-              </div>
-            )}
+            </div>
+          </div>
+        )}
 
-            {timeTrackingSubTab === 'activities' && (
-              <div>
+        {/* Activities Tab */}
+        {activeTab === 'activities' && (
+          <div className="max-w-4xl mx-auto">
+            <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{activities.length} Tätigkeit(en)</p>
                   <div className="flex gap-2">
@@ -1517,8 +1535,7 @@ export const Settings = ({
                     ))}
                   </div>
                 )}
-              </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -1729,23 +1746,40 @@ export const Settings = ({
               </div>
             </div>
 
-            {/* Tax ID - Full Width */}
+            {/* Tax ID & Customer Number - Full Width */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Steuerinformationen</h3>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Steuernummer / USt-IdNr.
-                </label>
-                <input
-                  type="text"
-                  value={companyTaxId || ''}
-                  onChange={(e) => setCompanyTaxId(e.target.value)}
-                  placeholder="z.B. DE123456789"
-                  className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Optional: Für Rechnungen und offizielle Dokumente
-                </p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Steuer- & Buchhaltungsinformationen</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Kundennummer
+                  </label>
+                  <input
+                    type="text"
+                    value={companyCustomerNumber || ''}
+                    onChange={(e) => setCompanyCustomerNumber(e.target.value)}
+                    placeholder="z.B. K-12345"
+                    className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Optional: Deine Kundennummer (z.B. bei sevDesk)
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Steuernummer / USt-IdNr.
+                  </label>
+                  <input
+                    type="text"
+                    value={companyTaxId || ''}
+                    onChange={(e) => setCompanyTaxId(e.target.value)}
+                    placeholder="z.B. DE123456789"
+                    className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Optional: Für Rechnungen und offizielle Dokumente
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -1943,6 +1977,7 @@ export const Settings = ({
                   <p className="text-sm text-gray-500 dark:text-dark-400">Account-Typ</p>
                   <p className="font-medium text-gray-900 dark:text-white capitalize">
                     {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
+                    {currentUser?.accountType === 'freelancer' && '🚀 Freelancer'}
                     {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
                     {currentUser?.accountType === 'team' && '👥 Team'}
                   </p>
@@ -1963,6 +1998,18 @@ export const Settings = ({
                   <p className="text-sm text-gray-500 dark:text-dark-400">E-Mail</p>
                   <p className="font-medium text-gray-900 dark:text-white">{currentUser?.email}</p>
                 </div>
+                {currentUser?.customerNumber && (
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Kundennummer</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{currentUser.customerNumber}</p>
+                  </div>
+                )}
+                {currentUser?.displayName && (
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Anzeigename</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{currentUser.displayName}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-sm text-gray-500 dark:text-dark-400">Mitglied seit</p>
                   <p className="font-medium text-gray-900 dark:text-white">

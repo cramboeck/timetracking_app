@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Trash2, Clock, Edit2, Download } from 'lucide-react';
+import { Trash2, Clock, Edit2, Download, RotateCcw } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
+import { TimePicker } from './TimePicker';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TimeEntriesListProps {
   entries: TimeEntry[];
@@ -12,9 +14,12 @@ interface TimeEntriesListProps {
   activities: Activity[];
   onDelete: (id: string) => void;
   onEdit: (id: string, updates: Partial<TimeEntry>) => void;
+  onRepeatEntry?: (entry: TimeEntry) => void;
 }
 
-export const TimeEntriesList = ({ entries, projects, customers, activities, onDelete, onEdit }: TimeEntriesListProps) => {
+export const TimeEntriesList = ({ entries, projects, customers, activities, onDelete, onEdit, onRepeatEntry }: TimeEntriesListProps) => {
+  const { currentUser } = useAuth();
+  const use24Hour = currentUser?.timeFormat === '24h';
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editProjectId, setEditProjectId] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -25,6 +30,10 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     isOpen: false,
     id: '',
     name: ''
+  });
+  const [repeatConfirm, setRepeatConfirm] = useState<{ isOpen: boolean; entry: TimeEntry | null }>({
+    isOpen: false,
+    entry: null
   });
 
   const getProjectById = (id: string) => projects.find(p => p.id === id);
@@ -135,8 +144,8 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
       return [
         formatDate(entry.startTime),
-        formatTime(entry.startTime),
-        entry.endTime ? formatTime(entry.endTime) : '-',
+        formatTime(entry.startTime, use24Hour),
+        entry.endTime ? formatTime(entry.endTime, use24Hour) : '-',
         hours.toFixed(2),
         customer?.name || '-',
         project?.name || '-',
@@ -226,16 +235,26 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                       </div>
                     </div>
                     <div className="flex gap-2">
+                      {onRepeatEntry && !entry.isRunning && (
+                        <button
+                          onClick={() => setRepeatConfirm({ isOpen: true, entry })}
+                          className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors touch-manipulation"
+                          aria-label="Wiederholen"
+                          title="Eintrag wiederholen"
+                        >
+                          <RotateCcw size={18} />
+                        </button>
+                      )}
                       <button
                         onClick={() => openEditModal(entry)}
-                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation"
+                        className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors touch-manipulation"
                         aria-label="Bearbeiten"
                       >
                         <Edit2 size={18} />
                       </button>
                       <button
                         onClick={() => handleDeleteClick(entry)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors touch-manipulation"
+                        className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors touch-manipulation"
                         aria-label="Löschen"
                       >
                         <Trash2 size={18} />
@@ -244,8 +263,8 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                   </div>
                   <div className="flex items-center justify-between text-sm text-gray-500">
                     <span>
-                      {formatTime(entry.startTime)}
-                      {entry.endTime && ` - ${formatTime(entry.endTime)}`}
+                      {formatTime(entry.startTime, use24Hour)}
+                      {entry.endTime && ` - ${formatTime(entry.endTime, use24Hour)}`}
                     </span>
                     <span className="font-semibold text-accent-primary">
                       {formatDuration(entry.duration)}
@@ -303,26 +322,20 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Von *
               </label>
-              <input
-                type="time"
+              <TimePicker
                 value={editStartTime}
-                onChange={(e) => setEditStartTime(e.target.value)}
+                onChange={setEditStartTime}
                 required
-                step="60"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Bis *
               </label>
-              <input
-                type="time"
+              <TimePicker
                 value={editEndTime}
-                onChange={(e) => setEditEndTime(e.target.value)}
+                onChange={setEditEndTime}
                 required
-                step="60"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -367,6 +380,24 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
         confirmText="Löschen"
         variant="danger"
       />
+
+      {/* Repeat Confirmation */}
+      {repeatConfirm.entry && (
+        <ConfirmDialog
+          isOpen={repeatConfirm.isOpen}
+          onClose={() => setRepeatConfirm({ isOpen: false, entry: null })}
+          onConfirm={() => {
+            if (repeatConfirm.entry) {
+              onRepeatEntry?.(repeatConfirm.entry);
+              setRepeatConfirm({ isOpen: false, entry: null });
+            }
+          }}
+          title="Eintrag wiederholen?"
+          message={`Möchtest du einen neuen Zeiteintrag mit denselben Daten starten?\n\nProjekt: ${getProjectById(repeatConfirm.entry.projectId)?.name || 'Unbekannt'}\n${repeatConfirm.entry.description ? `Beschreibung: ${repeatConfirm.entry.description}` : ''}`}
+          confirmText="Stoppuhr starten"
+          variant="info"
+        />
+      )}
     </div>
   );
 };

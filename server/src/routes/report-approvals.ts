@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { pool } from '../config/database';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
-import { auth } from '../middleware/auth';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { emailService } from '../services/emailService';
 
 const router = Router();
@@ -30,10 +30,10 @@ const reviewApprovalSchema = z.object({
 });
 
 // POST /api/report-approvals/send - Send report for approval (protected)
-router.post('/send', auth, validate(sendApprovalSchema), async (req, res) => {
+router.post('/send', authenticateToken, validate(sendApprovalSchema), async (req: AuthRequest, res) => {
   try {
     const { recipientEmail, recipientName, reportData, expiresInDays } = req.body;
-    const userId = req.user!.id;
+    const userId = req.userId!;
 
     // Generate unique token
     const token = crypto.randomUUID() + crypto.randomUUID();
@@ -56,13 +56,17 @@ router.post('/send', auth, validate(sendApprovalSchema), async (req, res) => {
       ]
     );
 
+    // Get sender username
+    const userResult = await pool.query('SELECT username FROM users WHERE id = $1', [userId]);
+    const senderName = userResult.rows[0]?.username || 'Unknown';
+
     // Send approval request email
     const approvalUrl = `${process.env.FRONTEND_URL}/approve/${token}`;
 
     const emailSent = await emailService.sendReportApprovalRequest({
       to: recipientEmail,
       recipientName: recipientName || recipientEmail,
-      senderName: req.user!.username,
+      senderName,
       reportData,
       approvalUrl,
       expiresAt
@@ -223,9 +227,9 @@ router.post('/review/:token', validate(reviewApprovalSchema), async (req, res) =
 });
 
 // GET /api/report-approvals - Get all approval requests for current user (protected)
-router.get('/', auth, async (req, res) => {
+router.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.userId!;
 
     const result = await pool.query(
       `SELECT id, recipient_email, recipient_name, status, sent_at, reviewed_at,
@@ -246,10 +250,10 @@ router.get('/', auth, async (req, res) => {
 });
 
 // DELETE /api/report-approvals/:id - Cancel approval request (protected)
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user!.id;
+    const userId = req.userId!;
 
     // Check if approval belongs to user
     const result = await pool.query(

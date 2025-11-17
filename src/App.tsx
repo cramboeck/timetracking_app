@@ -25,6 +25,7 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
+  const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string } | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -216,14 +217,22 @@ function App() {
   const handleSaveEntry = async (entry: TimeEntry) => {
     try {
       console.log('💾 [ENTRY] Saving entry:', entry.id);
+      console.log('💾 [ENTRY] Entry isRunning:', entry.isRunning);
+      console.log('💾 [ENTRY] Current runningEntry:', runningEntry?.id);
 
-      if (entry.id && entries.find(e => e.id === entry.id)) {
+      // If this entry was running (has same ID as runningEntry), it's an update
+      const isUpdatingRunningEntry = runningEntry && entry.id === runningEntry.id;
+      const existsInState = entries.find(e => e.id === entry.id);
+
+      if (isUpdatingRunningEntry || existsInState) {
         // Update existing entry
+        console.log('💾 [ENTRY] Updating existing entry');
         const response = await entriesApi.update(entry.id, entry);
         console.log('✅ [ENTRY] Entry updated:', response);
         setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
       } else {
         // Create new entry
+        console.log('💾 [ENTRY] Creating new entry');
         const response = await entriesApi.create(entry);
         console.log('✅ [ENTRY] Entry created:', response);
         setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
@@ -397,6 +406,16 @@ function App() {
     }
   };
 
+  // Repeat Entry handler
+  const handleRepeatEntry = (entry: TimeEntry) => {
+    setPrefilledEntry({
+      projectId: entry.projectId,
+      activityId: entry.activityId,
+      description: entry.description
+    });
+    setCurrentView('stopwatch');
+  };
+
   // Dark Mode handler
   const handleToggleDarkMode = () => {
     const newMode = !isDarkMode;
@@ -434,6 +453,8 @@ function App() {
             customers={customers}
             activities={activities}
             onOpenManualEntry={() => setCurrentView('manual')}
+            prefilledEntry={prefilledEntry}
+            onPrefilledEntryUsed={() => setPrefilledEntry(null)}
           />
         )}
         {currentView === 'manual' && (
@@ -452,6 +473,7 @@ function App() {
             activities={activities}
             onDelete={handleDeleteEntry}
             onEdit={handleEditEntry}
+            onRepeatEntry={handleRepeatEntry}
           />
         )}
         {currentView === 'calendar' && (
@@ -489,6 +511,7 @@ function App() {
             customers={customers}
             projects={projects}
             activities={activities}
+            entries={entries}
             darkMode={isDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
             onAddCustomer={handleAddCustomer}
