@@ -392,7 +392,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           title="Eintrag wiederholen?"
           message={`Möchtest du einen neuen Zeiteintrag mit denselben Daten starten?\n\nProjekt: ${getProjectById(repeatConfirm.entry.projectId)?.name || 'Unbekannt'}\n${repeatConfirm.entry.description ? `Beschreibung: ${repeatConfirm.entry.description}` : ''}`}
           confirmText="Stoppuhr starten"
-          variant="primary"
+          variant="info"
         />
       )}
     </div>
