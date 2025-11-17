@@ -4,6 +4,7 @@ import { TimeEntry, Project, Customer, Activity } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
+import { TimePicker } from './TimePicker';
 
 interface TimeEntriesListProps {
   entries: TimeEntry[];
@@ -303,26 +304,20 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Von *
               </label>
-              <input
-                type="time"
+              <TimePicker
                 value={editStartTime}
-                onChange={(e) => setEditStartTime(e.target.value)}
+                onChange={setEditStartTime}
                 required
-                step="60"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Bis *
               </label>
-              <input
-                type="time"
+              <TimePicker
                 value={editEndTime}
-                onChange={(e) => setEditEndTime(e.target.value)}
+                onChange={setEditEndTime}
                 required
-                step="60"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>

@@ -9,6 +9,7 @@ import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useState, useMemo } from 'react';
 import { formatDuration } from '../utils/time';
 import { Modal } from './Modal';
+import { TimePicker } from './TimePicker';
 
 const locales = {
   'de': de,
@@ -449,11 +450,9 @@ export const CalendarView = ({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Startzeit *
                 </label>
-                <input
-                  type="time"
+                <TimePicker
                   value={editStartTime}
-                  onChange={(e) => setEditStartTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  onChange={setEditStartTime}
                   required
                 />
               </div>
@@ -462,11 +461,9 @@ export const CalendarView = ({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Endzeit *
                 </label>
-                <input
-                  type="time"
+                <TimePicker
                   value={editEndTime}
-                  onChange={(e) => setEditEndTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  onChange={setEditEndTime}
                   required
                 />
               </div>
