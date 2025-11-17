@@ -5,6 +5,7 @@ import { formatDuration, formatTime, formatDate, calculateDuration } from '../ut
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TimePicker } from './TimePicker';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TimeEntriesListProps {
   entries: TimeEntry[];
@@ -17,6 +18,8 @@ interface TimeEntriesListProps {
 }
 
 export const TimeEntriesList = ({ entries, projects, customers, activities, onDelete, onEdit, onRepeatEntry }: TimeEntriesListProps) => {
+  const { currentUser } = useAuth();
+  const use24Hour = currentUser?.timeFormat === '24h';
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editProjectId, setEditProjectId] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -141,8 +144,8 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
       return [
         formatDate(entry.startTime),
-        formatTime(entry.startTime),
-        entry.endTime ? formatTime(entry.endTime) : '-',
+        formatTime(entry.startTime, use24Hour),
+        entry.endTime ? formatTime(entry.endTime, use24Hour) : '-',
         hours.toFixed(2),
         customer?.name || '-',
         project?.name || '-',
@@ -260,8 +263,8 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                   </div>
                   <div className="flex items-center justify-between text-sm text-gray-500">
                     <span>
-                      {formatTime(entry.startTime)}
-                      {entry.endTime && ` - ${formatTime(entry.endTime)}`}
+                      {formatTime(entry.startTime, use24Hour)}
+                      {entry.endTime && ` - ${formatTime(entry.endTime, use24Hour)}`}
                     </span>
                     <span className="font-semibold text-accent-primary">
                       {formatDuration(entry.duration)}
