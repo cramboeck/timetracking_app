@@ -531,6 +531,21 @@ export interface PortalTicket {
   resolvedAt?: string;
   closedAt?: string;
   comments?: PortalComment[];
+  satisfactionRating?: number;
+  satisfactionFeedback?: string;
+}
+
+export interface PortalAttachment {
+  id: string;
+  ticketId: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  uploadedBy: string;
+  uploadedByName: string;
+  createdAt: string;
 }
 
 export interface PortalComment {
@@ -598,6 +613,56 @@ export const customerPortalApi = {
       body: JSON.stringify({ token, password }),
     });
     return handleResponse(response);
+  },
+
+  // Ticket actions
+  closeTicket: async (ticketId: string): Promise<PortalTicket> => {
+    return portalAuthFetch(`/customer-portal/tickets/${ticketId}/close`, {
+      method: 'POST',
+    });
+  },
+
+  reopenTicket: async (ticketId: string): Promise<PortalTicket> => {
+    return portalAuthFetch(`/customer-portal/tickets/${ticketId}/reopen`, {
+      method: 'POST',
+    });
+  },
+
+  // File attachments
+  getAttachments: async (ticketId: string): Promise<PortalAttachment[]> => {
+    return portalAuthFetch(`/customer-portal/tickets/${ticketId}/attachments`);
+  },
+
+  uploadAttachments: async (ticketId: string, formData: FormData): Promise<PortalAttachment[]> => {
+    const token = getPortalAuthToken();
+    if (!token) {
+      throw new Error('No portal authentication token found');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/customer-portal/tickets/${ticketId}/attachments`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        // Don't set Content-Type for FormData - browser will set it with boundary
+      },
+      body: formData,
+    });
+
+    return handleResponse(response);
+  },
+
+  deleteAttachment: async (ticketId: string, attachmentId: string): Promise<{ success: boolean }> => {
+    return portalAuthFetch(`/customer-portal/tickets/${ticketId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Satisfaction rating
+  rateTicket: async (ticketId: string, rating: number, feedback?: string): Promise<PortalTicket> => {
+    return portalAuthFetch(`/customer-portal/tickets/${ticketId}/rate`, {
+      method: 'POST',
+      body: JSON.stringify({ rating, feedback }),
+    });
   },
 };
 

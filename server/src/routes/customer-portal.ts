@@ -2,9 +2,12 @@ import { Router, Response } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import path from 'path';
+import fs from 'fs';
 import { pool } from '../config/database';
 import { authLimiter } from '../middleware/rateLimiter';
 import { CustomerAuthRequest, authenticateCustomerToken } from '../middleware/customerAuth';
+import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { z } from 'zod';
 
 const router = Router();
@@ -439,6 +442,323 @@ router.post('/set-password', async (req, res) => {
     res.json({ success: true, message: 'Password set successfully. You can now login.' });
   } catch (error) {
     console.error('Set password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// TICKET ACTIONS
+// ============================================================================
+
+// Close ticket (customer can close their own tickets)
+router.post('/tickets/:id/close', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Get the customer's service provider user_id
+    const customerResult = await pool.query(
+      'SELECT user_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+    const userId = customerResult.rows[0]?.user_id;
+
+    // Verify ticket belongs to this customer and is not already closed
+    const ticketResult = await pool.query(
+      `SELECT id, status FROM tickets WHERE id = $1 AND customer_id = $2 AND user_id = $3`,
+      [id, req.customerId, userId]
+    );
+
+    if (ticketResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    const ticket = ticketResult.rows[0];
+    if (ticket.status === 'closed') {
+      return res.status(400).json({ error: 'Ticket is already closed' });
+    }
+
+    // Close the ticket
+    await pool.query(
+      `UPDATE tickets SET status = 'closed', closed_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    // Add system comment
+    const commentId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO ticket_comments (id, ticket_id, customer_contact_id, content, is_internal, created_at)
+       VALUES ($1, $2, $3, $4, FALSE, NOW())`,
+      [commentId, id, req.contactId, '✅ Ticket wurde vom Kunden geschlossen.']
+    );
+
+    res.json({ success: true, message: 'Ticket closed successfully' });
+  } catch (error) {
+    console.error('Close ticket error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Reopen ticket
+router.post('/tickets/:id/reopen', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Get the customer's service provider user_id
+    const customerResult = await pool.query(
+      'SELECT user_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+    const userId = customerResult.rows[0]?.user_id;
+
+    // Verify ticket belongs to this customer
+    const ticketResult = await pool.query(
+      `SELECT id, status FROM tickets WHERE id = $1 AND customer_id = $2 AND user_id = $3`,
+      [id, req.customerId, userId]
+    );
+
+    if (ticketResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    const ticket = ticketResult.rows[0];
+    if (ticket.status !== 'closed' && ticket.status !== 'resolved') {
+      return res.status(400).json({ error: 'Ticket is not closed or resolved' });
+    }
+
+    // Reopen the ticket
+    await pool.query(
+      `UPDATE tickets SET status = 'open', closed_at = NULL, resolved_at = NULL, updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    // Add system comment
+    const commentId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO ticket_comments (id, ticket_id, customer_contact_id, content, is_internal, created_at)
+       VALUES ($1, $2, $3, $4, FALSE, NOW())`,
+      [commentId, id, req.contactId, '🔄 Ticket wurde vom Kunden wiedereröffnet.']
+    );
+
+    res.json({ success: true, message: 'Ticket reopened successfully' });
+  } catch (error) {
+    console.error('Reopen ticket error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// FILE ATTACHMENTS
+// ============================================================================
+
+// Upload attachment to ticket
+router.post('/tickets/:id/attachments', authenticateCustomerToken, upload.array('files', 5), async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const files = req.files as Express.Multer.File[];
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    // Get the customer's service provider user_id
+    const customerResult = await pool.query(
+      'SELECT user_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+    const userId = customerResult.rows[0]?.user_id;
+
+    // Verify ticket belongs to this customer
+    const ticketResult = await pool.query(
+      'SELECT id FROM tickets WHERE id = $1 AND customer_id = $2 AND user_id = $3',
+      [id, req.customerId, userId]
+    );
+
+    if (ticketResult.rows.length === 0) {
+      // Delete uploaded files since ticket doesn't exist
+      for (const file of files) {
+        fs.unlinkSync(file.path);
+      }
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    // Save attachments to database
+    const attachments = [];
+    for (const file of files) {
+      const attachmentId = crypto.randomUUID();
+      const fileUrl = getFileUrl(file.filename);
+
+      await pool.query(
+        `INSERT INTO ticket_attachments (id, ticket_id, filename, file_url, file_size, mime_type, uploaded_by_contact_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        [attachmentId, id, file.originalname, fileUrl, file.size, file.mimetype, req.contactId]
+      );
+
+      attachments.push({
+        id: attachmentId,
+        filename: file.originalname,
+        fileUrl,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Update ticket updated_at
+    await pool.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [id]);
+
+    res.status(201).json({ success: true, attachments });
+  } catch (error) {
+    console.error('Upload attachment error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get attachments for ticket
+router.get('/tickets/:id/attachments', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Get the customer's service provider user_id
+    const customerResult = await pool.query(
+      'SELECT user_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+    const userId = customerResult.rows[0]?.user_id;
+
+    // Verify ticket belongs to this customer
+    const ticketResult = await pool.query(
+      'SELECT id FROM tickets WHERE id = $1 AND customer_id = $2 AND user_id = $3',
+      [id, req.customerId, userId]
+    );
+
+    if (ticketResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    // Get attachments
+    const attachmentsResult = await pool.query(
+      `SELECT ta.*, cc.name as uploaded_by_name
+       FROM ticket_attachments ta
+       LEFT JOIN customer_contacts cc ON ta.uploaded_by_contact_id = cc.id
+       WHERE ta.ticket_id = $1
+       ORDER BY ta.created_at ASC`,
+      [id]
+    );
+
+    const attachments = attachmentsResult.rows.map(a => ({
+      id: a.id,
+      filename: a.filename,
+      fileUrl: a.file_url,
+      fileSize: a.file_size,
+      mimeType: a.mime_type,
+      uploadedByName: a.uploaded_by_name || 'System',
+      createdAt: a.created_at,
+    }));
+
+    res.json(attachments);
+  } catch (error) {
+    console.error('Get attachments error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete attachment
+router.delete('/tickets/:ticketId/attachments/:attachmentId', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { ticketId, attachmentId } = req.params;
+
+    // Get the customer's service provider user_id
+    const customerResult = await pool.query(
+      'SELECT user_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+    const userId = customerResult.rows[0]?.user_id;
+
+    // Verify ticket belongs to this customer
+    const ticketResult = await pool.query(
+      'SELECT id FROM tickets WHERE id = $1 AND customer_id = $2 AND user_id = $3',
+      [ticketId, req.customerId, userId]
+    );
+
+    if (ticketResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    // Get attachment and verify it was uploaded by this contact
+    const attachmentResult = await pool.query(
+      'SELECT * FROM ticket_attachments WHERE id = $1 AND ticket_id = $2 AND uploaded_by_contact_id = $3',
+      [attachmentId, ticketId, req.contactId]
+    );
+
+    if (attachmentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Attachment not found or not authorized to delete' });
+    }
+
+    const attachment = attachmentResult.rows[0];
+
+    // Delete file from disk
+    const filename = path.basename(attachment.file_url);
+    await deleteFile(filename);
+
+    // Delete from database
+    await pool.query('DELETE FROM ticket_attachments WHERE id = $1', [attachmentId]);
+
+    res.json({ success: true, message: 'Attachment deleted' });
+  } catch (error) {
+    console.error('Delete attachment error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// SATISFACTION RATING
+// ============================================================================
+
+// Rate closed ticket
+router.post('/tickets/:id/rate', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { rating, feedback } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    }
+
+    // Get the customer's service provider user_id
+    const customerResult = await pool.query(
+      'SELECT user_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+    const userId = customerResult.rows[0]?.user_id;
+
+    // Verify ticket belongs to this customer and is closed/resolved
+    const ticketResult = await pool.query(
+      `SELECT id, status FROM tickets WHERE id = $1 AND customer_id = $2 AND user_id = $3`,
+      [id, req.customerId, userId]
+    );
+
+    if (ticketResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    const ticket = ticketResult.rows[0];
+    if (ticket.status !== 'closed' && ticket.status !== 'resolved') {
+      return res.status(400).json({ error: 'Can only rate closed or resolved tickets' });
+    }
+
+    // Save rating (using a JSON field in the ticket for simplicity)
+    await pool.query(
+      `UPDATE tickets SET
+        satisfaction_rating = $1,
+        satisfaction_feedback = $2,
+        updated_at = NOW()
+       WHERE id = $3`,
+      [rating, feedback || null, id]
+    );
+
+    res.json({ success: true, message: 'Thank you for your feedback!' });
+  } catch (error) {
+    console.error('Rate ticket error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

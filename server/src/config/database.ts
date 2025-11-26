@@ -468,6 +468,20 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add satisfaction rating columns to tickets
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'satisfaction_rating'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN satisfaction_rating INTEGER CHECK(satisfaction_rating BETWEEN 1 AND 5);
+          ALTER TABLE tickets ADD COLUMN satisfaction_feedback TEXT;
+        END IF;
+      END $$;
+    `);
+
     // Create indexes for tickets
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_customer_id ON tickets(customer_id)');
@@ -477,6 +491,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_contacts_customer_id ON customer_contacts(customer_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_contacts_email ON customer_contacts(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_ticket_id ON time_entries(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
 
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');

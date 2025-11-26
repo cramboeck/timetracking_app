@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
+import path from 'path';
+import fs from 'fs';
 import { initializeDatabase } from './config/database';
 import { startNotificationJobs } from './jobs/notificationJobs';
 import authRoutes from './routes/auth';
@@ -75,6 +77,13 @@ app.use('/api/teams', teamsRoutes);
 app.use('/api/report-approvals', reportApprovalsRoutes);
 app.use('/api/tickets', ticketsRoutes);
 app.use('/api/customer-portal', customerPortalRoutes);
+
+// Static file serving for uploads
+const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/api/uploads', express.static(uploadsDir));
 
 // Health check
 app.get('/health', (req, res) => {
