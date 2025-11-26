@@ -260,6 +260,13 @@ function App() {
 
   const handleUpdateRunning = async (entry: TimeEntry) => {
     try {
+      // IMPORTANT: Only process updates for running entries
+      // This prevents stale debounced updates from overwriting stopped entries
+      if (!entry.isRunning) {
+        console.log('⚠️ [ENTRY] Ignoring update for non-running entry:', entry.id);
+        return;
+      }
+
       console.log('⏱️ [ENTRY] Updating running entry:', entry.id);
       setRunningEntry(entry);
 

@@ -117,6 +117,12 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const handleStop = () => {
     if (!startTimeRef.current || !currentUser) return;
 
+    // IMPORTANT: Clear any pending description updates to prevent race conditions
+    if (descriptionUpdateTimeoutRef.current) {
+      clearTimeout(descriptionUpdateTimeoutRef.current);
+      descriptionUpdateTimeoutRef.current = null;
+    }
+
     const endTime = new Date().toISOString();
 
     const entry: TimeEntry = {
