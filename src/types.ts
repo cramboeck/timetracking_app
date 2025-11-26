@@ -209,6 +209,7 @@ export interface CustomerContact {
   isPrimary: boolean;
   canCreateTickets: boolean;
   canViewAllTickets: boolean; // Or only their own
+  isActivated?: boolean; // Computed: has set password
   lastLogin?: string;
   createdAt: string;
 }

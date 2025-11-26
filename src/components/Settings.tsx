@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon, UserCog } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
+import { CustomerContacts } from './CustomerContacts';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
@@ -72,6 +73,9 @@ export const Settings = ({
   // Customer Modal
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+
+  // Customer Contacts Modal
+  const [contactsCustomer, setContactsCustomer] = useState<Customer | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerColor, setCustomerColor] = useState(COLORS[0]);
   const [customerNumber, setCustomerNumber] = useState('');
@@ -1371,15 +1375,26 @@ export const Settings = ({
                             </div>
                           </div>
                           <div className="flex gap-2 ml-2">
+                            {currentUser?.hasTicketAccess && (
+                              <button
+                                onClick={() => setContactsCustomer(customer)}
+                                className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                                title="Kontakte verwalten"
+                              >
+                                <UserCog size={18} />
+                              </button>
+                            )}
                             <button
                               onClick={() => openCustomerModal(customer)}
                               className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                              title="Bearbeiten"
                             >
                               <Edit2 size={18} />
                             </button>
                             <button
                               onClick={() => handleDeleteCustomer(customer)}
                               className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Löschen"
                             >
                               <Trash2 size={18} />
                             </button>
@@ -2919,6 +2934,15 @@ export const Settings = ({
         confirmText="Löschen"
         variant="danger"
       />
+
+      {/* Customer Contacts Modal */}
+      {contactsCustomer && (
+        <CustomerContacts
+          isOpen={!!contactsCustomer}
+          customer={contactsCustomer}
+          onClose={() => setContactsCustomer(null)}
+        />
+      )}
     </div>
   );
 };
