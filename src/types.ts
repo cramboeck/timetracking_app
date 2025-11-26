@@ -155,7 +155,7 @@ export interface TimeEntry {
 // Ticket System Types
 // ============================================================================
 
-export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'closed';
+export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'closed' | 'archived';
 export type TicketPriority = 'low' | 'normal' | 'high' | 'critical';
 
 export interface Ticket {

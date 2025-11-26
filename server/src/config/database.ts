@@ -453,6 +453,21 @@ export async function initializeDatabase() {
       )
     `);
 
+    // Migration: Add 'archived' to ticket status CHECK constraint
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Drop the old constraint if it exists
+        ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_status_check;
+        -- Add the new constraint with 'archived'
+        ALTER TABLE tickets ADD CONSTRAINT tickets_status_check
+          CHECK(status IN ('open', 'in_progress', 'waiting', 'resolved', 'closed', 'archived'));
+      EXCEPTION WHEN OTHERS THEN
+        -- Constraint might not exist or already updated, ignore
+        NULL;
+      END $$;
+    `);
+
     // Create indexes for tickets
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_customer_id ON tickets(customer_id)');

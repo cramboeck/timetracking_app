@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Filter, AlertCircle, Clock, CheckCircle, Pause, X, ChevronRight, Search } from 'lucide-react';
+import { Plus, Filter, AlertCircle, Clock, CheckCircle, Pause, X, ChevronRight, Search, Archive } from 'lucide-react';
 import { Ticket, TicketStatus, TicketPriority, Customer, Project } from '../types';
 import { ticketsApi } from '../services/api';
 
@@ -27,6 +27,7 @@ const statusConfig: Record<TicketStatus, { label: string; color: string; icon: t
   waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', icon: Pause },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', icon: CheckCircle },
   closed: { label: 'Geschlossen', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200', icon: X },
+  archived: { label: 'Archiviert', color: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', icon: Archive },
 };
 
 const priorityConfig: Record<TicketPriority, { label: string; color: string }> = {
@@ -48,6 +49,7 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
   const [customerFilter, setCustomerFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Load tickets and stats
   useEffect(() => {
@@ -79,8 +81,13 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
     }
   };
 
-  // Filter tickets by search query
+  // Filter tickets by search query and archived status
   const filteredTickets = tickets.filter(ticket => {
+    // Filter out archived tickets unless showArchived is true or statusFilter is 'archived'
+    if (ticket.status === 'archived' && !showArchived && statusFilter !== 'archived') {
+      return false;
+    }
+
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -110,9 +117,10 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
     setPriorityFilter('');
     setCustomerFilter('');
     setSearchQuery('');
+    setShowArchived(false);
   };
 
-  const hasActiveFilters = statusFilter || priorityFilter || customerFilter || searchQuery;
+  const hasActiveFilters = statusFilter || priorityFilter || customerFilter || searchQuery || showArchived;
 
   return (
     <div className="flex flex-col h-full">
@@ -220,14 +228,25 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
                 </select>
               </div>
             </div>
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="text-sm text-accent-primary hover:underline"
-              >
-                Filter zurücksetzen
-              </button>
-            )}
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={showArchived}
+                  onChange={(e) => setShowArchived(e.target.checked)}
+                  className="rounded border-gray-300 dark:border-gray-600"
+                />
+                Archivierte Tickets anzeigen
+              </label>
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="text-sm text-accent-primary hover:underline"
+                >
+                  Filter zurücksetzen
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -269,11 +288,13 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
               const priority = priorityConfig[ticket.priority];
               const StatusIcon = status.icon;
 
+              const isArchived = ticket.status === 'archived';
+
               return (
                 <button
                   key={ticket.id}
                   onClick={() => onTicketSelect(ticket)}
-                  className="w-full text-left bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-accent-primary transition-colors"
+                  className={`w-full text-left bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-accent-primary transition-colors ${isArchived ? 'opacity-60' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">

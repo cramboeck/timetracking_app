@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2 } from 'lucide-react';
+import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, Customer, Project, TimeEntry } from '../types';
 import { ticketsApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -19,6 +19,7 @@ const statusConfig: Record<TicketStatus, { label: string; color: string }> = {
   waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
   closed: { label: 'Geschlossen', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' },
+  archived: { label: 'Archiviert', color: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' },
 };
 
 const priorityConfig: Record<TicketPriority, { label: string; color: string }> = {
@@ -50,6 +51,10 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   // Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Archive
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [archiving, setArchiving] = useState(false);
 
   useEffect(() => {
     loadTicket();
@@ -128,6 +133,43 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     }
   };
 
+  const handleArchive = async () => {
+    if (!ticket) return;
+
+    try {
+      setArchiving(true);
+      const response = await ticketsApi.update(ticket.id, {
+        status: 'archived',
+      });
+      setTicket(response.data);
+      setEditStatus('archived');
+      setShowArchiveConfirm(false);
+    } catch (err) {
+      console.error('Failed to archive ticket:', err);
+      alert('Fehler beim Archivieren des Tickets');
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!ticket) return;
+
+    try {
+      setArchiving(true);
+      const response = await ticketsApi.update(ticket.id, {
+        status: 'open',
+      });
+      setTicket(response.data);
+      setEditStatus('open');
+    } catch (err) {
+      console.error('Failed to restore ticket:', err);
+      alert('Fehler beim Wiederherstellen des Tickets');
+    } finally {
+      setArchiving(false);
+    }
+  };
+
   const getCustomerName = (customerId: string) => {
     return customers.find(c => c.id === customerId)?.name || 'Unbekannt';
   };
@@ -191,15 +233,37 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
               {ticket.ticketNumber}
             </span>
           </div>
-          <button
-            onClick={() => setIsEditing(!isEditing)}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
-          >
-            <Edit2 size={20} />
-          </button>
+          {ticket.status !== 'archived' && (
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
+              title="Bearbeiten"
+            >
+              <Edit2 size={20} />
+            </button>
+          )}
+          {ticket.status === 'archived' ? (
+            <button
+              onClick={handleRestore}
+              disabled={archiving}
+              className="p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 disabled:opacity-50"
+              title="Wiederherstellen"
+            >
+              <RotateCcw size={20} />
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowArchiveConfirm(true)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+              title="Archivieren"
+            >
+              <Archive size={20} />
+            </button>
+          )}
           <button
             onClick={() => setShowDeleteConfirm(true)}
             className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
+            title="Löschen"
           >
             <Trash2 size={20} />
           </button>
@@ -436,6 +500,17 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
           {ticket.closedAt && <div>Geschlossen: {formatDate(ticket.closedAt)}</div>}
         </div>
       </div>
+
+      {/* Archive Confirmation */}
+      <ConfirmDialog
+        isOpen={showArchiveConfirm}
+        onClose={() => setShowArchiveConfirm(false)}
+        onConfirm={handleArchive}
+        title="Ticket archivieren"
+        message={`Möchtest du das Ticket "${ticket.ticketNumber}" archivieren? Du kannst es jederzeit wiederherstellen.`}
+        confirmText={archiving ? 'Archivieren...' : 'Archivieren'}
+        variant="info"
+      />
 
       {/* Delete Confirmation */}
       <ConfirmDialog
