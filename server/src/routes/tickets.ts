@@ -194,12 +194,28 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     const ticket = transformTicket(ticketResult.rows[0]);
 
+    // Transform time entries to camelCase
+    const timeEntries = timeEntriesResult.rows.map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      projectId: row.project_id,
+      activityId: row.activity_id,
+      ticketId: row.ticket_id,
+      startTime: row.start_time?.toISOString?.() || row.start_time,
+      endTime: row.end_time?.toISOString?.() || row.end_time,
+      duration: row.duration,
+      description: row.description,
+      isRunning: row.is_running,
+      createdAt: row.created_at?.toISOString?.() || row.created_at,
+      projectName: row.project_name,
+    }));
+
     res.json({
       success: true,
       data: {
         ...ticket,
         comments: commentsResult.rows.map(transformComment),
-        timeEntries: timeEntriesResult.rows,
+        timeEntries,
       }
     });
   } catch (error) {
