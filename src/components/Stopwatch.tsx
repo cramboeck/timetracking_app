@@ -28,6 +28,8 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const startTimeRef = useRef<string | null>(null);
   const intervalRef = useRef<number | null>(null);
   const descriptionUpdateTimeoutRef = useRef<number | null>(null);
+  // Ref to track if timer has been stopped - used to prevent stale debounced updates
+  const isStoppedRef = useRef(false);
 
   console.log('⏱️ [STOPWATCH] Received projects:', projects);
   console.log('⏱️ [STOPWATCH] Received customers:', customers);
@@ -85,6 +87,9 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       return;
     }
 
+    // Reset stopped flag
+    isStoppedRef.current = false;
+
     const now = new Date().toISOString();
     startTimeRef.current = now;
     setIsRunning(true);
@@ -117,7 +122,10 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const handleStop = () => {
     if (!startTimeRef.current || !currentUser) return;
 
-    // IMPORTANT: Clear any pending description updates to prevent race conditions
+    // IMPORTANT: Mark as stopped FIRST to prevent any pending updates
+    isStoppedRef.current = true;
+
+    // Clear any pending description updates to prevent race conditions
     if (descriptionUpdateTimeoutRef.current) {
       clearTimeout(descriptionUpdateTimeoutRef.current);
       descriptionUpdateTimeoutRef.current = null;
@@ -276,7 +284,14 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                     if (descriptionUpdateTimeoutRef.current) {
                       clearTimeout(descriptionUpdateTimeoutRef.current);
                     }
+                    // Capture the entry ID to check later
+                    const entryId = runningEntry.id;
                     descriptionUpdateTimeoutRef.current = window.setTimeout(() => {
+                      // IMPORTANT: Check ref to see if timer was stopped since this was queued
+                      if (isStoppedRef.current) {
+                        console.log('⚠️ [STOPWATCH] Skipping stale description update - timer was stopped');
+                        return;
+                      }
                       onUpdateRunning({
                         ...runningEntry,
                         description: newDescription
