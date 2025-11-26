@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navigation } from './components/Navigation';
 import { Stopwatch } from './components/Stopwatch';
 import { ManualEntry } from './components/ManualEntry';
@@ -26,11 +26,13 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
-  const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string } | null>(null);
+  const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string; ticketId?: string } | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  // Track entry IDs that are being created to prevent duplicates
+  const pendingEntryIdsRef = useRef<Set<string>>(new Set());
 
   // Load all data from API on mount
   useEffect(() => {
@@ -261,16 +263,27 @@ function App() {
       console.log('⏱️ [ENTRY] Updating running entry:', entry.id);
       setRunningEntry(entry);
 
-      if (entry.id && entries.find(e => e.id === entry.id)) {
+      // Check if entry exists in state or is currently being created
+      const existsInState = entries.find(e => e.id === entry.id);
+      const isBeingCreated = pendingEntryIdsRef.current.has(entry.id);
+
+      if (existsInState) {
         // Update existing entry
         const response = await entriesApi.update(entry.id, entry);
         console.log('✅ [ENTRY] Running entry updated:', response);
         setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
+      } else if (!isBeingCreated) {
+        // Create new entry (only if not already being created)
+        pendingEntryIdsRef.current.add(entry.id);
+        try {
+          const response = await entriesApi.create(entry);
+          console.log('✅ [ENTRY] Running entry created:', response);
+          setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
+        } finally {
+          pendingEntryIdsRef.current.delete(entry.id);
+        }
       } else {
-        // Create new entry
-        const response = await entriesApi.create(entry);
-        console.log('✅ [ENTRY] Running entry created:', response);
-        setEntries(prev => [...prev.filter(e => !e.isRunning), response.data]);
+        console.log('⏳ [ENTRY] Entry is being created, skipping duplicate:', entry.id);
       }
     } catch (error) {
       console.error('❌ [ENTRY] Failed to update running entry:', error);

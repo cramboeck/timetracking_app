@@ -27,6 +27,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const [description, setDescription] = useState('');
   const startTimeRef = useRef<string | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const descriptionUpdateTimeoutRef = useRef<number | null>(null);
 
   console.log('⏱️ [STOPWATCH] Received projects:', projects);
   console.log('⏱️ [STOPWATCH] Received customers:', customers);
@@ -264,12 +265,17 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                   const newDescription = e.target.value;
                   setDescription(newDescription);
 
-                  // Update running entry if timer is running
+                  // Debounced update of running entry (wait 1 second after typing stops)
                   if (isRunning && runningEntry) {
-                    onUpdateRunning({
-                      ...runningEntry,
-                      description: newDescription
-                    });
+                    if (descriptionUpdateTimeoutRef.current) {
+                      clearTimeout(descriptionUpdateTimeoutRef.current);
+                    }
+                    descriptionUpdateTimeoutRef.current = window.setTimeout(() => {
+                      onUpdateRunning({
+                        ...runningEntry,
+                        description: newDescription
+                      });
+                    }, 1000);
                   }
                 }}
                 rows={3}
