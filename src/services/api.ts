@@ -440,20 +440,164 @@ export const ticketsApi = {
 
   // Customer Contacts
   getContacts: async (customerId: string): Promise<{ success: boolean; data: CustomerContact[] }> => {
-    return authFetch(`/tickets/contacts/${customerId}`);
+    return authFetch(`/customers/${customerId}/contacts`);
   },
 
-  createContact: async (contact: {
-    customerId: string;
+  createContact: async (customerId: string, contact: {
     name: string;
     email: string;
+    isPrimary?: boolean;
     canCreateTickets?: boolean;
     canViewAllTickets?: boolean;
   }): Promise<{ success: boolean; data: CustomerContact }> => {
-    return authFetch('/tickets/contacts', {
+    return authFetch(`/customers/${customerId}/contacts`, {
       method: 'POST',
       body: JSON.stringify(contact),
     });
+  },
+
+  updateContact: async (customerId: string, contactId: string, updates: {
+    name?: string;
+    email?: string;
+    isPrimary?: boolean;
+    canCreateTickets?: boolean;
+    canViewAllTickets?: boolean;
+  }): Promise<{ success: boolean; data: CustomerContact }> => {
+    return authFetch(`/customers/${customerId}/contacts/${contactId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  deleteContact: async (customerId: string, contactId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/customers/${customerId}/contacts/${contactId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  sendContactInvite: async (customerId: string, contactId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/customers/${customerId}/contacts/${contactId}/send-invite`, {
+      method: 'POST',
+    });
+  },
+};
+
+// Customer Portal API (for customer contacts to use)
+const getPortalAuthToken = (): string | null => {
+  return localStorage.getItem('portal_auth_token');
+};
+
+const portalAuthFetch = async (url: string, options: RequestInit = {}) => {
+  const token = getPortalAuthToken();
+  if (!token) {
+    throw new Error('No portal authentication token found');
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+    ...options.headers,
+  };
+
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    ...options,
+    headers,
+  });
+
+  return handleResponse(response);
+};
+
+export interface PortalContact {
+  id: string;
+  customerId: string;
+  customerName: string;
+  name: string;
+  email: string;
+  canCreateTickets: boolean;
+  canViewAllTickets: boolean;
+}
+
+export interface PortalTicket {
+  id: string;
+  ticketNumber: string;
+  title: string;
+  description?: string;
+  status: string;
+  priority: string;
+  customerName: string;
+  projectName?: string;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+  closedAt?: string;
+  comments?: PortalComment[];
+}
+
+export interface PortalComment {
+  id: string;
+  content: string;
+  authorName: string;
+  isFromCustomer: boolean;
+  createdAt: string;
+}
+
+export const customerPortalApi = {
+  login: async (email: string, password: string): Promise<{ success: boolean; token: string; contact: PortalContact }> => {
+    const response = await fetch(`${API_BASE_URL}/customer-portal/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const result = await handleResponse(response);
+
+    if (result.token) {
+      localStorage.setItem('portal_auth_token', result.token);
+    }
+    return result;
+  },
+
+  logout: () => {
+    localStorage.removeItem('portal_auth_token');
+  },
+
+  getMe: async (): Promise<PortalContact> => {
+    return portalAuthFetch('/customer-portal/me');
+  },
+
+  getTickets: async (status?: string): Promise<PortalTicket[]> => {
+    const params = status ? `?status=${status}` : '';
+    return portalAuthFetch(`/customer-portal/tickets${params}`);
+  },
+
+  getTicket: async (id: string): Promise<PortalTicket> => {
+    return portalAuthFetch(`/customer-portal/tickets/${id}`);
+  },
+
+  createTicket: async (ticket: {
+    title: string;
+    description?: string;
+    priority?: 'low' | 'normal' | 'high' | 'critical';
+  }): Promise<PortalTicket> => {
+    return portalAuthFetch('/customer-portal/tickets', {
+      method: 'POST',
+      body: JSON.stringify(ticket),
+    });
+  },
+
+  addComment: async (ticketId: string, content: string): Promise<PortalComment> => {
+    return portalAuthFetch(`/customer-portal/tickets/${ticketId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  },
+
+  setPassword: async (token: string, password: string): Promise<{ success: boolean; message: string }> => {
+    const response = await fetch(`${API_BASE_URL}/customer-portal/set-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password }),
+    });
+    return handleResponse(response);
   },
 };
 
@@ -467,4 +611,5 @@ export default {
   passwordReset: passwordResetApi,
   teams: teamsApi,
   tickets: ticketsApi,
+  customerPortal: customerPortalApi,
 };
