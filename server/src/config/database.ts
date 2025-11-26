@@ -346,6 +346,108 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_report_approvals_token ON report_approvals(token)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_report_approvals_status ON report_approvals(status)');
 
+    // ========================================================================
+    // TICKET SYSTEM TABLES
+    // ========================================================================
+
+    // Customer contacts table (for customer portal login)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_contacts (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        password_hash TEXT,
+        is_primary BOOLEAN DEFAULT FALSE,
+        can_create_tickets BOOLEAN DEFAULT TRUE,
+        can_view_all_tickets BOOLEAN DEFAULT FALSE,
+        last_login TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(customer_id, email)
+      )
+    `);
+
+    // Tickets table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tickets (
+        id TEXT PRIMARY KEY,
+        ticket_number TEXT UNIQUE NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        created_by_contact_id TEXT REFERENCES customer_contacts(id) ON DELETE SET NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'waiting', 'resolved', 'closed')),
+        priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'critical')),
+        assigned_to_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        resolved_at TIMESTAMP,
+        closed_at TIMESTAMP
+      )
+    `);
+
+    // Ticket comments table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_comments (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        customer_contact_id TEXT REFERENCES customer_contacts(id) ON DELETE SET NULL,
+        is_internal BOOLEAN DEFAULT FALSE,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Ticket attachments table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_attachments (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        comment_id TEXT REFERENCES ticket_comments(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        file_url TEXT NOT NULL,
+        file_size INTEGER NOT NULL,
+        mime_type TEXT NOT NULL,
+        uploaded_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        uploaded_by_contact_id TEXT REFERENCES customer_contacts(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Add ticket_id to time_entries if not exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'ticket_id'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Ticket number sequence table (for generating TKT-000001, TKT-000002, etc.)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_sequences (
+        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        last_number INTEGER DEFAULT 0
+      )
+    `);
+
+    // Create indexes for tickets
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_customer_id ON tickets(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_ticket_number ON tickets(ticket_number)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket_id ON ticket_comments(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_contacts_customer_id ON customer_contacts(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_contacts_email ON customer_contacts(email)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_ticket_id ON time_entries(ticket_id)');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

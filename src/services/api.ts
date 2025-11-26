@@ -1,4 +1,4 @@
-import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation } from '../types';
+import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation, Ticket, TicketComment, CustomerContact, TicketStatus, TicketPriority } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -369,6 +369,94 @@ export const teamsApi = {
   },
 };
 
+// Tickets API
+export const ticketsApi = {
+  getAll: async (filters?: { status?: TicketStatus; customerId?: string; priority?: TicketPriority }): Promise<{ success: boolean; data: Ticket[] }> => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.customerId) params.append('customerId', filters.customerId);
+    if (filters?.priority) params.append('priority', filters.priority);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return authFetch(`/tickets${query}`);
+  },
+
+  getStats: async (): Promise<{ success: boolean; data: {
+    open_count: number;
+    in_progress_count: number;
+    waiting_count: number;
+    resolved_count: number;
+    closed_count: number;
+    critical_count: number;
+    high_priority_count: number;
+    total_count: number;
+  }}> => {
+    return authFetch('/tickets/stats');
+  },
+
+  getById: async (id: string): Promise<{ success: boolean; data: Ticket & { comments: TicketComment[]; timeEntries: TimeEntry[] } }> => {
+    return authFetch(`/tickets/${id}`);
+  },
+
+  create: async (ticket: {
+    customerId: string;
+    projectId?: string;
+    title: string;
+    description?: string;
+    priority?: TicketPriority;
+  }): Promise<{ success: boolean; data: Ticket }> => {
+    return authFetch('/tickets', {
+      method: 'POST',
+      body: JSON.stringify(ticket),
+    });
+  },
+
+  update: async (id: string, updates: Partial<{
+    customerId: string;
+    projectId: string | null;
+    title: string;
+    description: string;
+    status: TicketStatus;
+    priority: TicketPriority;
+    assignedToUserId: string | null;
+  }>): Promise<{ success: boolean; data: Ticket }> => {
+    return authFetch(`/tickets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  delete: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/tickets/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  addComment: async (ticketId: string, content: string, isInternal?: boolean): Promise<{ success: boolean; data: TicketComment }> => {
+    return authFetch(`/tickets/${ticketId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ content, isInternal }),
+    });
+  },
+
+  // Customer Contacts
+  getContacts: async (customerId: string): Promise<{ success: boolean; data: CustomerContact[] }> => {
+    return authFetch(`/tickets/contacts/${customerId}`);
+  },
+
+  createContact: async (contact: {
+    customerId: string;
+    name: string;
+    email: string;
+    canCreateTickets?: boolean;
+    canViewAllTickets?: boolean;
+  }): Promise<{ success: boolean; data: CustomerContact }> => {
+    return authFetch('/tickets/contacts', {
+      method: 'POST',
+      body: JSON.stringify(contact),
+    });
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -378,4 +466,5 @@ export default {
   activities: activitiesApi,
   passwordReset: passwordResetApi,
   teams: teamsApi,
+  tickets: ticketsApi,
 };

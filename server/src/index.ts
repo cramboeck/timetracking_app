@@ -15,6 +15,7 @@ import passwordResetRoutes from './routes/password-reset';
 import companyInfoRoutes from './routes/company-info';
 import teamsRoutes from './routes/teams';
 import reportApprovalsRoutes from './routes/report-approvals';
+import ticketsRoutes from './routes/tickets';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -71,6 +72,7 @@ app.use('/api/password-reset', passwordResetRoutes);
 app.use('/api/company-info', companyInfoRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/report-approvals', reportApprovalsRoutes);
+app.use('/api/tickets', ticketsRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

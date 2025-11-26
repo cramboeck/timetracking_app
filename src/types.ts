@@ -144,9 +144,72 @@ export interface TimeEntry {
   duration: number; // in seconds
   projectId: string; // Changed from project string to projectId
   activityId?: string; // Optional: link to activity for flat-rate pricing
+  ticketId?: string; // Optional: link to ticket
   description: string;
   isRunning: boolean;
   createdAt: string;
 }
 
-export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'calendar' | 'dashboard' | 'settings';
+// ============================================================================
+// Ticket System Types
+// ============================================================================
+
+export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'closed';
+export type TicketPriority = 'low' | 'normal' | 'high' | 'critical';
+
+export interface Ticket {
+  id: string;
+  ticketNumber: string; // e.g., TKT-000001
+  userId: string; // Technician/Admin who owns/handles the ticket
+  customerId: string; // Which customer this ticket belongs to
+  projectId?: string; // Optional: link to project
+  createdByContactId?: string; // If created by customer contact
+  title: string;
+  description: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  assignedToUserId?: string; // For teams: who is working on it
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+  closedAt?: string;
+}
+
+export interface TicketComment {
+  id: string;
+  ticketId: string;
+  userId?: string; // If posted by technician
+  customerContactId?: string; // If posted by customer
+  isInternal: boolean; // Internal notes not visible to customer
+  content: string;
+  createdAt: string;
+}
+
+export interface TicketAttachment {
+  id: string;
+  ticketId: string;
+  commentId?: string; // Optional: attached to a comment
+  filename: string;
+  fileUrl: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedByUserId?: string;
+  uploadedByContactId?: string;
+  createdAt: string;
+}
+
+// Customer Portal - Contact/Login for customers
+export interface CustomerContact {
+  id: string;
+  customerId: string;
+  name: string;
+  email: string;
+  passwordHash?: string; // Only on server
+  isPrimary: boolean;
+  canCreateTickets: boolean;
+  canViewAllTickets: boolean; // Or only their own
+  lastLogin?: string;
+  createdAt: string;
+}
+
+export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'calendar' | 'dashboard' | 'settings' | 'tickets';
