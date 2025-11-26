@@ -6,12 +6,13 @@ import { TimeEntriesList } from './components/TimeEntriesList';
 import { CalendarView } from './components/CalendarView';
 import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
+import { Tickets } from './components/Tickets';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
-import { TimeEntry, ViewMode, Customer, Project, Activity } from './types';
+import { TimeEntry, ViewMode, Customer, Project, Activity, Ticket } from './types';
 import { darkMode } from './utils/darkMode';
 import { useAuth } from './contexts/AuthContext';
 import { notificationService } from './utils/notifications';
@@ -516,6 +517,21 @@ function App() {
             projects={projects}
             customers={customers}
             activities={activities}
+          />
+        )}
+        {currentView === 'tickets' && (
+          <Tickets
+            customers={customers}
+            projects={projects}
+            onStartTimer={(ticket: Ticket) => {
+              // Set prefilled entry with ticket info and switch to stopwatch
+              const project = projects.find(p => p.id === ticket.projectId);
+              setPrefilledEntry({
+                projectId: project?.id || '',
+                description: `${ticket.ticketNumber}: ${ticket.title}`,
+              });
+              setCurrentView('stopwatch');
+            }}
           />
         )}
         {currentView === 'settings' && (

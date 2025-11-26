@@ -323,6 +323,21 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Add has_ticket_access column to users table if it doesn't exist (migration)
+    // This is a feature flag for the ticket system add-on
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'has_ticket_access'
+        ) THEN
+          ALTER TABLE users ADD COLUMN has_ticket_access BOOLEAN DEFAULT FALSE;
+          UPDATE users SET has_ticket_access = FALSE WHERE has_ticket_access IS NULL;
+        END IF;
+      END $$;
+    `);
+
     // Create report_approvals table if it doesn't exist (migration)
     await client.query(`
       CREATE TABLE IF NOT EXISTS report_approvals (

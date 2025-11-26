@@ -1,5 +1,6 @@
-import { Clock, Edit, List, Calendar, Settings, BarChart3 } from 'lucide-react';
+import { Clock, Edit, List, Calendar, Settings, BarChart3, Ticket } from 'lucide-react';
 import { ViewMode } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface NavigationProps {
   currentView: ViewMode;
@@ -7,10 +8,14 @@ interface NavigationProps {
 }
 
 export const Navigation = ({ currentView, onViewChange }: NavigationProps) => {
+  const { currentUser } = useAuth();
+  const hasTicketAccess = currentUser?.hasTicketAccess ?? false;
+
   const navItems: { view: ViewMode; icon: typeof Clock; label: string }[] = [
     { view: 'stopwatch', icon: Clock, label: 'Stoppuhr' },
     { view: 'list', icon: List, label: 'Übersicht' },
     { view: 'calendar', icon: Calendar, label: 'Kalender' },
+    ...(hasTicketAccess ? [{ view: 'tickets' as ViewMode, icon: Ticket, label: 'Tickets' }] : []),
     { view: 'dashboard', icon: BarChart3, label: 'Dashboard' },
     { view: 'settings', icon: Settings, label: 'Einstellungen' },
   ];

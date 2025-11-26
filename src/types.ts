@@ -98,6 +98,7 @@ export interface User {
   grayTone: GrayTone; // User's chosen gray tone intensity
   timeRoundingInterval: TimeRoundingInterval; // Minimum time unit for rounding (default: 15)
   timeFormat: TimeFormat; // Time display format (12h/24h, default: 24h)
+  hasTicketAccess: boolean; // Ticket system add-on (default: false)
   createdAt: string;
   lastLogin?: string;
 }
