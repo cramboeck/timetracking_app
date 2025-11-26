@@ -525,10 +525,16 @@ function App() {
             projects={projects}
             onStartTimer={(ticket: Ticket) => {
               // Set prefilled entry with ticket info and switch to stopwatch
-              const project = projects.find(p => p.id === ticket.projectId);
+              // Use ticket's project or find first active project for the customer
+              let projectId = ticket.projectId;
+              if (!projectId) {
+                const customerProjects = projects.filter(p => p.customerId === ticket.customerId && p.isActive);
+                projectId = customerProjects[0]?.id || '';
+              }
               setPrefilledEntry({
-                projectId: project?.id || '',
+                projectId: projectId || '',
                 description: `${ticket.ticketNumber}: ${ticket.title}`,
+                ticketId: ticket.id,
               });
               setCurrentView('stopwatch');
             }}

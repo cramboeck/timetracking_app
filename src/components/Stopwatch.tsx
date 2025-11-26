@@ -13,7 +13,7 @@ interface StopwatchProps {
   customers: Customer[];
   activities: Activity[];
   onOpenManualEntry?: () => void;
-  prefilledEntry?: { projectId: string; activityId?: string; description: string } | null;
+  prefilledEntry?: { projectId: string; activityId?: string; description: string; ticketId?: string } | null;
   onPrefilledEntryUsed?: () => void;
 }
 
@@ -23,6 +23,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [projectId, setProjectId] = useState('');
   const [activityId, setActivityId] = useState('');
+  const [ticketId, setTicketId] = useState<string | undefined>(undefined);
   const [description, setDescription] = useState('');
   const startTimeRef = useRef<string | null>(null);
   const intervalRef = useRef<number | null>(null);
@@ -32,12 +33,13 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const activeProjects = projects.filter(p => p.isActive);
   console.log('⏱️ [STOPWATCH] Active projects after filter:', activeProjects);
 
-  // Handle prefilled entry (from repeat action)
+  // Handle prefilled entry (from repeat action or ticket)
   useEffect(() => {
     if (prefilledEntry && !isRunning) {
       setProjectId(prefilledEntry.projectId);
       setActivityId(prefilledEntry.activityId || '');
       setDescription(prefilledEntry.description);
+      setTicketId(prefilledEntry.ticketId);
       // Clear the prefilled entry
       onPrefilledEntryUsed?.();
     }
@@ -49,6 +51,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       startTimeRef.current = runningEntry.startTime;
       setProjectId(runningEntry.projectId);
       setActivityId(runningEntry.activityId || '');
+      setTicketId(runningEntry.ticketId);
       setDescription(runningEntry.description);
 
       const elapsed = Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000);
@@ -93,6 +96,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       duration: 0,
       projectId,
       activityId: activityId || undefined,
+      ticketId: ticketId || undefined,
       description: description || '',
       isRunning: true,
       createdAt: now,
@@ -122,6 +126,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       duration: elapsedSeconds, // Exact duration - rounding happens in reports
       projectId,
       activityId: activityId || undefined,
+      ticketId: ticketId || runningEntry?.ticketId || undefined,
       description: description || '',
       isRunning: false,
       createdAt: runningEntry?.createdAt || startTimeRef.current,
@@ -133,6 +138,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     startTimeRef.current = null;
     setProjectId('');
     setActivityId('');
+    setTicketId(undefined);
     setDescription('');
   };
 
