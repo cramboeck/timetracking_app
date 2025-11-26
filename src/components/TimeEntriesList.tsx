@@ -282,6 +282,23 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
         isOpen={editingEntry !== null}
         onClose={() => setEditingEntry(null)}
         title="Eintrag bearbeiten"
+        footer={
+          <div className="flex gap-3">
+            <button
+              onClick={() => setEditingEntry(null)}
+              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={!editProjectId || !editDate || !editStartTime || !editEndTime}
+              className="flex-1 px-4 py-2 btn-accent"
+            >
+              Speichern
+            </button>
+          </div>
+        }
       >
         <div className="space-y-4">
           <div>
@@ -350,22 +367,6 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               rows={3}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              onClick={() => setEditingEntry(null)}
-              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
-            >
-              Abbrechen
-            </button>
-            <button
-              onClick={handleSaveEdit}
-              disabled={!editProjectId || !editDate || !editStartTime || !editEndTime}
-              className="flex-1 px-4 py-2 btn-accent"
-            >
-              Speichern
-            </button>
           </div>
         </div>
       </Modal>

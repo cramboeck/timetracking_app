@@ -6,10 +6,11 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  footer?: ReactNode;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
-export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'md' }: ModalProps) => {
+export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'md' }: ModalProps) => {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -59,9 +60,16 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'md' }: Mod
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 min-h-0">
           {children}
         </div>
+
+        {/* Footer - fixed at bottom, outside scrollable area */}
+        {footer && (
+          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 bg-white pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

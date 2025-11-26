@@ -215,6 +215,9 @@ function App() {
 
   // Time Entry handlers (API-based)
   const handleSaveEntry = async (entry: TimeEntry) => {
+    // Store the previous running entry for rollback on error
+    const previousRunningEntry = runningEntry;
+
     try {
       console.log('💾 [ENTRY] Saving entry:', entry.id);
       console.log('💾 [ENTRY] Entry isRunning:', entry.isRunning);
@@ -223,6 +226,11 @@ function App() {
       // If this entry was running (has same ID as runningEntry), it's an update
       const isUpdatingRunningEntry = runningEntry && entry.id === runningEntry.id;
       const existsInState = entries.find(e => e.id === entry.id);
+
+      // Clear running entry optimistically only if stopping a timer
+      if (isUpdatingRunningEntry && !entry.isRunning) {
+        setRunningEntry(null);
+      }
 
       if (isUpdatingRunningEntry || existsInState) {
         // Update existing entry
@@ -237,9 +245,13 @@ function App() {
         console.log('✅ [ENTRY] Entry created:', response);
         setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
       }
-      setRunningEntry(null);
     } catch (error) {
       console.error('❌ [ENTRY] Failed to save entry:', error);
+      // Rollback: restore the running entry if the API call failed
+      if (previousRunningEntry && !entry.isRunning) {
+        console.log('🔄 [ENTRY] Rolling back running entry due to error');
+        setRunningEntry(previousRunningEntry);
+      }
     }
   };
 
