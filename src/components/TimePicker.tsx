@@ -10,7 +10,7 @@ interface TimePickerProps {
 
 export const TimePicker = ({ value, onChange, className = '', required = false }: TimePickerProps) => {
   const { currentUser } = useAuth();
-  const use24Hour = currentUser?.timeFormat === '24h';
+  const use24Hour = (currentUser?.timeFormat || '24h') === '24h';
 
   // Parse the 24h time value
   const [hours24, minutes] = value.split(':').map(Number);

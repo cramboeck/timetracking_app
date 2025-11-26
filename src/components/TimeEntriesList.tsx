@@ -19,7 +19,7 @@ interface TimeEntriesListProps {
 
 export const TimeEntriesList = ({ entries, projects, customers, activities, onDelete, onEdit, onRepeatEntry }: TimeEntriesListProps) => {
   const { currentUser } = useAuth();
-  const use24Hour = currentUser?.timeFormat === '24h';
+  const use24Hour = (currentUser?.timeFormat || '24h') === '24h';
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editProjectId, setEditProjectId] = useState('');
   const [editDescription, setEditDescription] = useState('');
