@@ -89,6 +89,8 @@ router.get('/', authenticateToken, async (req, res) => {
     const userId = (req as any).user.id;
     const { status, customerId, priority } = req.query;
 
+    console.log(`📋 Fetching tickets for user_id: ${userId}`);
+
     let queryText = `
       SELECT t.*, c.name as customer_name, p.name as project_name
       FROM tickets t
@@ -120,6 +122,7 @@ router.get('/', authenticateToken, async (req, res) => {
     queryText += ' ORDER BY t.created_at DESC';
 
     const result = await query(queryText, params);
+    console.log(`📋 Found ${result.rows.length} tickets for user_id: ${userId}`);
     res.json({ success: true, data: result.rows.map(transformTicket) });
   } catch (error) {
     console.error('Error fetching tickets:', error);
@@ -411,6 +414,66 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error adding comment:', error);
     res.status(500).json({ success: false, error: 'Failed to add comment' });
+  }
+});
+
+// ============================================================================
+// DEBUG ROUTE - Check ticket ownership
+// ============================================================================
+
+// GET /api/tickets/debug - Debug endpoint to check ticket data
+router.get('/debug/check', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+
+    console.log(`🔍 Debug check for user_id: ${userId}`);
+
+    // Get user info
+    const userResult = await query('SELECT id, username FROM users WHERE id = $1', [userId]);
+    const user = userResult.rows[0];
+
+    // Get all customers for this user
+    const customersResult = await query('SELECT id, name, user_id FROM customers WHERE user_id = $1', [userId]);
+
+    // Get all tickets (without user filter) to see what's there
+    const allTicketsResult = await query(`
+      SELECT t.id, t.ticket_number, t.user_id, t.customer_id, t.title, c.name as customer_name
+      FROM tickets t
+      LEFT JOIN customers c ON t.customer_id = c.id
+      ORDER BY t.created_at DESC
+      LIMIT 20
+    `);
+
+    // Get tickets for this user
+    const userTicketsResult = await query(`
+      SELECT t.id, t.ticket_number, t.user_id, t.customer_id, t.title
+      FROM tickets t
+      WHERE t.user_id = $1
+      ORDER BY t.created_at DESC
+    `, [userId]);
+
+    res.json({
+      success: true,
+      debug: {
+        currentUser: user,
+        customersCount: customersResult.rows.length,
+        customers: customersResult.rows.map(c => ({ id: c.id, name: c.name, userId: c.user_id })),
+        allTicketsCount: allTicketsResult.rowCount,
+        allTickets: allTicketsResult.rows.map(t => ({
+          id: t.id,
+          ticketNumber: t.ticket_number,
+          userId: t.user_id,
+          customerId: t.customer_id,
+          customerName: t.customer_name,
+          title: t.title,
+          matchesCurrentUser: t.user_id === userId
+        })),
+        userTicketsCount: userTicketsResult.rowCount,
+      }
+    });
+  } catch (error) {
+    console.error('Debug check error:', error);
+    res.status(500).json({ success: false, error: 'Debug check failed' });
   }
 });
 

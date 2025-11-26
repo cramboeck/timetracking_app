@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool } from '../config/database';
@@ -273,12 +274,16 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
 
     // Get the customer's service provider user_id
     const customerResult = await pool.query(
-      'SELECT user_id FROM customers WHERE id = $1',
+      'SELECT user_id, name FROM customers WHERE id = $1',
       [req.customerId]
     );
     const userId = customerResult.rows[0]?.user_id;
+    const customerName = customerResult.rows[0]?.name;
+
+    console.log(`🎫 Creating ticket for customer "${customerName}" (${req.customerId}), service provider user_id: ${userId}`);
 
     if (!userId) {
+      console.error(`❌ Customer ${req.customerId} not found or has no user_id`);
       return res.status(404).json({ error: 'Customer not found' });
     }
 
@@ -302,6 +307,8 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8, NOW(), NOW())`,
       [ticketId, ticketNumber, userId, req.customerId, req.contactId, title, description || null, priority]
     );
+
+    console.log(`✅ Ticket ${ticketNumber} created with id=${ticketId}, user_id=${userId}, customer_id=${req.customerId}`);
 
     // Get created ticket
     const ticketResult = await pool.query(
