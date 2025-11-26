@@ -28,3 +28,4 @@ server/*.db
 # Docker environment files (contains secrets)
 .env.docker
 .env.production
+*.zip
