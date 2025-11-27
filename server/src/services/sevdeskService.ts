@@ -642,13 +642,21 @@ export async function getInvoiceWithPositions(
   invoiceId: string
 ): Promise<SevdeskInvoiceDetail | null> {
   const invoiceResponse = await sevdeskFetch(apiToken, `/Invoice/${invoiceId}?embed=contact`);
-  // sevDesk returns single object in 'objects' for single item fetch
-  const inv = invoiceResponse.objects;
 
-  console.log('Invoice response:', JSON.stringify(invoiceResponse, null, 2));
+  // sevDesk API returns different formats:
+  // - For lists: { objects: [...] }
+  // - For single item by ID: { objects: { ... } } (single object, not array)
+  let inv = invoiceResponse.objects;
+
+  // Handle case where objects is an array (some API versions)
+  if (Array.isArray(inv)) {
+    inv = inv[0];
+  }
+
+  console.log('Invoice response type:', typeof inv, Array.isArray(invoiceResponse.objects) ? 'array' : 'object');
 
   if (!inv) {
-    console.error('No invoice data in response');
+    console.error('No invoice data in response:', JSON.stringify(invoiceResponse, null, 2));
     return null;
   }
 
@@ -730,12 +738,21 @@ export async function getQuoteWithPositions(
   quoteId: string
 ): Promise<SevdeskQuoteDetail | null> {
   const quoteResponse = await sevdeskFetch(apiToken, `/Order/${quoteId}?embed=contact`);
-  const quote = quoteResponse.objects;
 
-  console.log('Quote response:', JSON.stringify(quoteResponse, null, 2));
+  // sevDesk API returns different formats:
+  // - For lists: { objects: [...] }
+  // - For single item by ID: { objects: { ... } } (single object, not array)
+  let quote = quoteResponse.objects;
+
+  // Handle case where objects is an array (some API versions)
+  if (Array.isArray(quote)) {
+    quote = quote[0];
+  }
+
+  console.log('Quote response type:', typeof quote, Array.isArray(quoteResponse.objects) ? 'array' : 'object');
 
   if (!quote) {
-    console.error('No quote data in response');
+    console.error('No quote data in response:', JSON.stringify(quoteResponse, null, 2));
     return null;
   }
 
