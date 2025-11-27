@@ -9,6 +9,7 @@ import { authLimiter } from '../middleware/rateLimiter';
 import { CustomerAuthRequest, authenticateCustomerToken } from '../middleware/customerAuth';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { z } from 'zod';
+import { sendTicketNotification } from '../services/pushNotifications';
 
 const router = Router();
 
@@ -326,6 +327,14 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
 
     const ticket = ticketResult.rows[0];
 
+    // Send push notification to ticket owner (async, non-blocking)
+    sendTicketNotification(
+      userId,
+      { id: ticketId, ticketNumber, title },
+      'push_on_new_ticket',
+      `Neues Ticket von ${customerName}`
+    ).catch(err => console.error('Failed to send push notification:', err));
+
     res.status(201).json({
       id: ticket.id,
       ticketNumber: ticket.ticket_number,
@@ -383,16 +392,25 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
     // Update ticket updated_at
     await pool.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [id]);
 
-    // Get created comment with contact name
+    // Get created comment with contact name and ticket info for notification
     const commentResult = await pool.query(
-      `SELECT tc.*, cc.name as contact_name
+      `SELECT tc.*, cc.name as contact_name, t.ticket_number, t.title as ticket_title, t.user_id as ticket_owner_id
        FROM ticket_comments tc
        JOIN customer_contacts cc ON tc.customer_contact_id = cc.id
+       JOIN tickets t ON tc.ticket_id = t.id
        WHERE tc.id = $1`,
       [commentId]
     );
 
     const comment = commentResult.rows[0];
+
+    // Send push notification to ticket owner (async, non-blocking)
+    sendTicketNotification(
+      comment.ticket_owner_id,
+      { id, ticketNumber: comment.ticket_number, title: comment.ticket_title },
+      'push_on_ticket_comment',
+      `Neuer Kundenkommentar von ${comment.contact_name}`
+    ).catch(err => console.error('Failed to send push notification:', err));
 
     res.status(201).json({
       id: comment.id,

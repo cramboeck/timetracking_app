@@ -28,7 +28,11 @@ export default defineConfig({
             purpose: 'any maskable'
           }
         ]
-      }
+      },
+      workbox: {
+        // Add custom service worker code for push notifications
+        importScripts: ['push-sw.js'],
+      },
     })
   ]
 })

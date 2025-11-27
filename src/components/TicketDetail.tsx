@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText } from 'lucide-react';
+import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, Customer, Project, TimeEntry } from '../types';
 import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SlaStatus } from './SlaStatus';
+import { TicketMergeDialog } from './TicketMergeDialog';
 
 interface TicketDetailProps {
   ticketId: string;
@@ -56,6 +57,9 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   // Archive
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [archiving, setArchiving] = useState(false);
+
+  // Merge
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
 
   // Tags
   const [ticketTags, setTicketTags] = useState<TicketTag[]>([]);
@@ -546,13 +550,22 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
               <RotateCcw size={20} />
             </button>
           ) : (
-            <button
-              onClick={() => setShowArchiveConfirm(true)}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-              title="Archivieren"
-            >
-              <Archive size={20} />
-            </button>
+            <>
+              <button
+                onClick={() => setShowMergeDialog(true)}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                title="Tickets zusammenführen"
+              >
+                <Merge size={20} />
+              </button>
+              <button
+                onClick={() => setShowArchiveConfirm(true)}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                title="Archivieren"
+              >
+                <Archive size={20} />
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowDeleteConfirm(true)}
@@ -1122,6 +1135,18 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
         message={`Möchtest du das Ticket "${ticket.ticketNumber}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`}
         confirmText={deleting ? 'Löschen...' : 'Löschen'}
         variant="danger"
+      />
+
+      {/* Merge Dialog */}
+      <TicketMergeDialog
+        isOpen={showMergeDialog}
+        targetTicket={ticket}
+        onClose={() => setShowMergeDialog(false)}
+        onMerged={(mergedTicket) => {
+          setTicket(mergedTicket);
+          setShowMergeDialog(false);
+          loadTicket(); // Reload to get updated comments etc.
+        }}
       />
     </div>
   );

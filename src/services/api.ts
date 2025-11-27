@@ -445,6 +445,13 @@ export const ticketsApi = {
     });
   },
 
+  merge: async (targetTicketId: string, sourceTicketIds: string[]): Promise<{ success: boolean; message: string; data: Ticket; mergedCount: number }> => {
+    return authFetch(`/tickets/${targetTicketId}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ sourceTicketIds }),
+    });
+  },
+
   // Customer Contacts
   getContacts: async (customerId: string): Promise<{ success: boolean; data: CustomerContact[] }> => {
     return authFetch(`/customers/${customerId}/contacts`);
@@ -1155,6 +1162,89 @@ export const customerPortalApi = {
     return portalAuthFetch('/customer-portal/change-password', {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  },
+};
+
+// Push Notifications API
+export interface PushSubscription {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
+
+export interface NotificationPreferences {
+  push_enabled: boolean;
+  push_on_new_ticket: boolean;
+  push_on_ticket_comment: boolean;
+  push_on_ticket_assigned: boolean;
+  push_on_status_change: boolean;
+  push_on_sla_warning: boolean;
+  email_enabled: boolean;
+}
+
+export interface DeviceSubscription {
+  id: string;
+  endpoint: string;
+  device_name: string | null;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+export const pushApi = {
+  // Get VAPID public key for subscription
+  getVapidPublicKey: async (): Promise<{ success: boolean; publicKey: string; configured: boolean }> => {
+    const response = await fetch(`${API_BASE_URL}/push/vapid-public-key`);
+    return handleResponse(response);
+  },
+
+  // Subscribe device for push notifications
+  subscribe: async (subscription: PushSubscription, deviceName?: string): Promise<{ success: boolean; subscriptionId?: string }> => {
+    return authFetch('/push/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ subscription, deviceName }),
+    });
+  },
+
+  // Unsubscribe device
+  unsubscribe: async (endpoint: string): Promise<{ success: boolean }> => {
+    return authFetch('/push/unsubscribe', {
+      method: 'POST',
+      body: JSON.stringify({ endpoint }),
+    });
+  },
+
+  // Get user's subscriptions
+  getSubscriptions: async (): Promise<{ success: boolean; data: DeviceSubscription[] }> => {
+    return authFetch('/push/subscriptions');
+  },
+
+  // Delete a specific subscription
+  deleteSubscription: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/push/subscriptions/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get notification preferences
+  getPreferences: async (): Promise<{ success: boolean; data: NotificationPreferences }> => {
+    return authFetch('/push/preferences');
+  },
+
+  // Update notification preferences
+  updatePreferences: async (preferences: Partial<NotificationPreferences>): Promise<{ success: boolean }> => {
+    return authFetch('/push/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(preferences),
+    });
+  },
+
+  // Send test notification
+  sendTest: async (): Promise<{ success: boolean; sent: number; failed: number }> => {
+    return authFetch('/push/test', {
+      method: 'POST',
     });
   },
 };

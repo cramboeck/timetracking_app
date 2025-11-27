@@ -482,6 +482,19 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Add merged_into_id column for ticket merging
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'merged_into_id'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN merged_into_id TEXT REFERENCES tickets(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
     // Create indexes for tickets
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_customer_id ON tickets(customer_id)');
@@ -679,6 +692,44 @@ export async function initializeDatabase() {
     `);
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_portal_settings_user_id ON portal_settings(user_id)');
+
+    // ========================================================================
+    // PUSH NOTIFICATION SUBSCRIPTIONS TABLE
+    // ========================================================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        device_name TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_used_at TIMESTAMP
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subscriptions_endpoint ON push_subscriptions(endpoint)');
+
+    // User notification preferences table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notification_preferences (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        push_enabled BOOLEAN DEFAULT TRUE,
+        push_on_new_ticket BOOLEAN DEFAULT TRUE,
+        push_on_ticket_comment BOOLEAN DEFAULT TRUE,
+        push_on_ticket_assigned BOOLEAN DEFAULT TRUE,
+        push_on_status_change BOOLEAN DEFAULT TRUE,
+        push_on_sla_warning BOOLEAN DEFAULT TRUE,
+        email_enabled BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_notification_preferences_user_id ON notification_preferences(user_id)');
 
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');

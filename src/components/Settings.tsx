@@ -6,6 +6,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { CustomerContacts } from './CustomerContacts';
 import { TicketSettings } from './TicketSettings';
 import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
+import { PushNotificationSettings } from './PushNotificationSettings';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
@@ -1240,6 +1241,15 @@ export const Settings = ({
                       />
                     </label>
                   </div>
+                </div>
+
+                {/* Push Notifications for Tickets */}
+                <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <h3 className="font-medium text-gray-900 dark:text-white">Push-Benachrichtigungen (Tickets)</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Erhalte sofortige Benachrichtigungen auf deinem Gerät, wenn Kunden Tickets erstellen oder kommentieren.
+                  </p>
+                  <PushNotificationSettings />
                 </div>
 
                 {/* Email Notifications (Coming Soon) */}
