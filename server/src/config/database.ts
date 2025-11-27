@@ -568,6 +568,51 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_activities_created_at ON ticket_activities(created_at)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_activities_action_type ON ticket_activities(action_type)');
 
+    // ========================================================================
+    // SLA POLICIES TABLE
+    // ========================================================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sla_policies (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        priority TEXT NOT NULL CHECK(priority IN ('low', 'normal', 'high', 'critical', 'all')),
+        first_response_minutes INTEGER NOT NULL,
+        resolution_minutes INTEGER NOT NULL,
+        business_hours_only BOOLEAN DEFAULT FALSE,
+        is_active BOOLEAN DEFAULT TRUE,
+        is_default BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, priority) WHERE is_default = TRUE
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sla_policies_user_id ON sla_policies(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sla_policies_priority ON sla_policies(priority)');
+
+    // Migration: Add SLA columns to tickets table
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'sla_policy_id'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN sla_policy_id TEXT REFERENCES sla_policies(id) ON DELETE SET NULL;
+          ALTER TABLE tickets ADD COLUMN first_response_due_at TIMESTAMP;
+          ALTER TABLE tickets ADD COLUMN resolution_due_at TIMESTAMP;
+          ALTER TABLE tickets ADD COLUMN first_response_at TIMESTAMP;
+          ALTER TABLE tickets ADD COLUMN sla_first_response_breached BOOLEAN DEFAULT FALSE;
+          ALTER TABLE tickets ADD COLUMN sla_resolution_breached BOOLEAN DEFAULT FALSE;
+        END IF;
+      END $$;
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_first_response_due_at ON tickets(first_response_due_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_resolution_due_at ON tickets(resolution_due_at)');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

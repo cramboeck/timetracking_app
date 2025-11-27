@@ -3,6 +3,7 @@ import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, 
 import { Ticket, TicketComment, TicketStatus, TicketPriority, Customer, Project, TimeEntry } from '../types';
 import { ticketsApi, TicketTag, CannedResponse, TicketActivity } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
+import { SlaStatus } from './SlaStatus';
 
 interface TicketDetailProps {
   ticketId: string;
@@ -628,6 +629,16 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
             </div>
           </div>
         </div>
+
+        {/* SLA Status */}
+        <SlaStatus
+          firstResponseDueAt={ticket.firstResponseDueAt}
+          resolutionDueAt={ticket.resolutionDueAt}
+          firstResponseAt={ticket.firstResponseAt}
+          slaFirstResponseBreached={ticket.slaFirstResponseBreached}
+          slaResolutionBreached={ticket.slaResolutionBreached}
+          status={ticket.status}
+        />
 
         {/* Start Timer Button */}
         <button

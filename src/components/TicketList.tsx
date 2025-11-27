@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Filter, AlertCircle, Clock, CheckCircle, Pause, X, ChevronRight, Search, Archive } from 'lucide-react';
 import { Ticket, TicketStatus, TicketPriority, Customer, Project } from '../types';
 import { ticketsApi } from '../services/api';
+import { SlaStatus } from './SlaStatus';
 
 interface TicketListProps {
   customers: Customer[];
@@ -343,7 +344,7 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
                           {ticket.ticketNumber}
                         </span>
@@ -356,6 +357,15 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
                             {priority.label}
                           </span>
                         )}
+                        <SlaStatus
+                          firstResponseDueAt={ticket.firstResponseDueAt}
+                          resolutionDueAt={ticket.resolutionDueAt}
+                          firstResponseAt={ticket.firstResponseAt}
+                          slaFirstResponseBreached={ticket.slaFirstResponseBreached}
+                          slaResolutionBreached={ticket.slaResolutionBreached}
+                          status={ticket.status}
+                          compact
+                        />
                       </div>
                       <h3 className="font-medium text-gray-900 dark:text-white truncate">
                         {ticket.title}

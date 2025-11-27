@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Tag, MessageSquare, Save, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Tag, MessageSquare, Save, X, Clock } from 'lucide-react';
 import { ticketsApi, CannedResponse, TicketTag } from '../services/api';
+import { SlaPolicy } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
 
 const TAG_COLORS = [
@@ -9,7 +10,7 @@ const TAG_COLORS = [
 ];
 
 export const TicketSettings = () => {
-  const [activeSection, setActiveSection] = useState<'tags' | 'responses'>('tags');
+  const [activeSection, setActiveSection] = useState<'tags' | 'responses' | 'sla'>('tags');
 
   // Tags State
   const [tags, setTags] = useState<TicketTag[]>([]);
@@ -30,9 +31,24 @@ export const TicketSettings = () => {
   const [responseCategory, setResponseCategory] = useState('');
   const [responseToDelete, setResponseToDelete] = useState<CannedResponse | null>(null);
 
+  // SLA Policies State
+  const [slaPolicies, setSlaPolicies] = useState<SlaPolicy[]>([]);
+  const [loadingSla, setLoadingSla] = useState(true);
+  const [editingSla, setEditingSla] = useState<SlaPolicy | null>(null);
+  const [showSlaForm, setShowSlaForm] = useState(false);
+  const [slaName, setSlaName] = useState('');
+  const [slaDescription, setSlaDescription] = useState('');
+  const [slaPriority, setSlaPriority] = useState<'low' | 'normal' | 'high' | 'critical' | 'all'>('all');
+  const [slaFirstResponseMinutes, setSlaFirstResponseMinutes] = useState(60);
+  const [slaResolutionMinutes, setSlaResolutionMinutes] = useState(480);
+  const [slaBusinessHoursOnly, setSlaBusinessHoursOnly] = useState(false);
+  const [slaIsDefault, setSlaIsDefault] = useState(false);
+  const [slaToDelete, setSlaToDelete] = useState<SlaPolicy | null>(null);
+
   useEffect(() => {
     loadTags();
     loadResponses();
+    loadSlaPolicies();
   }, []);
 
   const loadTags = async () => {
@@ -56,6 +72,18 @@ export const TicketSettings = () => {
       console.error('Failed to load canned responses:', err);
     } finally {
       setLoadingResponses(false);
+    }
+  };
+
+  const loadSlaPolicies = async () => {
+    try {
+      setLoadingSla(true);
+      const response = await ticketsApi.getSlaPolices();
+      setSlaPolicies(response.data);
+    } catch (err) {
+      console.error('Failed to load SLA policies:', err);
+    } finally {
+      setLoadingSla(false);
     }
   };
 
@@ -167,6 +195,93 @@ export const TicketSettings = () => {
     setShowResponseForm(false);
   };
 
+  // SLA handlers
+  const handleSaveSla = async () => {
+    if (!slaName.trim()) {
+      alert('Name ist erforderlich');
+      return;
+    }
+    try {
+      if (editingSla) {
+        const response = await ticketsApi.updateSlaPolicy(editingSla.id, {
+          name: slaName.trim(),
+          description: slaDescription.trim() || undefined,
+          priority: slaPriority,
+          firstResponseMinutes: slaFirstResponseMinutes,
+          resolutionMinutes: slaResolutionMinutes,
+          businessHoursOnly: slaBusinessHoursOnly,
+          isDefault: slaIsDefault,
+        });
+        setSlaPolicies(prev => prev.map(p => p.id === editingSla.id ? response.data : p));
+      } else {
+        const response = await ticketsApi.createSlaPolicy({
+          name: slaName.trim(),
+          description: slaDescription.trim() || undefined,
+          priority: slaPriority,
+          firstResponseMinutes: slaFirstResponseMinutes,
+          resolutionMinutes: slaResolutionMinutes,
+          businessHoursOnly: slaBusinessHoursOnly,
+          isDefault: slaIsDefault,
+        });
+        setSlaPolicies(prev => [...prev, response.data]);
+      }
+      resetSlaForm();
+    } catch (err: any) {
+      alert(err.message || 'Fehler beim Speichern');
+    }
+  };
+
+  const handleDeleteSla = async () => {
+    if (!slaToDelete) return;
+    try {
+      await ticketsApi.deleteSlaPolicy(slaToDelete.id);
+      setSlaPolicies(prev => prev.filter(p => p.id !== slaToDelete.id));
+      setSlaToDelete(null);
+    } catch (err) {
+      alert('Fehler beim Löschen');
+    }
+  };
+
+  const startEditSla = (policy: SlaPolicy) => {
+    setEditingSla(policy);
+    setSlaName(policy.name);
+    setSlaDescription(policy.description || '');
+    setSlaPriority(policy.priority);
+    setSlaFirstResponseMinutes(policy.firstResponseMinutes);
+    setSlaResolutionMinutes(policy.resolutionMinutes);
+    setSlaBusinessHoursOnly(policy.businessHoursOnly);
+    setSlaIsDefault(policy.isDefault);
+    setShowSlaForm(true);
+  };
+
+  const resetSlaForm = () => {
+    setEditingSla(null);
+    setSlaName('');
+    setSlaDescription('');
+    setSlaPriority('all');
+    setSlaFirstResponseMinutes(60);
+    setSlaResolutionMinutes(480);
+    setSlaBusinessHoursOnly(false);
+    setSlaIsDefault(false);
+    setShowSlaForm(false);
+  };
+
+  const formatMinutesToTime = (minutes: number): string => {
+    if (minutes < 60) return `${minutes} Min.`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (mins === 0) return `${hours} Std.`;
+    return `${hours} Std. ${mins} Min.`;
+  };
+
+  const priorityLabels: Record<string, string> = {
+    low: 'Niedrig',
+    normal: 'Normal',
+    high: 'Hoch',
+    critical: 'Kritisch',
+    all: 'Alle Prioritäten',
+  };
+
   return (
     <div className="space-y-6">
       {/* Section Tabs */}
@@ -192,6 +307,17 @@ export const TicketSettings = () => {
         >
           <MessageSquare size={18} />
           Textbausteine
+        </button>
+        <button
+          onClick={() => setActiveSection('sla')}
+          className={`flex items-center gap-2 px-4 py-2 font-medium border-b-2 transition-colors ${
+            activeSection === 'sla'
+              ? 'border-accent-primary text-accent-primary'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+          }`}
+        >
+          <Clock size={18} />
+          SLA-Richtlinien
         </button>
       </div>
 
@@ -455,6 +581,203 @@ export const TicketSettings = () => {
         </div>
       )}
 
+      {/* SLA Section */}
+      {activeSection === 'sla' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              SLA-Richtlinien definieren die Reaktions- und Lösungszeiten für Tickets basierend auf ihrer Priorität.
+            </p>
+            {!showSlaForm && (
+              <button
+                onClick={() => setShowSlaForm(true)}
+                className="flex items-center gap-2 px-3 py-2 btn-accent rounded-lg"
+              >
+                <Plus size={16} />
+                Neue SLA-Richtlinie
+              </button>
+            )}
+          </div>
+
+          {/* Create/Edit SLA Form */}
+          {showSlaForm && (
+            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={slaName}
+                    onChange={(e) => setSlaName(e.target.value)}
+                    placeholder="z.B. Standard-SLA"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Priorität
+                  </label>
+                  <select
+                    value={slaPriority}
+                    onChange={(e) => setSlaPriority(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="all">Alle Prioritäten</option>
+                    <option value="critical">Kritisch</option>
+                    <option value="high">Hoch</option>
+                    <option value="normal">Normal</option>
+                    <option value="low">Niedrig</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Beschreibung (optional)
+                </label>
+                <input
+                  type="text"
+                  value={slaDescription}
+                  onChange={(e) => setSlaDescription(e.target.value)}
+                  placeholder="Kurze Beschreibung dieser SLA-Richtlinie"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Erste Antwort in (Minuten)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={slaFirstResponseMinutes}
+                    onChange={(e) => setSlaFirstResponseMinutes(parseInt(e.target.value) || 60)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    = {formatMinutesToTime(slaFirstResponseMinutes)}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Lösung in (Minuten)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={slaResolutionMinutes}
+                    onChange={(e) => setSlaResolutionMinutes(parseInt(e.target.value) || 480)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    = {formatMinutesToTime(slaResolutionMinutes)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={slaIsDefault}
+                    onChange={(e) => setSlaIsDefault(e.target.checked)}
+                    className="rounded border-gray-300 dark:border-gray-600"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Standard-Richtlinie</span>
+                </label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={resetSlaForm}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleSaveSla}
+                  disabled={!slaName.trim()}
+                  className="flex items-center gap-2 px-4 py-2 btn-accent rounded-lg disabled:opacity-50"
+                >
+                  <Save size={16} />
+                  {editingSla ? 'Aktualisieren' : 'Speichern'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* SLA List */}
+          {loadingSla ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+            </div>
+          ) : slaPolicies.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              Noch keine SLA-Richtlinien erstellt. SLA-Richtlinien helfen dir, Reaktionszeiten zu überwachen.
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {slaPolicies.map(policy => (
+                <div
+                  key={policy.id}
+                  className={`p-4 bg-white dark:bg-gray-800 border rounded-lg ${
+                    policy.isActive
+                      ? 'border-gray-200 dark:border-gray-700'
+                      : 'border-gray-200 dark:border-gray-700 opacity-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {policy.name}
+                        </span>
+                        <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
+                          {priorityLabels[policy.priority]}
+                        </span>
+                        {policy.isDefault && (
+                          <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded">
+                            Standard
+                          </span>
+                        )}
+                        {!policy.isActive && (
+                          <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded">
+                            Inaktiv
+                          </span>
+                        )}
+                      </div>
+                      {policy.description && (
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                          {policy.description}
+                        </p>
+                      )}
+                      <div className="mt-2 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                        <span>Antwort: {formatMinutesToTime(policy.firstResponseMinutes)}</span>
+                        <span>Lösung: {formatMinutesToTime(policy.resolutionMinutes)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <button
+                        onClick={() => startEditSla(policy)}
+                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => setSlaToDelete(policy)}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Delete Tag Confirmation */}
       <ConfirmDialog
         isOpen={!!tagToDelete}
@@ -473,6 +796,17 @@ export const TicketSettings = () => {
         onConfirm={handleDeleteResponse}
         title="Textbaustein löschen"
         message={`Möchtest du den Textbaustein "${responseToDelete?.title}" wirklich löschen?`}
+        confirmText="Löschen"
+        variant="danger"
+      />
+
+      {/* Delete SLA Confirmation */}
+      <ConfirmDialog
+        isOpen={!!slaToDelete}
+        onClose={() => setSlaToDelete(null)}
+        onConfirm={handleDeleteSla}
+        title="SLA-Richtlinie löschen"
+        message={`Möchtest du die SLA-Richtlinie "${slaToDelete?.name}" wirklich löschen?`}
         confirmText="Löschen"
         variant="danger"
       />

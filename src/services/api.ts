@@ -1,4 +1,4 @@
-import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation, Ticket, TicketComment, CustomerContact, TicketStatus, TicketPriority } from '../types';
+import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation, Ticket, TicketComment, CustomerContact, TicketStatus, TicketPriority, SlaPolicy } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -587,6 +587,54 @@ export const ticketsApi = {
     if (filters?.customerId) params.append('customerId', filters.customerId);
     if (filters?.limit) params.append('limit', filters.limit.toString());
     return authFetch(`/tickets/search/query?${params.toString()}`);
+  },
+
+  // SLA Policies
+  getSlaPolices: async (): Promise<{ success: boolean; data: SlaPolicy[] }> => {
+    return authFetch('/tickets/sla/policies');
+  },
+
+  createSlaPolicy: async (policy: {
+    name: string;
+    description?: string;
+    priority: 'low' | 'normal' | 'high' | 'critical' | 'all';
+    firstResponseMinutes: number;
+    resolutionMinutes: number;
+    businessHoursOnly?: boolean;
+    isDefault?: boolean;
+  }): Promise<{ success: boolean; data: SlaPolicy }> => {
+    return authFetch('/tickets/sla/policies', {
+      method: 'POST',
+      body: JSON.stringify(policy),
+    });
+  },
+
+  updateSlaPolicy: async (id: string, updates: {
+    name?: string;
+    description?: string;
+    priority?: 'low' | 'normal' | 'high' | 'critical' | 'all';
+    firstResponseMinutes?: number;
+    resolutionMinutes?: number;
+    businessHoursOnly?: boolean;
+    isActive?: boolean;
+    isDefault?: boolean;
+  }): Promise<{ success: boolean; data: SlaPolicy }> => {
+    return authFetch(`/tickets/sla/policies/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  deleteSlaPolicy: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/tickets/sla/policies/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  applySlaToTicket: async (ticketId: string): Promise<{ success: boolean; data: Ticket }> => {
+    return authFetch(`/tickets/sla/apply/${ticketId}`, {
+      method: 'POST',
+    });
   },
 };
 

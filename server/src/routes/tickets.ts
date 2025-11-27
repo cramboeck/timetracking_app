@@ -58,6 +58,13 @@ function transformTicket(row: any) {
     updatedAt: row.updated_at?.toISOString(),
     resolvedAt: row.resolved_at?.toISOString(),
     closedAt: row.closed_at?.toISOString(),
+    // SLA fields
+    slaPolicyId: row.sla_policy_id,
+    firstResponseDueAt: row.first_response_due_at?.toISOString(),
+    resolutionDueAt: row.resolution_due_at?.toISOString(),
+    firstResponseAt: row.first_response_at?.toISOString(),
+    slaFirstResponseBreached: row.sla_first_response_breached,
+    slaResolutionBreached: row.sla_resolution_breached,
     // Include related data if joined
     customerName: row.customer_name,
     projectName: row.project_name,
@@ -245,6 +252,18 @@ router.post('/', authenticateToken, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open')
       RETURNING *
     `, [id, ticketNumber, userId, customerId, projectId || null, title, description || '', priority]);
+
+    // Apply SLA if available
+    const slaDeadlines = await calculateSlaDeadlines(userId, priority);
+    if (slaDeadlines) {
+      await query(`
+        UPDATE tickets SET
+          sla_policy_id = $1,
+          first_response_due_at = $2,
+          resolution_due_at = $3
+        WHERE id = $4
+      `, [slaDeadlines.policyId, slaDeadlines.firstResponseDueAt, slaDeadlines.resolutionDueAt, id]);
+    }
 
     // Log activity
     await logTicketActivity(id, userId, null, 'created', null, null, { ticketNumber, title, priority });
@@ -1159,5 +1178,240 @@ router.get('/search/query', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to search tickets' });
   }
 });
+
+// ============================================================================
+// SLA POLICIES ROUTES
+// ============================================================================
+
+// Transform SLA policy row to camelCase
+function transformSlaPolicy(row: any) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    description: row.description,
+    priority: row.priority,
+    firstResponseMinutes: row.first_response_minutes,
+    resolutionMinutes: row.resolution_minutes,
+    businessHoursOnly: row.business_hours_only,
+    isActive: row.is_active,
+    isDefault: row.is_default,
+    createdAt: row.created_at?.toISOString(),
+    updatedAt: row.updated_at?.toISOString(),
+  };
+}
+
+// GET /api/tickets/sla/policies - Get all SLA policies for user
+router.get('/sla/policies', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+
+    const result = await query(`
+      SELECT * FROM sla_policies
+      WHERE user_id = $1
+      ORDER BY
+        CASE priority
+          WHEN 'critical' THEN 1
+          WHEN 'high' THEN 2
+          WHEN 'normal' THEN 3
+          WHEN 'low' THEN 4
+          WHEN 'all' THEN 5
+        END
+    `, [userId]);
+
+    res.json({ success: true, data: result.rows.map(transformSlaPolicy) });
+  } catch (error) {
+    console.error('Error fetching SLA policies:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch SLA policies' });
+  }
+});
+
+// POST /api/tickets/sla/policies - Create SLA policy
+router.post('/sla/policies', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const {
+      name,
+      description,
+      priority,
+      firstResponseMinutes,
+      resolutionMinutes,
+      businessHoursOnly = false,
+      isDefault = false
+    } = req.body;
+
+    if (!name || !priority || !firstResponseMinutes || !resolutionMinutes) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name, priority, firstResponseMinutes and resolutionMinutes are required'
+      });
+    }
+
+    const id = crypto.randomUUID();
+
+    // If this is set as default, unset other defaults for this priority
+    if (isDefault) {
+      await query(
+        'UPDATE sla_policies SET is_default = FALSE WHERE user_id = $1 AND (priority = $2 OR priority = \'all\')',
+        [userId, priority]
+      );
+    }
+
+    const result = await query(`
+      INSERT INTO sla_policies (id, user_id, name, description, priority, first_response_minutes, resolution_minutes, business_hours_only, is_default)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [id, userId, name, description || null, priority, firstResponseMinutes, resolutionMinutes, businessHoursOnly, isDefault]);
+
+    res.status(201).json({ success: true, data: transformSlaPolicy(result.rows[0]) });
+  } catch (error) {
+    console.error('Error creating SLA policy:', error);
+    res.status(500).json({ success: false, error: 'Failed to create SLA policy' });
+  }
+});
+
+// PUT /api/tickets/sla/policies/:id - Update SLA policy
+router.put('/sla/policies/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { id } = req.params;
+    const {
+      name,
+      description,
+      priority,
+      firstResponseMinutes,
+      resolutionMinutes,
+      businessHoursOnly,
+      isActive,
+      isDefault
+    } = req.body;
+
+    // If setting as default, unset other defaults
+    if (isDefault) {
+      const currentPolicy = await query('SELECT priority FROM sla_policies WHERE id = $1', [id]);
+      const policyPriority = priority || currentPolicy.rows[0]?.priority;
+      await query(
+        'UPDATE sla_policies SET is_default = FALSE WHERE user_id = $1 AND (priority = $2 OR priority = \'all\') AND id != $3',
+        [userId, policyPriority, id]
+      );
+    }
+
+    const result = await query(`
+      UPDATE sla_policies SET
+        name = COALESCE($1, name),
+        description = COALESCE($2, description),
+        priority = COALESCE($3, priority),
+        first_response_minutes = COALESCE($4, first_response_minutes),
+        resolution_minutes = COALESCE($5, resolution_minutes),
+        business_hours_only = COALESCE($6, business_hours_only),
+        is_active = COALESCE($7, is_active),
+        is_default = COALESCE($8, is_default),
+        updated_at = NOW()
+      WHERE id = $9 AND user_id = $10
+      RETURNING *
+    `, [name, description, priority, firstResponseMinutes, resolutionMinutes, businessHoursOnly, isActive, isDefault, id, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'SLA policy not found' });
+    }
+
+    res.json({ success: true, data: transformSlaPolicy(result.rows[0]) });
+  } catch (error) {
+    console.error('Error updating SLA policy:', error);
+    res.status(500).json({ success: false, error: 'Failed to update SLA policy' });
+  }
+});
+
+// DELETE /api/tickets/sla/policies/:id - Delete SLA policy
+router.delete('/sla/policies/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { id } = req.params;
+
+    const result = await query(
+      'DELETE FROM sla_policies WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'SLA policy not found' });
+    }
+
+    res.json({ success: true, message: 'SLA policy deleted' });
+  } catch (error) {
+    console.error('Error deleting SLA policy:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete SLA policy' });
+  }
+});
+
+// Helper function to calculate SLA deadlines
+async function calculateSlaDeadlines(userId: string, priority: string, createdAt: Date = new Date()) {
+  // Find applicable SLA policy
+  const policyResult = await query(`
+    SELECT * FROM sla_policies
+    WHERE user_id = $1 AND is_active = TRUE
+      AND (priority = $2 OR priority = 'all')
+    ORDER BY
+      CASE WHEN priority = $2 THEN 0 ELSE 1 END,
+      is_default DESC
+    LIMIT 1
+  `, [userId, priority]);
+
+  if (policyResult.rows.length === 0) {
+    return null;
+  }
+
+  const policy = policyResult.rows[0];
+  const firstResponseDue = new Date(createdAt.getTime() + policy.first_response_minutes * 60 * 1000);
+  const resolutionDue = new Date(createdAt.getTime() + policy.resolution_minutes * 60 * 1000);
+
+  return {
+    policyId: policy.id,
+    firstResponseDueAt: firstResponseDue,
+    resolutionDueAt: resolutionDue
+  };
+}
+
+// POST /api/tickets/sla/apply/:ticketId - Apply SLA to existing ticket
+router.post('/sla/apply/:ticketId', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { ticketId } = req.params;
+
+    // Get ticket
+    const ticketResult = await query(
+      'SELECT * FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    const ticket = ticketResult.rows[0];
+    const deadlines = await calculateSlaDeadlines(userId, ticket.priority, new Date(ticket.created_at));
+
+    if (!deadlines) {
+      return res.status(400).json({ success: false, error: 'No SLA policy found for this priority' });
+    }
+
+    // Update ticket with SLA
+    await query(`
+      UPDATE tickets SET
+        sla_policy_id = $1,
+        first_response_due_at = $2,
+        resolution_due_at = $3
+      WHERE id = $4
+    `, [deadlines.policyId, deadlines.firstResponseDueAt, deadlines.resolutionDueAt, ticketId]);
+
+    res.json({ success: true, data: deadlines });
+  } catch (error) {
+    console.error('Error applying SLA:', error);
+    res.status(500).json({ success: false, error: 'Failed to apply SLA' });
+  }
+});
+
+// Export the calculateSlaDeadlines function for use in ticket creation
+export { calculateSlaDeadlines };
 
 export default router;

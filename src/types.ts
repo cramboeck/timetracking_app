@@ -174,6 +174,31 @@ export interface Ticket {
   updatedAt: string;
   resolvedAt?: string;
   closedAt?: string;
+  // SLA fields
+  slaPolicyId?: string;
+  firstResponseDueAt?: string;
+  resolutionDueAt?: string;
+  firstResponseAt?: string;
+  slaFirstResponseBreached?: boolean;
+  slaResolutionBreached?: boolean;
+}
+
+// SLA Policy
+export type SlaPriority = 'low' | 'normal' | 'high' | 'critical' | 'all';
+
+export interface SlaPolicy {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  priority: SlaPriority;
+  firstResponseMinutes: number;
+  resolutionMinutes: number;
+  businessHoursOnly: boolean;
+  isActive: boolean;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TicketComment {
