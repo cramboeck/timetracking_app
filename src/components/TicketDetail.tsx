@@ -272,6 +272,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
         return `${actor} hat das Ticket archiviert`;
       case 'rating_added':
         return `${actor} hat eine Bewertung abgegeben`;
+      case 'time_logged':
+        return `${actor} hat ${activity.newValue} Zeit erfasst`;
       default:
         return `${actor} hat eine Aktion durchgeführt`;
     }
@@ -295,6 +297,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       case 'tag_added':
       case 'tag_removed':
         return <Tag size={12} />;
+      case 'time_logged':
+        return <Clock size={12} />;
       default:
         return <Clock size={12} />;
     }

@@ -42,12 +42,13 @@ export const TicketMergeDialog = ({
       setSearching(true);
       try {
         const response = await ticketsApi.search(searchQuery);
-        // Filter out the target ticket and already selected tickets
+        // Filter out the target ticket, already selected tickets, and tickets from different customers
         const filtered = response.data.filter(
           (ticket) =>
             ticket.id !== targetTicket.id &&
             !selectedTickets.some((s) => s.id === ticket.id) &&
-            ticket.status !== 'archived'
+            ticket.status !== 'archived' &&
+            ticket.customerId === targetTicket.customerId // Only same customer
         );
         setSearchResults(filtered);
       } catch (err) {
@@ -59,7 +60,7 @@ export const TicketMergeDialog = ({
 
     const debounce = setTimeout(searchTickets, 300);
     return () => clearTimeout(debounce);
-  }, [searchQuery, targetTicket.id, selectedTickets]);
+  }, [searchQuery, targetTicket.id, targetTicket.customerId, selectedTickets]);
 
   const handleSelectTicket = (ticket: Ticket) => {
     setSelectedTickets((prev) => [...prev, ticket]);

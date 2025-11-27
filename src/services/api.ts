@@ -955,7 +955,7 @@ export interface TicketActivity {
   actionType: 'created' | 'status_changed' | 'priority_changed' | 'assigned' | 'unassigned' |
     'comment_added' | 'internal_comment_added' | 'attachment_added' |
     'tag_added' | 'tag_removed' | 'title_changed' | 'description_changed' |
-    'resolved' | 'closed' | 'reopened' | 'archived' | 'rating_added';
+    'resolved' | 'closed' | 'reopened' | 'archived' | 'rating_added' | 'time_logged';
   oldValue: string | null;
   newValue: string | null;
   metadata: Record<string, any> | null;

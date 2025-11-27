@@ -5,6 +5,7 @@ import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { transformRow, transformRows } from '../utils/dbTransform';
+import { logTicketActivity } from './tickets';
 
 const router = Router();
 
@@ -132,6 +133,26 @@ router.post('/', authenticateToken, validate(createEntrySchema), async (req: Aut
       userAgent: req.headers['user-agent']
     });
 
+    // Log ticket activity if time was logged to a ticket
+    if (ticketId) {
+      const hours = Math.floor(duration / 3600);
+      const minutes = Math.floor((duration % 3600) / 60);
+      const durationStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+      logTicketActivity(
+        ticketId,
+        userId,
+        null,
+        'time_logged',
+        null,
+        durationStr,
+        { timeEntryId: id, duration, description: description || null }
+      ).catch(err => console.error('Failed to log ticket time activity:', err));
+
+      // Update ticket's updated_at
+      await pool.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
+    }
+
     res.status(201).json({
       success: true,
       data: newEntry
@@ -227,6 +248,30 @@ router.put('/:id', authenticateToken, validate(updateEntrySchema), async (req: A
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
     });
+
+    // Log ticket activity if time entry was newly linked to a ticket
+    const originalTicketId = entryResult.rows[0].ticket_id;
+    const newTicketId = updatedEntry.ticketId;
+
+    if (newTicketId && newTicketId !== originalTicketId) {
+      const duration = updatedEntry.duration || 0;
+      const hours = Math.floor(duration / 3600);
+      const minutes = Math.floor((duration % 3600) / 60);
+      const durationStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+      logTicketActivity(
+        newTicketId,
+        userId,
+        null,
+        'time_logged',
+        null,
+        durationStr,
+        { timeEntryId: id, duration, description: updatedEntry.description || null }
+      ).catch(err => console.error('Failed to log ticket time activity:', err));
+
+      // Update ticket's updated_at
+      await pool.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [newTicketId]);
+    }
 
     res.json({
       success: true,

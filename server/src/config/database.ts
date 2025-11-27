@@ -581,6 +581,23 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_activities_created_at ON ticket_activities(created_at)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_activities_action_type ON ticket_activities(action_type)');
 
+    // Migration: Add 'time_logged' to ticket_activities action_type CHECK constraint
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE ticket_activities DROP CONSTRAINT IF EXISTS ticket_activities_action_type_check;
+        ALTER TABLE ticket_activities ADD CONSTRAINT ticket_activities_action_type_check
+          CHECK(action_type IN (
+            'created', 'status_changed', 'priority_changed', 'assigned', 'unassigned',
+            'comment_added', 'internal_comment_added', 'attachment_added',
+            'tag_added', 'tag_removed', 'title_changed', 'description_changed',
+            'resolved', 'closed', 'reopened', 'archived', 'rating_added', 'time_logged'
+          ));
+      EXCEPTION WHEN OTHERS THEN
+        NULL;
+      END $$;
+    `);
+
     // ========================================================================
     // SLA POLICIES TABLE
     // ========================================================================

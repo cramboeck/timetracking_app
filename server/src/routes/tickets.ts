@@ -660,7 +660,7 @@ router.post('/:id/merge', authenticateToken, async (req, res) => {
 
     // Verify target ticket belongs to user
     const targetCheck = await query(
-      'SELECT id, ticket_number, title FROM tickets WHERE id = $1 AND user_id = $2',
+      'SELECT id, ticket_number, title, customer_id FROM tickets WHERE id = $1 AND user_id = $2',
       [targetId, userId]
     );
 
@@ -677,7 +677,7 @@ router.post('/:id/merge', authenticateToken, async (req, res) => {
     }
 
     const sourceCheck = await query(
-      `SELECT id, ticket_number, title FROM tickets WHERE id = ANY($1) AND user_id = $2`,
+      `SELECT id, ticket_number, title, customer_id FROM tickets WHERE id = ANY($1) AND user_id = $2`,
       [filteredSourceIds, userId]
     );
 
@@ -686,6 +686,15 @@ router.post('/:id/merge', authenticateToken, async (req, res) => {
     }
 
     const sourceTickets = sourceCheck.rows;
+
+    // Verify all tickets belong to the same customer
+    const differentCustomer = sourceTickets.find(t => t.customer_id !== targetTicket.customer_id);
+    if (differentCustomer) {
+      return res.status(400).json({
+        success: false,
+        error: 'Tickets von unterschiedlichen Kunden können nicht zusammengeführt werden'
+      });
+    }
     const mergedCount = sourceTickets.length;
 
     // Start transaction-like operations
@@ -1771,8 +1780,8 @@ router.delete('/:ticketId/tags/:tagId', authenticateToken, async (req, res) => {
 // TICKET ACTIVITIES ROUTES (Activity Timeline)
 // ============================================================================
 
-// Helper function to log ticket activities
-async function logTicketActivity(
+// Helper function to log ticket activities (exported for use in other modules)
+export async function logTicketActivity(
   ticketId: string,
   userId: string | null,
   customerContactId: string | null,
