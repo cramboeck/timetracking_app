@@ -641,7 +641,7 @@ export async function getInvoiceWithPositions(
   apiToken: string,
   invoiceId: string
 ): Promise<SevdeskInvoiceDetail | null> {
-  const invoiceResponse = await sevdeskFetch(apiToken, `/Invoice/${invoiceId}?embed=contact`);
+  const invoiceResponse = await sevdeskFetch(apiToken, `/Invoice/${invoiceId}?depth=1&embed=contact`);
 
   // sevDesk API returns different formats:
   // - For lists: { objects: [...] }
@@ -737,7 +737,7 @@ export async function getQuoteWithPositions(
   apiToken: string,
   quoteId: string
 ): Promise<SevdeskQuoteDetail | null> {
-  const quoteResponse = await sevdeskFetch(apiToken, `/Order/${quoteId}?embed=contact`);
+  const quoteResponse = await sevdeskFetch(apiToken, `/Order/${quoteId}?depth=1&embed=contact`);
 
   // sevDesk API returns different formats:
   // - For lists: { objects: [...] }
