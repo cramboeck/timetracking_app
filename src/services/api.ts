@@ -646,7 +646,7 @@ export const ticketsApi = {
   },
 
   uploadAttachments: async (ticketId: string, formData: FormData): Promise<{ success: boolean; data: TicketAttachment[] }> => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/attachments`, {
       method: 'POST',
       headers: {
