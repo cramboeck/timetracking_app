@@ -631,9 +631,15 @@ export async function getInvoiceWithPositions(
   invoiceId: string
 ): Promise<SevdeskInvoiceDetail | null> {
   const invoiceResponse = await sevdeskFetch(apiToken, `/Invoice/${invoiceId}?embed=contact`);
+  // sevDesk returns single object in 'objects' for single item fetch
   const inv = invoiceResponse.objects;
 
-  if (!inv) return null;
+  console.log('Invoice response:', JSON.stringify(invoiceResponse, null, 2));
+
+  if (!inv) {
+    console.error('No invoice data in response');
+    return null;
+  }
 
   // Get positions
   const positionsResponse = await sevdeskFetch(apiToken, `/InvoicePos?invoice[id]=${invoiceId}`);
@@ -715,7 +721,12 @@ export async function getQuoteWithPositions(
   const quoteResponse = await sevdeskFetch(apiToken, `/Order/${quoteId}?embed=contact`);
   const quote = quoteResponse.objects;
 
-  if (!quote) return null;
+  console.log('Quote response:', JSON.stringify(quoteResponse, null, 2));
+
+  if (!quote) {
+    console.error('No quote data in response');
+    return null;
+  }
 
   // Get positions
   const positionsResponse = await sevdeskFetch(apiToken, `/OrderPos?order[id]=${quoteId}`);

@@ -23,6 +23,7 @@ interface DocumentDetailProps {
 const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<SevdeskInvoice | SevdeskQuote | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDetail();
@@ -31,12 +32,14 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
   const loadDetail = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = type === 'invoices'
         ? await sevdeskApi.getInvoice(document.id)
         : await sevdeskApi.getQuote(document.id);
       setDetail(response.data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load document detail:', err);
+      setError(err.message || 'Fehler beim Laden des Dokuments');
     } finally {
       setLoading(false);
     }
@@ -70,6 +73,11 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="animate-spin text-accent-primary" size={32} />
+            </div>
+          ) : error ? (
+            <div className="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300">
+              <AlertTriangle size={20} />
+              <span>{error}</span>
             </div>
           ) : detail ? (
             <div className="space-y-4">
