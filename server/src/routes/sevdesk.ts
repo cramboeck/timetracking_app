@@ -341,4 +341,116 @@ router.get('/invoice-exports', authenticateToken, requireBillingFeature, async (
   }
 });
 
+// GET /api/sevdesk/invoices - Get invoices from sevDesk
+router.get('/invoices', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const config = await sevdeskService.getConfig(userId);
+
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    const { limit, offset, contactId, status, startDate, endDate } = req.query;
+
+    const invoices = await sevdeskService.getInvoices(config.apiToken, {
+      limit: limit ? parseInt(limit as string) : 50,
+      offset: offset ? parseInt(offset as string) : 0,
+      contactId: contactId as string,
+      status: status ? parseInt(status as string) : undefined,
+      startDate: startDate as string,
+      endDate: endDate as string,
+    });
+
+    res.json({
+      success: true,
+      data: invoices,
+    });
+  } catch (error: any) {
+    console.error('Get invoices error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/invoices/:id - Get single invoice with positions
+router.get('/invoices/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const config = await sevdeskService.getConfig(userId);
+
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    const invoice = await sevdeskService.getInvoiceWithPositions(config.apiToken, req.params.id);
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+
+    res.json({
+      success: true,
+      data: invoice,
+    });
+  } catch (error: any) {
+    console.error('Get invoice error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/quotes - Get quotes/offers from sevDesk
+router.get('/quotes', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const config = await sevdeskService.getConfig(userId);
+
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    const { limit, offset, contactId, status } = req.query;
+
+    const quotes = await sevdeskService.getQuotes(config.apiToken, {
+      limit: limit ? parseInt(limit as string) : 50,
+      offset: offset ? parseInt(offset as string) : 0,
+      contactId: contactId as string,
+      status: status ? parseInt(status as string) : undefined,
+    });
+
+    res.json({
+      success: true,
+      data: quotes,
+    });
+  } catch (error: any) {
+    console.error('Get quotes error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/quotes/:id - Get single quote with positions
+router.get('/quotes/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const config = await sevdeskService.getConfig(userId);
+
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    const quote = await sevdeskService.getQuoteWithPositions(config.apiToken, req.params.id);
+
+    if (!quote) {
+      return res.status(404).json({ success: false, error: 'Quote not found' });
+    }
+
+    res.json({
+      success: true,
+      data: quote,
+    });
+  } catch (error: any) {
+    console.error('Get quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

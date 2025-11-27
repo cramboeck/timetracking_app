@@ -503,3 +503,245 @@ export async function getInvoiceExports(
     createdAt: row.created_at,
   }));
 }
+
+// Types for sevDesk documents
+export interface SevdeskInvoiceDetail {
+  id: string;
+  invoiceNumber: string;
+  contact: {
+    id: string;
+    name: string;
+  };
+  invoiceDate: string;
+  deliveryDate: string | null;
+  status: number; // 100=Draft, 200=Open, 1000=Paid
+  statusName: string;
+  header: string;
+  headText: string | null;
+  footText: string | null;
+  sumNet: number;
+  sumGross: number;
+  sumTax: number;
+  currency: string;
+  positions: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    price: number;
+    sumNet: number;
+  }>;
+}
+
+export interface SevdeskQuoteDetail {
+  id: string;
+  quoteNumber: string;
+  contact: {
+    id: string;
+    name: string;
+  };
+  quoteDate: string;
+  status: number;
+  statusName: string;
+  header: string;
+  headText: string | null;
+  footText: string | null;
+  sumNet: number;
+  sumGross: number;
+  currency: string;
+  positions: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    price: number;
+    sumNet: number;
+  }>;
+}
+
+// Get status name for invoices
+function getInvoiceStatusName(status: number): string {
+  switch (status) {
+    case 100: return 'Entwurf';
+    case 200: return 'Offen';
+    case 1000: return 'Bezahlt';
+    default: return 'Unbekannt';
+  }
+}
+
+// Get status name for quotes
+function getQuoteStatusName(status: number): string {
+  switch (status) {
+    case 100: return 'Entwurf';
+    case 200: return 'Gesendet';
+    case 300: return 'Akzeptiert';
+    case 400: return 'Abgelehnt';
+    default: return 'Unbekannt';
+  }
+}
+
+// Get invoices from sevDesk
+export async function getInvoices(
+  apiToken: string,
+  options: {
+    limit?: number;
+    offset?: number;
+    contactId?: string;
+    status?: number;
+    startDate?: string;
+    endDate?: string;
+  } = {}
+): Promise<SevdeskInvoiceDetail[]> {
+  const params = new URLSearchParams();
+  params.append('depth', '1');
+  params.append('embed', 'contact');
+
+  if (options.limit) params.append('limit', options.limit.toString());
+  if (options.offset) params.append('offset', options.offset.toString());
+  if (options.contactId) params.append('contact[id]', options.contactId);
+  if (options.status) params.append('status', options.status.toString());
+  if (options.startDate) params.append('startDate', options.startDate);
+  if (options.endDate) params.append('endDate', options.endDate);
+
+  const response = await sevdeskFetch(apiToken, `/Invoice?${params.toString()}`);
+
+  return (response.objects || []).map((inv: any) => ({
+    id: inv.id?.toString(),
+    invoiceNumber: inv.invoiceNumber || '',
+    contact: inv.contact ? {
+      id: inv.contact.id?.toString(),
+      name: inv.contact.name || 'Unbekannt',
+    } : { id: '', name: 'Unbekannt' },
+    invoiceDate: inv.invoiceDate,
+    deliveryDate: inv.deliveryDate,
+    status: inv.status,
+    statusName: getInvoiceStatusName(inv.status),
+    header: inv.header || '',
+    headText: inv.headText,
+    footText: inv.footText,
+    sumNet: parseFloat(inv.sumNet) || 0,
+    sumGross: parseFloat(inv.sumGross) || 0,
+    sumTax: parseFloat(inv.sumTax) || 0,
+    currency: inv.currency || 'EUR',
+    positions: [], // Will be loaded separately if needed
+  }));
+}
+
+// Get single invoice with positions
+export async function getInvoiceWithPositions(
+  apiToken: string,
+  invoiceId: string
+): Promise<SevdeskInvoiceDetail | null> {
+  const invoiceResponse = await sevdeskFetch(apiToken, `/Invoice/${invoiceId}?embed=contact`);
+  const inv = invoiceResponse.objects;
+
+  if (!inv) return null;
+
+  // Get positions
+  const positionsResponse = await sevdeskFetch(apiToken, `/InvoicePos?invoice[id]=${invoiceId}`);
+
+  return {
+    id: inv.id?.toString(),
+    invoiceNumber: inv.invoiceNumber || '',
+    contact: inv.contact ? {
+      id: inv.contact.id?.toString(),
+      name: inv.contact.name || 'Unbekannt',
+    } : { id: '', name: 'Unbekannt' },
+    invoiceDate: inv.invoiceDate,
+    deliveryDate: inv.deliveryDate,
+    status: inv.status,
+    statusName: getInvoiceStatusName(inv.status),
+    header: inv.header || '',
+    headText: inv.headText,
+    footText: inv.footText,
+    sumNet: parseFloat(inv.sumNet) || 0,
+    sumGross: parseFloat(inv.sumGross) || 0,
+    sumTax: parseFloat(inv.sumTax) || 0,
+    currency: inv.currency || 'EUR',
+    positions: (positionsResponse.objects || []).map((pos: any) => ({
+      id: pos.id?.toString(),
+      name: pos.name || '',
+      quantity: parseFloat(pos.quantity) || 0,
+      price: parseFloat(pos.price) || 0,
+      sumNet: parseFloat(pos.sumNet) || 0,
+    })),
+  };
+}
+
+// Get quotes/offers from sevDesk
+export async function getQuotes(
+  apiToken: string,
+  options: {
+    limit?: number;
+    offset?: number;
+    contactId?: string;
+    status?: number;
+  } = {}
+): Promise<SevdeskQuoteDetail[]> {
+  const params = new URLSearchParams();
+  params.append('depth', '1');
+  params.append('embed', 'contact');
+
+  if (options.limit) params.append('limit', options.limit.toString());
+  if (options.offset) params.append('offset', options.offset.toString());
+  if (options.contactId) params.append('contact[id]', options.contactId);
+  if (options.status) params.append('status', options.status.toString());
+
+  const response = await sevdeskFetch(apiToken, `/Order?${params.toString()}`);
+
+  return (response.objects || []).map((quote: any) => ({
+    id: quote.id?.toString(),
+    quoteNumber: quote.orderNumber || '',
+    contact: quote.contact ? {
+      id: quote.contact.id?.toString(),
+      name: quote.contact.name || 'Unbekannt',
+    } : { id: '', name: 'Unbekannt' },
+    quoteDate: quote.orderDate,
+    status: quote.status,
+    statusName: getQuoteStatusName(quote.status),
+    header: quote.header || '',
+    headText: quote.headText,
+    footText: quote.footText,
+    sumNet: parseFloat(quote.sumNet) || 0,
+    sumGross: parseFloat(quote.sumGross) || 0,
+    currency: quote.currency || 'EUR',
+    positions: [],
+  }));
+}
+
+// Get single quote with positions
+export async function getQuoteWithPositions(
+  apiToken: string,
+  quoteId: string
+): Promise<SevdeskQuoteDetail | null> {
+  const quoteResponse = await sevdeskFetch(apiToken, `/Order/${quoteId}?embed=contact`);
+  const quote = quoteResponse.objects;
+
+  if (!quote) return null;
+
+  // Get positions
+  const positionsResponse = await sevdeskFetch(apiToken, `/OrderPos?order[id]=${quoteId}`);
+
+  return {
+    id: quote.id?.toString(),
+    quoteNumber: quote.orderNumber || '',
+    contact: quote.contact ? {
+      id: quote.contact.id?.toString(),
+      name: quote.contact.name || 'Unbekannt',
+    } : { id: '', name: 'Unbekannt' },
+    quoteDate: quote.orderDate,
+    status: quote.status,
+    statusName: getQuoteStatusName(quote.status),
+    header: quote.header || '',
+    headText: quote.headText,
+    footText: quote.footText,
+    sumNet: parseFloat(quote.sumNet) || 0,
+    sumGross: parseFloat(quote.sumGross) || 0,
+    currency: quote.currency || 'EUR',
+    positions: (positionsResponse.objects || []).map((pos: any) => ({
+      id: pos.id?.toString(),
+      name: pos.name || '',
+      quantity: parseFloat(pos.quantity) || 0,
+      price: parseFloat(pos.price) || 0,
+      sumNet: parseFloat(pos.sumNet) || 0,
+    })),
+  };
+}

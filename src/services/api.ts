@@ -1269,6 +1269,58 @@ export interface SevdeskCustomer {
   email?: string;
 }
 
+export interface SevdeskInvoice {
+  id: string;
+  invoiceNumber: string;
+  contact: {
+    id: string;
+    name: string;
+  };
+  invoiceDate: string;
+  deliveryDate: string | null;
+  status: number;
+  statusName: string;
+  header: string;
+  headText: string | null;
+  footText: string | null;
+  sumNet: number;
+  sumGross: number;
+  sumTax: number;
+  currency: string;
+  positions: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    price: number;
+    sumNet: number;
+  }>;
+}
+
+export interface SevdeskQuote {
+  id: string;
+  quoteNumber: string;
+  contact: {
+    id: string;
+    name: string;
+  };
+  quoteDate: string;
+  status: number;
+  statusName: string;
+  header: string;
+  headText: string | null;
+  footText: string | null;
+  sumNet: number;
+  sumGross: number;
+  currency: string;
+  positions: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    price: number;
+    sumNet: number;
+  }>;
+}
+
 export interface BillingSummaryItem {
   customerId: string;
   customerName: string;
@@ -1374,6 +1426,52 @@ export const sevdeskApi = {
   // Get invoice export history
   getInvoiceExports: async (limit?: number): Promise<{ success: boolean; data: InvoiceExport[] }> => {
     return authFetch(`/sevdesk/invoice-exports${limit ? `?limit=${limit}` : ''}`);
+  },
+
+  // Get invoices from sevDesk
+  getInvoices: async (options?: {
+    limit?: number;
+    offset?: number;
+    contactId?: string;
+    status?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{ success: boolean; data: SevdeskInvoice[] }> => {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    if (options?.contactId) params.append('contactId', options.contactId);
+    if (options?.status) params.append('status', options.status.toString());
+    if (options?.startDate) params.append('startDate', options.startDate);
+    if (options?.endDate) params.append('endDate', options.endDate);
+    const queryString = params.toString();
+    return authFetch(`/sevdesk/invoices${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get single invoice with positions
+  getInvoice: async (id: string): Promise<{ success: boolean; data: SevdeskInvoice }> => {
+    return authFetch(`/sevdesk/invoices/${id}`);
+  },
+
+  // Get quotes from sevDesk
+  getQuotes: async (options?: {
+    limit?: number;
+    offset?: number;
+    contactId?: string;
+    status?: number;
+  }): Promise<{ success: boolean; data: SevdeskQuote[] }> => {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    if (options?.contactId) params.append('contactId', options.contactId);
+    if (options?.status) params.append('status', options.status.toString());
+    const queryString = params.toString();
+    return authFetch(`/sevdesk/quotes${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get single quote with positions
+  getQuote: async (id: string): Promise<{ success: boolean; data: SevdeskQuote }> => {
+    return authFetch(`/sevdesk/quotes/${id}`);
   },
 };
 

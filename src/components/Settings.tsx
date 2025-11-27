@@ -10,6 +10,7 @@ import { PushNotificationSettings } from './PushNotificationSettings';
 import { SevdeskSettings } from './SevdeskSettings';
 import { Billing } from './Billing';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
+import { SevdeskDocuments } from './SevdeskDocuments';
 import { CreditCard, Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
@@ -2110,6 +2111,11 @@ export const Settings = ({
             {/* Billing Component */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
               <Billing />
+            </div>
+
+            {/* sevDesk Documents */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <SevdeskDocuments />
             </div>
           </div>
         )}
