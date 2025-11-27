@@ -639,6 +639,32 @@ export const ticketsApi = {
       method: 'POST',
     });
   },
+
+  // Attachments
+  getAttachments: async (ticketId: string): Promise<{ success: boolean; data: TicketAttachment[] }> => {
+    return authFetch(`/tickets/${ticketId}/attachments`);
+  },
+
+  uploadAttachments: async (ticketId: string, formData: FormData): Promise<{ success: boolean; data: TicketAttachment[] }> => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/attachments`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    if (!response.ok) {
+      throw new Error('Failed to upload attachments');
+    }
+    return response.json();
+  },
+
+  deleteAttachment: async (ticketId: string, attachmentId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/tickets/${ticketId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 // Knowledge Base types
@@ -860,6 +886,18 @@ export interface TicketActivity {
   createdAt: string;
   userName: string | null;
   contactName: string | null;
+}
+
+// Ticket Attachment type
+export interface TicketAttachment {
+  id: string;
+  filename: string;
+  fileUrl: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedByName: string;
+  uploadedByType: 'user' | 'customer';
+  createdAt: string;
 }
 
 // Customer Portal API (for customer contacts to use)

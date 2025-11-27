@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse, TicketActivity } from '../services/api';
+import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SlaStatus } from './SlaStatus';
 
@@ -74,9 +74,15 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const [showActivities, setShowActivities] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
 
+  // Attachments
+  const [attachments, setAttachments] = useState<TicketAttachment[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     loadTicket();
     loadTags();
+    loadAttachments();
     loadCannedResponses();
   }, [ticketId]);
 
@@ -136,6 +142,74 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     } catch (err) {
       console.error('Failed to load canned responses:', err);
     }
+  };
+
+  const loadAttachments = async () => {
+    try {
+      const response = await ticketsApi.getAttachments(ticketId);
+      setAttachments(response.data);
+    } catch (err) {
+      console.error('Failed to load attachments:', err);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      setUploadingFiles(true);
+      const formData = new FormData();
+      Array.from(files).forEach(file => {
+        formData.append('files', file);
+      });
+
+      const result = await ticketsApi.uploadAttachments(ticketId, formData);
+      setAttachments(prev => [...prev, ...result.data]);
+
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (err) {
+      console.error('Failed to upload files:', err);
+      alert('Fehler beim Hochladen der Dateien');
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!confirm('Anhang wirklich löschen?')) return;
+
+    try {
+      await ticketsApi.deleteAttachment(ticketId, attachmentId);
+      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    } catch (err) {
+      console.error('Failed to delete attachment:', err);
+      alert('Fehler beim Löschen des Anhangs');
+    }
+  };
+
+  const getAbsoluteFileUrl = (fileUrl: string): string => {
+    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+      return fileUrl;
+    }
+    const apiBase = getApiBaseUrl();
+    const relativePath = fileUrl.startsWith('/api') ? fileUrl.substring(4) : fileUrl;
+    return `${apiBase}${relativePath}`;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType?.startsWith('image/')) return Image;
+    if (mimeType === 'application/pdf') return FileText;
+    return File;
   };
 
   const loadActivities = async () => {
@@ -670,6 +744,130 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
             </p>
           </div>
         )}
+
+        {/* Attachments */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Anhänge ({attachments.length})
+            </h2>
+            <label className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-accent-primary bg-accent-primary/10 hover:bg-accent-primary/20 rounded-lg cursor-pointer transition-colors">
+              <Paperclip size={16} />
+              {uploadingFiles ? 'Lädt...' : 'Datei hinzufügen'}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFileUpload}
+                disabled={uploadingFiles}
+                className="hidden"
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip,.rar"
+              />
+            </label>
+          </div>
+
+          {attachments.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              Keine Anhänge vorhanden
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {/* Image attachments with preview */}
+              {attachments.filter(a => a.mimeType?.startsWith('image/')).length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Bilder</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {attachments.filter(a => a.mimeType?.startsWith('image/')).map((attachment) => (
+                      <div key={attachment.id} className="relative group">
+                        <a
+                          href={getAbsoluteFileUrl(attachment.fileUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700"
+                        >
+                          <img
+                            src={getAbsoluteFileUrl(attachment.fileUrl)}
+                            alt={attachment.filename}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform"
+                          />
+                        </a>
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                          <a
+                            href={getAbsoluteFileUrl(attachment.fileUrl)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"
+                            title="Öffnen"
+                          >
+                            <Download size={16} />
+                          </a>
+                          <button
+                            onClick={() => handleDeleteAttachment(attachment.id)}
+                            className="p-2 bg-white/20 hover:bg-red-500/50 rounded-full text-white transition-colors"
+                            title="Löschen"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {attachment.filename}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Other file attachments */}
+              {attachments.filter(a => !a.mimeType?.startsWith('image/')).length > 0 && (
+                <div>
+                  {attachments.filter(a => a.mimeType?.startsWith('image/')).length > 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Dokumente</p>
+                  )}
+                  <div className="space-y-2">
+                    {attachments.filter(a => !a.mimeType?.startsWith('image/')).map((attachment) => {
+                      const FileIcon = getFileIcon(attachment.mimeType);
+                      return (
+                        <div
+                          key={attachment.id}
+                          className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg group"
+                        >
+                          <FileIcon size={20} className="text-gray-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {attachment.filename}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatFileSize(attachment.fileSize)} • {attachment.uploadedByName}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <a
+                              href={getAbsoluteFileUrl(attachment.fileUrl)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 text-gray-500 hover:text-accent-primary hover:bg-accent-primary/10 rounded transition-colors"
+                              title="Herunterladen"
+                            >
+                              <Download size={16} />
+                            </a>
+                            <button
+                              onClick={() => handleDeleteAttachment(attachment.id)}
+                              className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
+                              title="Löschen"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Time Entries */}
         {timeEntries.length > 0 && (

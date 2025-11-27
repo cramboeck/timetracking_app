@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { query, getClient } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
+import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 
 const router = express.Router();
 
@@ -485,6 +486,160 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error adding comment:', error);
     res.status(500).json({ success: false, error: 'Failed to add comment' });
+  }
+});
+
+// ============================================================================
+// TICKET ATTACHMENTS ROUTES
+// ============================================================================
+
+// GET /api/tickets/:ticketId/attachments - Get all attachments for a ticket
+router.get('/:ticketId/attachments', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { ticketId } = req.params;
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    const result = await query(`
+      SELECT
+        ta.id,
+        ta.filename,
+        ta.file_url,
+        ta.file_size,
+        ta.mime_type,
+        ta.created_at,
+        COALESCE(u.display_name, u.username, cc.name) as uploaded_by_name,
+        CASE WHEN ta.uploaded_by_user_id IS NOT NULL THEN 'user' ELSE 'customer' END as uploaded_by_type
+      FROM ticket_attachments ta
+      LEFT JOIN users u ON ta.uploaded_by_user_id = u.id
+      LEFT JOIN customer_contacts cc ON ta.uploaded_by_contact_id = cc.id
+      WHERE ta.ticket_id = $1
+      ORDER BY ta.created_at ASC
+    `, [ticketId]);
+
+    const attachments = result.rows.map(a => ({
+      id: a.id,
+      filename: a.filename,
+      fileUrl: a.file_url,
+      fileSize: a.file_size,
+      mimeType: a.mime_type,
+      uploadedByName: a.uploaded_by_name || 'Unbekannt',
+      uploadedByType: a.uploaded_by_type,
+      createdAt: a.created_at?.toISOString(),
+    }));
+
+    res.json({ success: true, data: attachments });
+  } catch (error) {
+    console.error('Get attachments error:', error);
+    res.status(500).json({ success: false, error: 'Failed to get attachments' });
+  }
+});
+
+// POST /api/tickets/:ticketId/attachments - Upload attachments
+router.post('/:ticketId/attachments', authenticateToken, upload.array('files', 10), async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { ticketId } = req.params;
+    const files = req.files as Express.Multer.File[];
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, error: 'No files uploaded' });
+    }
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    // Save attachments to database
+    const attachments = [];
+    for (const file of files) {
+      const attachmentId = crypto.randomUUID();
+      const fileUrl = getFileUrl(file.filename);
+
+      await query(
+        `INSERT INTO ticket_attachments (id, ticket_id, filename, file_url, file_size, mime_type, uploaded_by_user_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        [attachmentId, ticketId, file.originalname, fileUrl, file.size, file.mimetype, userId]
+      );
+
+      attachments.push({
+        id: attachmentId,
+        filename: file.originalname,
+        fileUrl,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        uploadedByName: (req as any).user.displayName || (req as any).user.username,
+        uploadedByType: 'user',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Update ticket's updated_at
+    await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
+
+    // Log activity
+    await logTicketActivity(ticketId, userId, null, 'attachment_added', null, null, { count: files.length });
+
+    res.status(201).json({ success: true, data: attachments });
+  } catch (error) {
+    console.error('Upload attachments error:', error);
+    res.status(500).json({ success: false, error: 'Failed to upload attachments' });
+  }
+});
+
+// DELETE /api/tickets/:ticketId/attachments/:attachmentId - Delete attachment
+router.delete('/:ticketId/attachments/:attachmentId', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { ticketId, attachmentId } = req.params;
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    // Get attachment to delete the file
+    const attachmentResult = await query(
+      'SELECT * FROM ticket_attachments WHERE id = $1 AND ticket_id = $2',
+      [attachmentId, ticketId]
+    );
+
+    if (attachmentResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Attachment not found' });
+    }
+
+    const attachment = attachmentResult.rows[0];
+
+    // Delete file from disk
+    deleteFile(attachment.file_url);
+
+    // Delete from database
+    await query('DELETE FROM ticket_attachments WHERE id = $1', [attachmentId]);
+
+    res.json({ success: true, message: 'Attachment deleted' });
+  } catch (error) {
+    console.error('Delete attachment error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete attachment' });
   }
 });
 
