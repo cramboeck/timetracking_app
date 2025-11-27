@@ -8,7 +8,9 @@ import { TicketSettings } from './TicketSettings';
 import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { PushNotificationSettings } from './PushNotificationSettings';
 import { SevdeskSettings } from './SevdeskSettings';
-import { CreditCard } from 'lucide-react';
+import { Billing } from './Billing';
+import { CustomerSevdeskLink } from './CustomerSevdeskLink';
+import { CreditCard, Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
@@ -62,6 +64,7 @@ export const Settings = ({
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'billing'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
+  const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
 
   // Company Info State
   const [companyName, setCompanyName] = useState('');
@@ -1415,6 +1418,19 @@ export const Settings = ({
                             </div>
                           </div>
                           <div className="flex gap-2 ml-2">
+                            {billingEnabled && (
+                              <button
+                                onClick={() => setSevdeskLinkCustomer(customer)}
+                                className={`p-2 rounded-lg transition-colors ${
+                                  customer.sevdeskCustomerId
+                                    ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+                                    : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                                }`}
+                                title={customer.sevdeskCustomerId ? 'sevDesk verknüpft' : 'Mit sevDesk verknüpfen'}
+                              >
+                                <Link2 size={18} />
+                              </button>
+                            )}
                             {currentUser?.hasTicketAccess && (
                               <button
                                 onClick={() => setContactsCustomer(customer)}
@@ -2089,6 +2105,11 @@ export const Settings = ({
             {/* sevDesk Settings Component */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
               <SevdeskSettings />
+            </div>
+
+            {/* Billing Component */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <Billing />
             </div>
           </div>
         )}
@@ -3053,6 +3074,20 @@ export const Settings = ({
           isOpen={!!contactsCustomer}
           customer={contactsCustomer}
           onClose={() => setContactsCustomer(null)}
+        />
+      )}
+
+      {/* sevDesk Customer Link Modal */}
+      {sevdeskLinkCustomer && (
+        <CustomerSevdeskLink
+          isOpen={!!sevdeskLinkCustomer}
+          customer={sevdeskLinkCustomer}
+          onClose={() => setSevdeskLinkCustomer(null)}
+          onLinked={() => {
+            // Reload customers to get updated sevdeskCustomerId
+            // This will trigger a refresh in the parent component
+            window.location.reload();
+          }}
         />
       )}
     </div>

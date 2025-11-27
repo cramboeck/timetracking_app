@@ -8,6 +8,7 @@ export interface Customer {
   email?: string;
   address?: string;
   reportTitle?: string; // Custom report title for this customer (e.g., "Stundenzettel" or "Tätigkeitsnachweis")
+  sevdeskCustomerId?: string; // Link to sevDesk contact
   createdAt: string;
 }
 
