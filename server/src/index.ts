@@ -28,6 +28,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy - required when behind nginx reverse proxy
+// This enables correct IP detection for rate limiting
+app.set('trust proxy', 1);
+
 // Security Middleware
 app.use(helmet({
   contentSecurityPolicy: {
