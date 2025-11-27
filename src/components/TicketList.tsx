@@ -1,8 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import { Plus, Filter, AlertCircle, Clock, CheckCircle, Pause, X, ChevronRight, Search, Archive } from 'lucide-react';
 import { Ticket, TicketStatus, TicketPriority, Customer, Project } from '../types';
 import { ticketsApi } from '../services/api';
 import { SlaStatus } from './SlaStatus';
+
+export interface TicketListHandle {
+  selectNext: () => void;
+  selectPrev: () => void;
+  openSelected: () => void;
+  focusSearch: () => void;
+  getSelectedTicketId: () => string | null;
+}
 
 interface TicketListProps {
   customers: Customer[];
@@ -38,7 +46,8 @@ const priorityConfig: Record<TicketPriority, { label: string; color: string }> =
   critical: { label: 'Kritisch', color: 'text-red-500' },
 };
 
-export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket }: TicketListProps) => {
+export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
+  ({ customers, projects, onTicketSelect, onCreateTicket }, ref) => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [stats, setStats] = useState<TicketStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +62,11 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
   const [showArchived, setShowArchived] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<Ticket[] | null>(null);
+
+  // Keyboard navigation state
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const ticketListContainerRef = useRef<HTMLDivElement>(null);
 
   // Load tickets and stats
   useEffect(() => {
@@ -157,6 +171,52 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
 
   const hasActiveFilters = statusFilter || priorityFilter || customerFilter || searchQuery || showArchived;
 
+  // Expose keyboard navigation methods via ref
+  useImperativeHandle(ref, () => ({
+    selectNext: () => {
+      setSelectedIndex(prev => {
+        const newIndex = Math.min(prev + 1, filteredTickets.length - 1);
+        // Scroll selected ticket into view
+        setTimeout(() => {
+          const container = ticketListContainerRef.current;
+          const selected = container?.querySelector(`[data-ticket-index="${newIndex}"]`);
+          selected?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, 0);
+        return newIndex;
+      });
+    },
+    selectPrev: () => {
+      setSelectedIndex(prev => {
+        const newIndex = Math.max(prev - 1, 0);
+        setTimeout(() => {
+          const container = ticketListContainerRef.current;
+          const selected = container?.querySelector(`[data-ticket-index="${newIndex}"]`);
+          selected?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, 0);
+        return newIndex;
+      });
+    },
+    openSelected: () => {
+      if (selectedIndex >= 0 && selectedIndex < filteredTickets.length) {
+        onTicketSelect(filteredTickets[selectedIndex]);
+      }
+    },
+    focusSearch: () => {
+      searchInputRef.current?.focus();
+    },
+    getSelectedTicketId: () => {
+      if (selectedIndex >= 0 && selectedIndex < filteredTickets.length) {
+        return filteredTickets[selectedIndex].id;
+      }
+      return null;
+    },
+  }), [filteredTickets, selectedIndex, onTicketSelect]);
+
+  // Reset selection when tickets change
+  useEffect(() => {
+    setSelectedIndex(-1);
+  }, [tickets, searchResults, statusFilter, priorityFilter, customerFilter]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -205,6 +265,7 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             )}
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Tickets durchsuchen (auch in Kommentaren und Tags)..."
               value={searchQuery}
@@ -298,7 +359,7 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
       </div>
 
       {/* Ticket List */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div ref={ticketListContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-6">
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
@@ -329,18 +390,24 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredTickets.map(ticket => {
+            {filteredTickets.map((ticket, index) => {
               const status = statusConfig[ticket.status];
               const priority = priorityConfig[ticket.priority];
               const StatusIcon = status.icon;
 
               const isArchived = ticket.status === 'archived';
+              const isSelected = index === selectedIndex;
 
               return (
                 <button
                   key={ticket.id}
+                  data-ticket-index={index}
                   onClick={() => onTicketSelect(ticket)}
-                  className={`w-full text-left bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-accent-primary transition-colors ${isArchived ? 'opacity-60' : ''}`}
+                  className={`w-full text-left bg-white dark:bg-gray-800 rounded-lg border p-4 transition-colors ${
+                    isSelected
+                      ? 'border-accent-primary ring-2 ring-accent-primary/30 bg-accent-primary/5'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-accent-primary'
+                  } ${isArchived ? 'opacity-60' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -386,4 +453,6 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
       </div>
     </div>
   );
-};
+});
+
+TicketList.displayName = 'TicketList';
