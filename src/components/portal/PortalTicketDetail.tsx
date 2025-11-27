@@ -12,8 +12,11 @@ const getAbsoluteFileUrl = (fileUrl: string): string => {
     return fileUrl;
   }
   // Remove /api prefix since getApiBaseUrl already includes it
+  const apiBase = getApiBaseUrl();
   const relativePath = fileUrl.startsWith('/api') ? fileUrl.substring(4) : fileUrl;
-  return `${getApiBaseUrl()}${relativePath}`;
+  const absoluteUrl = `${apiBase}${relativePath}`;
+  console.log('[DEBUG] getAbsoluteFileUrl:', { fileUrl, apiBase, relativePath, absoluteUrl });
+  return absoluteUrl;
 };
 
 interface Attachment {
@@ -88,6 +91,8 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
   const loadAttachments = async () => {
     try {
       const data = await customerPortalApi.getAttachments(ticketId);
+      console.log('[DEBUG] Loaded attachments:', data);
+      console.log('[DEBUG] Image attachments:', data.filter((a: Attachment) => a.mimeType?.startsWith('image/')));
       setAttachments(data);
     } catch (err) {
       console.error('Failed to load attachments:', err);
