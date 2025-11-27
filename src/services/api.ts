@@ -563,6 +563,31 @@ export const ticketsApi = {
       method: 'DELETE',
     });
   },
+
+  // Activities (Timeline)
+  getActivities: async (ticketId: string, limit?: number, offset?: number): Promise<{ success: boolean; data: TicketActivity[] }> => {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return authFetch(`/tickets/${ticketId}/activities${query}`);
+  },
+
+  // Search
+  search: async (query: string, filters?: {
+    status?: TicketStatus;
+    priority?: TicketPriority;
+    customerId?: string;
+    limit?: number;
+  }): Promise<{ success: boolean; data: Ticket[] }> => {
+    const params = new URLSearchParams();
+    params.append('q', query);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.priority) params.append('priority', filters.priority);
+    if (filters?.customerId) params.append('customerId', filters.customerId);
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    return authFetch(`/tickets/search/query?${params.toString()}`);
+  },
 };
 
 // Canned Response type
@@ -587,6 +612,24 @@ export interface TicketTag {
   color: string;
   created_at: string;
   ticket_count?: number;
+}
+
+// Ticket Activity type (for timeline)
+export interface TicketActivity {
+  id: string;
+  ticketId: string;
+  userId: string | null;
+  customerContactId: string | null;
+  actionType: 'created' | 'status_changed' | 'priority_changed' | 'assigned' | 'unassigned' |
+    'comment_added' | 'internal_comment_added' | 'attachment_added' |
+    'tag_added' | 'tag_removed' | 'title_changed' | 'description_changed' |
+    'resolved' | 'closed' | 'reopened' | 'archived' | 'rating_added';
+  oldValue: string | null;
+  newValue: string | null;
+  metadata: Record<string, any> | null;
+  createdAt: string;
+  userName: string | null;
+  contactName: string | null;
 }
 
 // Customer Portal API (for customer contacts to use)

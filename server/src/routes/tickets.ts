@@ -246,6 +246,9 @@ router.post('/', authenticateToken, async (req, res) => {
       RETURNING *
     `, [id, ticketNumber, userId, customerId, projectId || null, title, description || '', priority]);
 
+    // Log activity
+    await logTicketActivity(id, userId, null, 'created', null, null, { ticketNumber, title, priority });
+
     // Get with joined data
     const ticketResult = await query(`
       SELECT t.*, c.name as customer_name, p.name as project_name
@@ -268,6 +271,18 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const userId = (req as any).user.id;
     const { id } = req.params;
     const { customerId, projectId, title, description, status, priority, assignedToUserId } = req.body;
+
+    // Get current ticket values for activity logging
+    const currentTicket = await query(
+      'SELECT status, priority, title, description, assigned_to_user_id FROM tickets WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    if (currentTicket.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    const oldValues = currentTicket.rows[0];
 
     // Build dynamic update query
     const updates: string[] = ['updated_at = NOW()'];
@@ -327,6 +342,32 @@ router.put('/:id', authenticateToken, async (req, res) => {
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    // Log activities for each change
+    if (status !== undefined && status !== oldValues.status) {
+      let actionType = 'status_changed';
+      if (status === 'resolved') actionType = 'resolved';
+      else if (status === 'closed') actionType = 'closed';
+      else if (status === 'archived') actionType = 'archived';
+      else if (oldValues.status === 'closed' || oldValues.status === 'resolved') actionType = 'reopened';
+      await logTicketActivity(id, userId, null, actionType, oldValues.status, status);
+    }
+    if (priority !== undefined && priority !== oldValues.priority) {
+      await logTicketActivity(id, userId, null, 'priority_changed', oldValues.priority, priority);
+    }
+    if (title !== undefined && title !== oldValues.title) {
+      await logTicketActivity(id, userId, null, 'title_changed', oldValues.title, title);
+    }
+    if (description !== undefined && description !== oldValues.description) {
+      await logTicketActivity(id, userId, null, 'description_changed', null, null);
+    }
+    if (assignedToUserId !== undefined && assignedToUserId !== oldValues.assigned_to_user_id) {
+      if (assignedToUserId) {
+        await logTicketActivity(id, userId, null, 'assigned', oldValues.assigned_to_user_id, assignedToUserId);
+      } else {
+        await logTicketActivity(id, userId, null, 'unassigned', oldValues.assigned_to_user_id, null);
+      }
     }
 
     // Get with joined data
@@ -401,6 +442,17 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
 
     // Update ticket's updated_at
     await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
+
+    // Log activity
+    await logTicketActivity(
+      ticketId,
+      userId,
+      null,
+      isInternal ? 'internal_comment_added' : 'comment_added',
+      null,
+      null,
+      { commentId }
+    );
 
     // Get comment with author info
     const result = await query(`
@@ -848,11 +900,20 @@ router.post('/:ticketId/tags/:tagId', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Tag not found' });
     }
 
+    // Get tag name for activity log
+    const tagNameResult = await query('SELECT name FROM ticket_tags WHERE id = $1', [tagId]);
+    const tagName = tagNameResult.rows[0]?.name;
+
     await query(`
       INSERT INTO ticket_tag_assignments (ticket_id, tag_id)
       VALUES ($1, $2)
       ON CONFLICT DO NOTHING
     `, [ticketId, tagId]);
+
+    // Log activity
+    if (tagName) {
+      await logTicketActivity(ticketId, userId, null, 'tag_added', null, tagName, { tagId });
+    }
 
     // Return all tags for this ticket
     const result = await query(`
@@ -886,10 +947,19 @@ router.delete('/:ticketId/tags/:tagId', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
 
+    // Get tag name before deleting for activity log
+    const tagResult = await query('SELECT name FROM ticket_tags WHERE id = $1', [tagId]);
+    const tagName = tagResult.rows[0]?.name;
+
     await query(
       'DELETE FROM ticket_tag_assignments WHERE ticket_id = $1 AND tag_id = $2',
       [ticketId, tagId]
     );
+
+    // Log activity
+    if (tagName) {
+      await logTicketActivity(ticketId, userId, null, 'tag_removed', tagName, null, { tagId });
+    }
 
     // Return remaining tags for this ticket
     const result = await query(`
@@ -904,6 +974,189 @@ router.delete('/:ticketId/tags/:tagId', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error removing tag from ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to remove tag from ticket' });
+  }
+});
+
+// ============================================================================
+// TICKET ACTIVITIES ROUTES (Activity Timeline)
+// ============================================================================
+
+// Helper function to log ticket activities
+async function logTicketActivity(
+  ticketId: string,
+  userId: string | null,
+  customerContactId: string | null,
+  actionType: string,
+  oldValue: string | null,
+  newValue: string | null,
+  metadata?: Record<string, any>
+) {
+  try {
+    const id = crypto.randomUUID();
+    await query(`
+      INSERT INTO ticket_activities (id, ticket_id, user_id, customer_contact_id, action_type, old_value, new_value, metadata)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [id, ticketId, userId, customerContactId, actionType, oldValue, newValue, metadata ? JSON.stringify(metadata) : null]);
+  } catch (error) {
+    console.error('Error logging ticket activity:', error);
+    // Don't throw - activity logging should not break main operations
+  }
+}
+
+// GET /api/tickets/:ticketId/activities - Get activity timeline for a ticket
+router.get('/:ticketId/activities', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { ticketId } = req.params;
+    const { limit = 50, offset = 0 } = req.query;
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    const result = await query(`
+      SELECT
+        ta.*,
+        COALESCE(u.display_name, u.username) as user_name,
+        cc.name as contact_name
+      FROM ticket_activities ta
+      LEFT JOIN users u ON ta.user_id = u.id
+      LEFT JOIN customer_contacts cc ON ta.customer_contact_id = cc.id
+      WHERE ta.ticket_id = $1
+      ORDER BY ta.created_at DESC
+      LIMIT $2 OFFSET $3
+    `, [ticketId, Number(limit), Number(offset)]);
+
+    // Transform to camelCase
+    const activities = result.rows.map(row => ({
+      id: row.id,
+      ticketId: row.ticket_id,
+      userId: row.user_id,
+      customerContactId: row.customer_contact_id,
+      actionType: row.action_type,
+      oldValue: row.old_value,
+      newValue: row.new_value,
+      metadata: row.metadata,
+      createdAt: row.created_at?.toISOString(),
+      userName: row.user_name,
+      contactName: row.contact_name,
+    }));
+
+    res.json({ success: true, data: activities });
+  } catch (error) {
+    console.error('Error fetching ticket activities:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch ticket activities' });
+  }
+});
+
+// ============================================================================
+// TICKET SEARCH ROUTES
+// ============================================================================
+
+// GET /api/tickets/search - Search tickets by keyword
+router.get('/search/query', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { q, status, priority, customerId, limit = 50 } = req.query;
+
+    if (!q || String(q).trim().length < 2) {
+      return res.status(400).json({ success: false, error: 'Search query must be at least 2 characters' });
+    }
+
+    const searchTerm = `%${String(q).trim().toLowerCase()}%`;
+
+    let queryText = `
+      SELECT t.*, c.name as customer_name, p.name as project_name
+      FROM tickets t
+      LEFT JOIN customers c ON t.customer_id = c.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      WHERE t.user_id = $1
+        AND (
+          LOWER(t.title) LIKE $2
+          OR LOWER(t.description) LIKE $2
+          OR LOWER(t.ticket_number) LIKE $2
+          OR LOWER(c.name) LIKE $2
+        )
+    `;
+    const params: any[] = [userId, searchTerm];
+    let paramIndex = 3;
+
+    if (status) {
+      queryText += ` AND t.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (priority) {
+      queryText += ` AND t.priority = $${paramIndex}`;
+      params.push(priority);
+      paramIndex++;
+    }
+
+    if (customerId) {
+      queryText += ` AND t.customer_id = $${paramIndex}`;
+      params.push(customerId);
+      paramIndex++;
+    }
+
+    queryText += ` ORDER BY t.updated_at DESC LIMIT $${paramIndex}`;
+    params.push(Number(limit));
+
+    const result = await query(queryText, params);
+
+    // Also search in comments
+    const commentSearchResult = await query(`
+      SELECT DISTINCT t.*, c.name as customer_name, p.name as project_name
+      FROM tickets t
+      LEFT JOIN customers c ON t.customer_id = c.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      INNER JOIN ticket_comments tc ON t.id = tc.ticket_id
+      WHERE t.user_id = $1
+        AND LOWER(tc.content) LIKE $2
+        AND t.id NOT IN (SELECT id FROM tickets WHERE user_id = $1 AND (
+          LOWER(title) LIKE $2
+          OR LOWER(description) LIKE $2
+          OR LOWER(ticket_number) LIKE $2
+        ))
+      ORDER BY t.updated_at DESC
+      LIMIT $3
+    `, [userId, searchTerm, Number(limit)]);
+
+    // Combine results
+    const allTickets = [...result.rows, ...commentSearchResult.rows];
+
+    // Search in tags as well
+    const tagSearchResult = await query(`
+      SELECT DISTINCT t.*, c.name as customer_name, p.name as project_name
+      FROM tickets t
+      LEFT JOIN customers c ON t.customer_id = c.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      INNER JOIN ticket_tag_assignments tta ON t.id = tta.ticket_id
+      INNER JOIN ticket_tags tt ON tta.tag_id = tt.id
+      WHERE t.user_id = $1
+        AND LOWER(tt.name) LIKE $2
+      ORDER BY t.updated_at DESC
+      LIMIT $3
+    `, [userId, searchTerm, Number(limit)]);
+
+    // Add tag results if not already in list
+    const existingIds = new Set(allTickets.map(t => t.id));
+    tagSearchResult.rows.forEach(row => {
+      if (!existingIds.has(row.id)) {
+        allTickets.push(row);
+      }
+    });
+
+    res.json({ success: true, data: allTickets.map(transformTicket) });
+  } catch (error) {
+    console.error('Error searching tickets:', error);
+    res.status(500).json({ success: false, error: 'Failed to search tickets' });
   }
 });
 

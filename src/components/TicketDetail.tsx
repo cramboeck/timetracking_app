@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse } from '../services/api';
+import { ticketsApi, TicketTag, CannedResponse, TicketActivity } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 
 interface TicketDetailProps {
@@ -68,6 +68,11 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const [showCannedDropdown, setShowCannedDropdown] = useState(false);
   const cannedDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Activities (Timeline)
+  const [activities, setActivities] = useState<TicketActivity[]>([]);
+  const [showActivities, setShowActivities] = useState(false);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+
   useEffect(() => {
     loadTicket();
     loadTags();
@@ -129,6 +134,90 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       setCannedResponses(response.data);
     } catch (err) {
       console.error('Failed to load canned responses:', err);
+    }
+  };
+
+  const loadActivities = async () => {
+    try {
+      setLoadingActivities(true);
+      const response = await ticketsApi.getActivities(ticketId);
+      setActivities(response.data);
+    } catch (err) {
+      console.error('Failed to load activities:', err);
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
+
+  const toggleActivities = () => {
+    if (!showActivities && activities.length === 0) {
+      loadActivities();
+    }
+    setShowActivities(!showActivities);
+  };
+
+  const getActivityLabel = (activity: TicketActivity): string => {
+    const actor = activity.userName || activity.contactName || 'System';
+    switch (activity.actionType) {
+      case 'created':
+        return `${actor} hat das Ticket erstellt`;
+      case 'status_changed':
+        return `${actor} hat den Status von "${statusConfig[activity.oldValue as TicketStatus]?.label || activity.oldValue}" auf "${statusConfig[activity.newValue as TicketStatus]?.label || activity.newValue}" geändert`;
+      case 'priority_changed':
+        return `${actor} hat die Priorität von "${priorityConfig[activity.oldValue as TicketPriority]?.label || activity.oldValue}" auf "${priorityConfig[activity.newValue as TicketPriority]?.label || activity.newValue}" geändert`;
+      case 'assigned':
+        return `${actor} hat das Ticket zugewiesen`;
+      case 'unassigned':
+        return `${actor} hat die Zuweisung entfernt`;
+      case 'comment_added':
+        return `${actor} hat einen Kommentar hinzugefügt`;
+      case 'internal_comment_added':
+        return `${actor} hat eine interne Notiz hinzugefügt`;
+      case 'attachment_added':
+        return `${actor} hat einen Anhang hinzugefügt`;
+      case 'tag_added':
+        return `${actor} hat den Tag "${activity.newValue}" hinzugefügt`;
+      case 'tag_removed':
+        return `${actor} hat den Tag "${activity.oldValue}" entfernt`;
+      case 'title_changed':
+        return `${actor} hat den Titel geändert`;
+      case 'description_changed':
+        return `${actor} hat die Beschreibung geändert`;
+      case 'resolved':
+        return `${actor} hat das Ticket als gelöst markiert`;
+      case 'closed':
+        return `${actor} hat das Ticket geschlossen`;
+      case 'reopened':
+        return `${actor} hat das Ticket wieder geöffnet`;
+      case 'archived':
+        return `${actor} hat das Ticket archiviert`;
+      case 'rating_added':
+        return `${actor} hat eine Bewertung abgegeben`;
+      default:
+        return `${actor} hat eine Aktion durchgeführt`;
+    }
+  };
+
+  const getActivityIcon = (actionType: TicketActivity['actionType']) => {
+    switch (actionType) {
+      case 'created':
+        return <Plus size={12} />;
+      case 'status_changed':
+      case 'resolved':
+      case 'closed':
+      case 'reopened':
+      case 'archived':
+        return <RotateCcw size={12} />;
+      case 'priority_changed':
+        return <ChevronDown size={12} />;
+      case 'comment_added':
+      case 'internal_comment_added':
+        return <MessageSquare size={12} />;
+      case 'tag_added':
+      case 'tag_removed':
+        return <Tag size={12} />;
+      default:
+        return <Clock size={12} />;
     }
   };
 
@@ -714,6 +803,61 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
           <div>Aktualisiert: {formatDate(ticket.updatedAt)}</div>
           {ticket.resolvedAt && <div>Gelöst: {formatDate(ticket.resolvedAt)}</div>}
           {ticket.closedAt && <div>Geschlossen: {formatDate(ticket.closedAt)}</div>}
+        </div>
+
+        {/* Activity Timeline */}
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
+          <button
+            onClick={toggleActivities}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <History size={16} className="text-gray-500" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Aktivitätsverlauf
+              </span>
+            </div>
+            <ChevronRight
+              size={16}
+              className={`text-gray-400 transition-transform ${showActivities ? 'rotate-90' : ''}`}
+            />
+          </button>
+          {showActivities && (
+            <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3">
+              {loadingActivities ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
+                </div>
+              ) : activities.length === 0 ? (
+                <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                  Keine Aktivitäten vorhanden
+                </div>
+              ) : (
+                <div className="relative">
+                  {/* Timeline line */}
+                  <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-gray-700" />
+                  <div className="space-y-3">
+                    {activities.map((activity) => (
+                      <div key={activity.id} className="relative flex items-start gap-3 pl-6">
+                        {/* Timeline dot */}
+                        <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center">
+                          {getActivityIcon(activity.actionType)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-900 dark:text-white">
+                            {getActivityLabel(activity)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatDate(activity.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

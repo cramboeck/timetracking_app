@@ -541,6 +541,33 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_ticket_id ON ticket_tag_assignments(ticket_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_tag_id ON ticket_tag_assignments(tag_id)');
 
+    // ========================================================================
+    // TICKET ACTIVITIES TABLE (Activity Timeline / Audit Trail)
+    // ========================================================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_activities (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        customer_contact_id TEXT REFERENCES customer_contacts(id) ON DELETE SET NULL,
+        action_type TEXT NOT NULL CHECK(action_type IN (
+          'created', 'status_changed', 'priority_changed', 'assigned', 'unassigned',
+          'comment_added', 'internal_comment_added', 'attachment_added',
+          'tag_added', 'tag_removed', 'title_changed', 'description_changed',
+          'resolved', 'closed', 'reopened', 'archived', 'rating_added'
+        )),
+        old_value TEXT,
+        new_value TEXT,
+        metadata JSONB,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_activities_ticket_id ON ticket_activities(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_activities_user_id ON ticket_activities(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_activities_created_at ON ticket_activities(created_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_activities_action_type ON ticket_activities(action_type)');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

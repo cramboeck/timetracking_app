@@ -50,11 +50,41 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<Ticket[] | null>(null);
 
   // Load tickets and stats
   useEffect(() => {
     loadData();
   }, [statusFilter, priorityFilter, customerFilter]);
+
+  // Debounced server-side search
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const response = await ticketsApi.search(searchQuery, {
+          status: statusFilter || undefined,
+          priority: priorityFilter || undefined,
+          customerId: customerFilter || undefined,
+        });
+        setSearchResults(response.data);
+      } catch (err) {
+        console.error('Search failed:', err);
+        // Fall back to local search
+        setSearchResults(null);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, statusFilter, priorityFilter, customerFilter]);
 
   const loadData = async () => {
     try {
@@ -82,11 +112,14 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
   };
 
   // Filter tickets by search query and archived status
-  const filteredTickets = tickets.filter(ticket => {
+  const filteredTickets = (searchResults || tickets).filter(ticket => {
     // Filter out archived tickets unless showArchived is true or statusFilter is 'archived'
     if (ticket.status === 'archived' && !showArchived && statusFilter !== 'archived') {
       return false;
     }
+
+    // If server search is active and returned results, don't filter locally
+    if (searchResults) return true;
 
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -118,6 +151,7 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
     setCustomerFilter('');
     setSearchQuery('');
     setShowArchived(false);
+    setSearchResults(null);
   };
 
   const hasActiveFilters = statusFilter || priorityFilter || customerFilter || searchQuery || showArchived;
@@ -162,14 +196,25 @@ export const TicketList = ({ customers, projects, onTicketSelect, onCreateTicket
         {/* Search and Filter */}
         <div className="flex gap-2">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            {isSearching ? (
+              <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
+              </div>
+            ) : (
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            )}
             <input
               type="text"
-              placeholder="Tickets durchsuchen..."
+              placeholder="Tickets durchsuchen (auch in Kommentaren und Tags)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             />
+            {searchQuery.length >= 2 && searchResults && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                {searchResults.length} Ergebnis{searchResults.length !== 1 ? 'se' : ''}
+              </span>
+            )}
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
