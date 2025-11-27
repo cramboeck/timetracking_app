@@ -394,11 +394,11 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
         ) : (
           <>
             {/* Image attachments with preview */}
-            {attachments.filter(a => a.mimeType.startsWith('image/')).length > 0 && (
+            {attachments.filter(a => a.mimeType?.startsWith('image/')).length > 0 && (
               <div className="mb-4">
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Bilder</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {attachments.filter(a => a.mimeType.startsWith('image/')).map((attachment) => (
+                  {attachments.filter(a => a.mimeType?.startsWith('image/')).map((attachment) => (
                     <div key={attachment.id} className="relative group">
                       <a
                         href={attachment.fileUrl}
@@ -440,13 +440,13 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
             )}
 
             {/* Other file attachments */}
-            {attachments.filter(a => !a.mimeType.startsWith('image/')).length > 0 && (
+            {attachments.filter(a => !a.mimeType?.startsWith('image/')).length > 0 && (
               <div>
-                {attachments.filter(a => a.mimeType.startsWith('image/')).length > 0 && (
+                {attachments.filter(a => a.mimeType?.startsWith('image/')).length > 0 && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Dokumente</p>
                 )}
                 <div className="grid gap-2">
-                  {attachments.filter(a => !a.mimeType.startsWith('image/')).map((attachment) => {
+                  {attachments.filter(a => !a.mimeType?.startsWith('image/')).map((attachment) => {
                     const FileIcon = getFileIcon(attachment.mimeType);
                     return (
                       <div

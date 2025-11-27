@@ -915,13 +915,10 @@ export interface PortalTicket {
 
 export interface PortalAttachment {
   id: string;
-  ticketId: string;
   filename: string;
-  originalName: string;
+  fileUrl: string;
+  fileSize: number;
   mimeType: string;
-  size: number;
-  url: string;
-  uploadedBy: string;
   uploadedByName: string;
   createdAt: string;
 }
