@@ -207,7 +207,7 @@ export const Billing = ({ onBack }: BillingProps) => {
               onClick={onBack}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
             >
-              <ChevronLeft size={24} />
+              <ChevronLeft size={24} className="text-gray-600 dark:text-gray-300" />
             </button>
           )}
           <div className="flex items-center gap-3">
@@ -264,10 +264,10 @@ export const Billing = ({ onBack }: BillingProps) => {
             onClick={handlePrevMonth}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
           </button>
           <div className="flex items-center gap-2">
-            <Calendar size={20} className="text-gray-500" />
+            <Calendar size={20} className="text-gray-500 dark:text-gray-400" />
             <span className="text-lg font-semibold text-gray-900 dark:text-white">
               {monthName}
             </span>
@@ -276,7 +276,7 @@ export const Billing = ({ onBack }: BillingProps) => {
             onClick={handleNextMonth}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
           >
-            <ChevronRight size={20} />
+            <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
           </button>
         </div>
       </div>

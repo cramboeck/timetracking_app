@@ -797,6 +797,19 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add hourly_rate to customers for per-customer billing rates
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'hourly_rate'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN hourly_rate DECIMAL(10, 2);
+        END IF;
+      END $$;
+    `);
+
     // Invoice exports tracking
     await client.query(`
       CREATE TABLE IF NOT EXISTS invoice_exports (
