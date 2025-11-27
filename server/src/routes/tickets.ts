@@ -460,8 +460,17 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5)
     `, [commentId, ticketId, userId, isInternal, content]);
 
-    // Update ticket's updated_at
-    await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
+    // Update ticket's updated_at and set first_response_at if not already set (for non-internal comments)
+    if (!isInternal) {
+      await query(`
+        UPDATE tickets
+        SET updated_at = NOW(),
+            first_response_at = COALESCE(first_response_at, NOW())
+        WHERE id = $1
+      `, [ticketId]);
+    } else {
+      await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
+    }
 
     // Log activity
     await logTicketActivity(
