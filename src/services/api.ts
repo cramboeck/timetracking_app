@@ -2,6 +2,9 @@ import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitati
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+// Export helper to get API base URL for file URLs
+export const getApiBaseUrl = () => API_BASE_URL;
+
 // Helper to get auth token from localStorage
 const getAuthToken = (): string | null => {
   return localStorage.getItem('auth_token');

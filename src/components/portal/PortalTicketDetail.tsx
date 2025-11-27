@@ -4,7 +4,17 @@ import {
   Paperclip, Download, Trash2, XCircle, RotateCcw, Star, FileText,
   Image, File, Archive
 } from 'lucide-react';
-import { customerPortalApi, PortalTicket, PortalComment } from '../../services/api';
+import { customerPortalApi, PortalTicket, PortalComment, getApiBaseUrl } from '../../services/api';
+
+// Helper to convert relative file URLs to absolute URLs
+const getAbsoluteFileUrl = (fileUrl: string): string => {
+  if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+    return fileUrl;
+  }
+  // Remove /api prefix since getApiBaseUrl already includes it
+  const relativePath = fileUrl.startsWith('/api') ? fileUrl.substring(4) : fileUrl;
+  return `${getApiBaseUrl()}${relativePath}`;
+};
 
 interface Attachment {
   id: string;
@@ -401,20 +411,20 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                   {attachments.filter(a => a.mimeType?.startsWith('image/')).map((attachment) => (
                     <div key={attachment.id} className="relative group">
                       <a
-                        href={attachment.fileUrl}
+                        href={getAbsoluteFileUrl(attachment.fileUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700"
                       >
                         <img
-                          src={attachment.fileUrl}
+                          src={getAbsoluteFileUrl(attachment.fileUrl)}
                           alt={attachment.filename}
                           className="w-full h-full object-cover hover:scale-105 transition-transform"
                         />
                       </a>
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
                         <a
-                          href={attachment.fileUrl}
+                          href={getAbsoluteFileUrl(attachment.fileUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"
@@ -464,7 +474,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <a
-                            href={attachment.fileUrl}
+                            href={getAbsoluteFileUrl(attachment.fileUrl)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
