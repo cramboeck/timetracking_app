@@ -471,22 +471,16 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Content is required' });
     }
 
-    // Get ticket with customer contact info for email notification
-    const ticketCheck = await query(`
-      SELECT t.id, t.title, t.ticket_number, t.customer_id, t.contact_id,
-             cc.email as contact_email, cc.name as contact_name,
-             COALESCE(u.display_name, u.username) as replier_name
-      FROM tickets t
-      LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
-      LEFT JOIN users u ON u.id = $2
-      WHERE t.id = $1 AND t.user_id = $2
-    `, [ticketId, userId]);
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
 
     if (ticketCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
 
-    const ticket = ticketCheck.rows[0];
     const commentId = crypto.randomUUID();
 
     await query(`
@@ -503,18 +497,33 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
         WHERE id = $1
       `, [ticketId]);
 
-      // Send email notification to customer (if contact has email)
-      if (ticket.contact_email) {
-        const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${ticketId}`;
-        emailService.sendTicketReplyNotification({
-          to: ticket.contact_email,
-          customerName: ticket.contact_name || 'Kunde',
-          ticketNumber: ticket.ticket_number,
-          ticketTitle: ticket.title,
-          replyContent: content,
-          replierName: ticket.replier_name || 'Support',
-          portalUrl: portalTicketUrl,
-        }).catch(err => console.error('Failed to send ticket reply notification:', err));
+      // Send email notification to customer (async, non-blocking)
+      try {
+        const ticketInfo = await query(`
+          SELECT t.title, t.ticket_number, cc.email as contact_email, cc.name as contact_name,
+                 COALESCE(u.display_name, u.username) as replier_name
+          FROM tickets t
+          LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+          LEFT JOIN users u ON u.id = $2
+          WHERE t.id = $1
+        `, [ticketId, userId]);
+
+        if (ticketInfo.rows.length > 0 && ticketInfo.rows[0].contact_email) {
+          const ticket = ticketInfo.rows[0];
+          const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${ticketId}`;
+          emailService.sendTicketReplyNotification({
+            to: ticket.contact_email,
+            customerName: ticket.contact_name || 'Kunde',
+            ticketNumber: ticket.ticket_number,
+            ticketTitle: ticket.title,
+            replyContent: content,
+            replierName: ticket.replier_name || 'Support',
+            portalUrl: portalTicketUrl,
+          }).catch(err => console.error('Failed to send ticket reply notification:', err));
+        }
+      } catch (emailErr) {
+        console.error('Error preparing ticket notification email:', emailErr);
+        // Don't fail the comment creation if email fails
       }
     } else {
       await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
