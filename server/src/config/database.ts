@@ -584,13 +584,14 @@ export async function initializeDatabase() {
         is_active BOOLEAN DEFAULT TRUE,
         is_default BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        UNIQUE(user_id, priority) WHERE is_default = TRUE
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_sla_policies_user_id ON sla_policies(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_sla_policies_priority ON sla_policies(priority)');
+    // Partial unique index: only one default per user/priority combo
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_sla_policies_default ON sla_policies(user_id, priority) WHERE is_default = TRUE');
 
     // Migration: Add SLA columns to tickets table
     await client.query(`
