@@ -333,8 +333,34 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     }
   };
 
+  // Process template variables in canned response content
+  const processTemplateVariables = (content: string): string => {
+    if (!ticket) return content;
+
+    const customer = customers.find(c => c.id === ticket.customerId);
+    const now = new Date();
+
+    const variables: Record<string, string> = {
+      '{{customer_name}}': customer?.name || 'Kunde',
+      '{{ticket_number}}': ticket.ticketNumber || '',
+      '{{ticket_title}}': ticket.title || '',
+      '{{current_date}}': now.toLocaleDateString('de-DE'),
+      '{{current_time}}': now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      '{{status}}': statusConfig[ticket.status]?.label || ticket.status,
+      '{{priority}}': priorityConfig[ticket.priority]?.label || ticket.priority,
+    };
+
+    let processed = content;
+    for (const [variable, value] of Object.entries(variables)) {
+      processed = processed.replace(new RegExp(variable.replace(/[{}]/g, '\\$&'), 'g'), value);
+    }
+
+    return processed;
+  };
+
   const handleUseCannedResponse = async (response: CannedResponse) => {
-    setNewComment(prev => prev + (prev ? '\n' : '') + response.content);
+    const processedContent = processTemplateVariables(response.content);
+    setNewComment(prev => prev + (prev ? '\n' : '') + processedContent);
     setShowCannedDropdown(false);
     // Increment usage count
     try {

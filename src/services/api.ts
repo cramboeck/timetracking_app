@@ -530,6 +530,12 @@ export const ticketsApi = {
     });
   },
 
+  seedDefaultCannedResponses: async (): Promise<{ success: boolean; message: string; seeded: boolean; count?: number }> => {
+    return authFetch('/tickets/canned-responses/seed-defaults', {
+      method: 'POST',
+    });
+  },
+
   // Tags
   getTags: async (): Promise<{ success: boolean; data: TicketTag[] }> => {
     return authFetch('/tickets/tags/list');

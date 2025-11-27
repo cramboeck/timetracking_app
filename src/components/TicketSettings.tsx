@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Tag, MessageSquare, Save, X, Clock } from 'lucide-react';
+import { Plus, Edit2, Trash2, Tag, MessageSquare, Save, X, Clock, Download, Info } from 'lucide-react';
 import { ticketsApi, CannedResponse, TicketTag } from '../services/api';
 import { SlaPolicy } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -30,6 +30,8 @@ export const TicketSettings = () => {
   const [responseShortcut, setResponseShortcut] = useState('');
   const [responseCategory, setResponseCategory] = useState('');
   const [responseToDelete, setResponseToDelete] = useState<CannedResponse | null>(null);
+  const [seedingResponses, setSeedingResponses] = useState(false);
+  const [showVariableInfo, setShowVariableInfo] = useState(false);
 
   // SLA Policies State
   const [slaPolicies, setSlaPolicies] = useState<SlaPolicy[]>([]);
@@ -193,6 +195,23 @@ export const TicketSettings = () => {
     setResponseShortcut('');
     setResponseCategory('');
     setShowResponseForm(false);
+  };
+
+  const handleSeedDefaultResponses = async () => {
+    try {
+      setSeedingResponses(true);
+      const result = await ticketsApi.seedDefaultCannedResponses();
+      if (result.seeded) {
+        await loadResponses();
+        alert(`${result.count} Standard-Vorlagen wurden erstellt!`);
+      } else {
+        alert(result.message);
+      }
+    } catch (err) {
+      alert('Fehler beim Erstellen der Vorlagen');
+    } finally {
+      setSeedingResponses(false);
+    }
   };
 
   // SLA handlers
@@ -429,18 +448,60 @@ export const TicketSettings = () => {
       {/* Canned Responses Section */}
       {activeSection === 'responses' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Textbausteine für häufig verwendete Antworten in Ticket-Kommentaren.
             </p>
             {!showResponseForm && (
-              <button
-                onClick={() => setShowResponseForm(true)}
-                className="flex items-center gap-2 px-3 py-2 btn-accent rounded-lg"
-              >
-                <Plus size={16} />
-                Neuer Textbaustein
-              </button>
+              <div className="flex items-center gap-2">
+                {responses.length === 0 && (
+                  <button
+                    onClick={handleSeedDefaultResponses}
+                    disabled={seedingResponses}
+                    className="flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    <Download size={16} />
+                    {seedingResponses ? 'Lädt...' : 'Standard-Vorlagen laden'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowResponseForm(true)}
+                  className="flex items-center gap-2 px-3 py-2 btn-accent rounded-lg"
+                >
+                  <Plus size={16} />
+                  Neuer Textbaustein
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Variable Info */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <button
+              onClick={() => setShowVariableInfo(!showVariableInfo)}
+              className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-medium w-full"
+            >
+              <Info size={18} />
+              Verfügbare Variablen
+              <span className="ml-auto text-xs">{showVariableInfo ? '▲' : '▼'}</span>
+            </button>
+            {showVariableInfo && (
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{customer_name}}'}</div>
+                <div className="text-gray-600 dark:text-gray-400">Name des Kunden</div>
+                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{ticket_number}}'}</div>
+                <div className="text-gray-600 dark:text-gray-400">Ticketnummer (z.B. TKT-000001)</div>
+                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{ticket_title}}'}</div>
+                <div className="text-gray-600 dark:text-gray-400">Titel des Tickets</div>
+                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{status}}'}</div>
+                <div className="text-gray-600 dark:text-gray-400">Aktueller Status</div>
+                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{priority}}'}</div>
+                <div className="text-gray-600 dark:text-gray-400">Priorität</div>
+                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{current_date}}'}</div>
+                <div className="text-gray-600 dark:text-gray-400">Heutiges Datum</div>
+                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{current_time}}'}</div>
+                <div className="text-gray-600 dark:text-gray-400">Aktuelle Uhrzeit</div>
+              </div>
             )}
           </div>
 

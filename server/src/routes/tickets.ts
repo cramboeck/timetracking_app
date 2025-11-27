@@ -1169,6 +1169,217 @@ router.post('/canned-responses/:id/use', authenticateToken, async (req, res) => 
   }
 });
 
+// POST /api/tickets/canned-responses/seed-defaults - Create default canned responses
+router.post('/canned-responses/seed-defaults', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+
+    // Check if user already has canned responses
+    const existing = await query('SELECT COUNT(*) as count FROM canned_responses WHERE user_id = $1', [userId]);
+    if (parseInt(existing.rows[0].count) > 0) {
+      return res.json({ success: true, message: 'Vorlagen bereits vorhanden', seeded: false });
+    }
+
+    const defaultResponses = [
+      // Begrüßung & Eingangsbestätigung
+      {
+        title: 'Ticket-Eingangsbestätigung',
+        content: `Guten Tag,
+
+vielen Dank für Ihre Anfrage ({{ticket_number}}).
+
+Wir haben Ihr Anliegen erhalten und werden uns schnellstmöglich darum kümmern. Sie erhalten eine Benachrichtigung, sobald es Neuigkeiten gibt.
+
+Bei dringenden Fragen können Sie uns jederzeit kontaktieren.
+
+Mit freundlichen Grüßen`,
+        shortcut: 'ack',
+        category: 'Begrüßung'
+      },
+      {
+        title: 'Persönliche Begrüßung',
+        content: `Hallo,
+
+vielen Dank für Ihre Nachricht zu "{{ticket_title}}".
+
+Ich schaue mir das Thema an und melde mich zeitnah bei Ihnen.
+
+Viele Grüße`,
+        shortcut: 'hi',
+        category: 'Begrüßung'
+      },
+
+      // Status-Updates
+      {
+        title: 'Bearbeitung gestartet',
+        content: `Guten Tag,
+
+ich habe mit der Bearbeitung Ihres Anliegens begonnen.
+
+Aktueller Status: {{status}}
+Priorität: {{priority}}
+
+Ich halte Sie auf dem Laufenden.
+
+Mit freundlichen Grüßen`,
+        shortcut: 'start',
+        category: 'Status'
+      },
+      {
+        title: 'Rückfrage an Kunden',
+        content: `Guten Tag,
+
+für die weitere Bearbeitung benötige ich noch folgende Informationen:
+
+- [Ihre Frage hier]
+
+Sobald ich die Informationen habe, kann ich fortfahren.
+
+Mit freundlichen Grüßen`,
+        shortcut: 'ask',
+        category: 'Status'
+      },
+      {
+        title: 'Warten auf Rückmeldung',
+        content: `Guten Tag,
+
+ich warte noch auf Ihre Rückmeldung zu meiner letzten Anfrage.
+
+Falls Sie keine weiteren Informationen benötigen oder das Problem gelöst ist, können Sie das Ticket gerne schließen.
+
+Mit freundlichen Grüßen`,
+        shortcut: 'wait',
+        category: 'Status'
+      },
+
+      // Lösungen
+      {
+        title: 'Problem gelöst',
+        content: `Guten Tag,
+
+das Problem wurde behoben. Hier ist eine kurze Zusammenfassung:
+
+**Ursache:**
+[Beschreibung der Ursache]
+
+**Lösung:**
+[Beschreibung der Lösung]
+
+Bitte testen Sie, ob alles wie gewünscht funktioniert. Falls noch Fragen bestehen, können Sie einfach auf diese Nachricht antworten.
+
+Mit freundlichen Grüßen`,
+        shortcut: 'solved',
+        category: 'Lösung'
+      },
+      {
+        title: 'Workaround bereitgestellt',
+        content: `Guten Tag,
+
+ich habe einen Workaround für Ihr Problem gefunden:
+
+**Vorgehensweise:**
+1. [Schritt 1]
+2. [Schritt 2]
+3. [Schritt 3]
+
+Dies ist eine temporäre Lösung. Ich arbeite an einer dauerhaften Behebung und halte Sie auf dem Laufenden.
+
+Mit freundlichen Grüßen`,
+        shortcut: 'workaround',
+        category: 'Lösung'
+      },
+
+      // Abschluss
+      {
+        title: 'Ticket abschließen',
+        content: `Guten Tag,
+
+da ich keine Rückmeldung erhalten habe, schließe ich dieses Ticket.
+
+Falls das Problem weiterhin besteht oder neue Fragen auftauchen, können Sie jederzeit ein neues Ticket erstellen oder auf diese Nachricht antworten.
+
+Mit freundlichen Grüßen`,
+        shortcut: 'close',
+        category: 'Abschluss'
+      },
+      {
+        title: 'Feedback-Bitte',
+        content: `Guten Tag,
+
+Ihr Anliegen wurde bearbeitet. Ich hoffe, ich konnte Ihnen weiterhelfen.
+
+Falls Sie mit der Lösung zufrieden sind, würde ich mich über eine kurze Rückmeldung freuen.
+
+Vielen Dank für Ihr Vertrauen!
+
+Mit freundlichen Grüßen`,
+        shortcut: 'feedback',
+        category: 'Abschluss'
+      },
+
+      // Technisch
+      {
+        title: 'Remote-Zugang benötigt',
+        content: `Guten Tag,
+
+zur Analyse des Problems benötige ich einen Remote-Zugang zu Ihrem System.
+
+Bitte teilen Sie mir mit, wann ich mich verbinden kann und senden Sie mir die Zugangsdaten über einen sicheren Kanal.
+
+Mit freundlichen Grüßen`,
+        shortcut: 'remote',
+        category: 'Technisch'
+      },
+      {
+        title: 'Neustart empfohlen',
+        content: `Guten Tag,
+
+bitte versuchen Sie folgende Schritte:
+
+1. Speichern Sie alle offenen Arbeiten
+2. Starten Sie das betroffene Programm/System neu
+3. Testen Sie, ob das Problem weiterhin besteht
+
+Falls das Problem nach dem Neustart weiterhin auftritt, melden Sie sich bitte erneut.
+
+Mit freundlichen Grüßen`,
+        shortcut: 'restart',
+        category: 'Technisch'
+      },
+      {
+        title: 'Log-Dateien anfordern',
+        content: `Guten Tag,
+
+für die Fehleranalyse benötige ich die Log-Dateien des Systems.
+
+Bitte senden Sie mir folgende Dateien:
+- [Log-Datei 1]
+- [Log-Datei 2]
+
+Alternativ können Sie die Dateien als Anhang zu diesem Ticket hochladen.
+
+Mit freundlichen Grüßen`,
+        shortcut: 'logs',
+        category: 'Technisch'
+      }
+    ];
+
+    // Insert all default responses
+    for (const response of defaultResponses) {
+      const id = crypto.randomUUID();
+      await query(`
+        INSERT INTO canned_responses (id, user_id, title, content, shortcut, category)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [id, userId, response.title, response.content, response.shortcut, response.category]);
+    }
+
+    res.json({ success: true, message: `${defaultResponses.length} Standard-Vorlagen erstellt`, seeded: true, count: defaultResponses.length });
+  } catch (error) {
+    console.error('Error seeding canned responses:', error);
+    res.status(500).json({ success: false, error: 'Failed to seed canned responses' });
+  }
+});
+
 // ============================================================================
 // TICKET TAGS ROUTES
 // ============================================================================
