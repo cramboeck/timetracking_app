@@ -367,10 +367,16 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
 
     try {
       setSubmittingComment(true);
+      const wasInternal = isInternal;
       const response = await ticketsApi.addComment(ticket.id, newComment, isInternal);
       setComments(prev => [...prev, response.data]);
       setNewComment('');
       setIsInternal(false);
+
+      // Reload ticket to get updated first_response_at for SLA tracking (only for non-internal comments)
+      if (!wasInternal) {
+        await loadTicket();
+      }
     } catch (err) {
       console.error('Failed to add comment:', err);
       alert('Fehler beim Hinzufügen des Kommentars');
