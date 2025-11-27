@@ -493,6 +493,54 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_ticket_id ON time_entries(ticket_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)');
 
+    // ========================================================================
+    // CANNED RESPONSES (Textbausteine) TABLE
+    // ========================================================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS canned_responses (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        shortcut TEXT,
+        category TEXT,
+        is_shared BOOLEAN DEFAULT FALSE,
+        usage_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_canned_responses_user_id ON canned_responses(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_canned_responses_shortcut ON canned_responses(shortcut)');
+
+    // ========================================================================
+    // TICKET TAGS TABLES
+    // ========================================================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_tags (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL DEFAULT '#6b7280',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, name)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_tag_assignments (
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        tag_id TEXT NOT NULL REFERENCES ticket_tags(id) ON DELETE CASCADE,
+        assigned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (ticket_id, tag_id)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tags_user_id ON ticket_tags(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_ticket_id ON ticket_tag_assignments(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_tag_id ON ticket_tag_assignments(tag_id)');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

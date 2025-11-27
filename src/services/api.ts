@@ -480,7 +480,114 @@ export const ticketsApi = {
       method: 'POST',
     });
   },
+
+  // Canned Responses (Textbausteine)
+  getCannedResponses: async (category?: string): Promise<{ success: boolean; data: CannedResponse[] }> => {
+    const params = category ? `?category=${category}` : '';
+    return authFetch(`/tickets/canned-responses/list${params}`);
+  },
+
+  createCannedResponse: async (data: {
+    title: string;
+    content: string;
+    shortcut?: string;
+    category?: string;
+  }): Promise<{ success: boolean; data: CannedResponse }> => {
+    return authFetch('/tickets/canned-responses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateCannedResponse: async (id: string, data: {
+    title?: string;
+    content?: string;
+    shortcut?: string;
+    category?: string;
+  }): Promise<{ success: boolean; data: CannedResponse }> => {
+    return authFetch(`/tickets/canned-responses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteCannedResponse: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/tickets/canned-responses/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  useCannedResponse: async (id: string): Promise<{ success: boolean; data: CannedResponse }> => {
+    return authFetch(`/tickets/canned-responses/${id}/use`, {
+      method: 'POST',
+    });
+  },
+
+  // Tags
+  getTags: async (): Promise<{ success: boolean; data: TicketTag[] }> => {
+    return authFetch('/tickets/tags/list');
+  },
+
+  createTag: async (data: { name: string; color?: string }): Promise<{ success: boolean; data: TicketTag }> => {
+    return authFetch('/tickets/tags', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateTag: async (id: string, data: { name?: string; color?: string }): Promise<{ success: boolean; data: TicketTag }> => {
+    return authFetch(`/tickets/tags/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteTag: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/tickets/tags/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getTicketTags: async (ticketId: string): Promise<{ success: boolean; data: TicketTag[] }> => {
+    return authFetch(`/tickets/${ticketId}/tags`);
+  },
+
+  addTagToTicket: async (ticketId: string, tagId: string): Promise<{ success: boolean; data: TicketTag[] }> => {
+    return authFetch(`/tickets/${ticketId}/tags/${tagId}`, {
+      method: 'POST',
+    });
+  },
+
+  removeTagFromTicket: async (ticketId: string, tagId: string): Promise<{ success: boolean; data: TicketTag[] }> => {
+    return authFetch(`/tickets/${ticketId}/tags/${tagId}`, {
+      method: 'DELETE',
+    });
+  },
 };
+
+// Canned Response type
+export interface CannedResponse {
+  id: string;
+  user_id: string;
+  title: string;
+  content: string;
+  shortcut?: string;
+  category?: string;
+  is_shared: boolean;
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Ticket Tag type
+export interface TicketTag {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string;
+  created_at: string;
+  ticket_count?: number;
+}
 
 // Customer Portal API (for customer contacts to use)
 const getPortalAuthToken = (): string | null => {

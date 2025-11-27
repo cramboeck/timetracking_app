@@ -556,4 +556,355 @@ router.post('/contacts', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================================================
+// CANNED RESPONSES (Textbausteine) ROUTES
+// ============================================================================
+
+// GET /api/tickets/canned-responses - Get all canned responses for user
+router.get('/canned-responses/list', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { category } = req.query;
+
+    let queryText = `
+      SELECT * FROM canned_responses
+      WHERE user_id = $1
+    `;
+    const params: any[] = [userId];
+
+    if (category) {
+      queryText += ' AND category = $2';
+      params.push(category);
+    }
+
+    queryText += ' ORDER BY usage_count DESC, title ASC';
+
+    const result = await query(queryText, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching canned responses:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch canned responses' });
+  }
+});
+
+// POST /api/tickets/canned-responses - Create canned response
+router.post('/canned-responses', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { title, content, shortcut, category } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ success: false, error: 'Title and content are required' });
+    }
+
+    const id = crypto.randomUUID();
+
+    const result = await query(`
+      INSERT INTO canned_responses (id, user_id, title, content, shortcut, category)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [id, userId, title, content, shortcut || null, category || null]);
+
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error creating canned response:', error);
+    res.status(500).json({ success: false, error: 'Failed to create canned response' });
+  }
+});
+
+// PUT /api/tickets/canned-responses/:id - Update canned response
+router.put('/canned-responses/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { id } = req.params;
+    const { title, content, shortcut, category } = req.body;
+
+    const result = await query(`
+      UPDATE canned_responses
+      SET title = COALESCE($1, title),
+          content = COALESCE($2, content),
+          shortcut = $3,
+          category = $4,
+          updated_at = NOW()
+      WHERE id = $5 AND user_id = $6
+      RETURNING *
+    `, [title, content, shortcut || null, category || null, id, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Canned response not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating canned response:', error);
+    res.status(500).json({ success: false, error: 'Failed to update canned response' });
+  }
+});
+
+// DELETE /api/tickets/canned-responses/:id - Delete canned response
+router.delete('/canned-responses/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { id } = req.params;
+
+    const result = await query(
+      'DELETE FROM canned_responses WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Canned response not found' });
+    }
+
+    res.json({ success: true, message: 'Canned response deleted' });
+  } catch (error) {
+    console.error('Error deleting canned response:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete canned response' });
+  }
+});
+
+// POST /api/tickets/canned-responses/:id/use - Increment usage count
+router.post('/canned-responses/:id/use', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { id } = req.params;
+
+    const result = await query(`
+      UPDATE canned_responses
+      SET usage_count = usage_count + 1
+      WHERE id = $1 AND user_id = $2
+      RETURNING *
+    `, [id, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Canned response not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating canned response usage:', error);
+    res.status(500).json({ success: false, error: 'Failed to update usage count' });
+  }
+});
+
+// ============================================================================
+// TICKET TAGS ROUTES
+// ============================================================================
+
+// GET /api/tickets/tags/list - Get all tags for user
+router.get('/tags/list', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+
+    const result = await query(`
+      SELECT t.*, COUNT(tta.ticket_id) as ticket_count
+      FROM ticket_tags t
+      LEFT JOIN ticket_tag_assignments tta ON t.id = tta.tag_id
+      WHERE t.user_id = $1
+      GROUP BY t.id
+      ORDER BY t.name ASC
+    `, [userId]);
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching tags:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch tags' });
+  }
+});
+
+// POST /api/tickets/tags - Create tag
+router.post('/tags', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { name, color = '#6b7280' } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Name is required' });
+    }
+
+    const id = crypto.randomUUID();
+
+    const result = await query(`
+      INSERT INTO ticket_tags (id, user_id, name, color)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [id, userId, name.trim(), color]);
+
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    if (error.code === '23505') {
+      return res.status(400).json({ success: false, error: 'Tag with this name already exists' });
+    }
+    console.error('Error creating tag:', error);
+    res.status(500).json({ success: false, error: 'Failed to create tag' });
+  }
+});
+
+// PUT /api/tickets/tags/:id - Update tag
+router.put('/tags/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { id } = req.params;
+    const { name, color } = req.body;
+
+    const result = await query(`
+      UPDATE ticket_tags
+      SET name = COALESCE($1, name),
+          color = COALESCE($2, color)
+      WHERE id = $3 AND user_id = $4
+      RETURNING *
+    `, [name?.trim(), color, id, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Tag not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    if (error.code === '23505') {
+      return res.status(400).json({ success: false, error: 'Tag with this name already exists' });
+    }
+    console.error('Error updating tag:', error);
+    res.status(500).json({ success: false, error: 'Failed to update tag' });
+  }
+});
+
+// DELETE /api/tickets/tags/:id - Delete tag
+router.delete('/tags/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { id } = req.params;
+
+    const result = await query(
+      'DELETE FROM ticket_tags WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Tag not found' });
+    }
+
+    res.json({ success: true, message: 'Tag deleted' });
+  } catch (error) {
+    console.error('Error deleting tag:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete tag' });
+  }
+});
+
+// GET /api/tickets/:ticketId/tags - Get tags for a ticket
+router.get('/:ticketId/tags', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { ticketId } = req.params;
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    const result = await query(`
+      SELECT t.*
+      FROM ticket_tags t
+      INNER JOIN ticket_tag_assignments tta ON t.id = tta.tag_id
+      WHERE tta.ticket_id = $1
+      ORDER BY t.name ASC
+    `, [ticketId]);
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching ticket tags:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch ticket tags' });
+  }
+});
+
+// POST /api/tickets/:ticketId/tags/:tagId - Add tag to ticket
+router.post('/:ticketId/tags/:tagId', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { ticketId, tagId } = req.params;
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    // Verify tag belongs to user
+    const tagCheck = await query(
+      'SELECT id FROM ticket_tags WHERE id = $1 AND user_id = $2',
+      [tagId, userId]
+    );
+
+    if (tagCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Tag not found' });
+    }
+
+    await query(`
+      INSERT INTO ticket_tag_assignments (ticket_id, tag_id)
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+    `, [ticketId, tagId]);
+
+    // Return all tags for this ticket
+    const result = await query(`
+      SELECT t.*
+      FROM ticket_tags t
+      INNER JOIN ticket_tag_assignments tta ON t.id = tta.tag_id
+      WHERE tta.ticket_id = $1
+      ORDER BY t.name ASC
+    `, [ticketId]);
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error adding tag to ticket:', error);
+    res.status(500).json({ success: false, error: 'Failed to add tag to ticket' });
+  }
+});
+
+// DELETE /api/tickets/:ticketId/tags/:tagId - Remove tag from ticket
+router.delete('/:ticketId/tags/:tagId', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { ticketId, tagId } = req.params;
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    await query(
+      'DELETE FROM ticket_tag_assignments WHERE ticket_id = $1 AND tag_id = $2',
+      [ticketId, tagId]
+    );
+
+    // Return remaining tags for this ticket
+    const result = await query(`
+      SELECT t.*
+      FROM ticket_tags t
+      INNER JOIN ticket_tag_assignments tta ON t.id = tta.tag_id
+      WHERE tta.ticket_id = $1
+      ORDER BY t.name ASC
+    `, [ticketId]);
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error removing tag from ticket:', error);
+    res.status(500).json({ success: false, error: 'Failed to remove tag from ticket' });
+  }
+});
+
 export default router;
