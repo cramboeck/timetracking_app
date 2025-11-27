@@ -52,7 +52,10 @@ async function sevdeskFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
-  const response = await fetch(`${SEVDESK_API_URL}${endpoint}`, {
+  const url = `${SEVDESK_API_URL}${endpoint}`;
+  console.log(`sevDesk API call: ${options.method || 'GET'} ${url}`);
+
+  const response = await fetch(url, {
     ...options,
     headers: {
       'Authorization': apiToken,
@@ -62,8 +65,16 @@ async function sevdeskFetch(
   });
 
   if (!response.ok) {
-    const errorData: any = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(errorData.error?.message || `sevDesk API error: ${response.status}`);
+    const errorText = await response.text();
+    console.error(`sevDesk API error: ${response.status} ${response.statusText}`, errorText);
+    let errorMessage = `sevDesk API error: ${response.status}`;
+    try {
+      const errorData = JSON.parse(errorText);
+      errorMessage = errorData.error?.message || errorData.message || errorMessage;
+    } catch {
+      // Ignore JSON parse errors
+    }
+    throw new Error(errorMessage);
   }
 
   return response.json();
