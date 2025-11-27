@@ -168,6 +168,196 @@ router.get('/stats', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/tickets/dashboard - Get comprehensive dashboard data
+router.get('/dashboard', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+
+    // Basic counts by status
+    const statusCounts = await query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'open') as open,
+        COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress,
+        COUNT(*) FILTER (WHERE status = 'waiting') as waiting,
+        COUNT(*) FILTER (WHERE status = 'resolved') as resolved,
+        COUNT(*) FILTER (WHERE status = 'closed') as closed,
+        COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed', 'archived')) as active_total,
+        COUNT(*) as total
+      FROM tickets
+      WHERE user_id = $1 AND status != 'archived'
+    `, [userId]);
+
+    // Priority distribution (only active tickets)
+    const priorityCounts = await query(`
+      SELECT
+        COUNT(*) FILTER (WHERE priority = 'critical') as critical,
+        COUNT(*) FILTER (WHERE priority = 'high') as high,
+        COUNT(*) FILTER (WHERE priority = 'normal') as normal,
+        COUNT(*) FILTER (WHERE priority = 'low') as low
+      FROM tickets
+      WHERE user_id = $1 AND status NOT IN ('resolved', 'closed', 'archived')
+    `, [userId]);
+
+    // SLA statistics
+    const slaStats = await query(`
+      SELECT
+        COUNT(*) FILTER (WHERE sla_first_response_breached = true) as response_breached,
+        COUNT(*) FILTER (WHERE sla_resolution_breached = true) as resolution_breached,
+        COUNT(*) FILTER (WHERE first_response_due_at IS NOT NULL AND first_response_at IS NULL AND first_response_due_at < NOW()) as response_overdue,
+        COUNT(*) FILTER (WHERE resolution_due_at IS NOT NULL AND status NOT IN ('resolved', 'closed') AND resolution_due_at < NOW()) as resolution_overdue,
+        COUNT(*) FILTER (WHERE first_response_due_at IS NOT NULL AND first_response_at IS NOT NULL AND first_response_at <= first_response_due_at) as response_met,
+        COUNT(*) FILTER (WHERE resolution_due_at IS NOT NULL AND status IN ('resolved', 'closed') AND resolved_at <= resolution_due_at) as resolution_met,
+        COUNT(*) FILTER (WHERE first_response_due_at IS NOT NULL) as with_response_sla,
+        COUNT(*) FILTER (WHERE resolution_due_at IS NOT NULL) as with_resolution_sla
+      FROM tickets
+      WHERE user_id = $1 AND status != 'archived'
+    `, [userId]);
+
+    // Tickets requiring attention (SLA at risk - due within 2 hours)
+    const urgentTickets = await query(`
+      SELECT t.id, t.ticket_number, t.title, t.status, t.priority,
+             t.first_response_due_at, t.resolution_due_at, t.first_response_at,
+             c.name as customer_name,
+             CASE
+               WHEN first_response_at IS NULL AND first_response_due_at IS NOT NULL
+               THEN EXTRACT(EPOCH FROM (first_response_due_at - NOW())) / 60
+               ELSE NULL
+             END as response_minutes_remaining,
+             CASE
+               WHEN status NOT IN ('resolved', 'closed') AND resolution_due_at IS NOT NULL
+               THEN EXTRACT(EPOCH FROM (resolution_due_at - NOW())) / 60
+               ELSE NULL
+             END as resolution_minutes_remaining
+      FROM tickets t
+      LEFT JOIN customers c ON t.customer_id = c.id
+      WHERE t.user_id = $1
+        AND t.status NOT IN ('resolved', 'closed', 'archived')
+        AND (
+          (t.first_response_at IS NULL AND t.first_response_due_at IS NOT NULL AND t.first_response_due_at <= NOW() + INTERVAL '2 hours')
+          OR (t.resolution_due_at IS NOT NULL AND t.resolution_due_at <= NOW() + INTERVAL '2 hours')
+        )
+      ORDER BY
+        LEAST(
+          COALESCE(t.first_response_due_at, '9999-12-31'::timestamp),
+          COALESCE(t.resolution_due_at, '9999-12-31'::timestamp)
+        )
+      LIMIT 10
+    `, [userId]);
+
+    // Recent activity
+    const recentActivity = await query(`
+      SELECT ta.id, ta.ticket_id, ta.action, ta.old_value, ta.new_value, ta.created_at,
+             t.ticket_number, t.title,
+             COALESCE(u.display_name, u.username) as actor_name,
+             cc.name as contact_name
+      FROM ticket_activities ta
+      JOIN tickets t ON ta.ticket_id = t.id
+      LEFT JOIN users u ON ta.user_id = u.id
+      LEFT JOIN customer_contacts cc ON ta.customer_contact_id = cc.id
+      WHERE t.user_id = $1
+      ORDER BY ta.created_at DESC
+      LIMIT 15
+    `, [userId]);
+
+    // Tickets created this week vs last week
+    const weeklyComparison = await query(`
+      SELECT
+        COUNT(*) FILTER (WHERE created_at >= DATE_TRUNC('week', NOW())) as this_week,
+        COUNT(*) FILTER (WHERE created_at >= DATE_TRUNC('week', NOW()) - INTERVAL '1 week' AND created_at < DATE_TRUNC('week', NOW())) as last_week,
+        COUNT(*) FILTER (WHERE status IN ('resolved', 'closed') AND updated_at >= DATE_TRUNC('week', NOW())) as resolved_this_week
+      FROM tickets
+      WHERE user_id = $1
+    `, [userId]);
+
+    // Average response time (in minutes) for resolved tickets this month
+    const avgTimes = await query(`
+      SELECT
+        ROUND(AVG(EXTRACT(EPOCH FROM (first_response_at - created_at)) / 60)) as avg_first_response_minutes,
+        ROUND(AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60)) as avg_resolution_minutes
+      FROM tickets
+      WHERE user_id = $1
+        AND first_response_at IS NOT NULL
+        AND resolved_at IS NOT NULL
+        AND created_at >= DATE_TRUNC('month', NOW())
+    `, [userId]);
+
+    // Top customers by ticket count (active tickets)
+    const topCustomers = await query(`
+      SELECT c.id, c.name, c.color, COUNT(t.id) as ticket_count
+      FROM tickets t
+      JOIN customers c ON t.customer_id = c.id
+      WHERE t.user_id = $1 AND t.status NOT IN ('resolved', 'closed', 'archived')
+      GROUP BY c.id, c.name, c.color
+      ORDER BY ticket_count DESC
+      LIMIT 5
+    `, [userId]);
+
+    // Calculate SLA compliance percentage
+    const sla = slaStats.rows[0];
+    const responseCompliance = sla.with_response_sla > 0
+      ? Math.round((parseInt(sla.response_met) / parseInt(sla.with_response_sla)) * 100)
+      : 100;
+    const resolutionCompliance = sla.with_resolution_sla > 0
+      ? Math.round((parseInt(sla.resolution_met) / parseInt(sla.with_resolution_sla)) * 100)
+      : 100;
+
+    res.json({
+      success: true,
+      data: {
+        overview: {
+          ...statusCounts.rows[0],
+          ...priorityCounts.rows[0],
+        },
+        sla: {
+          responseCompliance,
+          resolutionCompliance,
+          responseBreached: parseInt(sla.response_breached) || 0,
+          resolutionBreached: parseInt(sla.resolution_breached) || 0,
+          responseOverdue: parseInt(sla.response_overdue) || 0,
+          resolutionOverdue: parseInt(sla.resolution_overdue) || 0,
+        },
+        urgentTickets: urgentTickets.rows.map(t => ({
+          id: t.id,
+          ticketNumber: t.ticket_number,
+          title: t.title,
+          status: t.status,
+          priority: t.priority,
+          customerName: t.customer_name,
+          responseMinutesRemaining: t.response_minutes_remaining ? Math.round(parseFloat(t.response_minutes_remaining)) : null,
+          resolutionMinutesRemaining: t.resolution_minutes_remaining ? Math.round(parseFloat(t.resolution_minutes_remaining)) : null,
+        })),
+        recentActivity: recentActivity.rows.map(a => ({
+          id: a.id,
+          ticketId: a.ticket_id,
+          action: a.action,
+          oldValue: a.old_value,
+          newValue: a.new_value,
+          createdAt: a.created_at,
+          ticketNumber: a.ticket_number,
+          ticketTitle: a.title,
+          actorName: a.actor_name || a.contact_name || 'System',
+        })),
+        trends: {
+          ticketsThisWeek: parseInt(weeklyComparison.rows[0].this_week) || 0,
+          ticketsLastWeek: parseInt(weeklyComparison.rows[0].last_week) || 0,
+          resolvedThisWeek: parseInt(weeklyComparison.rows[0].resolved_this_week) || 0,
+          avgFirstResponseMinutes: parseInt(avgTimes.rows[0].avg_first_response_minutes) || null,
+          avgResolutionMinutes: parseInt(avgTimes.rows[0].avg_resolution_minutes) || null,
+        },
+        topCustomers: topCustomers.rows.map(c => ({
+          id: c.id,
+          name: c.name,
+          color: c.color,
+          ticketCount: parseInt(c.ticket_count),
+        })),
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch dashboard data' });
+  }
+});
+
 // GET /api/tickets/:id - Get single ticket with comments
 router.get('/:id', authenticateToken, async (req, res) => {
   try {

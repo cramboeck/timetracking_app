@@ -396,6 +396,10 @@ export const ticketsApi = {
     return authFetch('/tickets/stats');
   },
 
+  getDashboard: async (): Promise<{ success: boolean; data: TicketDashboardData }> => {
+    return authFetch('/tickets/dashboard');
+  },
+
   getById: async (id: string): Promise<{ success: boolean; data: Ticket & { comments: TicketComment[]; timeEntries: TimeEntry[] } }> => {
     return authFetch(`/tickets/${id}`);
   },
@@ -868,6 +872,65 @@ export interface TicketTag {
   color: string;
   created_at: string;
   ticket_count?: number;
+}
+
+// Ticket Dashboard Data type
+export interface TicketDashboardData {
+  overview: {
+    total: number;
+    open: number;
+    in_progress: number;
+    waiting: number;
+    resolved: number;
+    closed: number;
+    active_total: number;
+    critical: number;
+    high: number;
+    normal: number;
+    low: number;
+  };
+  sla: {
+    responseCompliance: number;
+    resolutionCompliance: number;
+    responseBreached: number;
+    resolutionBreached: number;
+    responseOverdue: number;
+    resolutionOverdue: number;
+  };
+  urgentTickets: Array<{
+    id: string;
+    ticketNumber: string;
+    title: string;
+    priority: string;
+    status: string;
+    customerName: string;
+    responseMinutesRemaining: number | null;
+    resolutionMinutesRemaining: number | null;
+  }>;
+  recentActivity: Array<{
+    id: string;
+    ticketId: string;
+    action: string;
+    oldValue: string | null;
+    newValue: string | null;
+    createdAt: string;
+    ticketNumber: string;
+    ticketTitle: string;
+    actorName: string;
+  }>;
+  trends: {
+    ticketsThisWeek: number;
+    ticketsLastWeek: number;
+    resolvedThisWeek: number;
+    avgFirstResponseMinutes: number | null;
+    avgResolutionMinutes: number | null;
+  };
+  topCustomers: Array<{
+    id: string;
+    name: string;
+    color: string;
+    ticketCount: number;
+  }>;
 }
 
 // Ticket Activity type (for timeline)
