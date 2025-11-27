@@ -392,45 +392,101 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
             Keine Anhänge vorhanden
           </p>
         ) : (
-          <div className="grid gap-2">
-            {attachments.map((attachment) => {
-              const FileIcon = getFileIcon(attachment.mimeType);
-              return (
-                <div
-                  key={attachment.id}
-                  className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg group"
-                >
-                  <FileIcon size={20} className="text-gray-400 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {attachment.filename}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatFileSize(attachment.fileSize)} • {attachment.uploadedByName}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <a
-                      href={attachment.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
-                      title="Herunterladen"
-                    >
-                      <Download size={16} />
-                    </a>
-                    <button
-                      onClick={() => handleDeleteAttachment(attachment.id)}
-                      className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
-                      title="Löschen"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+          <>
+            {/* Image attachments with preview */}
+            {attachments.filter(a => a.mimeType.startsWith('image/')).length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Bilder</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {attachments.filter(a => a.mimeType.startsWith('image/')).map((attachment) => (
+                    <div key={attachment.id} className="relative group">
+                      <a
+                        href={attachment.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700"
+                      >
+                        <img
+                          src={attachment.fileUrl}
+                          alt={attachment.filename}
+                          className="w-full h-full object-cover hover:scale-105 transition-transform"
+                        />
+                      </a>
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                        <a
+                          href={attachment.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"
+                          title="Öffnen"
+                        >
+                          <Download size={16} />
+                        </a>
+                        <button
+                          onClick={() => handleDeleteAttachment(attachment.id)}
+                          className="p-2 bg-white/20 hover:bg-red-500/50 rounded-full text-white transition-colors"
+                          title="Löschen"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {attachment.filename}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            )}
+
+            {/* Other file attachments */}
+            {attachments.filter(a => !a.mimeType.startsWith('image/')).length > 0 && (
+              <div>
+                {attachments.filter(a => a.mimeType.startsWith('image/')).length > 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Dokumente</p>
+                )}
+                <div className="grid gap-2">
+                  {attachments.filter(a => !a.mimeType.startsWith('image/')).map((attachment) => {
+                    const FileIcon = getFileIcon(attachment.mimeType);
+                    return (
+                      <div
+                        key={attachment.id}
+                        className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg group"
+                      >
+                        <FileIcon size={20} className="text-gray-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {attachment.filename}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatFileSize(attachment.fileSize)} • {attachment.uploadedByName}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <a
+                            href={attachment.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                            title="Herunterladen"
+                          >
+                            <Download size={16} />
+                          </a>
+                          <button
+                            onClick={() => handleDeleteAttachment(attachment.id)}
+                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
+                            title="Löschen"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

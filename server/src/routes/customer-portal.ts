@@ -84,6 +84,7 @@ router.post('/login', authLimiter, async (req, res) => {
         id: contact.id,
         customerId: contact.customer_id,
         customerName: contact.customer_name,
+        userId: contact.user_id, // Service provider's user ID
         name: contact.name,
         email: contact.email,
         canCreateTickets: contact.can_create_tickets,
@@ -100,7 +101,7 @@ router.post('/login', authLimiter, async (req, res) => {
 router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     const contactResult = await pool.query(
-      `SELECT cc.*, c.name as customer_name
+      `SELECT cc.*, c.name as customer_name, c.user_id
        FROM customer_contacts cc
        JOIN customers c ON cc.customer_id = c.id
        WHERE cc.id = $1`,
@@ -116,6 +117,7 @@ router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, re
       id: contact.id,
       customerId: contact.customer_id,
       customerName: contact.customer_name,
+      userId: contact.user_id, // Service provider's user ID
       name: contact.name,
       email: contact.email,
       canCreateTickets: contact.can_create_tickets,
@@ -706,6 +708,55 @@ router.delete('/tickets/:ticketId/attachments/:attachmentId', authenticateCustom
     res.json({ success: true, message: 'Attachment deleted' });
   } catch (error) {
     console.error('Delete attachment error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// CHANGE PASSWORD
+// ============================================================================
+
+// Change password (authenticated user)
+router.post('/change-password', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+
+    // Get current password hash
+    const contactResult = await pool.query(
+      'SELECT password_hash FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (contactResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const contact = contactResult.rows[0];
+
+    // Verify current password
+    const validPassword = await bcrypt.compare(currentPassword, contact.password_hash);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash new password and update
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      'UPDATE customer_contacts SET password_hash = $1 WHERE id = $2',
+      [newPasswordHash, req.contactId]
+    );
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

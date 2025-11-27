@@ -638,6 +638,185 @@ export const ticketsApi = {
   },
 };
 
+// Knowledge Base types
+export interface KbCategory {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  icon: string;
+  sortOrder: number;
+  isPublic: boolean;
+  articleCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KbArticle {
+  id: string;
+  userId: string;
+  categoryId?: string;
+  categoryName?: string;
+  title: string;
+  slug: string;
+  content: string;
+  excerpt?: string;
+  isPublished: boolean;
+  isFeatured: boolean;
+  viewCount: number;
+  helpfulYes: number;
+  helpfulNo: number;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string;
+}
+
+// Knowledge Base API (for admin)
+export const knowledgeBaseApi = {
+  // Categories
+  getCategories: async (): Promise<{ success: boolean; data: KbCategory[] }> => {
+    return authFetch('/knowledge-base/categories');
+  },
+
+  createCategory: async (data: {
+    name: string;
+    description?: string;
+    icon?: string;
+    sortOrder?: number;
+    isPublic?: boolean;
+  }): Promise<{ success: boolean; data: KbCategory }> => {
+    return authFetch('/knowledge-base/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateCategory: async (id: string, data: Partial<KbCategory>): Promise<{ success: boolean; data: KbCategory }> => {
+    return authFetch(`/knowledge-base/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteCategory: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/knowledge-base/categories/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Articles
+  getArticles: async (filters?: { categoryId?: string; published?: boolean }): Promise<{ success: boolean; data: KbArticle[] }> => {
+    const params = new URLSearchParams();
+    if (filters?.categoryId) params.append('categoryId', filters.categoryId);
+    if (filters?.published !== undefined) params.append('published', String(filters.published));
+    return authFetch(`/knowledge-base/articles?${params.toString()}`);
+  },
+
+  getArticle: async (id: string): Promise<{ success: boolean; data: KbArticle }> => {
+    return authFetch(`/knowledge-base/articles/${id}`);
+  },
+
+  createArticle: async (data: {
+    categoryId?: string;
+    title: string;
+    content: string;
+    excerpt?: string;
+    isPublished?: boolean;
+    isFeatured?: boolean;
+  }): Promise<{ success: boolean; data: KbArticle }> => {
+    return authFetch('/knowledge-base/articles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateArticle: async (id: string, data: Partial<KbArticle>): Promise<{ success: boolean; data: KbArticle }> => {
+    return authFetch(`/knowledge-base/articles/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteArticle: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/knowledge-base/articles/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// Public Knowledge Base API (for portal)
+export const publicKbApi = {
+  getKnowledgeBase: async (userId: string): Promise<{
+    success: boolean;
+    data: {
+      categories: KbCategory[];
+      featuredArticles: KbArticle[];
+      recentArticles: KbArticle[];
+    };
+  }> => {
+    const response = await fetch(`${API_BASE_URL}/knowledge-base/public/${userId}`);
+    return handleResponse(response);
+  },
+
+  getArticles: async (userId: string, filters?: { categoryId?: string; search?: string }): Promise<{ success: boolean; data: KbArticle[] }> => {
+    const params = new URLSearchParams();
+    if (filters?.categoryId) params.append('categoryId', filters.categoryId);
+    if (filters?.search) params.append('search', filters.search);
+    const response = await fetch(`${API_BASE_URL}/knowledge-base/public/${userId}/articles?${params.toString()}`);
+    return handleResponse(response);
+  },
+
+  getArticle: async (userId: string, slug: string): Promise<{ success: boolean; data: KbArticle }> => {
+    const response = await fetch(`${API_BASE_URL}/knowledge-base/public/${userId}/articles/${slug}`);
+    return handleResponse(response);
+  },
+
+  sendFeedback: async (userId: string, slug: string, helpful: boolean): Promise<{ success: boolean; data: { helpfulYes: number; helpfulNo: number } }> => {
+    const response = await fetch(`${API_BASE_URL}/knowledge-base/public/${userId}/articles/${slug}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ helpful }),
+    });
+    return handleResponse(response);
+  },
+
+  getSettings: async (userId: string): Promise<{
+    success: boolean;
+    data: PortalSettings;
+  }> => {
+    const response = await fetch(`${API_BASE_URL}/knowledge-base/public/${userId}/settings`);
+    return handleResponse(response);
+  },
+};
+
+// Portal Settings type
+export interface PortalSettings {
+  id?: string;
+  userId?: string;
+  companyName: string | null;
+  welcomeMessage: string | null;
+  logoUrl: string | null;
+  primaryColor: string;
+  showKnowledgeBase: boolean;
+  requireLoginForKb?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Portal Settings API (for admin)
+export const portalSettingsApi = {
+  getSettings: async (): Promise<{ success: boolean; data: PortalSettings }> => {
+    return authFetch('/knowledge-base/portal-settings');
+  },
+
+  updateSettings: async (data: Partial<PortalSettings>): Promise<{ success: boolean; data: PortalSettings }> => {
+    return authFetch('/knowledge-base/portal-settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
 // Canned Response type
 export interface CannedResponse {
   id: string;
@@ -709,6 +888,7 @@ export interface PortalContact {
   id: string;
   customerId: string;
   customerName: string;
+  userId: string; // Service provider's user ID (for KB access)
   name: string;
   email: string;
   canCreateTickets: boolean;
@@ -860,6 +1040,14 @@ export const customerPortalApi = {
     return portalAuthFetch(`/customer-portal/tickets/${ticketId}/rate`, {
       method: 'POST',
       body: JSON.stringify({ rating, feedback }),
+    });
+  },
+
+  // Change password
+  changePassword: async (currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+    return portalAuthFetch('/customer-portal/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
     });
   },
 };

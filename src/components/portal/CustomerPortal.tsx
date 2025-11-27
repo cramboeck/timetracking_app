@@ -1,17 +1,23 @@
 import { useState, useEffect } from 'react';
-import { customerPortalApi, PortalContact, PortalTicket } from '../../services/api';
+import { customerPortalApi, PortalContact, PortalTicket, publicKbApi, PortalSettings } from '../../services/api';
 import { PortalLogin } from './PortalLogin';
 import { PortalLayout } from './PortalLayout';
 import { PortalTicketList } from './PortalTicketList';
 import { PortalTicketDetail } from './PortalTicketDetail';
 import { PortalCreateTicket } from './PortalCreateTicket';
 import { PortalActivate } from './PortalActivate';
+import { PortalProfile } from './PortalProfile';
+import { PortalKnowledgeBase } from './PortalKnowledgeBase';
+
+type PortalView = 'tickets' | 'ticket-detail' | 'profile' | 'kb';
 
 export const CustomerPortal = () => {
   const [contact, setContact] = useState<PortalContact | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [currentView, setCurrentView] = useState<PortalView>('tickets');
+  const [portalSettings, setPortalSettings] = useState<PortalSettings | null>(null);
 
   // Check for activation token in URL
   const urlParams = new URLSearchParams(window.location.search);
@@ -39,6 +45,13 @@ export const CustomerPortal = () => {
     try {
       const contactData = await customerPortalApi.getMe();
       setContact(contactData);
+      // Load portal settings for branding
+      try {
+        const settingsRes = await publicKbApi.getSettings(contactData.userId);
+        setPortalSettings(settingsRes.data);
+      } catch (settingsErr) {
+        console.error('Failed to load portal settings:', settingsErr);
+      }
     } catch (err) {
       console.error('Session check failed:', err);
       localStorage.removeItem('portal_auth_token');
@@ -47,26 +60,47 @@ export const CustomerPortal = () => {
     }
   };
 
-  const handleLoginSuccess = (contactData: PortalContact) => {
+  const handleLoginSuccess = async (contactData: PortalContact) => {
     setContact(contactData);
+    // Load portal settings for branding
+    try {
+      const settingsRes = await publicKbApi.getSettings(contactData.userId);
+      setPortalSettings(settingsRes.data);
+    } catch (err) {
+      console.error('Failed to load portal settings:', err);
+    }
   };
 
   const handleLogout = () => {
     setContact(null);
     setSelectedTicketId(null);
+    setCurrentView('tickets');
   };
 
   const handleTicketSelect = (ticket: PortalTicket) => {
     setSelectedTicketId(ticket.id);
+    setCurrentView('ticket-detail');
   };
 
   const handleBack = () => {
+    setSelectedTicketId(null);
+    setCurrentView('tickets');
+  };
+
+  const handleShowProfile = () => {
+    setCurrentView('profile');
+    setSelectedTicketId(null);
+  };
+
+  const handleShowKnowledgeBase = () => {
+    setCurrentView('kb');
     setSelectedTicketId(null);
   };
 
   const handleTicketCreated = (ticket: PortalTicket) => {
     // Navigate to the new ticket
     setSelectedTicketId(ticket.id);
+    setCurrentView('ticket-detail');
   };
 
   const handleActivated = () => {
@@ -102,8 +136,19 @@ export const CustomerPortal = () => {
 
   // Show portal
   return (
-    <PortalLayout contact={contact} onLogout={handleLogout}>
-      {selectedTicketId ? (
+    <PortalLayout
+      contact={contact}
+      onLogout={handleLogout}
+      onShowProfile={handleShowProfile}
+      onShowKnowledgeBase={portalSettings?.showKnowledgeBase !== false ? handleShowKnowledgeBase : undefined}
+      currentView={currentView}
+      portalSettings={portalSettings}
+    >
+      {currentView === 'kb' ? (
+        <PortalKnowledgeBase userId={contact.userId} onBack={handleBack} />
+      ) : currentView === 'profile' ? (
+        <PortalProfile contact={contact} onBack={handleBack} />
+      ) : currentView === 'ticket-detail' && selectedTicketId ? (
         <PortalTicketDetail
           ticketId={selectedTicketId}
           onBack={handleBack}

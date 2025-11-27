@@ -614,6 +614,72 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_first_response_due_at ON tickets(first_response_due_at)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_resolution_due_at ON tickets(resolution_due_at)');
 
+    // ========================================================================
+    // KNOWLEDGE BASE TABLES
+    // ========================================================================
+
+    // Knowledge base categories
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS kb_categories (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        icon TEXT DEFAULT 'folder',
+        sort_order INTEGER DEFAULT 0,
+        is_public BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_kb_categories_user_id ON kb_categories(user_id)');
+
+    // Knowledge base articles
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS kb_articles (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        category_id TEXT REFERENCES kb_categories(id) ON DELETE SET NULL,
+        title TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        content TEXT NOT NULL,
+        excerpt TEXT,
+        is_published BOOLEAN DEFAULT FALSE,
+        is_featured BOOLEAN DEFAULT FALSE,
+        view_count INTEGER DEFAULT 0,
+        helpful_yes INTEGER DEFAULT 0,
+        helpful_no INTEGER DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        published_at TIMESTAMP,
+        UNIQUE(user_id, slug)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_kb_articles_user_id ON kb_articles(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_kb_articles_category_id ON kb_articles(category_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_kb_articles_is_published ON kb_articles(is_published)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_kb_articles_slug ON kb_articles(slug)');
+
+    // Portal settings/branding
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS portal_settings (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        company_name TEXT,
+        welcome_message TEXT,
+        logo_url TEXT,
+        primary_color TEXT DEFAULT '#3b82f6',
+        show_knowledge_base BOOLEAN DEFAULT TRUE,
+        require_login_for_kb BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_settings_user_id ON portal_settings(user_id)');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

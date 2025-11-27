@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon, UserCog, Ticket } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon, UserCog, Ticket, Book } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CustomerContacts } from './CustomerContacts';
 import { TicketSettings } from './TicketSettings';
+import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
@@ -56,7 +57,7 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal'>('account');
 
   // Company Info State
   const [companyName, setCompanyName] = useState('');
@@ -781,7 +782,8 @@ export const Settings = ({
     {
       category: 'Support',
       items: [
-        { id: 'tickets', label: 'Ticket-System', icon: Ticket, desc: 'Tags & Textbausteine' }
+        { id: 'tickets', label: 'Ticket-System', icon: Ticket, desc: 'Tags & Textbausteine' },
+        { id: 'portal', label: 'Kundenportal', icon: Book, desc: 'KB & Branding' }
       ]
     }
   ];
@@ -2008,6 +2010,30 @@ export const Settings = ({
             {/* Ticket Settings Component */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
               <TicketSettings />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'portal' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
+                  <Book size={28} className="text-accent-primary" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Kundenportal</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    Wissensdatenbank und Portal-Branding verwalten
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Knowledge Base Settings Component */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <KnowledgeBaseSettings />
             </div>
           </div>
         )}
