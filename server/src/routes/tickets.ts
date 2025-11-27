@@ -246,7 +246,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
 
     // Recent activity
     const recentActivity = await query(`
-      SELECT ta.id, ta.ticket_id, ta.action, ta.old_value, ta.new_value, ta.created_at,
+      SELECT ta.id, ta.ticket_id, ta.action_type as action, ta.old_value, ta.new_value, ta.created_at,
              t.ticket_number, t.title,
              COALESCE(u.display_name, u.username) as actor_name,
              cc.name as contact_name
