@@ -166,18 +166,38 @@ export async function saveConfig(
 // Test sevDesk connection
 export async function testConnection(apiToken: string): Promise<{ success: boolean; companyName?: string; error?: string }> {
   try {
-    const response = await sevdeskFetch(apiToken, '/SevUser');
-    const user = response.objects?.[0];
+    // First try to get SevClient info directly
+    const clientResponse = await sevdeskFetch(apiToken, '/SevClient');
+    const client = clientResponse.objects?.[0];
 
-    if (user) {
+    if (client?.name) {
       return {
         success: true,
-        companyName: user.sevClient?.name || 'Unbekannt',
+        companyName: client.name,
+      };
+    }
+
+    // Fallback: try SevUser endpoint
+    const userResponse = await sevdeskFetch(apiToken, '/SevUser');
+    const user = userResponse.objects?.[0];
+
+    if (user) {
+      // Try different paths for company name
+      const companyName =
+        user.sevClient?.name ||
+        user.client?.name ||
+        user.username ||
+        'Verbunden';
+
+      return {
+        success: true,
+        companyName,
       };
     }
 
     return { success: false, error: 'Keine Benutzerdaten gefunden' };
   } catch (error: any) {
+    console.error('sevDesk testConnection error:', error);
     return { success: false, error: error.message };
   }
 }
