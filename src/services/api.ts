@@ -1249,6 +1249,134 @@ export const pushApi = {
   },
 };
 
+// sevDesk API Types
+export interface SevdeskConfig {
+  id: string;
+  userId: string;
+  hasToken: boolean;
+  defaultHourlyRate: number;
+  paymentTermsDays: number;
+  taxRate: number;
+  autoSyncCustomers: boolean;
+  createAsFinal: boolean;
+  lastSyncAt: string | null;
+}
+
+export interface SevdeskCustomer {
+  id: string;
+  customerNumber: string;
+  name: string;
+  email?: string;
+}
+
+export interface BillingSummaryItem {
+  customerId: string;
+  customerName: string;
+  hourlyRate: number | null;
+  sevdeskCustomerId: string | null;
+  totalSeconds: number;
+  totalHours: number;
+  totalAmount: number | null;
+  entries: Array<{
+    id: string;
+    duration: number;
+    description: string;
+    ticketNumber?: string;
+    ticketTitle?: string;
+    projectName?: string;
+    startTime: string;
+  }>;
+}
+
+export interface InvoiceExport {
+  id: string;
+  customerName: string;
+  sevdeskInvoiceNumber: string | null;
+  periodStart: string;
+  periodEnd: string;
+  totalHours: number;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+}
+
+// sevDesk API
+export const sevdeskApi = {
+  // Check if billing feature is enabled
+  getFeatureStatus: async (): Promise<{ success: boolean; data: { billingEnabled: boolean; ninjaRmmEnabled: boolean } }> => {
+    return authFetch('/sevdesk/feature-status');
+  },
+
+  // Get configuration
+  getConfig: async (): Promise<{ success: boolean; data: SevdeskConfig | null }> => {
+    return authFetch('/sevdesk/config');
+  },
+
+  // Save configuration
+  saveConfig: async (config: Partial<Omit<SevdeskConfig, 'id' | 'userId' | 'hasToken'>> & { apiToken?: string }): Promise<{ success: boolean; data: SevdeskConfig }> => {
+    return authFetch('/sevdesk/config', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  },
+
+  // Test API connection
+  testConnection: async (apiToken: string): Promise<{ success: boolean; companyName?: string; error?: string }> => {
+    return authFetch('/sevdesk/test-connection', {
+      method: 'POST',
+      body: JSON.stringify({ apiToken }),
+    });
+  },
+
+  // Get sevDesk customers
+  getCustomers: async (): Promise<{ success: boolean; data: SevdeskCustomer[] }> => {
+    return authFetch('/sevdesk/customers');
+  },
+
+  // Link customer to sevDesk
+  linkCustomer: async (customerId: string, sevdeskCustomerId: string): Promise<{ success: boolean }> => {
+    return authFetch('/sevdesk/link-customer', {
+      method: 'POST',
+      body: JSON.stringify({ customerId, sevdeskCustomerId }),
+    });
+  },
+
+  // Get billing summary
+  getBillingSummary: async (startDate: string, endDate: string): Promise<{ success: boolean; data: BillingSummaryItem[] }> => {
+    return authFetch(`/sevdesk/billing-summary?startDate=${startDate}&endDate=${endDate}`);
+  },
+
+  // Create invoice in sevDesk
+  createInvoice: async (customerId: string, entryIds: string[], periodStart: string, periodEnd: string): Promise<{
+    success: boolean;
+    data: {
+      exportId: string;
+      invoiceId: string;
+      invoiceNumber: string;
+      totalHours: number;
+      totalAmount: number;
+    };
+  }> => {
+    return authFetch('/sevdesk/create-invoice', {
+      method: 'POST',
+      body: JSON.stringify({ customerId, entryIds, periodStart, periodEnd }),
+    });
+  },
+
+  // Record export without sevDesk
+  recordExport: async (customerId: string, entryIds: string[], periodStart: string, periodEnd: string, totalHours: number, totalAmount: number): Promise<{ success: boolean; data: { exportId: string } }> => {
+    return authFetch('/sevdesk/record-export', {
+      method: 'POST',
+      body: JSON.stringify({ customerId, entryIds, periodStart, periodEnd, totalHours, totalAmount }),
+    });
+  },
+
+  // Get invoice export history
+  getInvoiceExports: async (limit?: number): Promise<{ success: boolean; data: InvoiceExport[] }> => {
+    return authFetch(`/sevdesk/invoice-exports${limit ? `?limit=${limit}` : ''}`);
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,

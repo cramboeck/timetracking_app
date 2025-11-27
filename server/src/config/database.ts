@@ -114,6 +114,19 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add feature_flags JSONB column for feature toggles (billing, ninja_rmm, etc.)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'feature_flags'
+        ) THEN
+          ALTER TABLE users ADD COLUMN feature_flags JSONB DEFAULT '{}';
+        END IF;
+      END $$;
+    `);
+
     // Add foreign key to teams after users table exists
     await client.query(`
       DO $$
@@ -747,6 +760,79 @@ export async function initializeDatabase() {
     `);
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_notification_preferences_user_id ON notification_preferences(user_id)');
+
+    // ========================================================================
+    // SEVDESK INTEGRATION TABLES
+    // ========================================================================
+
+    // sevDesk configuration per user
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sevdesk_config (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        api_token TEXT,
+        default_hourly_rate DECIMAL(10, 2) DEFAULT 95.00,
+        payment_terms_days INTEGER DEFAULT 14,
+        tax_rate DECIMAL(5, 2) DEFAULT 19.00,
+        auto_sync_customers BOOLEAN DEFAULT FALSE,
+        create_as_final BOOLEAN DEFAULT FALSE,
+        last_sync_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_config_user_id ON sevdesk_config(user_id)');
+
+    // Migration: Add sevdesk_customer_id to customers table
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'sevdesk_customer_id'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN sevdesk_customer_id TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // Invoice exports tracking
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS invoice_exports (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        sevdesk_invoice_id TEXT,
+        sevdesk_invoice_number TEXT,
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        total_hours DECIMAL(10, 2) NOT NULL,
+        total_amount DECIMAL(10, 2) NOT NULL,
+        status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'sent', 'paid', 'cancelled')),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_exports_user_id ON invoice_exports(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_exports_customer_id ON invoice_exports(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_exports_status ON invoice_exports(status)');
+
+    // Migration: Add invoice_export_id to time_entries for tracking billed entries
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'invoice_export_id'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN invoice_export_id TEXT REFERENCES invoice_exports(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_invoice_export_id ON time_entries(invoice_export_id)');
 
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');

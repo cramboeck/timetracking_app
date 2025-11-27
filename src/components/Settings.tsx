@@ -7,11 +7,13 @@ import { CustomerContacts } from './CustomerContacts';
 import { TicketSettings } from './TicketSettings';
 import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { PushNotificationSettings } from './PushNotificationSettings';
+import { SevdeskSettings } from './SevdeskSettings';
+import { CreditCard } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
 import { notificationService } from '../utils/notifications';
-import { authApi, userApi, teamsApi } from '../services/api';
+import { authApi, userApi, teamsApi, sevdeskApi } from '../services/api';
 import Papa from 'papaparse';
 import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 import { generateUUID } from '../utils/uuid';
@@ -58,7 +60,8 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'billing'>('account');
+  const [billingEnabled, setBillingEnabled] = useState(false);
 
   // Company Info State
   const [companyName, setCompanyName] = useState('');
@@ -162,6 +165,20 @@ export const Settings = ({
     }
     setCustomerModalOpen(true);
   };
+
+  // Load billing feature status
+  useEffect(() => {
+    const loadBillingStatus = async () => {
+      try {
+        const response = await sevdeskApi.getFeatureStatus();
+        setBillingEnabled(response.data.billingEnabled);
+      } catch (err) {
+        // Ignore error - billing feature not available
+        setBillingEnabled(false);
+      }
+    };
+    loadBillingStatus();
+  }, []);
 
   // Profile Edit Handlers
   const handleOpenEditProfile = () => {
@@ -776,6 +793,10 @@ export const Settings = ({
         { id: 'company', label: 'Firma & Branding', icon: Building, desc: 'Logo & Kontaktdaten' },
         ...(currentUser?.accountType === 'business' || currentUser?.accountType === 'team'
           ? [{ id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }]
+          : []
+        ),
+        ...(billingEnabled
+          ? [{ id: 'billing', label: 'Abrechnung', icon: CreditCard, desc: 'sevDesk Integration' }]
           : []
         )
       ]
@@ -2044,6 +2065,30 @@ export const Settings = ({
             {/* Knowledge Base Settings Component */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
               <KnowledgeBaseSettings />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'billing' && billingEnabled && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
+                  <CreditCard size={28} className="text-accent-primary" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Abrechnung</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    sevDesk-Integration und Rechnungseinstellungen
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* sevDesk Settings Component */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <SevdeskSettings />
             </div>
           </div>
         )}

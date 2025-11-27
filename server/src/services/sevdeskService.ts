@@ -1,0 +1,485 @@
+import { query } from '../config/database';
+import { v4 as uuidv4 } from 'uuid';
+
+// sevDesk API Base URL
+const SEVDESK_API_URL = 'https://my.sevdesk.de/api/v1';
+
+// Types
+export interface SevdeskConfig {
+  id: string;
+  userId: string;
+  apiToken: string | null;
+  defaultHourlyRate: number;
+  paymentTermsDays: number;
+  taxRate: number;
+  autoSyncCustomers: boolean;
+  createAsFinal: boolean;
+  lastSyncAt: string | null;
+}
+
+export interface SevdeskCustomer {
+  id: string;
+  customerNumber: string;
+  name: string;
+  category?: { id: number; name: string };
+  email?: string;
+  phone?: string;
+}
+
+export interface SevdeskInvoice {
+  id: string;
+  invoiceNumber: string;
+  contact: { id: number; name: string };
+  invoiceDate: string;
+  status: number;
+  sumNet: number;
+  sumGross: number;
+}
+
+interface TimeEntryForBilling {
+  id: string;
+  duration: number;
+  description: string;
+  ticketNumber?: string;
+  ticketTitle?: string;
+  projectName?: string;
+  startTime: string;
+}
+
+// Helper to make sevDesk API requests
+async function sevdeskFetch(
+  apiToken: string,
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<any> {
+  const response = await fetch(`${SEVDESK_API_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      'Authorization': apiToken,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData: any = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(errorData.error?.message || `sevDesk API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// Get or create sevDesk config for user
+export async function getConfig(userId: string): Promise<SevdeskConfig | null> {
+  const result = await query(
+    'SELECT * FROM sevdesk_config WHERE user_id = $1',
+    [userId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+  return {
+    id: row.id,
+    userId: row.user_id,
+    apiToken: row.api_token,
+    defaultHourlyRate: parseFloat(row.default_hourly_rate),
+    paymentTermsDays: row.payment_terms_days,
+    taxRate: parseFloat(row.tax_rate),
+    autoSyncCustomers: row.auto_sync_customers,
+    createAsFinal: row.create_as_final,
+    lastSyncAt: row.last_sync_at,
+  };
+}
+
+// Save sevDesk config
+export async function saveConfig(
+  userId: string,
+  config: Partial<Omit<SevdeskConfig, 'id' | 'userId'>>
+): Promise<SevdeskConfig> {
+  const existing = await getConfig(userId);
+
+  if (existing) {
+    // Update existing config
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    if (config.apiToken !== undefined) {
+      updates.push(`api_token = $${paramCount++}`);
+      values.push(config.apiToken);
+    }
+    if (config.defaultHourlyRate !== undefined) {
+      updates.push(`default_hourly_rate = $${paramCount++}`);
+      values.push(config.defaultHourlyRate);
+    }
+    if (config.paymentTermsDays !== undefined) {
+      updates.push(`payment_terms_days = $${paramCount++}`);
+      values.push(config.paymentTermsDays);
+    }
+    if (config.taxRate !== undefined) {
+      updates.push(`tax_rate = $${paramCount++}`);
+      values.push(config.taxRate);
+    }
+    if (config.autoSyncCustomers !== undefined) {
+      updates.push(`auto_sync_customers = $${paramCount++}`);
+      values.push(config.autoSyncCustomers);
+    }
+    if (config.createAsFinal !== undefined) {
+      updates.push(`create_as_final = $${paramCount++}`);
+      values.push(config.createAsFinal);
+    }
+
+    updates.push('updated_at = NOW()');
+    values.push(userId);
+
+    await query(
+      `UPDATE sevdesk_config SET ${updates.join(', ')} WHERE user_id = $${paramCount}`,
+      values
+    );
+
+    return (await getConfig(userId))!;
+  } else {
+    // Create new config
+    const id = uuidv4();
+    await query(
+      `INSERT INTO sevdesk_config (id, user_id, api_token, default_hourly_rate, payment_terms_days, tax_rate, auto_sync_customers, create_as_final)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        id,
+        userId,
+        config.apiToken || null,
+        config.defaultHourlyRate || 95.00,
+        config.paymentTermsDays || 14,
+        config.taxRate || 19.00,
+        config.autoSyncCustomers || false,
+        config.createAsFinal || false,
+      ]
+    );
+
+    return (await getConfig(userId))!;
+  }
+}
+
+// Test sevDesk connection
+export async function testConnection(apiToken: string): Promise<{ success: boolean; companyName?: string; error?: string }> {
+  try {
+    const response = await sevdeskFetch(apiToken, '/SevUser');
+    const user = response.objects?.[0];
+
+    if (user) {
+      return {
+        success: true,
+        companyName: user.sevClient?.name || 'Unbekannt',
+      };
+    }
+
+    return { success: false, error: 'Keine Benutzerdaten gefunden' };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Get customers from sevDesk
+export async function getSevdeskCustomers(apiToken: string): Promise<SevdeskCustomer[]> {
+  const response = await sevdeskFetch(apiToken, '/Contact?depth=1&embed=category');
+
+  return (response.objects || []).map((contact: any) => ({
+    id: contact.id,
+    customerNumber: contact.customerNumber || '',
+    name: contact.name || `${contact.surename || ''} ${contact.familyname || ''}`.trim(),
+    category: contact.category ? { id: contact.category.id, name: contact.category.name } : undefined,
+    email: contact.email,
+    phone: contact.phone,
+  }));
+}
+
+// Sync sevDesk customer to local customer
+export async function linkCustomerToSevdesk(
+  customerId: string,
+  sevdeskCustomerId: string
+): Promise<void> {
+  await query(
+    'UPDATE customers SET sevdesk_customer_id = $1 WHERE id = $2',
+    [sevdeskCustomerId, customerId]
+  );
+}
+
+// Get unbilled time entries for a customer
+export async function getUnbilledTimeEntries(
+  userId: string,
+  customerId: string,
+  startDate: string,
+  endDate: string
+): Promise<TimeEntryForBilling[]> {
+  const result = await query(
+    `SELECT te.id, te.duration, te.description, te.start_time,
+            t.ticket_number, t.title as ticket_title,
+            p.name as project_name
+     FROM time_entries te
+     LEFT JOIN tickets t ON te.ticket_id = t.id
+     LEFT JOIN projects p ON te.project_id = p.id
+     WHERE te.user_id = $1
+       AND p.customer_id = $2
+       AND te.invoice_export_id IS NULL
+       AND te.start_time >= $3
+       AND te.start_time <= $4
+     ORDER BY te.start_time`,
+    [userId, customerId, startDate, endDate]
+  );
+
+  return result.rows.map(row => ({
+    id: row.id,
+    duration: row.duration,
+    description: row.description,
+    ticketNumber: row.ticket_number,
+    ticketTitle: row.ticket_title,
+    projectName: row.project_name,
+    startTime: row.start_time,
+  }));
+}
+
+// Get billing summary by customer
+export async function getBillingSummary(
+  userId: string,
+  startDate: string,
+  endDate: string
+): Promise<Array<{
+  customerId: string;
+  customerName: string;
+  hourlyRate: number | null;
+  sevdeskCustomerId: string | null;
+  totalSeconds: number;
+  totalHours: number;
+  totalAmount: number | null;
+  entries: TimeEntryForBilling[];
+}>> {
+  // Get default hourly rate from config
+  const config = await getConfig(userId);
+  const defaultRate = config?.defaultHourlyRate || 95;
+
+  // Get all unbilled entries grouped by customer
+  const result = await query(
+    `SELECT c.id as customer_id, c.name as customer_name, c.hourly_rate, c.sevdesk_customer_id,
+            te.id as entry_id, te.duration, te.description, te.start_time,
+            t.ticket_number, t.title as ticket_title,
+            p.name as project_name
+     FROM customers c
+     JOIN projects p ON p.customer_id = c.id
+     JOIN time_entries te ON te.project_id = p.id
+     LEFT JOIN tickets t ON te.ticket_id = t.id
+     WHERE c.user_id = $1
+       AND te.invoice_export_id IS NULL
+       AND te.start_time >= $2
+       AND te.start_time <= $3
+     ORDER BY c.name, te.start_time`,
+    [userId, startDate, endDate]
+  );
+
+  // Group by customer
+  const customerMap = new Map<string, {
+    customerId: string;
+    customerName: string;
+    hourlyRate: number | null;
+    sevdeskCustomerId: string | null;
+    totalSeconds: number;
+    entries: TimeEntryForBilling[];
+  }>();
+
+  for (const row of result.rows) {
+    if (!customerMap.has(row.customer_id)) {
+      customerMap.set(row.customer_id, {
+        customerId: row.customer_id,
+        customerName: row.customer_name,
+        hourlyRate: row.hourly_rate ? parseFloat(row.hourly_rate) : null,
+        sevdeskCustomerId: row.sevdesk_customer_id,
+        totalSeconds: 0,
+        entries: [],
+      });
+    }
+
+    const customer = customerMap.get(row.customer_id)!;
+    customer.totalSeconds += row.duration;
+    customer.entries.push({
+      id: row.entry_id,
+      duration: row.duration,
+      description: row.description,
+      ticketNumber: row.ticket_number,
+      ticketTitle: row.ticket_title,
+      projectName: row.project_name,
+      startTime: row.start_time,
+    });
+  }
+
+  // Calculate totals
+  return Array.from(customerMap.values()).map(customer => {
+    const rate = customer.hourlyRate || defaultRate;
+    const totalHours = customer.totalSeconds / 3600;
+    return {
+      ...customer,
+      totalHours: Math.round(totalHours * 100) / 100,
+      totalAmount: rate ? Math.round(totalHours * rate * 100) / 100 : null,
+    };
+  });
+}
+
+// Create invoice in sevDesk
+export async function createInvoice(
+  apiToken: string,
+  config: SevdeskConfig,
+  sevdeskCustomerId: string,
+  entries: TimeEntryForBilling[],
+  hourlyRate: number,
+  periodStart: string,
+  periodEnd: string
+): Promise<{ invoiceId: string; invoiceNumber: string }> {
+  // Format the period for display
+  const startDate = new Date(periodStart);
+  const endDate = new Date(periodEnd);
+  const periodLabel = `${startDate.toLocaleDateString('de-DE')} - ${endDate.toLocaleDateString('de-DE')}`;
+
+  // Create invoice positions
+  const positions = entries.map((entry, index) => {
+    const hours = entry.duration / 3600;
+    let name = entry.description || 'Dienstleistung';
+
+    if (entry.ticketNumber) {
+      name = `${entry.ticketNumber}: ${entry.ticketTitle || entry.description || 'Support'}`;
+    } else if (entry.projectName) {
+      name = `${entry.projectName}: ${entry.description || 'Arbeitszeit'}`;
+    }
+
+    return {
+      objectName: 'InvoicePos',
+      mapAll: true,
+      quantity: Math.round(hours * 100) / 100,
+      price: hourlyRate,
+      name: name,
+      unity: {
+        id: 9, // Hours in sevDesk
+        objectName: 'Unity',
+      },
+      taxRate: config.taxRate,
+      positionNumber: index + 1,
+    };
+  });
+
+  // Create the invoice
+  const invoiceData = {
+    objectName: 'Invoice',
+    mapAll: true,
+    contact: {
+      id: parseInt(sevdeskCustomerId),
+      objectName: 'Contact',
+    },
+    invoiceDate: new Date().toISOString().split('T')[0],
+    header: `Leistungen ${periodLabel}`,
+    headText: `Abrechnung für den Zeitraum ${periodLabel}`,
+    footText: 'Vielen Dank für Ihr Vertrauen.',
+    timeToPay: config.paymentTermsDays,
+    discount: 0,
+    status: config.createAsFinal ? 200 : 100, // 100 = Draft, 200 = Open
+    taxRate: config.taxRate,
+    taxType: 'default',
+    invoiceType: 'RE', // Regular invoice
+    currency: 'EUR',
+  };
+
+  // Create invoice
+  const invoiceResponse = await sevdeskFetch(apiToken, '/Invoice', {
+    method: 'POST',
+    body: JSON.stringify(invoiceData),
+  });
+
+  const invoiceId = invoiceResponse.objects.id;
+
+  // Add positions to invoice
+  for (const position of positions) {
+    await sevdeskFetch(apiToken, '/InvoicePos', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...position,
+        invoice: {
+          id: invoiceId,
+          objectName: 'Invoice',
+        },
+      }),
+    });
+  }
+
+  return {
+    invoiceId: invoiceId.toString(),
+    invoiceNumber: invoiceResponse.objects.invoiceNumber || `RE-${invoiceId}`,
+  };
+}
+
+// Record invoice export
+export async function recordInvoiceExport(
+  userId: string,
+  customerId: string,
+  entryIds: string[],
+  sevdeskInvoiceId: string | null,
+  sevdeskInvoiceNumber: string | null,
+  periodStart: string,
+  periodEnd: string,
+  totalHours: number,
+  totalAmount: number
+): Promise<string> {
+  const exportId = uuidv4();
+
+  await query(
+    `INSERT INTO invoice_exports (id, user_id, customer_id, sevdesk_invoice_id, sevdesk_invoice_number, period_start, period_end, total_hours, total_amount, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [exportId, userId, customerId, sevdeskInvoiceId, sevdeskInvoiceNumber, periodStart, periodEnd, totalHours, totalAmount, 'draft']
+  );
+
+  // Mark time entries as billed
+  if (entryIds.length > 0) {
+    await query(
+      `UPDATE time_entries SET invoice_export_id = $1 WHERE id = ANY($2)`,
+      [exportId, entryIds]
+    );
+  }
+
+  return exportId;
+}
+
+// Get invoice exports for a user
+export async function getInvoiceExports(
+  userId: string,
+  limit: number = 50
+): Promise<Array<{
+  id: string;
+  customerName: string;
+  sevdeskInvoiceNumber: string | null;
+  periodStart: string;
+  periodEnd: string;
+  totalHours: number;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+}>> {
+  const result = await query(
+    `SELECT ie.*, c.name as customer_name
+     FROM invoice_exports ie
+     JOIN customers c ON ie.customer_id = c.id
+     WHERE ie.user_id = $1
+     ORDER BY ie.created_at DESC
+     LIMIT $2`,
+    [userId, limit]
+  );
+
+  return result.rows.map(row => ({
+    id: row.id,
+    customerName: row.customer_name,
+    sevdeskInvoiceNumber: row.sevdesk_invoice_number,
+    periodStart: row.period_start,
+    periodEnd: row.period_end,
+    totalHours: parseFloat(row.total_hours),
+    totalAmount: parseFloat(row.total_amount),
+    status: row.status,
+    createdAt: row.created_at,
+  }));
+}

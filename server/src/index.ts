@@ -21,6 +21,7 @@ import ticketsRoutes from './routes/tickets';
 import customerPortalRoutes from './routes/customer-portal';
 import knowledgeBaseRoutes from './routes/knowledge-base';
 import pushRoutes from './routes/push';
+import sevdeskRoutes from './routes/sevdesk';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -85,6 +86,7 @@ app.use('/api/tickets', ticketsRoutes);
 app.use('/api/customer-portal', customerPortalRoutes);
 app.use('/api/knowledge-base', knowledgeBaseRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/sevdesk', sevdeskRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
