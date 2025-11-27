@@ -3,8 +3,12 @@ import crypto from 'crypto';
 import { query, getClient } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
+import { emailService } from '../services/emailService';
 
 const router = express.Router();
+
+// Portal URL for email links
+const PORTAL_URL = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
 
 // Helper function to generate ticket number
 async function generateTicketNumber(userId: string): Promise<string> {
@@ -372,6 +376,30 @@ router.put('/:id', authenticateToken, async (req, res) => {
       else if (status === 'archived') actionType = 'archived';
       else if (oldValues.status === 'closed' || oldValues.status === 'resolved') actionType = 'reopened';
       await logTicketActivity(id, userId, null, actionType, oldValues.status, status);
+
+      // Send email notification for status change (except archived)
+      if (status !== 'archived') {
+        const contactInfo = await query(`
+          SELECT t.title, t.ticket_number, cc.email, cc.name
+          FROM tickets t
+          LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+          WHERE t.id = $1
+        `, [id]);
+
+        if (contactInfo.rows.length > 0 && contactInfo.rows[0].email) {
+          const ticket = contactInfo.rows[0];
+          const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${id}`;
+          emailService.sendTicketStatusChangeNotification({
+            to: ticket.email,
+            customerName: ticket.name || 'Kunde',
+            ticketNumber: ticket.ticket_number,
+            ticketTitle: ticket.title,
+            oldStatus: oldValues.status,
+            newStatus: status,
+            portalUrl: portalTicketUrl,
+          }).catch(err => console.error('Failed to send status change notification:', err));
+        }
+      }
     }
     if (priority !== undefined && priority !== oldValues.priority) {
       await logTicketActivity(id, userId, null, 'priority_changed', oldValues.priority, priority);
@@ -443,16 +471,22 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Content is required' });
     }
 
-    // Verify ticket belongs to user
-    const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
-    );
+    // Get ticket with customer contact info for email notification
+    const ticketCheck = await query(`
+      SELECT t.id, t.title, t.ticket_number, t.customer_id, t.contact_id,
+             cc.email as contact_email, cc.name as contact_name,
+             COALESCE(u.display_name, u.username) as replier_name
+      FROM tickets t
+      LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+      LEFT JOIN users u ON u.id = $2
+      WHERE t.id = $1 AND t.user_id = $2
+    `, [ticketId, userId]);
 
     if (ticketCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
 
+    const ticket = ticketCheck.rows[0];
     const commentId = crypto.randomUUID();
 
     await query(`
@@ -468,6 +502,20 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
             first_response_at = COALESCE(first_response_at, NOW())
         WHERE id = $1
       `, [ticketId]);
+
+      // Send email notification to customer (if contact has email)
+      if (ticket.contact_email) {
+        const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${ticketId}`;
+        emailService.sendTicketReplyNotification({
+          to: ticket.contact_email,
+          customerName: ticket.contact_name || 'Kunde',
+          ticketNumber: ticket.ticket_number,
+          ticketTitle: ticket.title,
+          replyContent: content,
+          replierName: ticket.replier_name || 'Support',
+          portalUrl: portalTicketUrl,
+        }).catch(err => console.error('Failed to send ticket reply notification:', err));
+      }
     } else {
       await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
     }
