@@ -1211,8 +1211,6 @@ export async function createQuote(
   config: SevdeskConfig,
   input: CreateQuoteInput
 ): Promise<{ quoteId: string; quoteNumber: string }> {
-  const baseUrl = 'https://my.sevdesk.de/api/v1';
-
   // Create the quote (Order with orderType = "AN" for Angebot)
   const quoteDate = input.quoteDate || new Date().toISOString().split('T')[0];
   const taxRate = config.taxRate || 19;
@@ -1221,7 +1219,7 @@ export async function createQuote(
     objectName: 'Order',
     mapAll: true,
     contact: {
-      id: input.contactId,
+      id: parseInt(input.contactId),
       objectName: 'Contact',
     },
     orderDate: quoteDate,
@@ -1238,29 +1236,50 @@ export async function createQuote(
 
   console.log('[sevDesk] Creating quote:', JSON.stringify(quoteBody, null, 2));
 
-  const quoteResponse = await fetch(`${baseUrl}/Order`, {
+  const quoteResponse = await sevdeskFetch(apiToken, '/Order', {
     method: 'POST',
-    headers: {
-      'Authorization': apiToken,
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(quoteBody),
   });
 
-  if (!quoteResponse.ok) {
-    const errorText = await quoteResponse.text();
-    console.error('[sevDesk] Quote creation failed:', errorText);
-    throw new Error(`Failed to create quote: ${errorText}`);
-  }
-
-  const quoteData = await quoteResponse.json() as { objects: { id: string; orderNumber: string } };
-  const quoteId = quoteData.objects.id;
-  const quoteNumber = quoteData.objects.orderNumber;
+  const quoteId = quoteResponse.objects.id;
+  const quoteNumber = quoteResponse.objects.orderNumber;
 
   console.log('[sevDesk] Quote created:', quoteId, quoteNumber);
 
   // Create positions for the quote
   for (const pos of input.positions) {
+    // Skip positions with quantity 0 (headings) - sevDesk handles them differently
+    if (pos.quantity === 0) {
+      // For headings, set quantity to 0 and price to 0
+      const headingBody = {
+        objectName: 'OrderPos',
+        mapAll: true,
+        order: {
+          id: quoteId,
+          objectName: 'Order',
+        },
+        name: pos.name,
+        text: pos.text || null,
+        quantity: 0,
+        price: 0,
+        taxRate: 0,
+        unity: {
+          id: 1, // Stück for headings
+          objectName: 'Unity',
+        },
+      };
+
+      try {
+        await sevdeskFetch(apiToken, '/OrderPos', {
+          method: 'POST',
+          body: JSON.stringify(headingBody),
+        });
+      } catch (err) {
+        console.error('[sevDesk] Heading creation failed:', err);
+      }
+      continue;
+    }
+
     const positionBody = {
       objectName: 'OrderPos',
       mapAll: true,
@@ -1274,23 +1293,18 @@ export async function createQuote(
       price: pos.price,
       taxRate: pos.taxRate || taxRate,
       unity: {
-        id: 9, // Hours/Stunden - can be adjusted based on need
+        id: 9, // Hours/Stunden
         objectName: 'Unity',
       },
     };
 
-    const posResponse = await fetch(`${baseUrl}/OrderPos`, {
-      method: 'POST',
-      headers: {
-        'Authorization': apiToken,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(positionBody),
-    });
-
-    if (!posResponse.ok) {
-      const errorText = await posResponse.text();
-      console.error('[sevDesk] Position creation failed:', errorText);
+    try {
+      await sevdeskFetch(apiToken, '/OrderPos', {
+        method: 'POST',
+        body: JSON.stringify(positionBody),
+      });
+    } catch (err) {
+      console.error('[sevDesk] Position creation failed:', err);
       // Continue with other positions even if one fails
     }
   }
