@@ -341,6 +341,23 @@ router.get('/invoice-exports', authenticateToken, requireBillingFeature, async (
   }
 });
 
+// DELETE /api/sevdesk/invoice-exports/:id - Delete an export (undo billing)
+router.delete('/invoice-exports/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const exportId = req.params.id;
+
+    await sevdeskService.deleteInvoiceExport(userId, exportId);
+
+    res.json({
+      success: true,
+    });
+  } catch (error: any) {
+    console.error('Delete invoice export error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/sevdesk/invoices - Get invoices from sevDesk
 router.get('/invoices', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {

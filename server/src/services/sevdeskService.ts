@@ -515,6 +515,48 @@ export async function getInvoiceExports(
   }));
 }
 
+// Delete an invoice export (undo billing)
+export async function deleteInvoiceExport(
+  userId: string,
+  exportId: string
+): Promise<void> {
+  // First, get the export to find associated time entries
+  const exportResult = await query(
+    `SELECT entry_ids FROM invoice_exports WHERE id = $1 AND user_id = $2`,
+    [exportId, userId]
+  );
+
+  if (exportResult.rows.length === 0) {
+    throw new Error('Export not found');
+  }
+
+  const entryIds = exportResult.rows[0].entry_ids;
+
+  // Start transaction
+  await query('BEGIN');
+
+  try {
+    // Mark time entries as not billed
+    if (entryIds && entryIds.length > 0) {
+      await query(
+        `UPDATE time_entries SET billed = false WHERE id = ANY($1)`,
+        [entryIds]
+      );
+    }
+
+    // Delete the export record
+    await query(
+      `DELETE FROM invoice_exports WHERE id = $1 AND user_id = $2`,
+      [exportId, userId]
+    );
+
+    await query('COMMIT');
+  } catch (error) {
+    await query('ROLLBACK');
+    throw error;
+  }
+}
+
 // Types for sevDesk documents
 export interface SevdeskInvoiceDetail {
   id: string;

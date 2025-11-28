@@ -13,6 +13,9 @@ import {
   Download,
   Link2,
   ExternalLink,
+  RotateCcw,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { sevdeskApi, BillingSummaryItem, InvoiceExport } from '../services/api';
 
@@ -41,6 +44,9 @@ export const Billing = ({ onBack }: BillingProps) => {
 
   // Processing state
   const [processing, setProcessing] = useState<string | null>(null);
+
+  // Filter state
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -164,6 +170,24 @@ export const Billing = ({ onBack }: BillingProps) => {
       await loadData();
     } catch (err: any) {
       setError(err.message || 'Fehler beim Markieren');
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleUndoExport = async (exportId: string, customerName: string) => {
+    try {
+      setProcessing(exportId);
+      setError(null);
+
+      await sevdeskApi.deleteExport(exportId);
+
+      setSuccess(`Export für ${customerName} rückgängig gemacht`);
+
+      // Reload data
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Rückgängig machen');
     } finally {
       setProcessing(null);
     }
@@ -442,52 +466,86 @@ export const Billing = ({ onBack }: BillingProps) => {
         )}
       </div>
 
-      {/* Recent Exports */}
-      {invoiceExports.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="font-semibold text-gray-900 dark:text-white">
-              Letzte Exporte
-            </h3>
-          </div>
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {invoiceExports.slice(0, 10).map((exp) => (
-              <div key={exp.id} className="p-4 flex items-center gap-4">
-                <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                  <FileText size={20} className="text-gray-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-900 dark:text-white truncate">
-                    {exp.customerName}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {formatDate(exp.periodStart)} - {formatDate(exp.periodEnd)}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-medium text-gray-900 dark:text-white">
-                    {formatCurrency(exp.totalAmount)}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {exp.sevdeskInvoiceNumber || 'Manuell'}
-                  </div>
-                </div>
-                <div>
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    exp.status === 'paid'
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                      : exp.status === 'sent'
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                      : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400'
-                  }`}>
-                    {exp.status === 'paid' ? 'Bezahlt' : exp.status === 'sent' ? 'Versendet' : 'Entwurf'}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Recent Exports - Toggle to show/hide */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900 dark:text-white">
+            Erledigte Abrechnungen ({invoiceExports.length})
+          </h3>
+          <button
+            onClick={() => setShowCompleted(!showCompleted)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+              showCompleted
+                ? 'bg-accent-primary/10 text-accent-primary'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+            }`}
+          >
+            {showCompleted ? <EyeOff size={16} /> : <Eye size={16} />}
+            {showCompleted ? 'Ausblenden' : 'Anzeigen'}
+          </button>
         </div>
-      )}
+
+        {showCompleted && (
+          invoiceExports.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+              <FileText size={48} className="mx-auto mb-4 opacity-50" />
+              <p>Keine erledigten Abrechnungen für {monthName}</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+              {invoiceExports.map((exp) => (
+                <div key={exp.id} className="p-4 flex items-center gap-4">
+                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                    <FileText size={20} className="text-gray-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 dark:text-white truncate">
+                      {exp.customerName}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {formatDate(exp.periodStart)} - {formatDate(exp.periodEnd)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {formatCurrency(exp.totalAmount)}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {exp.sevdeskInvoiceNumber || 'Manuell markiert'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      exp.status === 'paid'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        : exp.status === 'sent'
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                        : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400'
+                    }`}>
+                      {exp.status === 'paid' ? 'Bezahlt' : exp.status === 'sent' ? 'Versendet' : 'Entwurf'}
+                    </span>
+                    {/* Undo button - only for manual exports without sevDesk invoice */}
+                    {!exp.sevdeskInvoiceNumber && (
+                      <button
+                        onClick={() => handleUndoExport(exp.id, exp.customerName)}
+                        disabled={processing === exp.id}
+                        className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="Rückgängig machen"
+                      >
+                        {processing === exp.id ? (
+                          <Loader2 className="animate-spin" size={16} />
+                        ) : (
+                          <RotateCcw size={16} />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
     </div>
   );
 };

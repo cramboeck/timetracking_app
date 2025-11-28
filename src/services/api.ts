@@ -1474,6 +1474,13 @@ export const sevdeskApi = {
     });
   },
 
+  // Delete export (undo billing)
+  deleteExport: async (exportId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/sevdesk/invoice-exports/${exportId}`, {
+      method: 'DELETE',
+    });
+  },
+
   // Get invoice export history
   getInvoiceExports: async (limit?: number): Promise<{ success: boolean; data: InvoiceExport[] }> => {
     return authFetch(`/sevdesk/invoice-exports${limit ? `?limit=${limit}` : ''}`);
