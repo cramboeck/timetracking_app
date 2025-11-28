@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import {
   FileText,
   Receipt,
   Loader2,
   AlertTriangle,
   ChevronRight,
+  ChevronDown,
   Search,
   Filter,
   RefreshCw,
@@ -24,6 +25,19 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<SevdeskInvoice | SevdeskQuote | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expandedPositions, setExpandedPositions] = useState<Set<string>>(new Set());
+
+  const togglePosition = (posId: string) => {
+    setExpandedPositions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(posId)) {
+        newSet.delete(posId);
+      } else {
+        newSet.add(posId);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
     loadDetail();
@@ -119,6 +133,7 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-200 dark:border-gray-700">
+                          <th className="text-left p-2 text-gray-500 dark:text-gray-400 w-6"></th>
                           <th className="text-left p-2 text-gray-500 dark:text-gray-400">Beschreibung</th>
                           <th className="text-right p-2 text-gray-500 dark:text-gray-400">Menge</th>
                           <th className="text-right p-2 text-gray-500 dark:text-gray-400">Preis</th>
@@ -126,14 +141,37 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                         </tr>
                       </thead>
                       <tbody>
-                        {detail.positions.map((pos) => (
-                          <tr key={pos.id} className="border-b border-gray-200 dark:border-gray-700 last:border-0">
-                            <td className="p-2 text-gray-900 dark:text-white">{pos.name}</td>
-                            <td className="p-2 text-right text-gray-900 dark:text-white">{pos.quantity}</td>
-                            <td className="p-2 text-right text-gray-900 dark:text-white">{formatCurrency(pos.price)}</td>
-                            <td className="p-2 text-right text-gray-900 dark:text-white">{formatCurrency(pos.sumNet)}</td>
-                          </tr>
-                        ))}
+                        {detail.positions.map((pos) => {
+                          const isExpanded = expandedPositions.has(pos.id);
+                          const hasText = pos.text && pos.text.trim().length > 0;
+                          return (
+                            <Fragment key={pos.id}>
+                              <tr
+                                className={`border-b border-gray-200 dark:border-gray-700 last:border-0 ${hasText ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : ''}`}
+                                onClick={() => hasText && togglePosition(pos.id)}
+                              >
+                                <td className="p-2 text-gray-500 dark:text-gray-400">
+                                  {hasText && (
+                                    isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+                                  )}
+                                </td>
+                                <td className="p-2 text-gray-900 dark:text-white">{pos.name}</td>
+                                <td className="p-2 text-right text-gray-900 dark:text-white">{pos.quantity}</td>
+                                <td className="p-2 text-right text-gray-900 dark:text-white">{formatCurrency(pos.price)}</td>
+                                <td className="p-2 text-right text-gray-900 dark:text-white">{formatCurrency(pos.sumNet)}</td>
+                              </tr>
+                              {isExpanded && hasText && (
+                                <tr className="border-b border-gray-200 dark:border-gray-700">
+                                  <td colSpan={5} className="p-3 bg-gray-100 dark:bg-gray-800">
+                                    <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                      {pos.text}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

@@ -537,6 +537,7 @@ export interface SevdeskInvoiceDetail {
   positions: Array<{
     id: string;
     name: string;
+    text: string | null;
     quantity: number;
     price: number;
     sumNet: number;
@@ -562,6 +563,7 @@ export interface SevdeskQuoteDetail {
   positions: Array<{
     id: string;
     name: string;
+    text: string | null;
     quantity: number;
     price: number;
     sumNet: number;
@@ -684,6 +686,7 @@ export async function getInvoiceWithPositions(
     positions: (positionsResponse.objects || []).map((pos: any) => ({
       id: pos.id?.toString(),
       name: pos.name || '',
+      text: pos.text || null,
       quantity: parseFloat(pos.quantity) || 0,
       price: parseFloat(pos.price) || 0,
       sumNet: parseFloat(pos.sumNet) || 0,
@@ -778,6 +781,7 @@ export async function getQuoteWithPositions(
     positions: (positionsResponse.objects || []).map((pos: any) => ({
       id: pos.id?.toString(),
       name: pos.name || '',
+      text: pos.text || null,
       quantity: parseFloat(pos.quantity) || 0,
       price: parseFloat(pos.price) || 0,
       sumNet: parseFloat(pos.sumNet) || 0,

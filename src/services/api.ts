@@ -1290,6 +1290,7 @@ export interface SevdeskInvoice {
   positions: Array<{
     id: string;
     name: string;
+    text: string | null;
     quantity: number;
     price: number;
     sumNet: number;
@@ -1315,6 +1316,7 @@ export interface SevdeskQuote {
   positions: Array<{
     id: string;
     name: string;
+    text: string | null;
     quantity: number;
     price: number;
     sumNet: number;
