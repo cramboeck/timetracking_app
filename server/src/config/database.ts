@@ -847,6 +847,66 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_invoice_export_id ON time_entries(invoice_export_id)');
 
+    // sevDesk document cache for full-text search and offline access
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sevdesk_documents (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        sevdesk_id TEXT NOT NULL,
+        document_type TEXT NOT NULL CHECK(document_type IN ('invoice', 'quote')),
+        document_number TEXT NOT NULL,
+        contact_id TEXT,
+        contact_name TEXT,
+        document_date DATE,
+        status INTEGER,
+        status_name TEXT,
+        header TEXT,
+        head_text TEXT,
+        foot_text TEXT,
+        sum_net DECIMAL(10, 2),
+        sum_gross DECIMAL(10, 2),
+        sum_tax DECIMAL(10, 2),
+        currency TEXT DEFAULT 'EUR',
+        positions_json JSONB,
+        full_text TEXT,
+        search_vector TSVECTOR,
+        synced_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, sevdesk_id, document_type)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_user_id ON sevdesk_documents(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_type ON sevdesk_documents(document_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_contact ON sevdesk_documents(contact_name)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_date ON sevdesk_documents(document_date)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_search ON sevdesk_documents USING GIN(search_vector)');
+
+    // Trigger to automatically update search_vector
+    await client.query(`
+      CREATE OR REPLACE FUNCTION update_sevdesk_search_vector()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        NEW.search_vector := to_tsvector('german',
+          COALESCE(NEW.document_number, '') || ' ' ||
+          COALESCE(NEW.contact_name, '') || ' ' ||
+          COALESCE(NEW.header, '') || ' ' ||
+          COALESCE(NEW.head_text, '') || ' ' ||
+          COALESCE(NEW.foot_text, '') || ' ' ||
+          COALESCE(NEW.full_text, '')
+        );
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    await client.query(`
+      DROP TRIGGER IF EXISTS sevdesk_documents_search_trigger ON sevdesk_documents;
+      CREATE TRIGGER sevdesk_documents_search_trigger
+      BEFORE INSERT OR UPDATE ON sevdesk_documents
+      FOR EACH ROW EXECUTE FUNCTION update_sevdesk_search_vector();
+    `);
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

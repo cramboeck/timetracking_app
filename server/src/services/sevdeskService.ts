@@ -792,3 +792,289 @@ export async function getQuoteWithPositions(
     })),
   };
 }
+
+// ============================================
+// Document Sync & Search Functions
+// ============================================
+
+interface SyncResult {
+  synced: number;
+  errors: number;
+  type: 'invoice' | 'quote';
+}
+
+// Build full text from positions for search
+function buildFullText(positions: Array<{ name: string; text: string | null }>): string {
+  return positions
+    .map(p => `${p.name || ''} ${p.text || ''}`)
+    .join(' ')
+    .trim();
+}
+
+// Sync all invoices to local database
+export async function syncInvoices(
+  userId: string,
+  apiToken: string
+): Promise<SyncResult> {
+  let synced = 0;
+  let errors = 0;
+
+  try {
+    // Fetch all invoices (paginated)
+    let offset = 0;
+    const limit = 100;
+    let hasMore = true;
+
+    while (hasMore) {
+      const invoices = await getInvoices(apiToken, { limit, offset });
+
+      if (invoices.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      for (const inv of invoices) {
+        try {
+          // Get full invoice with positions
+          const detail = await getInvoiceWithPositions(apiToken, inv.id);
+          if (!detail) continue;
+
+          const fullText = buildFullText(detail.positions);
+          const id = `inv_${userId}_${inv.id}`;
+
+          await query(
+            `INSERT INTO sevdesk_documents (
+              id, user_id, sevdesk_id, document_type, document_number,
+              contact_id, contact_name, document_date, status, status_name,
+              header, head_text, foot_text, sum_net, sum_gross, sum_tax,
+              currency, positions_json, full_text, synced_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
+            ON CONFLICT (user_id, sevdesk_id, document_type)
+            DO UPDATE SET
+              document_number = EXCLUDED.document_number,
+              contact_name = EXCLUDED.contact_name,
+              document_date = EXCLUDED.document_date,
+              status = EXCLUDED.status,
+              status_name = EXCLUDED.status_name,
+              header = EXCLUDED.header,
+              head_text = EXCLUDED.head_text,
+              foot_text = EXCLUDED.foot_text,
+              sum_net = EXCLUDED.sum_net,
+              sum_gross = EXCLUDED.sum_gross,
+              sum_tax = EXCLUDED.sum_tax,
+              positions_json = EXCLUDED.positions_json,
+              full_text = EXCLUDED.full_text,
+              synced_at = NOW()`,
+            [
+              id, userId, inv.id, 'invoice', detail.invoiceNumber,
+              detail.contact.id, detail.contact.name, detail.invoiceDate,
+              detail.status, detail.statusName, detail.header,
+              detail.headText, detail.footText, detail.sumNet,
+              detail.sumGross, detail.sumTax, detail.currency,
+              JSON.stringify(detail.positions), fullText
+            ]
+          );
+          synced++;
+        } catch (err) {
+          console.error(`Error syncing invoice ${inv.id}:`, err);
+          errors++;
+        }
+      }
+
+      offset += limit;
+      if (invoices.length < limit) {
+        hasMore = false;
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching invoices for sync:', err);
+    errors++;
+  }
+
+  return { synced, errors, type: 'invoice' };
+}
+
+// Sync all quotes to local database
+export async function syncQuotes(
+  userId: string,
+  apiToken: string
+): Promise<SyncResult> {
+  let synced = 0;
+  let errors = 0;
+
+  try {
+    let offset = 0;
+    const limit = 100;
+    let hasMore = true;
+
+    while (hasMore) {
+      const quotes = await getQuotes(apiToken, { limit, offset });
+
+      if (quotes.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      for (const quote of quotes) {
+        try {
+          const detail = await getQuoteWithPositions(apiToken, quote.id);
+          if (!detail) continue;
+
+          const fullText = buildFullText(detail.positions);
+          const id = `quote_${userId}_${quote.id}`;
+
+          await query(
+            `INSERT INTO sevdesk_documents (
+              id, user_id, sevdesk_id, document_type, document_number,
+              contact_id, contact_name, document_date, status, status_name,
+              header, head_text, foot_text, sum_net, sum_gross,
+              currency, positions_json, full_text, synced_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
+            ON CONFLICT (user_id, sevdesk_id, document_type)
+            DO UPDATE SET
+              document_number = EXCLUDED.document_number,
+              contact_name = EXCLUDED.contact_name,
+              document_date = EXCLUDED.document_date,
+              status = EXCLUDED.status,
+              status_name = EXCLUDED.status_name,
+              header = EXCLUDED.header,
+              head_text = EXCLUDED.head_text,
+              foot_text = EXCLUDED.foot_text,
+              sum_net = EXCLUDED.sum_net,
+              sum_gross = EXCLUDED.sum_gross,
+              positions_json = EXCLUDED.positions_json,
+              full_text = EXCLUDED.full_text,
+              synced_at = NOW()`,
+            [
+              id, userId, quote.id, 'quote', detail.quoteNumber,
+              detail.contact.id, detail.contact.name, detail.quoteDate,
+              detail.status, detail.statusName, detail.header,
+              detail.headText, detail.footText, detail.sumNet,
+              detail.sumGross, detail.currency,
+              JSON.stringify(detail.positions), fullText
+            ]
+          );
+          synced++;
+        } catch (err) {
+          console.error(`Error syncing quote ${quote.id}:`, err);
+          errors++;
+        }
+      }
+
+      offset += limit;
+      if (quotes.length < limit) {
+        hasMore = false;
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching quotes for sync:', err);
+    errors++;
+  }
+
+  return { synced, errors, type: 'quote' };
+}
+
+// Full sync - invoices and quotes
+export async function syncAllDocuments(
+  userId: string,
+  apiToken: string
+): Promise<{ invoices: SyncResult; quotes: SyncResult }> {
+  const invoices = await syncInvoices(userId, apiToken);
+  const quotes = await syncQuotes(userId, apiToken);
+  return { invoices, quotes };
+}
+
+// Search documents using full-text search
+export interface DocumentSearchResult {
+  id: string;
+  sevdeskId: string;
+  documentType: 'invoice' | 'quote';
+  documentNumber: string;
+  contactName: string;
+  documentDate: string;
+  status: number;
+  statusName: string;
+  header: string;
+  sumGross: number;
+  currency: string;
+  positions: Array<{ name: string; text: string | null; quantity: number; price: number; sumNet: number }>;
+  rank: number;
+}
+
+export async function searchDocuments(
+  userId: string,
+  searchQuery: string,
+  options: {
+    type?: 'invoice' | 'quote';
+    limit?: number;
+    offset?: number;
+  } = {}
+): Promise<DocumentSearchResult[]> {
+  const { type, limit = 50, offset = 0 } = options;
+
+  // Build search query with German stemming
+  const searchTerms = searchQuery.trim().split(/\s+/).map(t => `${t}:*`).join(' & ');
+
+  let sql = `
+    SELECT
+      id, sevdesk_id, document_type, document_number,
+      contact_name, document_date, status, status_name,
+      header, sum_gross, currency, positions_json,
+      ts_rank(search_vector, to_tsquery('german', $2)) as rank
+    FROM sevdesk_documents
+    WHERE user_id = $1
+      AND search_vector @@ to_tsquery('german', $2)
+  `;
+
+  const params: any[] = [userId, searchTerms];
+
+  if (type) {
+    sql += ` AND document_type = $3`;
+    params.push(type);
+  }
+
+  sql += ` ORDER BY rank DESC, document_date DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+  params.push(limit, offset);
+
+  const result = await query(sql, params);
+
+  return result.rows.map(row => ({
+    id: row.id,
+    sevdeskId: row.sevdesk_id,
+    documentType: row.document_type,
+    documentNumber: row.document_number,
+    contactName: row.contact_name,
+    documentDate: row.document_date,
+    status: row.status,
+    statusName: row.status_name,
+    header: row.header,
+    sumGross: parseFloat(row.sum_gross) || 0,
+    currency: row.currency,
+    positions: row.positions_json || [],
+    rank: row.rank,
+  }));
+}
+
+// Get sync status
+export async function getSyncStatus(userId: string): Promise<{
+  lastSync: string | null;
+  invoiceCount: number;
+  quoteCount: number;
+}> {
+  const result = await query(
+    `SELECT
+      MAX(synced_at) as last_sync,
+      COUNT(*) FILTER (WHERE document_type = 'invoice') as invoice_count,
+      COUNT(*) FILTER (WHERE document_type = 'quote') as quote_count
+    FROM sevdesk_documents
+    WHERE user_id = $1`,
+    [userId]
+  );
+
+  const row = result.rows[0];
+  return {
+    lastSync: row?.last_sync || null,
+    invoiceCount: parseInt(row?.invoice_count) || 0,
+    quoteCount: parseInt(row?.quote_count) || 0,
+  };
+}

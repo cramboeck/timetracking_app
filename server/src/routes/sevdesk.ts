@@ -453,4 +453,135 @@ router.get('/quotes/:id', authenticateToken, requireBillingFeature, async (req: 
   }
 });
 
+// ============================================
+// Document Sync & Search Routes
+// ============================================
+
+// GET /api/sevdesk/sync/status - Get sync status
+router.get('/sync/status', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const status = await sevdeskService.getSyncStatus(userId);
+
+    res.json({
+      success: true,
+      data: status,
+    });
+  } catch (error: any) {
+    console.error('Get sync status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/sync - Trigger full sync
+router.post('/sync', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    // Get API token
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'sevDesk API token not configured',
+      });
+    }
+
+    // Run sync (this may take a while for large datasets)
+    const result = await sevdeskService.syncAllDocuments(userId, config.apiToken);
+
+    res.json({
+      success: true,
+      data: {
+        invoices: result.invoices,
+        quotes: result.quotes,
+        totalSynced: result.invoices.synced + result.quotes.synced,
+        totalErrors: result.invoices.errors + result.quotes.errors,
+      },
+    });
+  } catch (error: any) {
+    console.error('Sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/sync/invoices - Sync only invoices
+router.post('/sync/invoices', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'sevDesk API token not configured',
+      });
+    }
+
+    const result = await sevdeskService.syncInvoices(userId, config.apiToken);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Sync invoices error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/sync/quotes - Sync only quotes
+router.post('/sync/quotes', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'sevDesk API token not configured',
+      });
+    }
+
+    const result = await sevdeskService.syncQuotes(userId, config.apiToken);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Sync quotes error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/search - Search synced documents
+router.get('/search', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { q, type, limit, offset } = req.query;
+
+    if (!q || typeof q !== 'string' || q.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Search query must be at least 2 characters',
+      });
+    }
+
+    const results = await sevdeskService.searchDocuments(userId, q, {
+      type: type as 'invoice' | 'quote' | undefined,
+      limit: limit ? parseInt(limit as string) : 50,
+      offset: offset ? parseInt(offset as string) : 0,
+    });
+
+    res.json({
+      success: true,
+      data: results,
+    });
+  } catch (error: any) {
+    console.error('Search error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
