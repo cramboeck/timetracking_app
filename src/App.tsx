@@ -7,6 +7,7 @@ import { CalendarView } from './components/CalendarView';
 import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
 import { Tickets } from './components/Tickets';
+import { Billing } from './components/Billing';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
@@ -537,6 +538,7 @@ function App() {
             projects={projects}
             customers={customers}
             activities={activities}
+            onNavigateToBilling={() => setCurrentView('billing')}
           />
         )}
         {currentView === 'tickets' && (
@@ -559,6 +561,9 @@ function App() {
               setCurrentView('stopwatch');
             }}
           />
+        )}
+        {currentView === 'billing' && (
+          <Billing onBack={() => setCurrentView('dashboard')} />
         )}
         {currentView === 'settings' && (
           <Settings

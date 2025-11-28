@@ -16,6 +16,8 @@ import {
   RotateCcw,
   Eye,
   EyeOff,
+  Star,
+  Lock,
 } from 'lucide-react';
 import { sevdeskApi, BillingSummaryItem, InvoiceExport } from '../services/api';
 
@@ -25,6 +27,7 @@ interface BillingProps {
 
 export const Billing = ({ onBack }: BillingProps) => {
   const [loading, setLoading] = useState(true);
+  const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -48,9 +51,24 @@ export const Billing = ({ onBack }: BillingProps) => {
   // Filter state
   const [showCompleted, setShowCompleted] = useState(false);
 
+  // Check billing feature access
   useEffect(() => {
-    loadData();
-  }, [selectedMonth]);
+    const checkFeatureAccess = async () => {
+      try {
+        const response = await sevdeskApi.getFeatureStatus();
+        setBillingEnabled(response.data.billingEnabled);
+      } catch {
+        setBillingEnabled(false);
+      }
+    };
+    checkFeatureAccess();
+  }, []);
+
+  useEffect(() => {
+    if (billingEnabled) {
+      loadData();
+    }
+  }, [selectedMonth, billingEnabled]);
 
   const loadData = async () => {
     try {
@@ -213,16 +231,74 @@ export const Billing = ({ onBack }: BillingProps) => {
   const totalHours = selectedSummary.reduce((sum, c) => sum + c.totalHours, 0);
   const totalAmount = selectedSummary.reduce((sum, c) => sum + (c.totalAmount || 0), 0);
 
+  // Loading state for feature check
+  if (billingEnabled === null) {
+    return (
+      <div className="p-4 md:p-6 max-w-6xl mx-auto">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="animate-spin text-accent-primary" size={32} />
+        </div>
+      </div>
+    );
+  }
+
+  // Premium gate for users without billing access
+  if (!billingEnabled) {
+    return (
+      <div className="p-4 md:p-6 max-w-6xl mx-auto">
+        <div className="bg-gradient-to-br from-accent-primary/5 to-accent-primary/10 dark:from-accent-primary/10 dark:to-accent-primary/20 border border-accent-primary/20 rounded-2xl p-8 text-center">
+          <div className="w-20 h-20 mx-auto mb-6 bg-accent-primary/10 rounded-full flex items-center justify-center">
+            <Lock size={40} className="text-accent-primary" />
+          </div>
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <Star size={20} className="text-amber-500 fill-amber-500" />
+            <span className="text-sm font-medium text-amber-600 dark:text-amber-400">Premium Feature</span>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+            Abrechnung & Rechnungen
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+            Mit dem Billing-Modul kannst du Zeiteinträge direkt in Rechnungen umwandeln,
+            sevDesk-Integration nutzen und deine Abrechnungen professionell verwalten.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 max-w-lg mx-auto text-left">
+            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+              <CreditCard size={20} className="text-accent-primary flex-shrink-0 mt-0.5" />
+              <span className="text-sm text-gray-700 dark:text-gray-300">Direkte Rechnungserstellung</span>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+              <FileText size={20} className="text-accent-primary flex-shrink-0 mt-0.5" />
+              <span className="text-sm text-gray-700 dark:text-gray-300">sevDesk Integration</span>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+              <Clock size={20} className="text-accent-primary flex-shrink-0 mt-0.5" />
+              <span className="text-sm text-gray-700 dark:text-gray-300">Abrechnungs-übersicht</span>
+            </div>
+          </div>
+          <a
+            href="mailto:support@ramboflow.com?subject=Interesse%20an%20Billing%20Feature"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors font-medium"
+          >
+            <Star size={18} />
+            Jetzt freischalten
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-accent-primary" size={32} />
+      <div className="p-4 md:p-6 max-w-6xl mx-auto">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="animate-spin text-accent-primary" size={32} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

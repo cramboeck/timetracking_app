@@ -240,4 +240,4 @@ export interface CustomerContact {
   createdAt: string;
 }
 
-export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'calendar' | 'dashboard' | 'settings' | 'tickets';
+export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'calendar' | 'dashboard' | 'settings' | 'tickets' | 'billing';
