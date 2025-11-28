@@ -1205,7 +1205,7 @@ export interface CreateQuoteInput {
   status?: number;  // 100 = Draft, 200 = Sent
 }
 
-// Create a quote in sevDesk
+// Create a quote in sevDesk using the Factory endpoint
 export async function createQuote(
   apiToken: string,
   config: SevdeskConfig,
@@ -1219,40 +1219,68 @@ export async function createQuote(
     throw new Error('Could not get sevDesk user for contactPerson');
   }
 
-  // Create the quote (Order with orderType = "AN" for Angebot)
-  // Try with form-urlencoded format as per sevDesk documentation
-  const quoteDate = input.quoteDate || new Date().toISOString().split('T')[0];
+  // Format date as DD.MM.YYYY (German format as per sevDesk docs)
+  const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
+  const orderDate = `${dateObj.getDate().toString().padStart(2, '0')}.${(dateObj.getMonth() + 1).toString().padStart(2, '0')}.${dateObj.getFullYear()}`;
   const taxRate = config.taxRate || 19;
 
-  // Build form data like the PHP SDK examples
-  const formData = new URLSearchParams();
-  formData.append('orderType', 'AN');
-  formData.append('contact[id]', input.contactId);
-  formData.append('contact[objectName]', 'Contact');
-  formData.append('contactPerson[id]', sevUser.id.toString());
-  formData.append('contactPerson[objectName]', 'SevUser');
-  formData.append('orderDate', quoteDate);
-  formData.append('status', (input.status || 100).toString());
-  formData.append('header', input.header);
-  formData.append('headText', input.headText || '');
-  formData.append('footText', input.footText || 'Wir freuen uns auf Ihre Rückmeldung.');
-  formData.append('taxRate', taxRate.toString());
-  formData.append('taxType', 'default');
-  formData.append('taxText', 'zzgl. MwSt.');
-  formData.append('currency', 'EUR');
-  formData.append('smallSettlement', '0');
-  formData.append('version', '0');
+  // Build positions array for orderPosSave
+  const orderPosSave = input.positions.map((pos, index) => ({
+    objectName: 'OrderPos',
+    mapAll: true,
+    quantity: pos.quantity,
+    price: pos.price,
+    name: pos.name,
+    text: pos.text || null,
+    unity: {
+      id: pos.quantity === 0 ? 1 : 9, // 1 = Stück for headings, 9 = Stunden
+      objectName: 'Unity',
+    },
+    positionNumber: index + 1,
+    taxRate: pos.quantity === 0 ? 0 : (pos.taxRate || taxRate),
+  }));
 
-  console.log('[sevDesk] Creating quote with form data:', formData.toString());
+  // Build the request body according to sevDesk API docs
+  const requestBody = {
+    order: {
+      objectName: 'Order',
+      mapAll: true,
+      contact: {
+        id: parseInt(input.contactId),
+        objectName: 'Contact',
+      },
+      contactPerson: {
+        id: parseInt(sevUser.id),
+        objectName: 'SevUser',
+      },
+      orderDate: orderDate,
+      status: input.status || 100,
+      header: input.header,
+      headText: input.headText || '',
+      footText: input.footText || 'Wir freuen uns auf Ihre Rückmeldung.',
+      orderType: 'AN',
+      currency: 'EUR',
+      version: 0,
+      smallSettlement: 0,
+      taxRate: taxRate,
+      taxType: 'default',
+      taxText: `Umsatzsteuer ${taxRate}%`,
+      showNet: 1,
+    },
+    orderPosSave: orderPosSave,
+    orderPosDelete: null,
+  };
 
-  // Use form-urlencoded instead of JSON
-  const response = await fetch(`${SEVDESK_API_URL}/Order`, {
+  console.log('[sevDesk] Creating quote with Factory endpoint:', JSON.stringify(requestBody, null, 2));
+
+  // Use the Factory endpoint for creating orders with positions
+  const response = await fetch(`${SEVDESK_API_URL}/Order/Factory/saveOrder`, {
     method: 'POST',
     headers: {
       'Authorization': apiToken,
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Type': 'application/json',
     },
-    body: formData.toString(),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
@@ -1261,73 +1289,11 @@ export async function createQuote(
     throw new Error(`Failed to create quote: ${errorText}`);
   }
 
-  const quoteData = await response.json() as { objects: { id: string; orderNumber: string } };
-  const quoteId = quoteData.objects.id;
-  const quoteNumber = quoteData.objects.orderNumber;
+  const quoteData = await response.json() as { objects: { order: { id: string; orderNumber: string } } };
+  const quoteId = quoteData.objects.order.id;
+  const quoteNumber = quoteData.objects.order.orderNumber;
 
   console.log('[sevDesk] Quote created:', quoteId, quoteNumber);
-
-  // Create positions for the quote using form-urlencoded
-  for (const pos of input.positions) {
-    const posFormData = new URLSearchParams();
-    posFormData.append('order[id]', quoteId);
-    posFormData.append('order[objectName]', 'Order');
-    posFormData.append('name', pos.name);
-    if (pos.text) {
-      posFormData.append('text', pos.text);
-    }
-
-    // Skip positions with quantity 0 (headings) - sevDesk handles them differently
-    if (pos.quantity === 0) {
-      posFormData.append('quantity', '0');
-      posFormData.append('price', '0');
-      posFormData.append('taxRate', '0');
-      posFormData.append('unity[id]', '1'); // Stück for headings
-      posFormData.append('unity[objectName]', 'Unity');
-
-      try {
-        const posResponse = await fetch(`${SEVDESK_API_URL}/OrderPos`, {
-          method: 'POST',
-          headers: {
-            'Authorization': apiToken,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: posFormData.toString(),
-        });
-        if (!posResponse.ok) {
-          const errText = await posResponse.text();
-          console.error('[sevDesk] Heading creation failed:', errText);
-        }
-      } catch (err) {
-        console.error('[sevDesk] Heading creation error:', err);
-      }
-      continue;
-    }
-
-    posFormData.append('quantity', pos.quantity.toString());
-    posFormData.append('price', pos.price.toString());
-    posFormData.append('taxRate', (pos.taxRate || taxRate).toString());
-    posFormData.append('unity[id]', '9'); // Hours/Stunden
-    posFormData.append('unity[objectName]', 'Unity');
-
-    try {
-      const posResponse = await fetch(`${SEVDESK_API_URL}/OrderPos`, {
-        method: 'POST',
-        headers: {
-          'Authorization': apiToken,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: posFormData.toString(),
-      });
-      if (!posResponse.ok) {
-        const errText = await posResponse.text();
-        console.error('[sevDesk] Position creation failed:', errText);
-      }
-    } catch (err) {
-      console.error('[sevDesk] Position creation failed:', err);
-      // Continue with other positions even if one fails
-    }
-  }
 
   return {
     quoteId,
