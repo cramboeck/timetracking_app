@@ -1211,21 +1211,23 @@ export async function createQuote(
   config: SevdeskConfig,
   input: CreateQuoteInput
 ): Promise<{ quoteId: string; quoteNumber: string }> {
-  // First, get the current SevUser (contactPerson)
-  const userResponse = await sevdeskFetch(apiToken, '/SevUser');
-  const sevUser = userResponse.objects?.[0];
+  // Fetch required data in parallel
+  const [userResponse, taxRuleResponse, contactResponse] = await Promise.all([
+    sevdeskFetch(apiToken, '/SevUser'),
+    sevdeskFetch(apiToken, '/TaxRule'),
+    sevdeskFetch(apiToken, `/Contact/${input.contactId}`),
+  ]);
 
+  const sevUser = userResponse.objects?.[0];
   if (!sevUser) {
     throw new Error('Could not get sevDesk user for contactPerson');
   }
 
-  // Format date as DD.MM.YYYY (German format as per sevDesk docs)
-  const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
-  const orderDate = `${dateObj.getDate().toString().padStart(2, '0')}.${(dateObj.getMonth() + 1).toString().padStart(2, '0')}.${dateObj.getFullYear()}`;
-  const taxRate = config.taxRate || 19;
+  // Get default tax rule (usually the first one for standard tax)
+  const taxRules = taxRuleResponse.objects || [];
+  const defaultTaxRule = taxRules.find((tr: { taxRate?: string }) => tr.taxRate === '19') || taxRules[0];
+  console.log('[sevDesk] Available tax rules:', taxRules.map((tr: { id: string; name?: string; taxRate?: string }) => ({ id: tr.id, name: tr.name, taxRate: tr.taxRate })));
 
-  // Fetch contact to get address info
-  const contactResponse = await sevdeskFetch(apiToken, `/Contact/${input.contactId}`);
   const contact = contactResponse.objects;
 
   // Get the contact's country, default to Germany (id: 1)
@@ -1235,21 +1237,20 @@ export async function createQuote(
     if (countryId) addressCountryId = parseInt(countryId);
   }
 
-  // Build positions array for orderPosSave
+  // Use Unix timestamp for date
+  const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
+  const orderDateTimestamp = Math.floor(dateObj.getTime() / 1000);
+  const taxRate = config.taxRate || 19;
+
+  // Build positions array for orderPosSave - simplified structure
   const orderPosSave = input.positions.map((pos, index) => {
     const positionTaxRate = pos.quantity === 0 ? 0 : (pos.taxRate || taxRate);
-    const priceNet = pos.price;
-    const priceTax = priceNet * (positionTaxRate / 100);
-    const priceGross = priceNet + priceTax;
 
     return {
       objectName: 'OrderPos',
       mapAll: true,
       quantity: pos.quantity,
-      price: priceNet,
-      priceNet: priceNet,
-      priceTax: priceTax,
-      priceGross: priceGross,
+      price: pos.price,
       name: pos.name,
       text: pos.text || null,
       unity: {
@@ -1258,8 +1259,6 @@ export async function createQuote(
       },
       positionNumber: index + 1,
       taxRate: positionTaxRate,
-      discount: 0,
-      optional: false,
     };
   });
 
@@ -1276,7 +1275,7 @@ export async function createQuote(
         id: parseInt(sevUser.id),
         objectName: 'SevUser',
       },
-      orderDate: orderDate,
+      orderDate: orderDateTimestamp,
       status: input.status || 100,
       header: input.header,
       headText: input.headText || '',
@@ -1288,10 +1287,10 @@ export async function createQuote(
       taxRate: taxRate,
       taxType: 'default',
       taxText: `Umsatzsteuer ${taxRate}%`,
-      taxRule: {
-        id: 1, // Default tax rule
+      taxRule: defaultTaxRule ? {
+        id: parseInt(defaultTaxRule.id),
         objectName: 'TaxRule',
-      },
+      } : null,
       addressCountry: {
         id: addressCountryId,
         objectName: 'StaticCountry',
