@@ -1253,7 +1253,7 @@ export async function createQuote(
     throw new Error(`Failed to create quote: ${errorText}`);
   }
 
-  const quoteData = await quoteResponse.json();
+  const quoteData = await quoteResponse.json() as { objects: { id: string; orderNumber: string } };
   const quoteId = quoteData.objects.id;
   const quoteNumber = quoteData.objects.orderNumber;
 
