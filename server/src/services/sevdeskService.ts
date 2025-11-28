@@ -1205,17 +1205,16 @@ export interface CreateQuoteInput {
   status?: number;  // 100 = Draft, 200 = Sent
 }
 
-// Create a quote in sevDesk using the Factory endpoint
+// Create a quote in sevDesk - using two-step approach: create order, then add positions
 export async function createQuote(
   apiToken: string,
   config: SevdeskConfig,
   input: CreateQuoteInput
 ): Promise<{ quoteId: string; quoteNumber: string }> {
   // Fetch required data in parallel
-  const [userResponse, taxRuleResponse, contactResponse] = await Promise.all([
+  const [userResponse, taxRuleResponse] = await Promise.all([
     sevdeskFetch(apiToken, '/SevUser'),
     sevdeskFetch(apiToken, '/TaxRule'),
-    sevdeskFetch(apiToken, `/Contact/${input.contactId}`),
   ]);
 
   const sevUser = userResponse.objects?.[0];
@@ -1226,107 +1225,110 @@ export async function createQuote(
   // Get default tax rule (usually the first one for standard tax)
   const taxRules = taxRuleResponse.objects || [];
   const defaultTaxRule = taxRules.find((tr: { taxRate?: string }) => tr.taxRate === '19') || taxRules[0];
-  console.log('[sevDesk] Available tax rules:', taxRules.map((tr: { id: string; name?: string; taxRate?: string }) => ({ id: tr.id, name: tr.name, taxRate: tr.taxRate })));
-
-  const contact = contactResponse.objects;
-
-  // Get the contact's country, default to Germany (id: 1)
-  let addressCountryId = 1; // Germany
-  if (contact?.addresses && contact.addresses.length > 0) {
-    const countryId = contact.addresses[0]?.country?.id;
-    if (countryId) addressCountryId = parseInt(countryId);
-  }
+  console.log('[sevDesk] Using tax rule:', defaultTaxRule?.id, defaultTaxRule?.name);
 
   // Use Unix timestamp for date
   const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
   const orderDateTimestamp = Math.floor(dateObj.getTime() / 1000);
   const taxRate = config.taxRate || 19;
 
-  // Build positions array for orderPosSave - simplified structure
-  const orderPosSave = input.positions.map((pos, index) => {
-    const positionTaxRate = pos.quantity === 0 ? 0 : (pos.taxRate || taxRate);
-
-    return {
-      objectName: 'OrderPos',
-      mapAll: true,
-      quantity: pos.quantity,
-      price: pos.price,
-      name: pos.name,
-      text: pos.text || null,
-      unity: {
-        id: pos.quantity === 0 ? 1 : 9, // 1 = Stück for headings, 9 = Stunden
-        objectName: 'Unity',
-      },
-      positionNumber: index + 1,
-      taxRate: positionTaxRate,
-    };
-  });
-
-  // Build the request body according to sevDesk API docs
-  const requestBody = {
-    order: {
-      objectName: 'Order',
-      mapAll: true,
-      contact: {
-        id: parseInt(input.contactId),
-        objectName: 'Contact',
-      },
-      contactPerson: {
-        id: parseInt(sevUser.id),
-        objectName: 'SevUser',
-      },
-      orderDate: orderDateTimestamp,
-      status: input.status || 100,
-      header: input.header,
-      headText: input.headText || '',
-      footText: input.footText || 'Wir freuen uns auf Ihre Rückmeldung.',
-      orderType: 'AN',
-      currency: 'EUR',
-      version: 0,
-      smallSettlement: 0,
-      taxRate: taxRate,
-      taxType: 'default',
-      taxText: `Umsatzsteuer ${taxRate}%`,
-      taxRule: defaultTaxRule ? {
-        id: parseInt(defaultTaxRule.id),
-        objectName: 'TaxRule',
-      } : null,
-      addressCountry: {
-        id: addressCountryId,
-        objectName: 'StaticCountry',
-      },
-      showNet: 1,
+  // Step 1: Create the order without positions using simple /Order endpoint
+  const orderBody = {
+    objectName: 'Order',
+    contact: {
+      id: parseInt(input.contactId),
+      objectName: 'Contact',
     },
-    orderPosSave: orderPosSave,
-    orderPosDelete: null,
+    contactPerson: {
+      id: parseInt(sevUser.id),
+      objectName: 'SevUser',
+    },
+    orderDate: orderDateTimestamp,
+    status: 100,
+    header: input.header || 'Angebot',
+    headText: input.headText || '',
+    footText: input.footText || 'Wir freuen uns auf Ihre Rückmeldung.',
+    orderType: 'AN',
+    currency: 'EUR',
+    taxRate: taxRate,
+    taxType: 'default',
+    taxText: `Umsatzsteuer ${taxRate}%`,
+    taxRule: defaultTaxRule ? {
+      id: parseInt(defaultTaxRule.id),
+      objectName: 'TaxRule',
+    } : undefined,
+    mapAll: true,
   };
 
-  console.log('[sevDesk] Creating quote with Factory endpoint:', JSON.stringify(requestBody, null, 2));
+  console.log('[sevDesk] Creating order:', JSON.stringify(orderBody, null, 2));
 
-  // Use the Factory endpoint for creating orders with positions
-  const response = await fetch(`${SEVDESK_API_URL}/Order/Factory/saveOrder`, {
+  const orderResponse = await fetch(`${SEVDESK_API_URL}/Order`, {
     method: 'POST',
     headers: {
       'Authorization': apiToken,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(requestBody),
+    body: JSON.stringify(orderBody),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('[sevDesk] Quote creation failed:', response.status, errorText);
-    throw new Error(`Failed to create quote: ${errorText}`);
+  if (!orderResponse.ok) {
+    const errorText = await orderResponse.text();
+    console.error('[sevDesk] Order creation failed:', orderResponse.status, errorText);
+    throw new Error(`Failed to create order: ${errorText}`);
   }
 
-  const quoteData = await response.json() as { objects: { order: { id: string; orderNumber: string } } };
-  const quoteId = quoteData.objects.order.id;
-  const quoteNumber = quoteData.objects.order.orderNumber;
+  const orderData = await orderResponse.json() as { objects: { id: string; orderNumber: string } };
+  const orderId = orderData.objects.id;
+  const orderNumber = orderData.objects.orderNumber;
 
-  console.log('[sevDesk] Quote created:', quoteId, quoteNumber);
+  console.log('[sevDesk] Order created:', orderId, orderNumber);
+
+  // Step 2: Add positions to the order
+  for (let i = 0; i < input.positions.length; i++) {
+    const pos = input.positions[i];
+    const positionTaxRate = pos.quantity === 0 ? 0 : (pos.taxRate || taxRate);
+
+    const positionBody = {
+      objectName: 'OrderPos',
+      order: {
+        id: parseInt(orderId),
+        objectName: 'Order',
+      },
+      quantity: pos.quantity,
+      price: pos.price,
+      name: pos.name,
+      text: pos.text || null,
+      unity: {
+        id: pos.quantity === 0 ? 1 : 9, // 1 = Stück, 9 = Stunden
+        objectName: 'Unity',
+      },
+      positionNumber: i + 1,
+      taxRate: positionTaxRate,
+      mapAll: true,
+    };
+
+    console.log('[sevDesk] Adding position:', i + 1);
+
+    const posResponse = await fetch(`${SEVDESK_API_URL}/OrderPos`, {
+      method: 'POST',
+      headers: {
+        'Authorization': apiToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(positionBody),
+    });
+
+    if (!posResponse.ok) {
+      const errorText = await posResponse.text();
+      console.error('[sevDesk] Position creation failed:', posResponse.status, errorText);
+      // Continue with other positions even if one fails
+    }
+  }
+
+  console.log('[sevDesk] Quote created with positions:', orderId, orderNumber);
 
   return {
-    quoteId,
-    quoteNumber,
+    quoteId: orderId,
+    quoteNumber: orderNumber,
   };
 }
