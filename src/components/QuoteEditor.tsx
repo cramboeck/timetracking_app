@@ -35,6 +35,61 @@ interface QuoteEditorProps {
   onSuccess?: (quoteNumber: string) => void;
 }
 
+// Text templates with variable support
+// Variables: {firma}, {anrede}, {vorname}, {nachname}, {ansprechpartner}
+const SALUTATION_TEMPLATES = [
+  { id: 'formal', label: 'Formell (Damen und Herren)', text: 'Sehr geehrte Damen und Herren,' },
+  { id: 'formal_m', label: 'Formell (Herr)', text: 'Sehr geehrter Herr {nachname},' },
+  { id: 'formal_f', label: 'Formell (Frau)', text: 'Sehr geehrte Frau {nachname},' },
+  { id: 'informal', label: 'Persönlich', text: 'Hallo {vorname},' },
+];
+
+const HEAD_TEXT_TEMPLATES = [
+  {
+    id: 'inquiry',
+    label: 'Anfrage-Antwort',
+    text: 'vielen Dank für Ihre Anfrage. Anbei können wir Ihnen folgende Artikel und Leistungen anbieten:'
+  },
+  {
+    id: 'proactive',
+    label: 'Proaktives Angebot',
+    text: 'basierend auf unserer bisherigen Zusammenarbeit möchten wir Ihnen folgende Optimierungen vorschlagen:'
+  },
+  {
+    id: 'followup',
+    label: 'Nachfass-Angebot',
+    text: 'wie besprochen senden wir Ihnen hiermit unser Angebot für die gewünschten Leistungen:'
+  },
+  {
+    id: 'recommendation',
+    label: 'Empfehlung',
+    text: 'nach eingehender Analyse Ihrer IT-Infrastruktur empfehlen wir Ihnen folgende Maßnahmen:'
+  },
+];
+
+const FOOT_TEXT_TEMPLATES = [
+  {
+    id: 'standard',
+    label: 'Standard',
+    text: 'Alle hier genannten Preise sind unverbindlich und freibleibend. Preisänderungen und Irrtümer vorbehalten.\n\nSollten Sie Fragen zu unserem Angebot haben oder weitere Informationen benötigen, stehen wir Ihnen jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n\n{ansprechpartner}'
+  },
+  {
+    id: 'urgent',
+    label: 'Mit Gültigkeitsdauer',
+    text: 'Dieses Angebot ist 30 Tage gültig. Bei Fragen stehen wir Ihnen gerne zur Verfügung.\n\nMit freundlichen Grüßen\n\n{ansprechpartner}'
+  },
+  {
+    id: 'discount',
+    label: 'Mit Rabatt-Hinweis',
+    text: 'Bei Beauftragung bis zum Ende des Monats gewähren wir Ihnen 5% Skonto auf den Gesamtbetrag.\n\nWir freuen uns auf Ihre Rückmeldung!\n\nMit freundlichen Grüßen\n\n{ansprechpartner}'
+  },
+  {
+    id: 'simple',
+    label: 'Kurz & Knapp',
+    text: 'Wir freuen uns auf Ihre Rückmeldung.\n\nMit freundlichen Grüßen\n\n{ansprechpartner}'
+  },
+];
+
 export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
   // Contact selection
   const [contacts, setContacts] = useState<SevdeskContact[]>([]);
@@ -44,10 +99,48 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
   // Quote details
   const [header, setHeader] = useState('');
   const [headText, setHeadText] = useState('');
-  const [footText, setFootText] = useState('Wir freuen uns auf Ihre Rückmeldung.');
+  const [footText, setFootText] = useState('');
   const [quoteDate, setQuoteDate] = useState(new Date().toISOString().split('T')[0]);
   const [positions, setPositions] = useState<QuotePosition[]>([]);
   const [createAsDraft, setCreateAsDraft] = useState(true);
+
+  // Template selections
+  const [selectedSalutation, setSelectedSalutation] = useState('formal');
+  const [selectedHeadTemplate, setSelectedHeadTemplate] = useState('inquiry');
+  const [selectedFootTemplate, setSelectedFootTemplate] = useState('standard');
+
+  // Helper function to replace template variables
+  const replaceVariables = useCallback((text: string): string => {
+    if (!selectedContact) return text;
+
+    // Extract name parts from contact name
+    const nameParts = selectedContact.name.split(' ');
+    const vorname = nameParts.length > 1 ? nameParts[0] : '';
+    const nachname = nameParts.length > 1 ? nameParts.slice(1).join(' ') : nameParts[0];
+
+    return text
+      .replace(/{firma}/g, selectedContact.name)
+      .replace(/{vorname}/g, vorname)
+      .replace(/{nachname}/g, nachname)
+      .replace(/{ansprechpartner}/g, 'Christoph Ramböck') // TODO: Get from user settings
+      .replace(/{anrede}/g, 'Herr/Frau');
+  }, [selectedContact]);
+
+  // Apply templates when selection changes
+  useEffect(() => {
+    const salutation = SALUTATION_TEMPLATES.find(t => t.id === selectedSalutation);
+    const headTemplate = HEAD_TEXT_TEMPLATES.find(t => t.id === selectedHeadTemplate);
+    const footTemplate = FOOT_TEXT_TEMPLATES.find(t => t.id === selectedFootTemplate);
+
+    if (salutation && headTemplate) {
+      const fullHeadText = `${replaceVariables(salutation.text)}\n\n${replaceVariables(headTemplate.text)}`;
+      setHeadText(fullHeadText);
+    }
+
+    if (footTemplate) {
+      setFootText(replaceVariables(footTemplate.text));
+    }
+  }, [selectedSalutation, selectedHeadTemplate, selectedFootTemplate, selectedContact, replaceVariables]);
 
   // Position search
   const [positionSearch, setPositionSearch] = useState('');
@@ -326,17 +419,38 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
             />
           </div>
 
-          {/* Head Text */}
+          {/* Head Text with Templates */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Einleitungstext
             </label>
+            {/* Template Selectors */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              <select
+                value={selectedSalutation}
+                onChange={(e) => setSelectedSalutation(e.target.value)}
+                className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+              >
+                {SALUTATION_TEMPLATES.map(t => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
+              <select
+                value={selectedHeadTemplate}
+                onChange={(e) => setSelectedHeadTemplate(e.target.value)}
+                className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+              >
+                {HEAD_TEXT_TEMPLATES.map(t => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
+            </div>
             <textarea
               value={headText}
               onChange={(e) => setHeadText(e.target.value)}
               placeholder="Sehr geehrte Damen und Herren,&#10;&#10;vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:"
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
             />
           </div>
 
@@ -584,16 +698,28 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
             )}
           </div>
 
-          {/* Foot Text */}
+          {/* Foot Text with Templates */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Schlusstext
             </label>
+            {/* Template Selector */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              <select
+                value={selectedFootTemplate}
+                onChange={(e) => setSelectedFootTemplate(e.target.value)}
+                className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+              >
+                {FOOT_TEXT_TEMPLATES.map(t => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
+            </div>
             <textarea
               value={footText}
               onChange={(e) => setFootText(e.target.value)}
-              rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              rows={5}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
             />
           </div>
 
