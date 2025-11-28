@@ -990,12 +990,15 @@ export interface DocumentSearchResult {
   sevdeskId: string;
   documentType: 'invoice' | 'quote';
   documentNumber: string;
+  contactId: string | null;
   contactName: string;
   documentDate: string;
   status: number;
   statusName: string;
   header: string;
+  sumNet: number;
   sumGross: number;
+  sumTax: number | null;
   currency: string;
   positions: Array<{ name: string; text: string | null; quantity: number; price: number; sumNet: number }>;
   rank: number;
@@ -1018,8 +1021,8 @@ export async function searchDocuments(
   let sql = `
     SELECT
       id, sevdesk_id, document_type, document_number,
-      contact_name, document_date, status, status_name,
-      header, sum_gross, currency, positions_json,
+      contact_id, contact_name, document_date, status, status_name,
+      header, sum_net, sum_gross, sum_tax, currency, positions_json,
       ts_rank(search_vector, to_tsquery('german', $2)) as rank
     FROM sevdesk_documents
     WHERE user_id = $1
@@ -1043,12 +1046,15 @@ export async function searchDocuments(
     sevdeskId: row.sevdesk_id,
     documentType: row.document_type,
     documentNumber: row.document_number,
+    contactId: row.contact_id,
     contactName: row.contact_name,
     documentDate: row.document_date,
     status: row.status,
     statusName: row.status_name,
     header: row.header,
+    sumNet: parseFloat(row.sum_net) || 0,
     sumGross: parseFloat(row.sum_gross) || 0,
+    sumTax: row.sum_tax ? parseFloat(row.sum_tax) : null,
     currency: row.currency,
     positions: row.positions_json || [],
     rank: row.rank,

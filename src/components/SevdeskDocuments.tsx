@@ -532,6 +532,37 @@ export const SevdeskDocuments = () => {
             searchResults.map((result) => (
               <div
                 key={result.id}
+                onClick={() => {
+                  // Create a minimal document object to open detail view
+                  const doc = result.documentType === 'invoice'
+                    ? {
+                        id: result.sevdeskId,
+                        invoiceNumber: result.documentNumber,
+                        contact: { id: result.contactId || '', name: result.contactName },
+                        invoiceDate: result.documentDate,
+                        status: result.status,
+                        statusName: result.statusName,
+                        sumNet: result.sumNet,
+                        sumGross: result.sumGross,
+                        sumTax: result.sumTax || 0,
+                        header: result.header,
+                      } as SevdeskInvoice
+                    : {
+                        id: result.sevdeskId,
+                        quoteNumber: result.documentNumber,
+                        contact: { id: result.contactId || '', name: result.contactName },
+                        quoteDate: result.documentDate,
+                        status: result.status,
+                        statusName: result.statusName,
+                        sumNet: result.sumNet,
+                        sumGross: result.sumGross,
+                        header: result.header,
+                      } as SevdeskQuote;
+                  setSelectedDocument({
+                    type: result.documentType === 'invoice' ? 'invoices' : 'quotes',
+                    doc,
+                  });
+                }}
                 className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
               >
                 <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">

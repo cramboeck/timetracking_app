@@ -1328,12 +1328,15 @@ export interface DocumentSearchResult {
   sevdeskId: string;
   documentType: 'invoice' | 'quote';
   documentNumber: string;
+  contactId: string | null;
   contactName: string;
   documentDate: string;
   status: number;
   statusName: string;
   header: string;
+  sumNet: number;
   sumGross: number;
+  sumTax: number | null;
   currency: string;
   positions: Array<{ name: string; text: string | null; quantity: number; price: number; sumNet: number }>;
   rank: number;
