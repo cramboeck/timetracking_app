@@ -372,18 +372,18 @@ export const SevdeskDocuments = () => {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           sevDesk Dokumente
         </h3>
-        <div className="flex items-center gap-2">
-          {/* Sync Status */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Sync Status - hidden on very small screens */}
           {syncStatus && (
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <Database size={14} />
               <span>{syncStatus.invoiceCount + syncStatus.quoteCount} im Cache</span>
               {syncStatus.lastSync && (
-                <span className="text-gray-400">
+                <span className="text-gray-400 hidden md:inline">
                   (Sync: {new Date(syncStatus.lastSync).toLocaleDateString('de-DE')})
                 </span>
               )}
@@ -397,7 +397,7 @@ export const SevdeskDocuments = () => {
             title="Neues Angebot erstellen"
           >
             <Plus size={14} />
-            <span>Angebot</span>
+            <span className="hidden xs:inline sm:inline">Angebot</span>
           </button>
 
           {/* Sync Button */}
@@ -412,7 +412,7 @@ export const SevdeskDocuments = () => {
             ) : (
               <Download size={14} />
             )}
-            <span>Sync</span>
+            <span className="hidden xs:inline sm:inline">Sync</span>
           </button>
 
           {/* Refresh Button */}
