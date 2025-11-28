@@ -2084,67 +2084,6 @@ export const Settings = ({
 
         {activeTab === 'appearance' && (
           <div className="max-w-4xl mx-auto space-y-6">
-            {/* Account Info */}
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account</h2>
-
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">Account-Typ</p>
-                  <p className="font-medium text-gray-900 dark:text-white capitalize">
-                    {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
-                    {currentUser?.accountType === 'freelancer' && '🚀 Freelancer'}
-                    {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
-                    {currentUser?.accountType === 'team' && '👥 Team'}
-                  </p>
-                </div>
-                {currentUser?.organizationName && (
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-dark-400">
-                      {currentUser?.accountType === 'business' ? 'Firmenname' : 'Team-Name'}
-                    </p>
-                    <p className="font-medium text-gray-900 dark:text-white">{currentUser?.organizationName}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">Benutzername</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{currentUser?.username}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">E-Mail</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{currentUser?.email}</p>
-                </div>
-                {currentUser?.customerNumber && (
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-dark-400">Kundennummer</p>
-                    <p className="font-medium text-gray-900 dark:text-white">{currentUser.customerNumber}</p>
-                  </div>
-                )}
-                {currentUser?.displayName && (
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-dark-400">Anzeigename</p>
-                    <p className="font-medium text-gray-900 dark:text-white">{currentUser.displayName}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">Mitglied seit</p>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {currentUser?.createdAt && new Date(currentUser.createdAt).toLocaleDateString('de-DE')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-dark-200">
-                <button
-                  onClick={logout}
-                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium"
-                >
-                  <LogOut size={18} />
-                  Abmelden
-                </button>
-              </div>
-            </div>
-
             {/* Time Format Settings */}
             <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 mb-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Zeitformat</h2>

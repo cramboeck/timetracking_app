@@ -910,7 +910,7 @@ const DocumentsTab = () => {
       </div>
 
       {/* Search with Mode Toggle */}
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -918,17 +918,17 @@ const DocumentsTab = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={searchMode === 'cached'
-              ? "Volltextsuche im lokalen Cache..."
-              : "Suchen nach Nummer, Kunde oder Betreff..."
+              ? "Volltextsuche im Cache..."
+              : "Suchen..."
             }
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
           />
           {searching && (
             <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />
           )}
         </div>
         {/* Search Mode Toggle */}
-        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden flex-shrink-0">
           <button
             onClick={() => { setSearchMode('live'); setSearchResults([]); }}
             className={`px-3 py-2 text-sm ${
@@ -1009,9 +1009,9 @@ const DocumentsTab = () => {
                     doc,
                   });
                 }}
-                className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
               >
-                <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex-shrink-0 hidden sm:block">
                   {result.documentType === 'invoice' ? (
                     <Receipt size={20} className="text-gray-500 dark:text-gray-400" />
                   ) : (
@@ -1019,30 +1019,30 @@ const DocumentsTab = () => {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900 dark:text-white">
+                  <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                    <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                       {result.documentNumber}
                     </span>
                     <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(result.status, result.documentType === 'invoice' ? 'invoices' : 'quotes')}`}>
                       {result.statusName}
                     </span>
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 hidden sm:inline">
                       {result.documentType === 'invoice' ? 'Rechnung' : 'Angebot'}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                    {result.contactName} • {result.header || 'Keine Beschreibung'}
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {result.contactName}
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="font-medium text-gray-900 dark:text-white">
+                <div className="text-right flex-shrink-0">
+                  <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                     {formatCurrency(result.sumGross)}
                   </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                     {formatDate(result.documentDate)}
                   </p>
                 </div>
-                <ChevronRight size={20} className="text-gray-400" />
+                <ChevronRight size={18} className="text-gray-400 flex-shrink-0 hidden sm:block" />
               </div>
             ))
           )}
@@ -1072,33 +1072,33 @@ const DocumentsTab = () => {
                 <div
                   key={invoice.id}
                   onClick={() => setSelectedDocument({ type: 'invoices', doc: invoice })}
-                  className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
                 >
-                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex-shrink-0 hidden sm:block">
                     <Receipt size={20} className="text-gray-500 dark:text-gray-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900 dark:text-white">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                         {invoice.invoiceNumber}
                       </span>
                       <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(invoice.status, 'invoices')}`}>
                         {invoice.statusName}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                      {invoice.contact.name} • {invoice.header || 'Keine Beschreibung'}
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
+                      {invoice.contact.name}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-900 dark:text-white">
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                       {formatCurrency(invoice.sumGross)}
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(invoice.invoiceDate)}
                     </p>
                   </div>
-                  <ChevronRight size={20} className="text-gray-400" />
+                  <ChevronRight size={18} className="text-gray-400 flex-shrink-0 hidden sm:block" />
                 </div>
               ))
             )
@@ -1119,33 +1119,33 @@ const DocumentsTab = () => {
                 <div
                   key={quote.id}
                   onClick={() => setSelectedDocument({ type: 'quotes', doc: quote })}
-                  className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
                 >
-                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex-shrink-0 hidden sm:block">
                     <FileText size={20} className="text-gray-500 dark:text-gray-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900 dark:text-white">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                         {quote.quoteNumber}
                       </span>
                       <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(quote.status, 'quotes')}`}>
                         {quote.statusName}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                      {quote.contact.name} • {quote.header || 'Keine Beschreibung'}
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
+                      {quote.contact.name}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-900 dark:text-white">
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                       {formatCurrency(quote.sumGross)}
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(quote.quoteDate)}
                     </p>
                   </div>
-                  <ChevronRight size={20} className="text-gray-400" />
+                  <ChevronRight size={18} className="text-gray-400 flex-shrink-0 hidden sm:block" />
                 </div>
               ))
             )
