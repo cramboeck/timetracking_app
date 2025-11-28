@@ -1255,22 +1255,28 @@ export async function createQuote(
   const contact = contactResponse.objects;
   const addresses = addressResponse.objects || [];
 
+  console.log('[sevDesk] Contact response:', JSON.stringify(contact, null, 2));
+  console.log('[sevDesk] Addresses response:', JSON.stringify(addresses, null, 2));
+
   // Get the main address (or first address)
   const mainAddress = addresses[0] || {};
 
-  // Build full address string
-  const addressName = contact?.name || '';
+  // Build address fields - use contact name for addressName
+  // For companies: use company name. For persons: use familyname, surename
+  const addressName = contact?.name || `${contact?.surename || ''} ${contact?.familyname || ''}`.trim() || '';
   const addressStreet = mainAddress.street || null;
   const addressZip = mainAddress.zip || null;
   const addressCity = mainAddress.city || null;
 
   // Build combined address like sevDesk does
-  const addressParts = [addressName];
+  const addressParts: string[] = [];
+  if (addressName) addressParts.push(addressName);
   if (addressStreet) addressParts.push(addressStreet);
   if (addressZip || addressCity) addressParts.push([addressZip, addressCity].filter(Boolean).join(' '));
   const fullAddress = addressParts.join('\n');
 
-  console.log('[sevDesk] Contact:', contact?.name, 'Address:', mainAddress);
+  console.log('[sevDesk] Address fields - name:', addressName, 'street:', addressStreet, 'zip:', addressZip, 'city:', addressCity);
+  console.log('[sevDesk] Full address:', fullAddress);
 
   // Use Unix timestamp for date
   const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
