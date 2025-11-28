@@ -144,6 +144,20 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                         {detail.positions.map((pos) => {
                           const isExpanded = expandedPositions.has(pos.id);
                           const hasText = pos.text && pos.text.trim().length > 0;
+                          const isHeading = pos.quantity === 0;
+
+                          // Zwischenüberschrift (Menge = 0)
+                          if (isHeading) {
+                            return (
+                              <tr key={pos.id} className="bg-gray-200 dark:bg-gray-700">
+                                <td colSpan={5} className="p-2 font-semibold text-gray-800 dark:text-gray-200">
+                                  {pos.name}
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          // Normale Position
                           return (
                             <Fragment key={pos.id}>
                               <tr

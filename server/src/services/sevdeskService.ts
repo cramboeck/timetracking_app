@@ -573,21 +573,25 @@ export interface SevdeskQuoteDetail {
 // Get status name for invoices
 function getInvoiceStatusName(status: number): string {
   switch (status) {
+    case 50: return 'Deaktiviert';
     case 100: return 'Entwurf';
     case 200: return 'Offen';
+    case 750: return 'Teilbezahlt';
     case 1000: return 'Bezahlt';
-    default: return 'Unbekannt';
+    default: return `Status ${status}`;
   }
 }
 
-// Get status name for quotes
+// Get status name for quotes/orders
 function getQuoteStatusName(status: number): string {
   switch (status) {
     case 100: return 'Entwurf';
     case 200: return 'Gesendet';
-    case 300: return 'Akzeptiert';
-    case 400: return 'Abgelehnt';
-    default: return 'Unbekannt';
+    case 300: return 'Bestätigt';
+    case 500: return 'Teilberechnet';
+    case 750: return 'Abgeschlossen';
+    case 1000: return 'Storniert';
+    default: return `Status ${status}`;
   }
 }
 
