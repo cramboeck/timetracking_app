@@ -1238,10 +1238,12 @@ export async function createQuote(
   config: SevdeskConfig,
   input: CreateQuoteInput
 ): Promise<{ quoteId: string; quoteNumber: string }> {
-  // Fetch required data
-  const [userResponse, orderNumberResponse] = await Promise.all([
+  // Fetch required data including contact with addresses
+  const [userResponse, orderNumberResponse, contactResponse, addressResponse] = await Promise.all([
     sevdeskFetch(apiToken, '/SevUser'),
     sevdeskFetch(apiToken, '/Order/getCorrectOrderNumber?type=AN'),
+    sevdeskFetch(apiToken, `/Contact/${input.contactId}`),
+    sevdeskFetch(apiToken, `/ContactAddress?contact[id]=${input.contactId}&contact[objectName]=Contact`),
   ]);
 
   const sevUser = userResponse.objects?.[0];
@@ -1250,6 +1252,25 @@ export async function createQuote(
   }
 
   const orderNumber = orderNumberResponse.objects || 'AN-0000';
+  const contact = contactResponse.objects;
+  const addresses = addressResponse.objects || [];
+
+  // Get the main address (or first address)
+  const mainAddress = addresses[0] || {};
+
+  // Build full address string
+  const addressName = contact?.name || '';
+  const addressStreet = mainAddress.street || null;
+  const addressZip = mainAddress.zip || null;
+  const addressCity = mainAddress.city || null;
+
+  // Build combined address like sevDesk does
+  const addressParts = [addressName];
+  if (addressStreet) addressParts.push(addressStreet);
+  if (addressZip || addressCity) addressParts.push([addressZip, addressCity].filter(Boolean).join(' '));
+  const fullAddress = addressParts.join('\n');
+
+  console.log('[sevDesk] Contact:', contact?.name, 'Address:', mainAddress);
 
   // Use Unix timestamp for date
   const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
@@ -1269,8 +1290,14 @@ export async function createQuote(
       header: input.header || `Angebot ${orderNumber}`,
       headText: input.headText || '',
       footText: input.footText || '',
+      // Address fields
+      addressName: addressName,
+      addressStreet: addressStreet,
+      addressZip: addressZip,
+      addressCity: addressCity,
+      address: fullAddress,
       addressCountry: {
-        id: 1,
+        id: mainAddress.country?.id || 1,
         objectName: 'StaticCountry',
       },
       version: 0,
