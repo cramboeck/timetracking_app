@@ -13,8 +13,10 @@ import {
   Database,
   Download,
   CheckCircle,
+  Plus,
 } from 'lucide-react';
 import { sevdeskApi, SevdeskInvoice, SevdeskQuote, DocumentSearchResult } from '../services/api';
+import { QuoteEditor } from './QuoteEditor';
 
 type DocumentType = 'invoices' | 'quotes';
 
@@ -243,6 +245,9 @@ export const SevdeskDocuments = () => {
   const [searchResults, setSearchResults] = useState<DocumentSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
 
+  // Quote Editor
+  const [showQuoteEditor, setShowQuoteEditor] = useState(false);
+
   useEffect(() => {
     loadDocuments();
     loadSyncStatus();
@@ -384,6 +389,16 @@ export const SevdeskDocuments = () => {
               )}
             </div>
           )}
+
+          {/* New Quote Button */}
+          <button
+            onClick={() => setShowQuoteEditor(true)}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+            title="Neues Angebot erstellen"
+          >
+            <Plus size={14} />
+            <span>Angebot</span>
+          </button>
 
           {/* Sync Button */}
           <button
@@ -706,6 +721,18 @@ export const SevdeskDocuments = () => {
           type={selectedDocument.type}
           document={selectedDocument.doc}
           onClose={() => setSelectedDocument(null)}
+        />
+      )}
+
+      {/* Quote Editor Modal */}
+      {showQuoteEditor && (
+        <QuoteEditor
+          onClose={() => setShowQuoteEditor(false)}
+          onSuccess={(quoteNumber) => {
+            setShowQuoteEditor(false);
+            loadDocuments(); // Reload to show new quote
+            loadSyncStatus();
+          }}
         />
       )}
     </div>

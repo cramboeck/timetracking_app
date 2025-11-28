@@ -1342,6 +1342,36 @@ export interface DocumentSearchResult {
   rank: number;
 }
 
+export interface PositionSearchResult {
+  id: string;
+  name: string;
+  text: string | null;
+  quantity: number;
+  price: number;
+  sumNet: number;
+  sourceDocumentId: string;
+  sourceDocumentNumber: string;
+  sourceDocumentType: 'invoice' | 'quote';
+  sourceContactName: string;
+  sourceDocumentDate: string;
+}
+
+export interface CreateQuoteInput {
+  contactId: string;
+  quoteDate?: string;
+  header: string;
+  headText?: string;
+  footText?: string;
+  positions: Array<{
+    name: string;
+    text?: string;
+    quantity: number;
+    price: number;
+    taxRate?: number;
+  }>;
+  status?: number;
+}
+
 export interface BillingSummaryItem {
   customerId: string;
   customerName: string;
@@ -1518,6 +1548,28 @@ export const sevdeskApi = {
     if (options?.limit) params.append('limit', options.limit.toString());
     if (options?.offset) params.append('offset', options.offset.toString());
     return authFetch(`/sevdesk/search?${params.toString()}`);
+  },
+
+  // Position search for quote creation
+  searchPositions: async (query: string, options?: { type?: 'invoice' | 'quote'; limit?: number }): Promise<{ success: boolean; data: PositionSearchResult[] }> => {
+    const params = new URLSearchParams({ q: query });
+    if (options?.type) params.append('type', options.type);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    return authFetch(`/sevdesk/positions/search?${params.toString()}`);
+  },
+
+  getPositionSuggestions: async (prefix: string, limit?: number): Promise<{ success: boolean; data: string[] }> => {
+    const params = new URLSearchParams({ prefix });
+    if (limit) params.append('limit', limit.toString());
+    return authFetch(`/sevdesk/positions/suggestions?${params.toString()}`);
+  },
+
+  // Quote creation
+  createQuote: async (data: CreateQuoteInput): Promise<{ success: boolean; data: { quoteId: string; quoteNumber: string } }> => {
+    return authFetch('/sevdesk/quotes/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 };
 

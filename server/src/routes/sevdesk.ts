@@ -584,4 +584,122 @@ router.get('/search', authenticateToken, requireBillingFeature, async (req: Auth
   }
 });
 
+// ============================================
+// Position Search & Quote Creation Routes
+// ============================================
+
+// GET /api/sevdesk/positions/search - Search positions from synced documents
+router.get('/positions/search', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { q, type, limit } = req.query;
+
+    if (!q || typeof q !== 'string' || q.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Search query must be at least 2 characters',
+      });
+    }
+
+    const results = await sevdeskService.searchPositions(userId, q, {
+      documentType: type as 'invoice' | 'quote' | undefined,
+      limit: limit ? parseInt(limit as string) : 30,
+    });
+
+    res.json({
+      success: true,
+      data: results,
+    });
+  } catch (error: any) {
+    console.error('Position search error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/positions/suggestions - Get autocomplete suggestions for position names
+router.get('/positions/suggestions', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { prefix, limit } = req.query;
+
+    if (!prefix || typeof prefix !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Prefix is required',
+      });
+    }
+
+    const suggestions = await sevdeskService.getPositionSuggestions(
+      userId,
+      prefix,
+      limit ? parseInt(limit as string) : 20
+    );
+
+    res.json({
+      success: true,
+      data: suggestions,
+    });
+  } catch (error: any) {
+    console.error('Position suggestions error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/quotes/create - Create a new quote in sevDesk
+router.post('/quotes/create', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { contactId, quoteDate, header, headText, footText, positions, status } = req.body;
+
+    // Validate required fields
+    if (!contactId) {
+      return res.status(400).json({ success: false, error: 'contactId is required' });
+    }
+    if (!header || header.trim() === '') {
+      return res.status(400).json({ success: false, error: 'header (Betreff) is required' });
+    }
+    if (!positions || !Array.isArray(positions) || positions.length === 0) {
+      return res.status(400).json({ success: false, error: 'At least one position is required' });
+    }
+
+    // Validate each position
+    for (const pos of positions) {
+      if (!pos.name || pos.name.trim() === '') {
+        return res.status(400).json({ success: false, error: 'Each position must have a name' });
+      }
+      if (typeof pos.quantity !== 'number' || pos.quantity <= 0) {
+        return res.status(400).json({ success: false, error: 'Each position must have a valid quantity > 0' });
+      }
+      if (typeof pos.price !== 'number' || pos.price < 0) {
+        return res.status(400).json({ success: false, error: 'Each position must have a valid price >= 0' });
+      }
+    }
+
+    // Get config
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    // Create the quote
+    const result = await sevdeskService.createQuote(config.apiToken, config, {
+      contactId,
+      quoteDate,
+      header,
+      headText,
+      footText,
+      positions,
+      status: status || 100, // Default to draft
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Create quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

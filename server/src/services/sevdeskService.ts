@@ -1084,3 +1084,219 @@ export async function getSyncStatus(userId: string): Promise<{
     quoteCount: parseInt(row?.quote_count) || 0,
   };
 }
+
+// ============================================
+// Position Search & Quote Creation
+// ============================================
+
+export interface PositionSearchResult {
+  id: string;
+  name: string;
+  text: string | null;
+  quantity: number;
+  price: number;
+  sumNet: number;
+  // Context from source document
+  sourceDocumentId: string;
+  sourceDocumentNumber: string;
+  sourceDocumentType: 'invoice' | 'quote';
+  sourceContactName: string;
+  sourceDocumentDate: string;
+}
+
+// Search positions across all synced documents
+export async function searchPositions(
+  userId: string,
+  searchQuery: string,
+  options: {
+    documentType?: 'invoice' | 'quote';
+    limit?: number;
+  } = {}
+): Promise<PositionSearchResult[]> {
+  const { documentType, limit = 30 } = options;
+
+  // Search in JSONB positions_json array
+  // Using ILIKE for case-insensitive search in name and text fields
+  let sql = `
+    SELECT
+      d.id as doc_id,
+      d.sevdesk_id,
+      d.document_number,
+      d.document_type,
+      d.contact_name,
+      d.document_date,
+      pos.value as position
+    FROM sevdesk_documents d,
+    jsonb_array_elements(d.positions_json) as pos
+    WHERE d.user_id = $1
+      AND (
+        pos.value->>'name' ILIKE $2
+        OR pos.value->>'text' ILIKE $2
+      )
+  `;
+
+  const searchPattern = `%${searchQuery}%`;
+  const params: any[] = [userId, searchPattern];
+
+  if (documentType) {
+    sql += ` AND d.document_type = $3`;
+    params.push(documentType);
+  }
+
+  sql += ` ORDER BY d.document_date DESC LIMIT $${params.length + 1}`;
+  params.push(limit);
+
+  const result = await query(sql, params);
+
+  return result.rows.map((row, index) => {
+    const pos = row.position;
+    return {
+      id: `${row.doc_id}-${index}`,
+      name: pos.name || '',
+      text: pos.text || null,
+      quantity: parseFloat(pos.quantity) || 1,
+      price: parseFloat(pos.price) || 0,
+      sumNet: parseFloat(pos.sumNet) || 0,
+      sourceDocumentId: row.sevdesk_id,
+      sourceDocumentNumber: row.document_number,
+      sourceDocumentType: row.document_type,
+      sourceContactName: row.contact_name,
+      sourceDocumentDate: row.document_date,
+    };
+  });
+}
+
+// Get unique position names for autocomplete
+export async function getPositionSuggestions(
+  userId: string,
+  prefix: string,
+  limit: number = 20
+): Promise<string[]> {
+  const sql = `
+    SELECT DISTINCT pos.value->>'name' as name
+    FROM sevdesk_documents d,
+    jsonb_array_elements(d.positions_json) as pos
+    WHERE d.user_id = $1
+      AND pos.value->>'name' ILIKE $2
+      AND pos.value->>'name' IS NOT NULL
+      AND pos.value->>'name' != ''
+    ORDER BY name
+    LIMIT $3
+  `;
+
+  const result = await query(sql, [userId, `${prefix}%`, limit]);
+  return result.rows.map(row => row.name);
+}
+
+// Interface for creating quotes
+export interface CreateQuoteInput {
+  contactId: string;  // sevDesk contact ID
+  quoteDate?: string; // ISO date, defaults to today
+  header: string;
+  headText?: string;
+  footText?: string;
+  positions: Array<{
+    name: string;
+    text?: string;
+    quantity: number;
+    price: number;
+    taxRate?: number;  // defaults to config taxRate
+  }>;
+  status?: number;  // 100 = Draft, 200 = Sent
+}
+
+// Create a quote in sevDesk
+export async function createQuote(
+  apiToken: string,
+  config: SevdeskConfig,
+  input: CreateQuoteInput
+): Promise<{ quoteId: string; quoteNumber: string }> {
+  const baseUrl = 'https://my.sevdesk.de/api/v1';
+
+  // Create the quote (Order with orderType = "AN" for Angebot)
+  const quoteDate = input.quoteDate || new Date().toISOString().split('T')[0];
+  const taxRate = config.taxRate || 19;
+
+  const quoteBody = {
+    objectName: 'Order',
+    mapAll: true,
+    contact: {
+      id: input.contactId,
+      objectName: 'Contact',
+    },
+    orderDate: quoteDate,
+    status: input.status || 100, // Default to draft
+    header: input.header,
+    headText: input.headText || '',
+    footText: input.footText || 'Wir freuen uns auf Ihre Rückmeldung.',
+    orderType: 'AN', // AN = Angebot (Quote)
+    currency: 'EUR',
+    taxRate: taxRate,
+    taxType: 'default',
+    version: 0,
+  };
+
+  console.log('[sevDesk] Creating quote:', JSON.stringify(quoteBody, null, 2));
+
+  const quoteResponse = await fetch(`${baseUrl}/Order`, {
+    method: 'POST',
+    headers: {
+      'Authorization': apiToken,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(quoteBody),
+  });
+
+  if (!quoteResponse.ok) {
+    const errorText = await quoteResponse.text();
+    console.error('[sevDesk] Quote creation failed:', errorText);
+    throw new Error(`Failed to create quote: ${errorText}`);
+  }
+
+  const quoteData = await quoteResponse.json();
+  const quoteId = quoteData.objects.id;
+  const quoteNumber = quoteData.objects.orderNumber;
+
+  console.log('[sevDesk] Quote created:', quoteId, quoteNumber);
+
+  // Create positions for the quote
+  for (const pos of input.positions) {
+    const positionBody = {
+      objectName: 'OrderPos',
+      mapAll: true,
+      order: {
+        id: quoteId,
+        objectName: 'Order',
+      },
+      name: pos.name,
+      text: pos.text || null,
+      quantity: pos.quantity,
+      price: pos.price,
+      taxRate: pos.taxRate || taxRate,
+      unity: {
+        id: 9, // Hours/Stunden - can be adjusted based on need
+        objectName: 'Unity',
+      },
+    };
+
+    const posResponse = await fetch(`${baseUrl}/OrderPos`, {
+      method: 'POST',
+      headers: {
+        'Authorization': apiToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(positionBody),
+    });
+
+    if (!posResponse.ok) {
+      const errorText = await posResponse.text();
+      console.error('[sevDesk] Position creation failed:', errorText);
+      // Continue with other positions even if one fails
+    }
+  }
+
+  return {
+    quoteId,
+    quoteNumber,
+  };
+}
