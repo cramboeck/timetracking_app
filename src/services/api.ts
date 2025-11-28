@@ -1323,6 +1323,22 @@ export interface SevdeskQuote {
   }>;
 }
 
+export interface DocumentSearchResult {
+  id: string;
+  sevdeskId: string;
+  documentType: 'invoice' | 'quote';
+  documentNumber: string;
+  contactName: string;
+  documentDate: string;
+  status: number;
+  statusName: string;
+  header: string;
+  sumGross: number;
+  currency: string;
+  positions: Array<{ name: string; text: string | null; quantity: number; price: number; sumNet: number }>;
+  rank: number;
+}
+
 export interface BillingSummaryItem {
   customerId: string;
   customerName: string;
@@ -1474,6 +1490,31 @@ export const sevdeskApi = {
   // Get single quote with positions
   getQuote: async (id: string): Promise<{ success: boolean; data: SevdeskQuote }> => {
     return authFetch(`/sevdesk/quotes/${id}`);
+  },
+
+  // Document Sync & Search
+  getSyncStatus: async (): Promise<{ success: boolean; data: { lastSync: string | null; invoiceCount: number; quoteCount: number } }> => {
+    return authFetch('/sevdesk/sync/status');
+  },
+
+  syncAll: async (): Promise<{ success: boolean; data: { invoices: { synced: number; errors: number }; quotes: { synced: number; errors: number }; totalSynced: number; totalErrors: number } }> => {
+    return authFetch('/sevdesk/sync', { method: 'POST' });
+  },
+
+  syncInvoices: async (): Promise<{ success: boolean; data: { synced: number; errors: number; type: string } }> => {
+    return authFetch('/sevdesk/sync/invoices', { method: 'POST' });
+  },
+
+  syncQuotes: async (): Promise<{ success: boolean; data: { synced: number; errors: number; type: string } }> => {
+    return authFetch('/sevdesk/sync/quotes', { method: 'POST' });
+  },
+
+  searchDocuments: async (query: string, options?: { type?: 'invoice' | 'quote'; limit?: number; offset?: number }): Promise<{ success: boolean; data: DocumentSearchResult[] }> => {
+    const params = new URLSearchParams({ q: query });
+    if (options?.type) params.append('type', options.type);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    return authFetch(`/sevdesk/search?${params.toString()}`);
   },
 };
 

@@ -10,8 +10,11 @@ import {
   Filter,
   RefreshCw,
   ExternalLink,
+  Database,
+  Download,
+  CheckCircle,
 } from 'lucide-react';
-import { sevdeskApi, SevdeskInvoice, SevdeskQuote } from '../services/api';
+import { sevdeskApi, SevdeskInvoice, SevdeskQuote, DocumentSearchResult } from '../services/api';
 
 type DocumentType = 'invoices' | 'quotes';
 
@@ -230,8 +233,19 @@ export const SevdeskDocuments = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDocument, setSelectedDocument] = useState<{ type: DocumentType; doc: SevdeskInvoice | SevdeskQuote } | null>(null);
 
+  // Sync state
+  const [syncStatus, setSyncStatus] = useState<{ lastSync: string | null; invoiceCount: number; quoteCount: number } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  // Search mode: 'live' = directly from sevDesk, 'cached' = from local database
+  const [searchMode, setSearchMode] = useState<'live' | 'cached'>('live');
+  const [searchResults, setSearchResults] = useState<DocumentSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+
   useEffect(() => {
     loadDocuments();
+    loadSyncStatus();
   }, []);
 
   const loadDocuments = async () => {
@@ -252,6 +266,63 @@ export const SevdeskDocuments = () => {
       setLoading(false);
     }
   };
+
+  const loadSyncStatus = async () => {
+    try {
+      const response = await sevdeskApi.getSyncStatus();
+      if (response.success) {
+        setSyncStatus(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to load sync status:', err);
+    }
+  };
+
+  const handleSync = async () => {
+    try {
+      setSyncing(true);
+      setSyncMessage('Synchronisiere Dokumente...');
+      const response = await sevdeskApi.syncAll();
+      if (response.success) {
+        setSyncMessage(`✓ ${response.data.totalSynced} Dokumente synchronisiert`);
+        loadSyncStatus();
+        setTimeout(() => setSyncMessage(null), 5000);
+      }
+    } catch (err: any) {
+      setSyncMessage(`✗ Fehler: ${err.message}`);
+      setTimeout(() => setSyncMessage(null), 5000);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleCachedSearch = async (query: string) => {
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      setSearching(true);
+      const response = await sevdeskApi.searchDocuments(query, {
+        type: activeTab === 'invoices' ? 'invoice' : 'quote',
+      });
+      if (response.success) {
+        setSearchResults(response.data);
+      }
+    } catch (err) {
+      console.error('Search error:', err);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // Debounced search for cached mode
+  useEffect(() => {
+    if (searchMode === 'cached' && searchQuery.length >= 2) {
+      const timer = setTimeout(() => handleCachedSearch(searchQuery), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery, searchMode, activeTab]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -300,14 +371,62 @@ export const SevdeskDocuments = () => {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           sevDesk Dokumente
         </h3>
-        <button
-          onClick={loadDocuments}
-          disabled={loading}
-          className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-        >
-          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Sync Status */}
+          {syncStatus && (
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <Database size={14} />
+              <span>{syncStatus.invoiceCount + syncStatus.quoteCount} im Cache</span>
+              {syncStatus.lastSync && (
+                <span className="text-gray-400">
+                  (Sync: {new Date(syncStatus.lastSync).toLocaleDateString('de-DE')})
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Sync Button */}
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50"
+            title="Dokumente in lokale Datenbank synchronisieren"
+          >
+            {syncing ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Download size={14} />
+            )}
+            <span>Sync</span>
+          </button>
+
+          {/* Refresh Button */}
+          <button
+            onClick={loadDocuments}
+            disabled={loading}
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            title="Von sevDesk neu laden"
+          >
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
+
+      {/* Sync Message */}
+      {syncMessage && (
+        <div className={`flex items-center gap-2 p-2 rounded-lg text-sm ${
+          syncMessage.startsWith('✓')
+            ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+            : syncMessage.startsWith('✗')
+            ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+            : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+        }`}>
+          {syncMessage.startsWith('✓') && <CheckCircle size={16} />}
+          {syncMessage.startsWith('✗') && <AlertTriangle size={16} />}
+          {!syncMessage.startsWith('✓') && !syncMessage.startsWith('✗') && <Loader2 size={16} className="animate-spin" />}
+          <span>{syncMessage}</span>
+        </div>
+      )}
 
       {/* Error */}
       {error && (
@@ -344,15 +463,49 @@ export const SevdeskDocuments = () => {
       </div>
 
       {/* Search */}
-      <div className="relative">
-        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Suchen nach Nummer, Kunde oder Betreff..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-        />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={searchMode === 'cached'
+              ? "Volltextsuche im lokalen Cache..."
+              : "Suchen nach Nummer, Kunde oder Betreff..."
+            }
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+          />
+          {searching && (
+            <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />
+          )}
+        </div>
+        {/* Search Mode Toggle */}
+        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+          <button
+            onClick={() => { setSearchMode('live'); setSearchResults([]); }}
+            className={`px-3 py-2 text-sm ${
+              searchMode === 'live'
+                ? 'bg-accent-primary text-white'
+                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+            title="Direkt von sevDesk"
+          >
+            Live
+          </button>
+          <button
+            onClick={() => setSearchMode('cached')}
+            className={`px-3 py-2 text-sm flex items-center gap-1 ${
+              searchMode === 'cached'
+                ? 'bg-accent-primary text-white'
+                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+            title="Volltextsuche im lokalen Cache"
+          >
+            <Database size={14} />
+            Cache
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -360,7 +513,77 @@ export const SevdeskDocuments = () => {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="animate-spin text-accent-primary" size={32} />
         </div>
+      ) : searchMode === 'cached' && searchQuery.length >= 2 ? (
+        /* Cached Search Results */
+        <div className="space-y-2">
+          {searchResults.length === 0 ? (
+            <div className="text-center py-8">
+              <Database size={32} className="mx-auto mb-2 text-gray-400" />
+              <p className="text-gray-500 dark:text-gray-400">
+                {searching ? 'Suche...' : 'Keine Ergebnisse im Cache gefunden'}
+              </p>
+              {!syncStatus?.lastSync && (
+                <p className="text-sm text-gray-400 mt-2">
+                  Klicke auf "Sync" um Dokumente zu indexieren
+                </p>
+              )}
+            </div>
+          ) : (
+            searchResults.map((result) => (
+              <div
+                key={result.id}
+                className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+              >
+                <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                  {result.documentType === 'invoice' ? (
+                    <Receipt size={20} className="text-gray-500 dark:text-gray-400" />
+                  ) : (
+                    <FileText size={20} className="text-gray-500 dark:text-gray-400" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {result.documentNumber}
+                    </span>
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(result.status, result.documentType === 'invoice' ? 'invoices' : 'quotes')}`}>
+                      {result.statusName}
+                    </span>
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
+                      {result.documentType === 'invoice' ? 'Rechnung' : 'Angebot'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {result.contactName} • {result.header || 'Keine Beschreibung'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {formatCurrency(result.sumGross)}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {formatDate(result.documentDate)}
+                  </p>
+                </div>
+                <ChevronRight size={20} className="text-gray-400" />
+              </div>
+            ))
+          )}
+        </div>
+      ) : searchMode === 'cached' ? (
+        <div className="text-center py-8">
+          <Database size={32} className="mx-auto mb-2 text-gray-400" />
+          <p className="text-gray-500 dark:text-gray-400">
+            Mindestens 2 Zeichen eingeben für Volltextsuche
+          </p>
+          {syncStatus && (
+            <p className="text-sm text-gray-400 mt-2">
+              {syncStatus.invoiceCount} Rechnungen & {syncStatus.quoteCount} Angebote im Cache
+            </p>
+          )}
+        </div>
       ) : (
+        /* Live Mode - Direct from sevDesk */
         <div className="space-y-2">
           {activeTab === 'invoices' ? (
             filteredInvoices.length === 0 ? (
