@@ -1224,21 +1224,44 @@ export async function createQuote(
   const orderDate = `${dateObj.getDate().toString().padStart(2, '0')}.${(dateObj.getMonth() + 1).toString().padStart(2, '0')}.${dateObj.getFullYear()}`;
   const taxRate = config.taxRate || 19;
 
+  // Fetch contact to get address info
+  const contactResponse = await sevdeskFetch(apiToken, `/Contact/${input.contactId}`);
+  const contact = contactResponse.objects;
+
+  // Get the contact's country, default to Germany (id: 1)
+  let addressCountryId = 1; // Germany
+  if (contact?.addresses && contact.addresses.length > 0) {
+    const countryId = contact.addresses[0]?.country?.id;
+    if (countryId) addressCountryId = parseInt(countryId);
+  }
+
   // Build positions array for orderPosSave
-  const orderPosSave = input.positions.map((pos, index) => ({
-    objectName: 'OrderPos',
-    mapAll: true,
-    quantity: pos.quantity,
-    price: pos.price,
-    name: pos.name,
-    text: pos.text || null,
-    unity: {
-      id: pos.quantity === 0 ? 1 : 9, // 1 = Stück for headings, 9 = Stunden
-      objectName: 'Unity',
-    },
-    positionNumber: index + 1,
-    taxRate: pos.quantity === 0 ? 0 : (pos.taxRate || taxRate),
-  }));
+  const orderPosSave = input.positions.map((pos, index) => {
+    const positionTaxRate = pos.quantity === 0 ? 0 : (pos.taxRate || taxRate);
+    const priceNet = pos.price;
+    const priceTax = priceNet * (positionTaxRate / 100);
+    const priceGross = priceNet + priceTax;
+
+    return {
+      objectName: 'OrderPos',
+      mapAll: true,
+      quantity: pos.quantity,
+      price: priceNet,
+      priceNet: priceNet,
+      priceTax: priceTax,
+      priceGross: priceGross,
+      name: pos.name,
+      text: pos.text || null,
+      unity: {
+        id: pos.quantity === 0 ? 1 : 9, // 1 = Stück for headings, 9 = Stunden
+        objectName: 'Unity',
+      },
+      positionNumber: index + 1,
+      taxRate: positionTaxRate,
+      discount: 0,
+      optional: false,
+    };
+  });
 
   // Build the request body according to sevDesk API docs
   const requestBody = {
@@ -1265,6 +1288,14 @@ export async function createQuote(
       taxRate: taxRate,
       taxType: 'default',
       taxText: `Umsatzsteuer ${taxRate}%`,
+      taxRule: {
+        id: 1, // Default tax rule
+        objectName: 'TaxRule',
+      },
+      addressCountry: {
+        id: addressCountryId,
+        objectName: 'StaticCountry',
+      },
       showNet: 1,
     },
     orderPosSave: orderPosSave,
