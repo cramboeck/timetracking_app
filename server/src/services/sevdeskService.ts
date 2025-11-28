@@ -1219,10 +1219,13 @@ export async function createQuote(
     throw new Error('Could not get sevDesk user for contactPerson');
   }
 
+  // Get contact details for address
+  const contactResponse = await sevdeskFetch(apiToken, `/Contact/${input.contactId}`);
+  const contact = contactResponse.objects;
+
   // Create the quote (Order with orderType = "AN" for Angebot)
-  // sevDesk expects Unix timestamp for dates
-  const quoteDateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
-  const orderDateTimestamp = Math.floor(quoteDateObj.getTime() / 1000);
+  // Use ISO date format like Invoice does
+  const quoteDate = input.quoteDate || new Date().toISOString().split('T')[0];
   const taxRate = config.taxRate || 19;
 
   const quoteBody = {
@@ -1236,17 +1239,24 @@ export async function createQuote(
       id: parseInt(sevUser.id),
       objectName: 'SevUser',
     },
-    orderDate: orderDateTimestamp,
+    orderDate: quoteDate,
     status: input.status || 100, // Default to draft
     header: input.header,
-    headText: input.headText || null,
+    headText: input.headText || '',
     footText: input.footText || 'Wir freuen uns auf Ihre Rückmeldung.',
     orderType: 'AN', // AN = Angebot (Quote)
     currency: 'EUR',
     taxRate: taxRate,
     taxType: 'default',
     taxText: 'zzgl. MwSt.',
+    smallSettlement: 0,
     version: 0,
+    // Address fields
+    address: contact?.name || null,
+    addressCountry: {
+      id: 1, // Germany
+      objectName: 'StaticCountry',
+    },
   };
 
   console.log('[sevDesk] Creating quote:', JSON.stringify(quoteBody, null, 2));
