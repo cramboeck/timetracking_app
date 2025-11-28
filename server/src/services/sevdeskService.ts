@@ -660,8 +660,8 @@ export async function getInvoiceWithPositions(
     return null;
   }
 
-  // Get positions
-  const positionsResponse = await sevdeskFetch(apiToken, `/InvoicePos?invoice[id]=${invoiceId}`);
+  // Get positions - sevDesk requires both invoice[id] and invoice[objectName]
+  const positionsResponse = await sevdeskFetch(apiToken, `/InvoicePos?invoice[id]=${invoiceId}&invoice[objectName]=Invoice`);
 
   return {
     id: inv.id?.toString(),
@@ -756,8 +756,8 @@ export async function getQuoteWithPositions(
     return null;
   }
 
-  // Get positions
-  const positionsResponse = await sevdeskFetch(apiToken, `/OrderPos?order[id]=${quoteId}`);
+  // Get positions - sevDesk requires both order[id] and order[objectName]
+  const positionsResponse = await sevdeskFetch(apiToken, `/OrderPos?order[id]=${quoteId}&order[objectName]=Order`);
 
   return {
     id: quote.id?.toString(),
