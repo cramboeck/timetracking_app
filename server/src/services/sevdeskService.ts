@@ -1211,6 +1211,14 @@ export async function createQuote(
   config: SevdeskConfig,
   input: CreateQuoteInput
 ): Promise<{ quoteId: string; quoteNumber: string }> {
+  // First, get the current SevUser (contactPerson)
+  const userResponse = await sevdeskFetch(apiToken, '/SevUser');
+  const sevUser = userResponse.objects?.[0];
+
+  if (!sevUser) {
+    throw new Error('Could not get sevDesk user for contactPerson');
+  }
+
   // Create the quote (Order with orderType = "AN" for Angebot)
   const quoteDate = input.quoteDate || new Date().toISOString().split('T')[0];
   const taxRate = config.taxRate || 19;
@@ -1222,6 +1230,10 @@ export async function createQuote(
       id: parseInt(input.contactId),
       objectName: 'Contact',
     },
+    contactPerson: {
+      id: sevUser.id,
+      objectName: 'SevUser',
+    },
     orderDate: quoteDate,
     status: input.status || 100, // Default to draft
     header: input.header,
@@ -1231,6 +1243,7 @@ export async function createQuote(
     currency: 'EUR',
     taxRate: taxRate,
     taxType: 'default',
+    taxText: 'zzgl. MwSt.',
     version: 0,
   };
 
