@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Receipt, AlertCircle, ChevronRight, Star, Loader2, Lock } from 'lucide-react';
+import { Wallet, AlertCircle, ChevronRight, Star, Loader2, Lock } from 'lucide-react';
 import { sevdeskApi, BillingSummaryItem } from '../services/api';
 
 interface BillingWidgetProps {
@@ -83,14 +83,14 @@ export const BillingWidget = ({ onNavigateToBilling }: BillingWidgetProps) => {
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Abrechnung</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Finanzen</h3>
                 <span className="flex items-center gap-1 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
                   <Star size={10} className="fill-amber-500 text-amber-500" />
                   PRO
                 </span>
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Zeiteinträge direkt in Rechnungen umwandeln
+                Rechnungen, Angebote und Abrechnungen verwalten
               </p>
             </div>
           </div>
@@ -122,12 +122,12 @@ export const BillingWidget = ({ onNavigateToBilling }: BillingWidgetProps) => {
             {hasUnbilled ? (
               <AlertCircle size={24} className="text-orange-600 dark:text-orange-400" />
             ) : (
-              <Receipt size={24} className="text-accent-primary" />
+              <Wallet size={24} className="text-accent-primary" />
             )}
           </div>
           <div>
             <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-              {hasUnbilled ? 'Offene Abrechnungen' : 'Abrechnung'}
+              {hasUnbilled ? 'Offene Posten' : 'Finanzen'}
             </h3>
             {hasUnbilled ? (
               <div className="flex items-center gap-3 text-sm">

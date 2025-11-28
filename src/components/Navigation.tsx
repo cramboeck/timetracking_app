@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Edit, List, Calendar, Settings, BarChart3, Ticket, Receipt, Star, MoreHorizontal } from 'lucide-react';
+import { Clock, Edit, List, Calendar, Settings, BarChart3, Ticket, Wallet, Star, MoreHorizontal } from 'lucide-react';
 import { ViewMode } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { sevdeskApi } from '../services/api';
@@ -33,7 +33,7 @@ export const Navigation = ({ currentView, onViewChange }: NavigationProps) => {
     { view: 'stopwatch', icon: Clock, label: 'Timer' },
     { view: 'list', icon: List, label: 'Liste' },
     ...(hasTicketAccess ? [{ view: 'tickets' as ViewMode, icon: Ticket, label: 'Tickets' }] : []),
-    { view: 'billing', icon: Receipt, label: 'Billing', premium: !billingEnabled },
+    { view: 'billing', icon: Wallet, label: 'Finanzen', premium: !billingEnabled },
   ];
 
   // Secondary nav items (in "More" menu on mobile)

@@ -7,11 +7,8 @@ import { CustomerContacts } from './CustomerContacts';
 import { TicketSettings } from './TicketSettings';
 import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { PushNotificationSettings } from './PushNotificationSettings';
-import { SevdeskSettings } from './SevdeskSettings';
-import { Billing } from './Billing';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
-import { SevdeskDocuments } from './SevdeskDocuments';
-import { CreditCard, Link2 } from 'lucide-react';
+import { Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
@@ -63,7 +60,7 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'billing'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
 
@@ -798,11 +795,8 @@ export const Settings = ({
         ...(currentUser?.accountType === 'business' || currentUser?.accountType === 'team'
           ? [{ id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }]
           : []
-        ),
-        ...(billingEnabled
-          ? [{ id: 'billing', label: 'Abrechnung', icon: CreditCard, desc: 'sevDesk Integration' }]
-          : []
         )
+        // Billing moved to Finanzen in main navigation
       ]
     },
     {
@@ -2086,39 +2080,7 @@ export const Settings = ({
           </div>
         )}
 
-        {activeTab === 'billing' && billingEnabled && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
-                  <CreditCard size={28} className="text-accent-primary" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Abrechnung</h2>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">
-                    sevDesk-Integration und Rechnungseinstellungen
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* sevDesk Settings Component */}
-            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
-              <SevdeskSettings />
-            </div>
-
-            {/* Billing Component */}
-            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
-              <Billing />
-            </div>
-
-            {/* sevDesk Documents */}
-            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
-              <SevdeskDocuments />
-            </div>
-          </div>
-        )}
+        {/* Billing tab removed - now in Finanzen section */}
 
         {activeTab === 'appearance' && (
           <div className="max-w-4xl mx-auto space-y-6">

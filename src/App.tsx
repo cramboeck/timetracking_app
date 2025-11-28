@@ -7,7 +7,7 @@ import { CalendarView } from './components/CalendarView';
 import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
 import { Tickets } from './components/Tickets';
-import { Billing } from './components/Billing';
+import { Finanzen } from './components/Finanzen';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
@@ -563,7 +563,7 @@ function App() {
           />
         )}
         {currentView === 'billing' && (
-          <Billing onBack={() => setCurrentView('dashboard')} />
+          <Finanzen onBack={() => setCurrentView('dashboard')} />
         )}
         {currentView === 'settings' && (
           <Settings
