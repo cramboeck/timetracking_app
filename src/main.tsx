@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App.tsx'
 import { ReportApprovalReview } from './components/ReportApprovalReview.tsx'
+import { CustomerPortal } from './components/portal/CustomerPortal.tsx'
 import { AuthProvider } from './contexts/AuthContext.tsx'
 import { accentColor } from './utils/accentColor.ts'
 import { grayTone } from './utils/theme.ts'
@@ -30,6 +31,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Routes>
           {/* Public route for report approval */}
           <Route path="/approve/:token" element={<ReportApprovalReview />} />
+
+          {/* Customer Portal (separate from main app) */}
+          <Route path="/portal" element={<CustomerPortal />} />
+          <Route path="/portal/activate" element={<CustomerPortal />} />
 
           {/* Main app */}
           <Route path="/*" element={<App />} />

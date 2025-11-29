@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
+import path from 'path';
+import fs from 'fs';
 import { initializeDatabase } from './config/database';
 import { startNotificationJobs } from './jobs/notificationJobs';
 import authRoutes from './routes/auth';
@@ -15,6 +17,11 @@ import passwordResetRoutes from './routes/password-reset';
 import companyInfoRoutes from './routes/company-info';
 import teamsRoutes from './routes/teams';
 import reportApprovalsRoutes from './routes/report-approvals';
+import ticketsRoutes from './routes/tickets';
+import customerPortalRoutes from './routes/customer-portal';
+import knowledgeBaseRoutes from './routes/knowledge-base';
+import pushRoutes from './routes/push';
+import sevdeskRoutes from './routes/sevdesk';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -22,6 +29,10 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Trust proxy - required when behind nginx reverse proxy
+// This enables correct IP detection for rate limiting
+app.set('trust proxy', 1);
 
 // Security Middleware
 app.use(helmet({
@@ -71,6 +82,18 @@ app.use('/api/password-reset', passwordResetRoutes);
 app.use('/api/company-info', companyInfoRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/report-approvals', reportApprovalsRoutes);
+app.use('/api/tickets', ticketsRoutes);
+app.use('/api/customer-portal', customerPortalRoutes);
+app.use('/api/knowledge-base', knowledgeBaseRoutes);
+app.use('/api/push', pushRoutes);
+app.use('/api/sevdesk', sevdeskRoutes);
+
+// Static file serving for uploads
+const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/api/uploads', express.static(uploadsDir));
 
 // Health check
 app.get('/health', (req, res) => {

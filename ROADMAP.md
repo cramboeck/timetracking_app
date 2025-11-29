@@ -2,25 +2,30 @@
 
 ## sevDesk Integration
 
-### Phase 1: Basis-Integration ✅ ABGESCHLOSSEN
+### Phase 1: Basis-Integration (In Arbeit)
 - [x] Feature-Flag in Datenbank (`billing_enabled`)
 - [x] API-Token Konfiguration in Einstellungen
 - [x] Verbindungstest zu sevDesk
 - [x] Kunden mit sevDesk-Kontakten verknüpfen
 - [x] Billing-UI für unbezahlte Zeiten
-- [x] sevDesk API-Endpoints (Contact, Invoice, Order)
-- [x] Rechnungserstellung in sevDesk
-- [x] Zeiten als "abgerechnet" markieren (invoice_export_id)
+- [ ] sevDesk API-Endpoints verifizieren und testen
+- [ ] Rechnungserstellung in sevDesk
+- [ ] Zeiten als "abgerechnet" markieren
 
-### Phase 2: Dokumente indexieren ✅ ABGESCHLOSSEN
-- [x] Rechnungen aus sevDesk synchronisieren (syncInvoices)
-- [x] Angebote aus sevDesk synchronisieren (syncQuotes)
-- [x] Dokumenten-Datenbank aufbauen (sevdesk_documents Tabelle)
-- [x] Volltextsuche über alle Dokumente (searchDocuments)
-- [x] Dokumenten-Vorschau (Finanzen Hub)
-- [x] Positions-Suche für Angebotserstellung (searchPositions)
-- [x] Angebotserstellung aus App heraus (createQuote)
-- [ ] Automatische Synchronisation (Webhook oder Polling) - optional
+### Phase 2: Dokumente indexieren
+- [ ] Rechnungen aus sevDesk synchronisieren
+- [ ] Angebote aus sevDesk synchronisieren
+- [ ] Dokumenten-Datenbank aufbauen
+  ```sql
+  sevdesk_documents (
+    id, sevdesk_id, type, customer_id,
+    document_number, date, total_amount,
+    status, positions JSONB, full_text, synced_at
+  )
+  ```
+- [ ] Volltextsuche über alle Dokumente
+- [ ] Dokumenten-Vorschau im Dashboard
+- [ ] Automatische Synchronisation (Webhook oder Polling)
 
 ### Phase 3: Intelligente Angebotserstellung
 
@@ -59,92 +64,21 @@ KI-generierter Text:
 
 ---
 
-## NinjaRMM Integration
+## Weitere geplante Features
 
-### Phase 1: Geräte-Sync (In Arbeit)
-- [x] Datenbank-Schema (ninjarmm_config, organizations, devices, alerts)
-- [x] Feature-Flag System (feature_flags JSONB auf users)
-- [ ] NinjaRMM API Service (OAuth2, Geräte abrufen)
-- [ ] Organisationen mit Kunden verknüpfen
-- [ ] Geräteliste im Kunden-Hub anzeigen
-- [ ] Einstellungen-UI für NinjaRMM Credentials
+### NinjaRMM Integration
+- [ ] Systeme/Geräte pro Kunde importieren
+- [ ] Gerätestatus live abfragen
+- [ ] Alerts in Tickets umwandeln
+- [ ] Remote-Zugriff aus Ticket starten
 
-### Phase 2: Alerts → Tickets
-- [ ] Alerts aus NinjaRMM synchronisieren
-- [ ] Automatische Ticket-Erstellung aus Alerts
-- [ ] Alert-Status zurückmelden
-
-### Phase 3: Quick-Actions
-- [ ] Remote-Zugriff Button (Deep-Link zu NinjaRMM)
-- [ ] Gerätestatus live im Ticket
-- [ ] Geräte-Auswahl bei Ticket-Erstellung
-
----
-
-## Kundenportal (NEU)
-
-### Phase 1: Basis-Portal
-- [x] Datenbank-Schema (portal_users, roles, sessions, activity_log)
-- [ ] Separate Login-Seite für Kundenportal
-- [ ] Portal-User Verwaltung (anlegen, einladen, deaktivieren)
-- [ ] Rollen-System mit Berechtigungen
-
-### Phase 2: Dokumente & Geräte
-- [ ] Rechnungen einsehen/downloaden (sevDesk)
-- [ ] Angebote einsehen/akzeptieren (sevDesk)
-- [ ] Dienstleistungsreports einsehen
-- [ ] NinjaRMM Geräte sehen (je nach Rolle: alle/eigene)
-
-### Phase 3: Tickets & Support
-- [ ] Tickets erstellen aus Portal
-- [ ] Ticket-Historie einsehen
-- [ ] Ticket-Kommentare (öffentlich/intern)
-- [ ] Support-Anfrage für Gerät
-
-### Standard-Rollen
-| Rolle | Rechnungen | Angebote | Reports | Geräte | Tickets |
-|-------|------------|----------|---------|--------|---------|
-| Geschäftsführung | ✅ | ✅ | ✅ | ❌ | Alle sehen |
-| Buchhaltung | ✅ | ✅ | ❌ | ❌ | ❌ |
-| IT-Techniker | ❌ | ❌ | ❌ | ✅ Alle | Erstellen + Alle |
-| Mitarbeiter | ❌ | ❌ | ❌ | Nur eigene | Nur eigene |
-
----
-
-## Ticket-System
-
-### Phase 1: Basis-Tickets (In Arbeit)
-- [x] Datenbank-Schema (tickets, ticket_comments)
-- [x] Ticket ↔ Zeiterfassung Verknüpfung (ticket_id auf time_entries)
-- [ ] Ticket-Liste und Detail-Ansicht
-- [ ] Ticket erstellen (manuell, aus Alert, aus Portal)
-- [ ] Status-Workflow (open → in_progress → resolved → closed)
-
-### Phase 2: Erweiterungen
+### Ticket-System Erweiterungen
 - [ ] SLA-Eskalation per E-Mail/Push
 - [ ] Ticket-Vorlagen pro Kategorie
 - [ ] Automatische Ticket-Zuweisung
 - [ ] Kundenzufriedenheits-Umfrage nach Abschluss
 
----
-
-## Kunden-Hub (Intern)
-
-- [ ] Neuer Haupt-Menüpunkt "Kunden"
-- [ ] 360° Kundenansicht:
-  - Stammdaten & Kontakte
-  - NinjaRMM Geräte
-  - Offene Tickets
-  - Zeiterfassung-Historie
-  - sevDesk Dokumente (Rechnungen/Angebote)
-  - Statistiken (Umsatz, Stunden)
-- [ ] Quick-Actions (Remote, Ticket, Zeit erfassen)
-- [ ] Portal-User Verwaltung pro Kunde
-
----
-
-## Dashboard & Reporting
-
+### Dashboard & Reporting
 - [ ] Umsatz-Prognose basierend auf offenen Angeboten
 - [ ] Auslastungs-Übersicht pro Mitarbeiter
 - [ ] Projektrentabilität (Ist vs. Angebot)
@@ -154,14 +88,9 @@ KI-generierter Text:
 
 ## Changelog
 
-### 2024-11 - sevDesk Phase 1 & 2
+### 2024-11 - sevDesk Basis
 - Feature-Flag System implementiert
 - SevdeskSettings Komponente
-- Billing Komponente mit Rechnungserstellung
+- Billing Komponente
 - CustomerSevdeskLink Komponente
 - Backend-Routes für sevDesk API
-- Dokumenten-Sync (Rechnungen & Angebote)
-- Volltextsuche über sevDesk-Dokumente
-- Finanzen Hub mit Dokumenten-Übersicht
-- Angebotserstellung direkt aus der App
-- Positions-Suche für schnellere Angebote

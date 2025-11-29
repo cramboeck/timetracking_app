@@ -4,6 +4,7 @@ import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import { useAuth } from '../contexts/AuthContext';
 import { ReportAssistant } from './ReportAssistant';
+import { BillingWidget } from './BillingWidget';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { userApi } from '../services/api';
 
@@ -12,6 +13,7 @@ interface DashboardProps {
   projects: Project[];
   customers: Customer[];
   activities: Activity[];
+  onNavigateToBilling?: () => void;
 }
 
 interface ProjectStats {
@@ -27,7 +29,7 @@ interface ProjectStats {
 
 type TimeframeType = 'month' | 'quarter' | 'year' | 'custom';
 
-export const Dashboard = ({ entries, projects, customers, activities }: DashboardProps) => {
+export const Dashboard = ({ entries, projects, customers, activities, onNavigateToBilling }: DashboardProps) => {
   const { currentUser } = useAuth();
   const [timeframeType, setTimeframeType] = useState<TimeframeType>('month');
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -668,6 +670,13 @@ export const Dashboard = ({ entries, projects, customers, activities }: Dashboar
             <p className="text-3xl font-bold dark:text-white">{stats.length}</p>
           </div>
         </div>
+
+        {/* Billing Widget */}
+        {onNavigateToBilling && (
+          <div className="mb-6">
+            <BillingWidget onNavigateToBilling={onNavigateToBilling} />
+          </div>
+        )}
 
         {/* Pie Chart - Hours by Customer */}
         {pieChartData.length > 0 && (

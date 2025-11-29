@@ -16,9 +16,20 @@ interface ManualEntryProps {
 export const ManualEntry = ({ onSave, projects, customers, activities }: ManualEntryProps) => {
   const { currentUser } = useAuth();
   const today = new Date().toISOString().split('T')[0];
+
+  // Current time rounded to nearest 5 minutes for end time
+  const now = new Date();
+  const minutes = Math.round(now.getMinutes() / 5) * 5;
+  now.setMinutes(minutes);
+  const currentTime = now.toTimeString().slice(0, 5);
+
+  // Start time: 1 hour before current time (or 08:00 if that would be before 08:00)
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const startDefault = oneHourAgo.getHours() < 8 ? '08:00' : oneHourAgo.toTimeString().slice(0, 5);
+
   const [date, setDate] = useState(today);
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('17:00');
+  const [startTime, setStartTime] = useState(startDefault);
+  const [endTime, setEndTime] = useState(currentTime);
   const [projectId, setProjectId] = useState('');
   const [activityId, setActivityId] = useState('');
   const [description, setDescription] = useState('');
@@ -62,12 +73,19 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
 
     onSave(entry);
 
-    // Reset form
+    // Reset form with current time
+    const resetNow = new Date();
+    const resetMinutes = Math.round(resetNow.getMinutes() / 5) * 5;
+    resetNow.setMinutes(resetMinutes);
+    const resetCurrentTime = resetNow.toTimeString().slice(0, 5);
+    const resetOneHourAgo = new Date(resetNow.getTime() - 60 * 60 * 1000);
+    const resetStartTime = resetOneHourAgo.getHours() < 8 ? '08:00' : resetOneHourAgo.toTimeString().slice(0, 5);
+
     setProjectId('');
     setActivityId('');
     setDescription('');
-    setStartTime('09:00');
-    setEndTime('17:00');
+    setStartTime(resetStartTime);
+    setEndTime(resetCurrentTime);
   };
 
   return (

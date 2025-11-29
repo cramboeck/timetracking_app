@@ -1,13 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon, UserCog, Ticket, Book } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
+import { CustomerContacts } from './CustomerContacts';
+import { TicketSettings } from './TicketSettings';
+import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
+import { PushNotificationSettings } from './PushNotificationSettings';
+import { CustomerSevdeskLink } from './CustomerSevdeskLink';
+import { Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
 import { notificationService } from '../utils/notifications';
-import { authApi, userApi, teamsApi } from '../services/api';
+import { authApi, userApi, teamsApi, sevdeskApi } from '../services/api';
 import Papa from 'papaparse';
 import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 import { generateUUID } from '../utils/uuid';
@@ -54,7 +60,9 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal'>('account');
+  const [billingEnabled, setBillingEnabled] = useState(false);
+  const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
 
   // Company Info State
   const [companyName, setCompanyName] = useState('');
@@ -72,6 +80,9 @@ export const Settings = ({
   // Customer Modal
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+
+  // Customer Contacts Modal
+  const [contactsCustomer, setContactsCustomer] = useState<Customer | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerColor, setCustomerColor] = useState(COLORS[0]);
   const [customerNumber, setCustomerNumber] = useState('');
@@ -155,6 +166,20 @@ export const Settings = ({
     }
     setCustomerModalOpen(true);
   };
+
+  // Load billing feature status
+  useEffect(() => {
+    const loadBillingStatus = async () => {
+      try {
+        const response = await sevdeskApi.getFeatureStatus();
+        setBillingEnabled(response.data.billingEnabled);
+      } catch (err) {
+        // Ignore error - billing feature not available
+        setBillingEnabled(false);
+      }
+    };
+    loadBillingStatus();
+  }, []);
 
   // Profile Edit Handlers
   const handleOpenEditProfile = () => {
@@ -771,6 +796,14 @@ export const Settings = ({
           ? [{ id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }]
           : []
         )
+        // Billing moved to Finanzen in main navigation
+      ]
+    },
+    {
+      category: 'Support',
+      items: [
+        { id: 'tickets', label: 'Ticket-System', icon: Ticket, desc: 'Tags & Textbausteine' },
+        { id: 'portal', label: 'Kundenportal', icon: Book, desc: 'KB & Branding' }
       ]
     }
   ];
@@ -1229,6 +1262,15 @@ export const Settings = ({
                   </div>
                 </div>
 
+                {/* Push Notifications for Tickets */}
+                <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <h3 className="font-medium text-gray-900 dark:text-white">Push-Benachrichtigungen (Tickets)</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Erhalte sofortige Benachrichtigungen auf deinem Gerät, wenn Kunden Tickets erstellen oder kommentieren.
+                  </p>
+                  <PushNotificationSettings />
+                </div>
+
                 {/* Email Notifications (Coming Soon) */}
                 <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
                   <h3 className="font-medium text-gray-900 dark:text-white">E-Mail-Benachrichtigungen</h3>
@@ -1371,15 +1413,39 @@ export const Settings = ({
                             </div>
                           </div>
                           <div className="flex gap-2 ml-2">
+                            {billingEnabled && (
+                              <button
+                                onClick={() => setSevdeskLinkCustomer(customer)}
+                                className={`p-2 rounded-lg transition-colors ${
+                                  customer.sevdeskCustomerId
+                                    ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+                                    : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                                }`}
+                                title={customer.sevdeskCustomerId ? 'sevDesk verknüpft' : 'Mit sevDesk verknüpfen'}
+                              >
+                                <Link2 size={18} />
+                              </button>
+                            )}
+                            {currentUser?.hasTicketAccess && (
+                              <button
+                                onClick={() => setContactsCustomer(customer)}
+                                className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                                title="Kontakte verwalten"
+                              >
+                                <UserCog size={18} />
+                              </button>
+                            )}
                             <button
                               onClick={() => openCustomerModal(customer)}
                               className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                              title="Bearbeiten"
                             >
                               <Edit2 size={18} />
                             </button>
                             <button
                               onClick={() => handleDeleteCustomer(customer)}
                               className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Löschen"
                             >
                               <Trash2 size={18} />
                             </button>
@@ -1966,69 +2032,58 @@ export const Settings = ({
           </div>
         )}
 
-        {activeTab === 'appearance' && (
+        {activeTab === 'tickets' && (
           <div className="max-w-4xl mx-auto space-y-6">
-            {/* Account Info */}
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account</h2>
-
-              <div className="space-y-3">
+            {/* Header */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
+                  <Ticket size={28} className="text-accent-primary" />
+                </div>
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">Account-Typ</p>
-                  <p className="font-medium text-gray-900 dark:text-white capitalize">
-                    {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
-                    {currentUser?.accountType === 'freelancer' && '🚀 Freelancer'}
-                    {currentUser?.accountType === 'business' && '🏢 Unternehmen'}
-                    {currentUser?.accountType === 'team' && '👥 Team'}
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ticket-System</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    Verwalte Tags und Textbausteine für dein Ticket-System
                   </p>
                 </div>
-                {currentUser?.organizationName && (
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-dark-400">
-                      {currentUser?.accountType === 'business' ? 'Firmenname' : 'Team-Name'}
-                    </p>
-                    <p className="font-medium text-gray-900 dark:text-white">{currentUser?.organizationName}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">Benutzername</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{currentUser?.username}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">E-Mail</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{currentUser?.email}</p>
-                </div>
-                {currentUser?.customerNumber && (
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-dark-400">Kundennummer</p>
-                    <p className="font-medium text-gray-900 dark:text-white">{currentUser.customerNumber}</p>
-                  </div>
-                )}
-                {currentUser?.displayName && (
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-dark-400">Anzeigename</p>
-                    <p className="font-medium text-gray-900 dark:text-white">{currentUser.displayName}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">Mitglied seit</p>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {currentUser?.createdAt && new Date(currentUser.createdAt).toLocaleDateString('de-DE')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-dark-200">
-                <button
-                  onClick={logout}
-                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium"
-                >
-                  <LogOut size={18} />
-                  Abmelden
-                </button>
               </div>
             </div>
 
+            {/* Ticket Settings Component */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <TicketSettings />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'portal' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
+                  <Book size={28} className="text-accent-primary" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Kundenportal</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    Wissensdatenbank und Portal-Branding verwalten
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Knowledge Base Settings Component */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <KnowledgeBaseSettings />
+            </div>
+          </div>
+        )}
+
+        {/* Billing tab removed - now in Finanzen section */}
+
+        {activeTab === 'appearance' && (
+          <div className="max-w-4xl mx-auto space-y-6">
             {/* Time Format Settings */}
             <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 mb-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Zeitformat</h2>
@@ -2919,6 +2974,29 @@ export const Settings = ({
         confirmText="Löschen"
         variant="danger"
       />
+
+      {/* Customer Contacts Modal */}
+      {contactsCustomer && (
+        <CustomerContacts
+          isOpen={!!contactsCustomer}
+          customer={contactsCustomer}
+          onClose={() => setContactsCustomer(null)}
+        />
+      )}
+
+      {/* sevDesk Customer Link Modal */}
+      {sevdeskLinkCustomer && (
+        <CustomerSevdeskLink
+          isOpen={!!sevdeskLinkCustomer}
+          customer={sevdeskLinkCustomer}
+          onClose={() => setSevdeskLinkCustomer(null)}
+          onLinked={() => {
+            // Reload customers to get updated sevdeskCustomerId
+            // This will trigger a refresh in the parent component
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 };

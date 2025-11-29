@@ -5,6 +5,7 @@ import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { transformRow, transformRows } from '../utils/dbTransform';
+import { logTicketActivity } from './tickets';
 
 const router = Router();
 
@@ -15,6 +16,7 @@ const createEntrySchema = z.object({
   duration: z.number().int().min(0),
   projectId: z.string().uuid(),
   activityId: z.string().uuid().optional(),
+  ticketId: z.string().uuid().optional(),
   description: z.string().max(1000).optional(),
   isRunning: z.boolean().default(false)
 });
@@ -25,6 +27,7 @@ const updateEntrySchema = z.object({
   duration: z.number().int().min(0).optional(),
   projectId: z.string().uuid().optional(),
   activityId: z.string().uuid().optional(),
+  ticketId: z.string().uuid().optional().nullable(),
   description: z.string().max(1000).optional(),
   isRunning: z.boolean().optional()
 });
@@ -74,7 +77,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
 router.post('/', authenticateToken, validate(createEntrySchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    const { startTime, endTime, duration, projectId, activityId, description, isRunning } = req.body;
+    const { startTime, endTime, duration, projectId, activityId, ticketId, description, isRunning } = req.body;
 
     // Verify project belongs to user
     const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND user_id = $2', [projectId, userId]);
@@ -90,17 +93,26 @@ router.post('/', authenticateToken, validate(createEntrySchema), async (req: Aut
       }
     }
 
+    // Verify ticket belongs to user (if provided)
+    if (ticketId) {
+      const ticketResult = await pool.query('SELECT * FROM tickets WHERE id = $1 AND user_id = $2', [ticketId, userId]);
+      if (ticketResult.rows.length === 0) {
+        return res.status(400).json({ error: 'Ticket not found or does not belong to you' });
+      }
+    }
+
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO time_entries (id, user_id, project_id, activity_id, start_time, end_time, duration, description, is_running, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      `INSERT INTO time_entries (id, user_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         id,
         userId,
         projectId,
         activityId || null,
+        ticketId || null,
         startTime,
         endTime || null,
         duration,
@@ -120,6 +132,26 @@ router.post('/', authenticateToken, validate(createEntrySchema), async (req: Aut
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
     });
+
+    // Log ticket activity if time was logged to a ticket
+    if (ticketId) {
+      const hours = Math.floor(duration / 3600);
+      const minutes = Math.floor((duration % 3600) / 60);
+      const durationStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+      logTicketActivity(
+        ticketId,
+        userId,
+        null,
+        'time_logged',
+        null,
+        durationStr,
+        { timeEntryId: id, duration, description: description || null }
+      ).catch(err => console.error('Failed to log ticket time activity:', err));
+
+      // Update ticket's updated_at
+      await pool.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
+    }
 
     res.status(201).json({
       success: true,
@@ -185,6 +217,10 @@ router.put('/:id', authenticateToken, validate(updateEntrySchema), async (req: A
       fields.push(`activity_id = $${paramCount++}`);
       values.push(updates.activityId);
     }
+    if (updates.ticketId !== undefined) {
+      fields.push(`ticket_id = $${paramCount++}`);
+      values.push(updates.ticketId);
+    }
     if (updates.description !== undefined) {
       fields.push(`description = $${paramCount++}`);
       values.push(updates.description);
@@ -212,6 +248,30 @@ router.put('/:id', authenticateToken, validate(updateEntrySchema), async (req: A
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
     });
+
+    // Log ticket activity if time entry was newly linked to a ticket
+    const originalTicketId = entryResult.rows[0].ticket_id;
+    const newTicketId = updatedEntry.ticketId;
+
+    if (newTicketId && newTicketId !== originalTicketId) {
+      const duration = updatedEntry.duration || 0;
+      const hours = Math.floor(duration / 3600);
+      const minutes = Math.floor((duration % 3600) / 60);
+      const durationStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+      logTicketActivity(
+        newTicketId,
+        userId,
+        null,
+        'time_logged',
+        null,
+        durationStr,
+        { timeEntryId: id, duration, description: updatedEntry.description || null }
+      ).catch(err => console.error('Failed to log ticket time activity:', err));
+
+      // Update ticket's updated_at
+      await pool.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [newTicketId]);
+    }
 
     res.json({
       success: true,

@@ -8,6 +8,7 @@ export interface Customer {
   email?: string;
   address?: string;
   reportTitle?: string; // Custom report title for this customer (e.g., "Stundenzettel" or "Tätigkeitsnachweis")
+  sevdeskCustomerId?: string; // Link to sevDesk contact
   createdAt: string;
 }
 
@@ -98,6 +99,7 @@ export interface User {
   grayTone: GrayTone; // User's chosen gray tone intensity
   timeRoundingInterval: TimeRoundingInterval; // Minimum time unit for rounding (default: 15)
   timeFormat: TimeFormat; // Time display format (12h/24h, default: 24h)
+  hasTicketAccess: boolean; // Ticket system add-on (default: false)
   createdAt: string;
   lastLogin?: string;
 }
@@ -144,9 +146,98 @@ export interface TimeEntry {
   duration: number; // in seconds
   projectId: string; // Changed from project string to projectId
   activityId?: string; // Optional: link to activity for flat-rate pricing
+  ticketId?: string; // Optional: link to ticket
   description: string;
   isRunning: boolean;
   createdAt: string;
 }
 
-export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'calendar' | 'dashboard' | 'settings';
+// ============================================================================
+// Ticket System Types
+// ============================================================================
+
+export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'closed' | 'archived';
+export type TicketPriority = 'low' | 'normal' | 'high' | 'critical';
+
+export interface Ticket {
+  id: string;
+  ticketNumber: string; // e.g., TKT-000001
+  userId: string; // Technician/Admin who owns/handles the ticket
+  customerId: string; // Which customer this ticket belongs to
+  projectId?: string; // Optional: link to project
+  createdByContactId?: string; // If created by customer contact
+  title: string;
+  description: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  assignedToUserId?: string; // For teams: who is working on it
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+  closedAt?: string;
+  // SLA fields
+  slaPolicyId?: string;
+  firstResponseDueAt?: string;
+  resolutionDueAt?: string;
+  firstResponseAt?: string;
+  slaFirstResponseBreached?: boolean;
+  slaResolutionBreached?: boolean;
+}
+
+// SLA Policy
+export type SlaPriority = 'low' | 'normal' | 'high' | 'critical' | 'all';
+
+export interface SlaPolicy {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  priority: SlaPriority;
+  firstResponseMinutes: number;
+  resolutionMinutes: number;
+  businessHoursOnly: boolean;
+  isActive: boolean;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TicketComment {
+  id: string;
+  ticketId: string;
+  userId?: string; // If posted by technician
+  customerContactId?: string; // If posted by customer
+  isInternal: boolean; // Internal notes not visible to customer
+  content: string;
+  createdAt: string;
+}
+
+export interface TicketAttachment {
+  id: string;
+  ticketId: string;
+  commentId?: string; // Optional: attached to a comment
+  filename: string;
+  fileUrl: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedByUserId?: string;
+  uploadedByContactId?: string;
+  createdAt: string;
+}
+
+// Customer Portal - Contact/Login for customers
+export interface CustomerContact {
+  id: string;
+  customerId: string;
+  name: string;
+  email: string;
+  passwordHash?: string; // Only on server
+  isPrimary: boolean;
+  canCreateTickets: boolean;
+  canViewAllTickets: boolean; // Or only their own
+  isActivated?: boolean; // Computed: has set password
+  lastLogin?: string;
+  createdAt: string;
+}
+
+export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'calendar' | 'dashboard' | 'settings' | 'tickets' | 'billing';

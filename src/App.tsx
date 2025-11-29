@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navigation } from './components/Navigation';
 import { Stopwatch } from './components/Stopwatch';
 import { ManualEntry } from './components/ManualEntry';
@@ -6,12 +6,14 @@ import { TimeEntriesList } from './components/TimeEntriesList';
 import { CalendarView } from './components/CalendarView';
 import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
+import { Tickets } from './components/Tickets';
+import { Finanzen } from './components/Finanzen';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
-import { TimeEntry, ViewMode, Customer, Project, Activity } from './types';
+import { TimeEntry, ViewMode, Customer, Project, Activity, Ticket } from './types';
 import { darkMode } from './utils/darkMode';
 import { useAuth } from './contexts/AuthContext';
 import { notificationService } from './utils/notifications';
@@ -25,11 +27,13 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
-  const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string } | null>(null);
+  const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string; ticketId?: string } | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  // Track entry IDs that are being created to prevent duplicates
+  const pendingEntryIdsRef = useRef<Set<string>>(new Set());
 
   // Load all data from API on mount
   useEffect(() => {
@@ -215,6 +219,9 @@ function App() {
 
   // Time Entry handlers (API-based)
   const handleSaveEntry = async (entry: TimeEntry) => {
+    // Store the previous running entry for rollback on error
+    const previousRunningEntry = runningEntry;
+
     try {
       console.log('💾 [ENTRY] Saving entry:', entry.id);
       console.log('💾 [ENTRY] Entry isRunning:', entry.isRunning);
@@ -223,6 +230,11 @@ function App() {
       // If this entry was running (has same ID as runningEntry), it's an update
       const isUpdatingRunningEntry = runningEntry && entry.id === runningEntry.id;
       const existsInState = entries.find(e => e.id === entry.id);
+
+      // Clear running entry optimistically only if stopping a timer
+      if (isUpdatingRunningEntry && !entry.isRunning) {
+        setRunningEntry(null);
+      }
 
       if (isUpdatingRunningEntry || existsInState) {
         // Update existing entry
@@ -237,27 +249,49 @@ function App() {
         console.log('✅ [ENTRY] Entry created:', response);
         setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
       }
-      setRunningEntry(null);
     } catch (error) {
       console.error('❌ [ENTRY] Failed to save entry:', error);
+      // Rollback: restore the running entry if the API call failed
+      if (previousRunningEntry && !entry.isRunning) {
+        console.log('🔄 [ENTRY] Rolling back running entry due to error');
+        setRunningEntry(previousRunningEntry);
+      }
     }
   };
 
   const handleUpdateRunning = async (entry: TimeEntry) => {
     try {
+      // IMPORTANT: Only process updates for running entries
+      // This prevents stale debounced updates from overwriting stopped entries
+      if (!entry.isRunning) {
+        console.log('⚠️ [ENTRY] Ignoring update for non-running entry:', entry.id);
+        return;
+      }
+
       console.log('⏱️ [ENTRY] Updating running entry:', entry.id);
       setRunningEntry(entry);
 
-      if (entry.id && entries.find(e => e.id === entry.id)) {
+      // Check if entry exists in state or is currently being created
+      const existsInState = entries.find(e => e.id === entry.id);
+      const isBeingCreated = pendingEntryIdsRef.current.has(entry.id);
+
+      if (existsInState) {
         // Update existing entry
         const response = await entriesApi.update(entry.id, entry);
         console.log('✅ [ENTRY] Running entry updated:', response);
         setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
+      } else if (!isBeingCreated) {
+        // Create new entry (only if not already being created)
+        pendingEntryIdsRef.current.add(entry.id);
+        try {
+          const response = await entriesApi.create(entry);
+          console.log('✅ [ENTRY] Running entry created:', response);
+          setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
+        } finally {
+          pendingEntryIdsRef.current.delete(entry.id);
+        }
       } else {
-        // Create new entry
-        const response = await entriesApi.create(entry);
-        console.log('✅ [ENTRY] Running entry created:', response);
-        setEntries(prev => [...prev.filter(e => !e.isRunning), response.data]);
+        console.log('⏳ [ENTRY] Entry is being created, skipping duplicate:', entry.id);
       }
     } catch (error) {
       console.error('❌ [ENTRY] Failed to update running entry:', error);
@@ -504,7 +538,32 @@ function App() {
             projects={projects}
             customers={customers}
             activities={activities}
+            onNavigateToBilling={() => setCurrentView('billing')}
           />
+        )}
+        {currentView === 'tickets' && (
+          <Tickets
+            customers={customers}
+            projects={projects}
+            onStartTimer={(ticket: Ticket) => {
+              // Set prefilled entry with ticket info and switch to stopwatch
+              // Use ticket's project or find first active project for the customer
+              let projectId = ticket.projectId;
+              if (!projectId) {
+                const customerProjects = projects.filter(p => p.customerId === ticket.customerId && p.isActive);
+                projectId = customerProjects[0]?.id || '';
+              }
+              setPrefilledEntry({
+                projectId: projectId || '',
+                description: `${ticket.ticketNumber}: ${ticket.title}`,
+                ticketId: ticket.id,
+              });
+              setCurrentView('stopwatch');
+            }}
+          />
+        )}
+        {currentView === 'billing' && (
+          <Finanzen onBack={() => setCurrentView('dashboard')} />
         )}
         {currentView === 'settings' && (
           <Settings

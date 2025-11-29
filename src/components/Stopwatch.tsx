@@ -13,7 +13,7 @@ interface StopwatchProps {
   customers: Customer[];
   activities: Activity[];
   onOpenManualEntry?: () => void;
-  prefilledEntry?: { projectId: string; activityId?: string; description: string } | null;
+  prefilledEntry?: { projectId: string; activityId?: string; description: string; ticketId?: string } | null;
   onPrefilledEntryUsed?: () => void;
 }
 
@@ -23,21 +23,26 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [projectId, setProjectId] = useState('');
   const [activityId, setActivityId] = useState('');
+  const [ticketId, setTicketId] = useState<string | undefined>(undefined);
   const [description, setDescription] = useState('');
   const startTimeRef = useRef<string | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const descriptionUpdateTimeoutRef = useRef<number | null>(null);
+  // Ref to track if timer has been stopped - used to prevent stale debounced updates
+  const isStoppedRef = useRef(false);
 
   console.log('⏱️ [STOPWATCH] Received projects:', projects);
   console.log('⏱️ [STOPWATCH] Received customers:', customers);
   const activeProjects = projects.filter(p => p.isActive);
   console.log('⏱️ [STOPWATCH] Active projects after filter:', activeProjects);
 
-  // Handle prefilled entry (from repeat action)
+  // Handle prefilled entry (from repeat action or ticket)
   useEffect(() => {
     if (prefilledEntry && !isRunning) {
       setProjectId(prefilledEntry.projectId);
       setActivityId(prefilledEntry.activityId || '');
       setDescription(prefilledEntry.description);
+      setTicketId(prefilledEntry.ticketId);
       // Clear the prefilled entry
       onPrefilledEntryUsed?.();
     }
@@ -49,6 +54,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       startTimeRef.current = runningEntry.startTime;
       setProjectId(runningEntry.projectId);
       setActivityId(runningEntry.activityId || '');
+      setTicketId(runningEntry.ticketId);
       setDescription(runningEntry.description);
 
       const elapsed = Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000);
@@ -81,6 +87,9 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       return;
     }
 
+    // Reset stopped flag
+    isStoppedRef.current = false;
+
     const now = new Date().toISOString();
     startTimeRef.current = now;
     setIsRunning(true);
@@ -93,6 +102,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       duration: 0,
       projectId,
       activityId: activityId || undefined,
+      ticketId: ticketId || undefined,
       description: description || '',
       isRunning: true,
       createdAt: now,
@@ -112,6 +122,15 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const handleStop = () => {
     if (!startTimeRef.current || !currentUser) return;
 
+    // IMPORTANT: Mark as stopped FIRST to prevent any pending updates
+    isStoppedRef.current = true;
+
+    // Clear any pending description updates to prevent race conditions
+    if (descriptionUpdateTimeoutRef.current) {
+      clearTimeout(descriptionUpdateTimeoutRef.current);
+      descriptionUpdateTimeoutRef.current = null;
+    }
+
     const endTime = new Date().toISOString();
 
     const entry: TimeEntry = {
@@ -122,6 +141,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       duration: elapsedSeconds, // Exact duration - rounding happens in reports
       projectId,
       activityId: activityId || undefined,
+      ticketId: ticketId || runningEntry?.ticketId || undefined,
       description: description || '',
       isRunning: false,
       createdAt: runningEntry?.createdAt || startTimeRef.current,
@@ -133,6 +153,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     startTimeRef.current = null;
     setProjectId('');
     setActivityId('');
+    setTicketId(undefined);
     setDescription('');
   };
 
@@ -258,12 +279,24 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                   const newDescription = e.target.value;
                   setDescription(newDescription);
 
-                  // Update running entry if timer is running
+                  // Debounced update of running entry (wait 1 second after typing stops)
                   if (isRunning && runningEntry) {
-                    onUpdateRunning({
-                      ...runningEntry,
-                      description: newDescription
-                    });
+                    if (descriptionUpdateTimeoutRef.current) {
+                      clearTimeout(descriptionUpdateTimeoutRef.current);
+                    }
+                    // Capture the entry ID to check later
+                    const entryId = runningEntry.id;
+                    descriptionUpdateTimeoutRef.current = window.setTimeout(() => {
+                      // IMPORTANT: Check ref to see if timer was stopped since this was queued
+                      if (isStoppedRef.current) {
+                        console.log('⚠️ [STOPWATCH] Skipping stale description update - timer was stopped');
+                        return;
+                      }
+                      onUpdateRunning({
+                        ...runningEntry,
+                        description: newDescription
+                      });
+                    }, 1000);
                   }
                 }}
                 rows={3}
