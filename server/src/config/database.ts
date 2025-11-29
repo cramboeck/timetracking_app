@@ -858,6 +858,22 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_ticket ON ninjarmm_alerts(ticket_id)');
 
+    // Feature subscriptions for add-on packages
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS feature_packages (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        package_name TEXT NOT NULL,
+        enabled BOOLEAN DEFAULT true,
+        enabled_at TIMESTAMP DEFAULT NOW(),
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, package_name)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_feature_packages_user ON feature_packages(user_id)');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

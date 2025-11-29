@@ -23,6 +23,7 @@ import knowledgeBaseRoutes from './routes/knowledge-base';
 import pushRoutes from './routes/push';
 import sevdeskRoutes from './routes/sevdesk';
 import ninjarmmRoutes from './routes/ninjarmm';
+import featuresRoutes from './routes/features';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -89,6 +90,7 @@ app.use('/api/knowledge-base', knowledgeBaseRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/sevdesk', sevdeskRoutes);
 app.use('/api/ninjarmm', ninjarmmRoutes);
+app.use('/api/features', featuresRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';

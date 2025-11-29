@@ -1778,6 +1778,60 @@ export const ninjaApi = {
   },
 };
 
+// Feature Packages API
+export interface UserFeatures {
+  core: boolean;
+  timeTracking: boolean;
+  support: boolean;
+  business: boolean;
+  tickets: boolean;
+  devices: boolean;
+  alerts: boolean;
+  billing: boolean;
+  dashboardAdvanced: boolean;
+  packages: Array<{
+    name: string;
+    enabled: boolean;
+    enabledAt: string;
+    expiresAt: string | null;
+  }>;
+}
+
+export interface AvailablePackage {
+  name: string;
+  label: string;
+  description: string;
+  features: string[];
+  enabled: boolean;
+}
+
+export const featuresApi = {
+  // Get current user's features
+  getFeatures: async (): Promise<{ success: boolean; data: UserFeatures }> => {
+    return authFetch('/features');
+  },
+
+  // Get available packages
+  getAvailable: async (): Promise<{ success: boolean; data: AvailablePackage[] }> => {
+    return authFetch('/features/available');
+  },
+
+  // Enable a package
+  enablePackage: async (packageName: string, expiresAt?: string): Promise<{ success: boolean }> => {
+    return authFetch(`/features/${packageName}/enable`, {
+      method: 'POST',
+      body: JSON.stringify({ expiresAt }),
+    });
+  },
+
+  // Disable a package
+  disablePackage: async (packageName: string): Promise<{ success: boolean }> => {
+    return authFetch(`/features/${packageName}/disable`, {
+      method: 'POST',
+    });
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -1789,4 +1843,5 @@ export default {
   teams: teamsApi,
   tickets: ticketsApi,
   customerPortal: customerPortalApi,
+  features: featuresApi,
 };
