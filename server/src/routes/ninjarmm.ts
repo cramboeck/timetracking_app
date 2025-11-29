@@ -437,21 +437,35 @@ router.post('/alerts/:id/create-ticket', authenticateToken, requireNinjaFeature,
     const alert = alertResult.rows[0];
     const deviceName = alert.display_name || alert.system_name || 'Unknown Device';
 
+    // Get or create ticket sequence
+    await query(
+      'INSERT INTO ticket_sequences (user_id, last_number) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING',
+      [userId]
+    );
+
+    // Increment and get next ticket number
+    const seqResult = await query(
+      'UPDATE ticket_sequences SET last_number = last_number + 1 WHERE user_id = $1 RETURNING last_number',
+      [userId]
+    );
+    const ticketNumber = `TKT-${String(seqResult.rows[0].last_number).padStart(6, '0')}`;
+
     // Create ticket
     const ticketId = uuidv4();
     await query(
       `INSERT INTO tickets (
-        id, user_id, customer_id, device_id, title, description,
+        id, ticket_number, user_id, customer_id, device_id, title, description,
         priority, status, source, ninja_alert_id, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
       [
         ticketId,
+        ticketNumber,
         userId,
         alert.customer_id,
         alert.device_id,
         `[${alert.severity}] ${alert.message.substring(0, 100)}`,
         `Alert from NinjaRMM:\n\nDevice: ${deviceName}\nSeverity: ${alert.severity}\nPriority: ${alert.priority}\nSource: ${alert.source_name || 'N/A'}\n\nMessage:\n${alert.message}`,
-        alert.severity === 'CRITICAL' ? 'urgent' : alert.severity === 'MAJOR' ? 'high' : 'medium',
+        alert.severity === 'CRITICAL' ? 'urgent' : alert.severity === 'MAJOR' ? 'high' : 'normal',
         'open',
         'ninja_alert',
         alert.ninja_uid,
