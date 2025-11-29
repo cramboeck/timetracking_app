@@ -1087,14 +1087,25 @@ export const NinjaRMMSettings = () => {
 
             {/* Modal Footer */}
             <div className="flex justify-between gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
-              <button
-                onClick={() => handleRefreshDeviceDetails(selectedDevice.id)}
-                disabled={refreshingDevice}
-                className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors"
-              >
-                <RefreshCw size={16} className={refreshingDevice ? 'animate-spin' : ''} />
-                {refreshingDevice ? 'Lade Details...' : 'Details von NinjaRMM laden'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleRefreshDeviceDetails(selectedDevice.id)}
+                  disabled={refreshingDevice}
+                  className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw size={16} className={refreshingDevice ? 'animate-spin' : ''} />
+                  {refreshingDevice ? 'Lade...' : 'Details laden'}
+                </button>
+                <a
+                  href={`${config?.instanceUrl || 'https://eu.ninjarmm.com'}/#/deviceDashboard/${selectedDevice.ninjaId}/overview`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <ExternalLink size={16} />
+                  In NinjaRMM öffnen
+                </a>
+              </div>
               <button
                 onClick={() => setSelectedDevice(null)}
                 className="px-4 py-2 text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
