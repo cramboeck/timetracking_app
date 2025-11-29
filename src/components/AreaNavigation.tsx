@@ -83,12 +83,9 @@ export const AreaNavigation = ({
         shadow-sm
       ">
         <div className="flex items-center h-12 px-2">
-          {/* Area Title */}
-          <div className="flex items-center gap-2 px-3 py-1 mr-2">
-            <currentAreaConfig.icon size={18} className="text-accent-primary" />
-            <span className="font-semibold text-gray-900 dark:text-white text-sm">
-              {currentAreaConfig.label}
-            </span>
+          {/* Area Icon Only */}
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-accent-primary/10 mr-2">
+            <currentAreaConfig.icon size={20} className="text-accent-primary" />
           </div>
 
           {/* Sub-View Tabs */}
@@ -123,13 +120,13 @@ export const AreaNavigation = ({
         </div>
       </div>
 
-      {/* Bottom Navigation - iOS Glassmorphism */}
+      {/* Bottom Navigation - iOS Glassmorphism with clear active state */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom
         bg-white/70 dark:bg-gray-900/70
         backdrop-blur-xl
         border-t border-white/20 dark:border-gray-700/50
       ">
-        <div className="flex justify-around items-center h-16">
+        <div className="flex justify-around items-center h-16 px-2">
           {visibleAreas.map((area) => {
             const config = areaConfig[area];
             const Icon = config.icon;
@@ -139,22 +136,22 @@ export const AreaNavigation = ({
               <button
                 key={area}
                 onClick={() => onAreaChange(area)}
-                className={`flex flex-col items-center justify-center flex-1 h-full touch-manipulation transition-all duration-200 active:scale-95 ${
+                className={`relative flex flex-col items-center justify-center px-4 py-1 rounded-2xl touch-manipulation transition-all duration-200 active:scale-95 ${
                   isActive
-                    ? 'text-accent-primary'
+                    ? 'text-accent-primary bg-accent-primary/15'
                     : 'text-gray-500 dark:text-gray-400'
                 }`}
               >
-                <div className={`p-1.5 rounded-xl transition-all duration-200 ${
-                  isActive ? 'bg-accent-primary/15' : ''
-                }`}>
-                  <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                </div>
-                <span className={`text-xs mt-0.5 transition-all duration-200 ${
-                  isActive ? 'font-semibold' : 'font-medium'
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.5} />
+                <span className={`text-[10px] mt-0.5 ${
+                  isActive ? 'font-bold' : 'font-medium'
                 }`}>
                   {config.label}
                 </span>
+                {/* Active indicator dot */}
+                {isActive && (
+                  <div className="absolute -bottom-0.5 w-1 h-1 rounded-full bg-accent-primary" />
+                )}
               </button>
             );
           })}
