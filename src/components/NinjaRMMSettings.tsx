@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
   Settings, Save, RefreshCw, Link2, Unlink, CheckCircle, XCircle,
-  AlertTriangle, Server, Building, Clock, ExternalLink, Shield
+  AlertTriangle, Server, Building, Clock, ExternalLink, Shield, Monitor,
+  Wifi, WifiOff
 } from 'lucide-react';
-import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization } from '../services/api';
+import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice } from '../services/api';
 import { customersApi } from '../services/api';
 import { Customer } from '../types';
 
@@ -13,6 +14,7 @@ export const NinjaRMMSettings = () => {
   const [config, setConfig] = useState<NinjaRMMConfig | null>(null);
   const [syncStatus, setSyncStatus] = useState<NinjaSyncStatus | null>(null);
   const [organizations, setOrganizations] = useState<NinjaOrganization[]>([]);
+  const [devices, setDevices] = useState<NinjaDevice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -30,7 +32,7 @@ export const NinjaRMMSettings = () => {
   const [testing, setTesting] = useState(false);
 
   // Active section
-  const [activeSection, setActiveSection] = useState<'config' | 'organizations' | 'sync'>('config');
+  const [activeSection, setActiveSection] = useState<'config' | 'organizations' | 'devices' | 'sync'>('config');
 
   useEffect(() => {
     loadData();
@@ -62,14 +64,16 @@ export const NinjaRMMSettings = () => {
         setAutoSyncDevices(configRes.data.autoSyncDevices);
         setSyncIntervalMinutes(configRes.data.syncIntervalMinutes);
 
-        // Load sync status and organizations if connected
+        // Load sync status, organizations and devices if connected
         if (configRes.data.isConnected) {
-          const [statusRes, orgsRes] = await Promise.all([
+          const [statusRes, orgsRes, devicesRes] = await Promise.all([
             ninjaApi.getSyncStatus(),
             ninjaApi.getOrganizations(),
+            ninjaApi.getDevices(),
           ]);
           if (statusRes.success) setSyncStatus(statusRes.data);
           if (orgsRes.success) setOrganizations(orgsRes.data);
+          if (devicesRes.success) setDevices(devicesRes.data);
         }
       }
 
@@ -173,12 +177,14 @@ export const NinjaRMMSettings = () => {
         setSuccess(`Sync abgeschlossen: ${orgs.synced} Orgs, ${devices.synced} Geräte, ${alerts.synced} Alerts`);
 
         // Reload data
-        const [statusRes, orgsRes] = await Promise.all([
+        const [statusRes, orgsRes, devicesRes] = await Promise.all([
           ninjaApi.getSyncStatus(),
           ninjaApi.getOrganizations(),
+          ninjaApi.getDevices(),
         ]);
         if (statusRes.success) setSyncStatus(statusRes.data);
         if (orgsRes.success) setOrganizations(orgsRes.data);
+        if (devicesRes.success) setDevices(devicesRes.data);
       }
     } catch (err: any) {
       setError(err.message || 'Sync fehlgeschlagen');
@@ -240,10 +246,11 @@ export const NinjaRMMSettings = () => {
       )}
 
       {/* Section Tabs */}
-      <div className="flex gap-2 border-b border-gray-200 dark:border-dark-200">
+      <div className="flex gap-2 border-b border-gray-200 dark:border-dark-200 overflow-x-auto">
         {[
           { id: 'config', label: 'Konfiguration', icon: Settings },
           { id: 'organizations', label: 'Organisationen', icon: Building },
+          { id: 'devices', label: 'Geräte', icon: Monitor },
           { id: 'sync', label: 'Synchronisation', icon: RefreshCw },
         ].map(tab => (
           <button
@@ -482,6 +489,111 @@ export const NinjaRMMSettings = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Devices Section */}
+      {activeSection === 'devices' && (
+        <div className="space-y-4">
+          {!config?.isConnected ? (
+            <div className="text-center py-12 text-gray-500 dark:text-dark-400">
+              <Monitor size={48} className="mx-auto mb-3 opacity-50" />
+              <p>Verbinde zuerst mit NinjaRMM um Geräte zu sehen</p>
+            </div>
+          ) : devices.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-dark-400">
+              <Monitor size={48} className="mx-auto mb-3 opacity-50" />
+              <p>Keine Geräte gefunden. Führe eine Synchronisation durch.</p>
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                className="mt-4 flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark mx-auto"
+              >
+                <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+                {syncing ? 'Synchronisiere...' : 'Jetzt synchronisieren'}
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 overflow-hidden">
+              <div className="p-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white">Geräte ({devices.length})</h3>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">Synchronisierte Geräte aus NinjaRMM</p>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                    <Wifi size={14} />
+                    {devices.filter(d => !d.offline).length} Online
+                  </span>
+                  <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                    <WifiOff size={14} />
+                    {devices.filter(d => d.offline).length} Offline
+                  </span>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-dark-50 text-left text-sm text-gray-500 dark:text-dark-400">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium">Gerät</th>
+                      <th className="px-4 py-3 font-medium">Organisation</th>
+                      <th className="px-4 py-3 font-medium">Typ</th>
+                      <th className="px-4 py-3 font-medium">Betriebssystem</th>
+                      <th className="px-4 py-3 font-medium">Letzter Kontakt</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
+                    {devices.map(device => (
+                      <tr key={device.id} className="hover:bg-gray-50 dark:hover:bg-dark-50">
+                        <td className="px-4 py-3">
+                          {device.offline ? (
+                            <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                              <WifiOff size={16} />
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                              <Wifi size={16} />
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {device.displayName || device.systemName}
+                          </p>
+                          {device.displayName && device.systemName !== device.displayName && (
+                            <p className="text-sm text-gray-500 dark:text-dark-400">{device.systemName}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-dark-300">
+                          {device.organizationName}
+                          {device.customerName && (
+                            <span className="text-sm text-gray-500 dark:text-dark-400 ml-1">
+                              ({device.customerName})
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300">
+                            {device.nodeClass?.replace(/_/g, ' ') || 'Unbekannt'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-dark-300">
+                          {device.osName || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-dark-400">
+                          {device.lastContact
+                            ? new Date(device.lastContact).toLocaleString('de-DE')
+                            : '-'
+                          }
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
