@@ -59,21 +59,92 @@ KI-generierter Text:
 
 ---
 
-## Weitere geplante Features
+## NinjaRMM Integration
 
-### NinjaRMM Integration
-- [ ] Systeme/Geräte pro Kunde importieren
-- [ ] Gerätestatus live abfragen
-- [ ] Alerts in Tickets umwandeln
-- [ ] Remote-Zugriff aus Ticket starten
+### Phase 1: Geräte-Sync (In Arbeit)
+- [x] Datenbank-Schema (ninjarmm_config, organizations, devices, alerts)
+- [x] Feature-Flag System (feature_flags JSONB auf users)
+- [ ] NinjaRMM API Service (OAuth2, Geräte abrufen)
+- [ ] Organisationen mit Kunden verknüpfen
+- [ ] Geräteliste im Kunden-Hub anzeigen
+- [ ] Einstellungen-UI für NinjaRMM Credentials
 
-### Ticket-System Erweiterungen
+### Phase 2: Alerts → Tickets
+- [ ] Alerts aus NinjaRMM synchronisieren
+- [ ] Automatische Ticket-Erstellung aus Alerts
+- [ ] Alert-Status zurückmelden
+
+### Phase 3: Quick-Actions
+- [ ] Remote-Zugriff Button (Deep-Link zu NinjaRMM)
+- [ ] Gerätestatus live im Ticket
+- [ ] Geräte-Auswahl bei Ticket-Erstellung
+
+---
+
+## Kundenportal (NEU)
+
+### Phase 1: Basis-Portal
+- [x] Datenbank-Schema (portal_users, roles, sessions, activity_log)
+- [ ] Separate Login-Seite für Kundenportal
+- [ ] Portal-User Verwaltung (anlegen, einladen, deaktivieren)
+- [ ] Rollen-System mit Berechtigungen
+
+### Phase 2: Dokumente & Geräte
+- [ ] Rechnungen einsehen/downloaden (sevDesk)
+- [ ] Angebote einsehen/akzeptieren (sevDesk)
+- [ ] Dienstleistungsreports einsehen
+- [ ] NinjaRMM Geräte sehen (je nach Rolle: alle/eigene)
+
+### Phase 3: Tickets & Support
+- [ ] Tickets erstellen aus Portal
+- [ ] Ticket-Historie einsehen
+- [ ] Ticket-Kommentare (öffentlich/intern)
+- [ ] Support-Anfrage für Gerät
+
+### Standard-Rollen
+| Rolle | Rechnungen | Angebote | Reports | Geräte | Tickets |
+|-------|------------|----------|---------|--------|---------|
+| Geschäftsführung | ✅ | ✅ | ✅ | ❌ | Alle sehen |
+| Buchhaltung | ✅ | ✅ | ❌ | ❌ | ❌ |
+| IT-Techniker | ❌ | ❌ | ❌ | ✅ Alle | Erstellen + Alle |
+| Mitarbeiter | ❌ | ❌ | ❌ | Nur eigene | Nur eigene |
+
+---
+
+## Ticket-System
+
+### Phase 1: Basis-Tickets (In Arbeit)
+- [x] Datenbank-Schema (tickets, ticket_comments)
+- [x] Ticket ↔ Zeiterfassung Verknüpfung (ticket_id auf time_entries)
+- [ ] Ticket-Liste und Detail-Ansicht
+- [ ] Ticket erstellen (manuell, aus Alert, aus Portal)
+- [ ] Status-Workflow (open → in_progress → resolved → closed)
+
+### Phase 2: Erweiterungen
 - [ ] SLA-Eskalation per E-Mail/Push
 - [ ] Ticket-Vorlagen pro Kategorie
 - [ ] Automatische Ticket-Zuweisung
 - [ ] Kundenzufriedenheits-Umfrage nach Abschluss
 
-### Dashboard & Reporting
+---
+
+## Kunden-Hub (Intern)
+
+- [ ] Neuer Haupt-Menüpunkt "Kunden"
+- [ ] 360° Kundenansicht:
+  - Stammdaten & Kontakte
+  - NinjaRMM Geräte
+  - Offene Tickets
+  - Zeiterfassung-Historie
+  - sevDesk Dokumente (Rechnungen/Angebote)
+  - Statistiken (Umsatz, Stunden)
+- [ ] Quick-Actions (Remote, Ticket, Zeit erfassen)
+- [ ] Portal-User Verwaltung pro Kunde
+
+---
+
+## Dashboard & Reporting
+
 - [ ] Umsatz-Prognose basierend auf offenen Angeboten
 - [ ] Auslastungs-Übersicht pro Mitarbeiter
 - [ ] Projektrentabilität (Ist vs. Angebot)

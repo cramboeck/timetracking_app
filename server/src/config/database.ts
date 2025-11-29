@@ -413,6 +413,7 @@ export async function initializeDatabase() {
     `);
 
     // NinjaRMM alerts (for future: alerts → tickets)
+    // Note: ticket_id reference added later after tickets table exists
     await client.query(`
       CREATE TABLE IF NOT EXISTS ninjarmm_alerts (
         id TEXT PRIMARY KEY,
@@ -425,7 +426,7 @@ export async function initializeDatabase() {
         message TEXT,
         source_type TEXT,
         created_at_ninja TIMESTAMP,
-        ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+        ticket_id TEXT,
         status TEXT DEFAULT 'new' CHECK(status IN ('new', 'acknowledged', 'resolved', 'ticket_created')),
         synced_at TIMESTAMP NOT NULL DEFAULT NOW(),
         UNIQUE(user_id, ninja_alert_id)
@@ -454,6 +455,217 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_user_id ON ninjarmm_alerts(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_device_id ON ninjarmm_alerts(device_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customers_ninjarmm_org ON customers(ninjarmm_organization_id)');
+
+    // ============================================
+    // Feature Flags System
+    // ============================================
+
+    // Add feature_flags JSONB column to users table
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'feature_flags'
+        ) THEN
+          ALTER TABLE users ADD COLUMN feature_flags JSONB DEFAULT '{}';
+        END IF;
+      END $$;
+    `);
+
+    // ============================================
+    // Customer Portal System
+    // ============================================
+
+    // Portal roles (predefined + custom)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_portal_roles (
+        id TEXT PRIMARY KEY,
+        owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        permissions JSONB NOT NULL DEFAULT '{}',
+        is_system_role BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(owner_user_id, name)
+      )
+    `);
+
+    // Permissions structure:
+    // {
+    //   "invoices": { "view": true, "download": true },
+    //   "quotes": { "view": true, "accept": true },
+    //   "reports": { "view": true, "download": true },
+    //   "devices": { "scope": "all|assigned|none", "view_details": true, "request_support": true },
+    //   "tickets": { "create": true, "view_own": true, "view_all": false }
+    // }
+
+    // Portal users (customers' employees who can log into the portal)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_portal_users (
+        id TEXT PRIMARY KEY,
+        owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        email TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        name TEXT NOT NULL,
+        phone TEXT,
+        position TEXT,
+        is_primary_contact BOOLEAN DEFAULT FALSE,
+        is_active BOOLEAN DEFAULT TRUE,
+        last_login TIMESTAMP,
+        password_reset_token TEXT,
+        password_reset_expires TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(owner_user_id, email)
+      )
+    `);
+
+    // Portal user ↔ role assignments
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_portal_user_roles (
+        id TEXT PRIMARY KEY,
+        portal_user_id TEXT NOT NULL REFERENCES customer_portal_users(id) ON DELETE CASCADE,
+        role_id TEXT NOT NULL REFERENCES customer_portal_roles(id) ON DELETE CASCADE,
+        assigned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        assigned_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        UNIQUE(portal_user_id, role_id)
+      )
+    `);
+
+    // Portal user ↔ device assignments (for "only assigned devices" permission)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_portal_user_devices (
+        id TEXT PRIMARY KEY,
+        portal_user_id TEXT NOT NULL REFERENCES customer_portal_users(id) ON DELETE CASCADE,
+        device_id TEXT NOT NULL REFERENCES ninjarmm_devices(id) ON DELETE CASCADE,
+        assigned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        assigned_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        UNIQUE(portal_user_id, device_id)
+      )
+    `);
+
+    // Portal sessions for authentication
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_portal_sessions (
+        id TEXT PRIMARY KEY,
+        portal_user_id TEXT NOT NULL REFERENCES customer_portal_users(id) ON DELETE CASCADE,
+        token TEXT UNIQUE NOT NULL,
+        ip_address TEXT,
+        user_agent TEXT,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Portal activity log (audit trail)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_portal_activity_log (
+        id TEXT PRIMARY KEY,
+        portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL,
+        owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        action TEXT NOT NULL,
+        resource_type TEXT,
+        resource_id TEXT,
+        details JSONB,
+        ip_address TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Create indexes for Customer Portal tables
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_users_owner ON customer_portal_users(owner_user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_users_customer ON customer_portal_users(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_users_email ON customer_portal_users(email)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_user_roles_user ON customer_portal_user_roles(portal_user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_user_roles_role ON customer_portal_user_roles(role_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_user_devices_user ON customer_portal_user_devices(portal_user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_user_devices_device ON customer_portal_user_devices(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_sessions_user ON customer_portal_sessions(portal_user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_sessions_token ON customer_portal_sessions(token)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_activity_user ON customer_portal_activity_log(portal_user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_activity_owner ON customer_portal_activity_log(owner_user_id)');
+
+    // ============================================
+    // Tickets System (referenced by alerts)
+    // ============================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tickets (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+        device_id TEXT REFERENCES ninjarmm_devices(id) ON DELETE SET NULL,
+        portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL,
+        ticket_number TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'waiting', 'resolved', 'closed')),
+        priority TEXT DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'urgent')),
+        category TEXT,
+        assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
+        source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'portal', 'email', 'ninja_alert')),
+        ninja_alert_id TEXT,
+        due_date TIMESTAMP,
+        resolved_at TIMESTAMP,
+        closed_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Ticket comments/updates
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_comments (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL,
+        comment TEXT NOT NULL,
+        is_internal BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Ticket time entries (link existing time entries to tickets)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'ticket_id'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Create indexes for Tickets
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_customer ON tickets(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_device ON tickets(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_number ON tickets(ticket_number)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_ticket ON time_entries(ticket_id)');
+
+    // Add foreign key from ninjarmm_alerts to tickets (now that tickets exists)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'ninjarmm_alerts_ticket_id_fkey'
+        ) THEN
+          ALTER TABLE ninjarmm_alerts
+          ADD CONSTRAINT ninjarmm_alerts_ticket_id_fkey
+          FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_ticket ON ninjarmm_alerts(ticket_id)');
 
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
