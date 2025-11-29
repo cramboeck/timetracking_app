@@ -42,7 +42,7 @@ export const DevicesView = () => {
     try {
       setSyncing(true);
       setError('');
-      await ninjaApi.sync();
+      await ninjaApi.syncAll();
       await loadData();
     } catch (err: any) {
       setError(err.message);
