@@ -37,6 +37,9 @@ export const NinjaRMMSettings = () => {
 
   // Modal state
   const [selectedDevice, setSelectedDevice] = useState<NinjaDevice | null>(null);
+  const [selectedAlert, setSelectedAlert] = useState<NinjaAlert | null>(null);
+  const [creatingTicket, setCreatingTicket] = useState(false);
+  const [resolvingAlert, setResolvingAlert] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -212,6 +215,50 @@ export const NinjaRMMSettings = () => {
       ));
     } catch (err: any) {
       setError(err.message || 'Fehler beim Verknüpfen');
+    }
+  };
+
+  const handleCreateTicketFromAlert = async (alertId: string) => {
+    try {
+      setCreatingTicket(true);
+      setError('');
+      const result = await ninjaApi.createTicketFromAlert(alertId);
+      if (result.success) {
+        setSuccess('Ticket erstellt');
+        // Update alert in local state
+        setAlerts(prev => prev.map(a =>
+          a.id === alertId ? { ...a, ticketId: result.data.ticketId } : a
+        ));
+        if (selectedAlert?.id === alertId) {
+          setSelectedAlert(prev => prev ? { ...prev, ticketId: result.data.ticketId } : null);
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Erstellen des Tickets');
+    } finally {
+      setCreatingTicket(false);
+    }
+  };
+
+  const handleResolveAlert = async (alertId: string) => {
+    try {
+      setResolvingAlert(true);
+      setError('');
+      const result = await ninjaApi.resolveAlert(alertId);
+      if (result.success) {
+        setSuccess('Alert als gelöst markiert');
+        // Update alert in local state
+        setAlerts(prev => prev.map(a =>
+          a.id === alertId ? { ...a, resolved: true, resolvedAt: new Date().toISOString() } : a
+        ));
+        if (selectedAlert?.id === alertId) {
+          setSelectedAlert(prev => prev ? { ...prev, resolved: true, resolvedAt: new Date().toISOString() } : null);
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Markieren als gelöst');
+    } finally {
+      setResolvingAlert(false);
     }
   };
 
@@ -670,7 +717,11 @@ export const NinjaRMMSettings = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
                     {alerts.map(alert => (
-                      <tr key={alert.id} className="hover:bg-gray-50 dark:hover:bg-dark-50">
+                      <tr
+                        key={alert.id}
+                        className="hover:bg-gray-50 dark:hover:bg-dark-50 cursor-pointer"
+                        onClick={() => setSelectedAlert(alert)}
+                      >
                         <td className="px-4 py-3">
                           {alert.resolved ? (
                             <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
@@ -923,6 +974,177 @@ export const NinjaRMMSettings = () => {
             <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
               <button
                 onClick={() => setSelectedDevice(null)}
+                className="px-4 py-2 text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alert Detail Modal */}
+      {selectedAlert && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-200">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${
+                  selectedAlert.resolved
+                    ? 'bg-green-100 dark:bg-green-900/30'
+                    : selectedAlert.severity === 'CRITICAL'
+                      ? 'bg-red-100 dark:bg-red-900/30'
+                      : selectedAlert.severity === 'MAJOR'
+                        ? 'bg-orange-100 dark:bg-orange-900/30'
+                        : 'bg-yellow-100 dark:bg-yellow-900/30'
+                }`}>
+                  {selectedAlert.resolved ? (
+                    <CheckCircle className="text-green-600 dark:text-green-400" size={20} />
+                  ) : (
+                    <AlertTriangle className={`${
+                      selectedAlert.severity === 'CRITICAL' ? 'text-red-600 dark:text-red-400' :
+                      selectedAlert.severity === 'MAJOR' ? 'text-orange-600 dark:text-orange-400' :
+                      'text-yellow-600 dark:text-yellow-400'
+                    }`} size={20} />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    {selectedAlert.severity} Alert
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    {selectedAlert.resolved ? 'Gelöst' : 'Offen'}
+                    {selectedAlert.ticketId && ' • Ticket erstellt'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedAlert(null)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-200px)]">
+              {/* Alert Message */}
+              <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4 mb-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Nachricht</h4>
+                <p className="text-gray-700 dark:text-dark-300 whitespace-pre-wrap">{selectedAlert.message}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Alert Info */}
+                <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Bell size={16} className="text-gray-500" />
+                    <h4 className="font-medium text-gray-900 dark:text-white">Alert-Details</h4>
+                  </div>
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Schweregrad</dt>
+                      <dd>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          selectedAlert.severity === 'CRITICAL' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                          selectedAlert.severity === 'MAJOR' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+                          selectedAlert.severity === 'MODERATE' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
+                          selectedAlert.severity === 'MINOR' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
+                          'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300'
+                        }`}>
+                          {selectedAlert.severity}
+                        </span>
+                      </dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Priorität</dt>
+                      <dd className="text-gray-900 dark:text-white">{selectedAlert.priority}</dd>
+                    </div>
+                    {selectedAlert.sourceType && (
+                      <div className="flex justify-between">
+                        <dt className="text-gray-500 dark:text-dark-400">Quelle</dt>
+                        <dd className="text-gray-900 dark:text-white">{selectedAlert.sourceType}</dd>
+                      </div>
+                    )}
+                    {selectedAlert.sourceName && (
+                      <div className="flex justify-between">
+                        <dt className="text-gray-500 dark:text-dark-400">Quellenname</dt>
+                        <dd className="text-gray-900 dark:text-white">{selectedAlert.sourceName}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+
+                {/* Device & Time Info */}
+                <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Monitor size={16} className="text-gray-500" />
+                    <h4 className="font-medium text-gray-900 dark:text-white">Gerät & Zeit</h4>
+                  </div>
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Gerät</dt>
+                      <dd className="text-gray-900 dark:text-white">{selectedAlert.deviceName || '-'}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Organisation</dt>
+                      <dd className="text-gray-900 dark:text-white">{selectedAlert.organizationName || '-'}</dd>
+                    </div>
+                    {selectedAlert.customerName && (
+                      <div className="flex justify-between">
+                        <dt className="text-gray-500 dark:text-dark-400">Kunde</dt>
+                        <dd className="text-gray-900 dark:text-white font-medium">{selectedAlert.customerName}</dd>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Zeitpunkt</dt>
+                      <dd className="text-gray-900 dark:text-white">
+                        {selectedAlert.activityTime
+                          ? new Date(selectedAlert.activityTime).toLocaleString('de-DE')
+                          : '-'
+                        }
+                      </dd>
+                    </div>
+                    {selectedAlert.resolvedAt && (
+                      <div className="flex justify-between">
+                        <dt className="text-gray-500 dark:text-dark-400">Gelöst am</dt>
+                        <dd className="text-gray-900 dark:text-white">
+                          {new Date(selectedAlert.resolvedAt).toLocaleString('de-DE')}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-between gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
+              <div className="flex gap-2">
+                {!selectedAlert.ticketId && (
+                  <button
+                    onClick={() => handleCreateTicketFromAlert(selectedAlert.id)}
+                    disabled={creatingTicket}
+                    className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+                  >
+                    <Ticket size={16} />
+                    {creatingTicket ? 'Erstelle...' : 'Ticket erstellen'}
+                  </button>
+                )}
+                {!selectedAlert.resolved && (
+                  <button
+                    onClick={() => handleResolveAlert(selectedAlert.id)}
+                    disabled={resolvingAlert}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    <CheckCircle size={16} />
+                    {resolvingAlert ? 'Markiere...' : 'Als gelöst markieren'}
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setSelectedAlert(null)}
                 className="px-4 py-2 text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
               >
                 Schließen
