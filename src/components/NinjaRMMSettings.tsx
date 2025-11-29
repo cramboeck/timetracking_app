@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Settings, Save, RefreshCw, Link2, Unlink, CheckCircle, XCircle,
   AlertTriangle, Server, Building, Clock, ExternalLink, Shield, Monitor,
-  Wifi, WifiOff, Bell, Ticket, X, Cpu, HardDrive, Globe, User
+  Wifi, WifiOff, Bell, Ticket, X, Cpu, HardDrive, Globe, User, Search
 } from 'lucide-react';
 import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert } from '../services/api';
 import { customersApi } from '../services/api';
@@ -40,6 +40,45 @@ export const NinjaRMMSettings = () => {
   const [selectedAlert, setSelectedAlert] = useState<NinjaAlert | null>(null);
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [resolvingAlert, setResolvingAlert] = useState(false);
+
+  // Search/Filter state
+  const [deviceSearch, setDeviceSearch] = useState('');
+  const [deviceStatusFilter, setDeviceStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
+  const [alertSearch, setAlertSearch] = useState('');
+  const [alertStatusFilter, setAlertStatusFilter] = useState<'all' | 'open' | 'resolved'>('all');
+
+  // Filtered data
+  const filteredDevices = useMemo(() => {
+    return devices.filter(device => {
+      const matchesSearch = deviceSearch === '' ||
+        device.systemName.toLowerCase().includes(deviceSearch.toLowerCase()) ||
+        device.displayName?.toLowerCase().includes(deviceSearch.toLowerCase()) ||
+        device.organizationName.toLowerCase().includes(deviceSearch.toLowerCase()) ||
+        device.customerName?.toLowerCase().includes(deviceSearch.toLowerCase());
+
+      const matchesStatus = deviceStatusFilter === 'all' ||
+        (deviceStatusFilter === 'online' && !device.offline) ||
+        (deviceStatusFilter === 'offline' && device.offline);
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [devices, deviceSearch, deviceStatusFilter]);
+
+  const filteredAlerts = useMemo(() => {
+    return alerts.filter(alert => {
+      const matchesSearch = alertSearch === '' ||
+        alert.message.toLowerCase().includes(alertSearch.toLowerCase()) ||
+        alert.deviceName?.toLowerCase().includes(alertSearch.toLowerCase()) ||
+        alert.organizationName?.toLowerCase().includes(alertSearch.toLowerCase()) ||
+        alert.sourceName?.toLowerCase().includes(alertSearch.toLowerCase());
+
+      const matchesStatus = alertStatusFilter === 'all' ||
+        (alertStatusFilter === 'open' && !alert.resolved) ||
+        (alertStatusFilter === 'resolved' && alert.resolved);
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [alerts, alertSearch, alertStatusFilter]);
 
   useEffect(() => {
     loadData();
@@ -579,20 +618,44 @@ export const NinjaRMMSettings = () => {
             </div>
           ) : (
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 overflow-hidden">
-              <div className="p-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium text-gray-900 dark:text-white">Geräte ({devices.length})</h3>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">Synchronisierte Geräte aus NinjaRMM</p>
+              <div className="p-4 border-b border-gray-200 dark:border-dark-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-white">Geräte ({filteredDevices.length}/{devices.length})</h3>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Synchronisierte Geräte aus NinjaRMM</p>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                      <Wifi size={14} />
+                      {devices.filter(d => !d.offline).length} Online
+                    </span>
+                    <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                      <WifiOff size={14} />
+                      {devices.filter(d => d.offline).length} Offline
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                    <Wifi size={14} />
-                    {devices.filter(d => !d.offline).length} Online
-                  </span>
-                  <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
-                    <WifiOff size={14} />
-                    {devices.filter(d => d.offline).length} Offline
-                  </span>
+                {/* Search and Filter */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Suchen nach Name, Organisation, Kunde..."
+                      value={deviceSearch}
+                      onChange={(e) => setDeviceSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
+                    />
+                  </div>
+                  <select
+                    value={deviceStatusFilter}
+                    onChange={(e) => setDeviceStatusFilter(e.target.value as any)}
+                    className="px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
+                  >
+                    <option value="all">Alle Status</option>
+                    <option value="online">Nur Online</option>
+                    <option value="offline">Nur Offline</option>
+                  </select>
                 </div>
               </div>
               <div className="overflow-x-auto">
@@ -608,7 +671,7 @@ export const NinjaRMMSettings = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
-                    {devices.map(device => (
+                    {filteredDevices.map(device => (
                       <tr
                         key={device.id}
                         className="hover:bg-gray-50 dark:hover:bg-dark-50 cursor-pointer"
@@ -688,20 +751,44 @@ export const NinjaRMMSettings = () => {
             </div>
           ) : (
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 overflow-hidden">
-              <div className="p-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium text-gray-900 dark:text-white">Alerts ({alerts.length})</h3>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">Synchronisierte Alerts aus NinjaRMM</p>
+              <div className="p-4 border-b border-gray-200 dark:border-dark-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-white">Alerts ({filteredAlerts.length}/{alerts.length})</h3>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Synchronisierte Alerts aus NinjaRMM</p>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                      <AlertTriangle size={14} />
+                      {alerts.filter(a => !a.resolved).length} Offen
+                    </span>
+                    <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                      <CheckCircle size={14} />
+                      {alerts.filter(a => a.resolved).length} Gelöst
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
-                    <AlertTriangle size={14} />
-                    {alerts.filter(a => !a.resolved).length} Offen
-                  </span>
-                  <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                    <CheckCircle size={14} />
-                    {alerts.filter(a => a.resolved).length} Gelöst
-                  </span>
+                {/* Search and Filter */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Suchen nach Nachricht, Gerät, Organisation..."
+                      value={alertSearch}
+                      onChange={(e) => setAlertSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
+                    />
+                  </div>
+                  <select
+                    value={alertStatusFilter}
+                    onChange={(e) => setAlertStatusFilter(e.target.value as any)}
+                    className="px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
+                  >
+                    <option value="all">Alle Status</option>
+                    <option value="open">Nur Offen</option>
+                    <option value="resolved">Nur Gelöst</option>
+                  </select>
                 </div>
               </div>
               <div className="overflow-x-auto">
@@ -716,7 +803,7 @@ export const NinjaRMMSettings = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
-                    {alerts.map(alert => (
+                    {filteredAlerts.map(alert => (
                       <tr
                         key={alert.id}
                         className="hover:bg-gray-50 dark:hover:bg-dark-50 cursor-pointer"
