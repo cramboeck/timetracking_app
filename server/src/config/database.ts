@@ -616,6 +616,54 @@ export async function initializeDatabase() {
       )
     `);
 
+    // Migration: Add new columns to existing tickets table if they don't exist
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Add device_id if not exists
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'device_id'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN device_id TEXT REFERENCES ninjarmm_devices(id) ON DELETE SET NULL;
+        END IF;
+        -- Add portal_user_id if not exists
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'portal_user_id'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL;
+        END IF;
+        -- Add source if not exists
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'source'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'portal', 'email', 'ninja_alert'));
+        END IF;
+        -- Add ninja_alert_id if not exists
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'ninja_alert_id'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN ninja_alert_id TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Add portal_user_id to ticket_comments if not exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_comments' AND column_name = 'portal_user_id'
+        ) THEN
+          ALTER TABLE ticket_comments ADD COLUMN portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
     // Ticket comments/updates
     await client.query(`
       CREATE TABLE IF NOT EXISTS ticket_comments (
