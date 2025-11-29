@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import {
   Settings, Save, RefreshCw, Link2, Unlink, CheckCircle, XCircle,
   AlertTriangle, Server, Building, Clock, ExternalLink, Shield, Monitor,
-  Wifi, WifiOff
+  Wifi, WifiOff, Bell, Ticket
 } from 'lucide-react';
-import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice } from '../services/api';
+import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert } from '../services/api';
 import { customersApi } from '../services/api';
 import { Customer } from '../types';
 
@@ -15,6 +15,7 @@ export const NinjaRMMSettings = () => {
   const [syncStatus, setSyncStatus] = useState<NinjaSyncStatus | null>(null);
   const [organizations, setOrganizations] = useState<NinjaOrganization[]>([]);
   const [devices, setDevices] = useState<NinjaDevice[]>([]);
+  const [alerts, setAlerts] = useState<NinjaAlert[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -32,7 +33,7 @@ export const NinjaRMMSettings = () => {
   const [testing, setTesting] = useState(false);
 
   // Active section
-  const [activeSection, setActiveSection] = useState<'config' | 'organizations' | 'devices' | 'sync'>('config');
+  const [activeSection, setActiveSection] = useState<'config' | 'organizations' | 'devices' | 'alerts' | 'sync'>('config');
 
   useEffect(() => {
     loadData();
@@ -64,16 +65,18 @@ export const NinjaRMMSettings = () => {
         setAutoSyncDevices(configRes.data.autoSyncDevices);
         setSyncIntervalMinutes(configRes.data.syncIntervalMinutes);
 
-        // Load sync status, organizations and devices if connected
+        // Load sync status, organizations, devices and alerts if connected
         if (configRes.data.isConnected) {
-          const [statusRes, orgsRes, devicesRes] = await Promise.all([
+          const [statusRes, orgsRes, devicesRes, alertsRes] = await Promise.all([
             ninjaApi.getSyncStatus(),
             ninjaApi.getOrganizations(),
             ninjaApi.getDevices(),
+            ninjaApi.getAlerts(),
           ]);
           if (statusRes.success) setSyncStatus(statusRes.data);
           if (orgsRes.success) setOrganizations(orgsRes.data);
           if (devicesRes.success) setDevices(devicesRes.data);
+          if (alertsRes.success) setAlerts(alertsRes.data);
         }
       }
 
@@ -177,14 +180,16 @@ export const NinjaRMMSettings = () => {
         setSuccess(`Sync abgeschlossen: ${orgs.synced} Orgs, ${devices.synced} Geräte, ${alerts.synced} Alerts`);
 
         // Reload data
-        const [statusRes, orgsRes, devicesRes] = await Promise.all([
+        const [statusRes, orgsRes, devicesRes, alertsRes] = await Promise.all([
           ninjaApi.getSyncStatus(),
           ninjaApi.getOrganizations(),
           ninjaApi.getDevices(),
+          ninjaApi.getAlerts(),
         ]);
         if (statusRes.success) setSyncStatus(statusRes.data);
         if (orgsRes.success) setOrganizations(orgsRes.data);
         if (devicesRes.success) setDevices(devicesRes.data);
+        if (alertsRes.success) setAlerts(alertsRes.data);
       }
     } catch (err: any) {
       setError(err.message || 'Sync fehlgeschlagen');
@@ -251,12 +256,13 @@ export const NinjaRMMSettings = () => {
           { id: 'config', label: 'Konfiguration', icon: Settings },
           { id: 'organizations', label: 'Organisationen', icon: Building },
           { id: 'devices', label: 'Geräte', icon: Monitor },
+          { id: 'alerts', label: 'Alerts', icon: Bell, badge: alerts.filter(a => !a.resolved).length },
           { id: 'sync', label: 'Synchronisation', icon: RefreshCw },
         ].map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveSection(tab.id as any)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
               activeSection === tab.id
                 ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
@@ -264,6 +270,11 @@ export const NinjaRMMSettings = () => {
           >
             <tab.icon size={16} />
             {tab.label}
+            {'badge' in tab && tab.badge > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">
+                {tab.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -587,6 +598,113 @@ export const NinjaRMMSettings = () => {
                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-dark-400">
                           {device.lastContact
                             ? new Date(device.lastContact).toLocaleString('de-DE')
+                            : '-'
+                          }
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Alerts Section */}
+      {activeSection === 'alerts' && (
+        <div className="space-y-4">
+          {!config?.isConnected ? (
+            <div className="text-center py-12 text-gray-500 dark:text-dark-400">
+              <Bell size={48} className="mx-auto mb-3 opacity-50" />
+              <p>Verbinde zuerst mit NinjaRMM um Alerts zu sehen</p>
+            </div>
+          ) : alerts.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-dark-400">
+              <Bell size={48} className="mx-auto mb-3 opacity-50" />
+              <p>Keine Alerts gefunden. Führe eine Synchronisation durch.</p>
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                className="mt-4 flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark mx-auto"
+              >
+                <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+                {syncing ? 'Synchronisiere...' : 'Jetzt synchronisieren'}
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 overflow-hidden">
+              <div className="p-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white">Alerts ({alerts.length})</h3>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">Synchronisierte Alerts aus NinjaRMM</p>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                    <AlertTriangle size={14} />
+                    {alerts.filter(a => !a.resolved).length} Offen
+                  </span>
+                  <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                    <CheckCircle size={14} />
+                    {alerts.filter(a => a.resolved).length} Gelöst
+                  </span>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-dark-50 text-left text-sm text-gray-500 dark:text-dark-400">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium">Schweregrad</th>
+                      <th className="px-4 py-3 font-medium">Gerät</th>
+                      <th className="px-4 py-3 font-medium">Nachricht</th>
+                      <th className="px-4 py-3 font-medium">Zeitpunkt</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
+                    {alerts.map(alert => (
+                      <tr key={alert.id} className="hover:bg-gray-50 dark:hover:bg-dark-50">
+                        <td className="px-4 py-3">
+                          {alert.resolved ? (
+                            <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                              <CheckCircle size={16} />
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                              <AlertTriangle size={16} />
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            alert.severity === 'CRITICAL' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                            alert.severity === 'MAJOR' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+                            alert.severity === 'MODERATE' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
+                            alert.severity === 'MINOR' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
+                            'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300'
+                          }`}>
+                            {alert.severity}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {alert.deviceName || 'Unbekannt'}
+                          </p>
+                          {alert.organizationName && (
+                            <p className="text-sm text-gray-500 dark:text-dark-400">{alert.organizationName}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-gray-700 dark:text-dark-300 max-w-md truncate" title={alert.message}>
+                            {alert.message}
+                          </p>
+                          {alert.sourceName && (
+                            <p className="text-sm text-gray-500 dark:text-dark-400">{alert.sourceName}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-dark-400 whitespace-nowrap">
+                          {alert.activityTime
+                            ? new Date(alert.activityTime).toLocaleString('de-DE')
                             : '-'
                           }
                         </td>
