@@ -648,15 +648,18 @@ export async function syncOrganizations(userId: string): Promise<SyncResult> {
 
   try {
     const orgs = await getOrganizations(userId);
+    console.log(`Syncing ${orgs.length} organizations for user ${userId}`);
 
     for (const org of orgs) {
       try {
+        // Note: UNIQUE constraint is on (user_id, ninja_org_id) where ninja_org_id is TEXT
         await query(
           `INSERT INTO ninjarmm_organizations (
-            id, user_id, ninja_id, name, description, userdata, synced_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-          ON CONFLICT (user_id, ninja_id)
+            id, user_id, ninja_org_id, ninja_id, name, description, userdata, synced_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+          ON CONFLICT (user_id, ninja_org_id)
           DO UPDATE SET
+            ninja_id = EXCLUDED.ninja_id,
             name = EXCLUDED.name,
             description = EXCLUDED.description,
             userdata = EXCLUDED.userdata,
@@ -664,7 +667,8 @@ export async function syncOrganizations(userId: string): Promise<SyncResult> {
           [
             `${userId}_${org.id}`,
             userId,
-            org.id,
+            String(org.id),  // ninja_org_id is TEXT
+            org.id,          // ninja_id is INTEGER
             org.name,
             org.description || null,
             JSON.stringify(org.userdata || {}),
@@ -681,6 +685,7 @@ export async function syncOrganizations(userId: string): Promise<SyncResult> {
     errors++;
   }
 
+  console.log(`Organizations sync complete: ${synced} synced, ${errors} errors`);
   return { synced, errors };
 }
 
@@ -705,24 +710,28 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
 
   try {
     const devices = await getDevices(userId);
+    console.log(`Syncing ${devices.length} devices for user ${userId}`);
 
     for (const device of devices) {
       try {
         const lastContact = parseNinjaTimestamp(device.lastContact);
 
+        // Note: UNIQUE constraint is on (user_id, ninja_device_id) where ninja_device_id is TEXT
+        // Organization lookup uses ninja_org_id (TEXT) to match the organization
         await query(
           `INSERT INTO ninjarmm_devices (
-            id, user_id, ninja_id, organization_id, ninja_org_id,
+            id, user_id, ninja_device_id, ninja_id, organization_id, ninja_org_id,
             system_name, display_name, dns_name, node_class,
             offline, last_contact, public_ip, os_name,
             manufacturer, model, serial_number, device_data, synced_at
           ) VALUES (
-            $1, $2, $3,
-            (SELECT id FROM ninjarmm_organizations WHERE user_id = $2 AND ninja_id = $4),
-            $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW()
+            $1, $2, $3, $4,
+            (SELECT id FROM ninjarmm_organizations WHERE user_id = $2 AND ninja_org_id = $5),
+            $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW()
           )
-          ON CONFLICT (user_id, ninja_id)
+          ON CONFLICT (user_id, ninja_device_id)
           DO UPDATE SET
+            ninja_id = EXCLUDED.ninja_id,
             organization_id = EXCLUDED.organization_id,
             system_name = EXCLUDED.system_name,
             display_name = EXCLUDED.display_name,
@@ -740,8 +749,9 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
           [
             `${userId}_${device.id}`,
             userId,
-            device.id,
-            device.organizationId,
+            String(device.id),      // ninja_device_id is TEXT
+            device.id,              // ninja_id is INTEGER
+            String(device.organizationId),  // ninja_org_id for lookup is TEXT
             device.systemName,
             device.displayName || null,
             device.dnsName || null,
@@ -767,6 +777,7 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
     errors++;
   }
 
+  console.log(`Devices sync complete: ${synced} synced, ${errors} errors`);
   return { synced, errors };
 }
 
@@ -777,24 +788,28 @@ export async function syncAlerts(userId: string): Promise<SyncResult> {
 
   try {
     const alerts = await getAlerts(userId);
+    console.log(`Syncing ${alerts.length} alerts for user ${userId}`);
 
     for (const alert of alerts) {
       try {
         const activityTime = parseNinjaTimestamp(alert.activityTime);
         const createTime = parseNinjaTimestamp(alert.createTime);
 
+        // Note: UNIQUE constraint is on (user_id, ninja_alert_id) where ninja_alert_id is TEXT
+        // Device lookup uses ninja_device_id (TEXT) to match the device
         await query(
           `INSERT INTO ninjarmm_alerts (
-            id, user_id, ninja_uid, device_id,
+            id, user_id, ninja_alert_id, ninja_uid, device_id, ninja_device_id,
             severity, priority, message, source_type, source_name,
             activity_time, created_at, alert_data, synced_at
           ) VALUES (
-            $1, $2, $3,
-            (SELECT id FROM ninjarmm_devices WHERE user_id = $2 AND ninja_id = $4),
-            $5, $6, $7, $8, $9, $10, $11, $12, NOW()
+            $1, $2, $3, $4,
+            (SELECT id FROM ninjarmm_devices WHERE user_id = $2 AND ninja_device_id = $5),
+            $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW()
           )
-          ON CONFLICT (user_id, ninja_uid)
+          ON CONFLICT (user_id, ninja_alert_id)
           DO UPDATE SET
+            ninja_uid = EXCLUDED.ninja_uid,
             severity = EXCLUDED.severity,
             priority = EXCLUDED.priority,
             message = EXCLUDED.message,
@@ -803,8 +818,9 @@ export async function syncAlerts(userId: string): Promise<SyncResult> {
           [
             `${userId}_${alert.uid}`,
             userId,
-            alert.uid,
-            alert.deviceId,
+            alert.uid,          // ninja_alert_id is TEXT
+            alert.uid,          // ninja_uid is also TEXT (same value)
+            String(alert.deviceId),  // ninja_device_id for lookup is TEXT
             alert.severity,
             alert.priority,
             alert.message,
@@ -826,6 +842,7 @@ export async function syncAlerts(userId: string): Promise<SyncResult> {
     errors++;
   }
 
+  console.log(`Alerts sync complete: ${synced} synced, ${errors} errors`);
   return { synced, errors };
 }
 
