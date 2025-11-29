@@ -527,7 +527,9 @@ router.post('/alerts/:id/create-ticket', authenticateToken, requireNinjaFeature,
     }
 
     const alert = alertResult.rows[0];
-    const deviceName = alert.display_name || alert.system_name || 'Unknown Device';
+    const deviceName = alert.display_name || alert.system_name || 'Unbekanntes Gerät';
+    const severity = alert.severity || 'INFO';
+    const priority = alert.priority || 'NORMAL';
 
     // Get or create ticket sequence
     await query(
@@ -555,9 +557,9 @@ router.post('/alerts/:id/create-ticket', authenticateToken, requireNinjaFeature,
         userId,
         alert.customer_id,
         alert.device_id,
-        `[${alert.severity}] ${alert.message.substring(0, 100)}`,
-        `Alert from NinjaRMM:\n\nDevice: ${deviceName}\nSeverity: ${alert.severity}\nPriority: ${alert.priority}\nSource: ${alert.source_name || 'N/A'}\n\nMessage:\n${alert.message}`,
-        alert.severity === 'CRITICAL' ? 'urgent' : alert.severity === 'MAJOR' ? 'high' : 'normal',
+        `[${severity}] ${alert.message.substring(0, 100)}`,
+        `Alert from NinjaRMM:\n\nGerät: ${deviceName}\nSeverity: ${severity}\nPriorität: ${priority}\nQuelle: ${alert.source_name || 'N/A'}\n\nNachricht:\n${alert.message}`,
+        severity === 'CRITICAL' ? 'urgent' : severity === 'MAJOR' ? 'high' : 'normal',
         'open',
         'ninja_alert',
         alert.ninja_uid,
