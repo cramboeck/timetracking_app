@@ -369,7 +369,7 @@ export async function exchangeCodeForTokens(
       return { success: false, error: `Token exchange failed: ${response.status}` };
     }
 
-    const data = await response.json();
+    const data = await response.json() as { access_token: string; refresh_token?: string; expires_in?: number };
 
     // Calculate token expiration
     const expiresIn = data.expires_in || 3600;
@@ -377,7 +377,7 @@ export async function exchangeCodeForTokens(
 
     await saveConfig(userId, {
       accessToken: data.access_token,
-      refreshToken: data.refresh_token,
+      refreshToken: data.refresh_token || null,
       tokenExpiresAt,
     });
 
@@ -425,7 +425,7 @@ export async function refreshAccessToken(userId: string): Promise<{ success: boo
       return { success: false, error: `Token refresh failed: ${response.status}` };
     }
 
-    const data = await response.json();
+    const data = await response.json() as { access_token: string; refresh_token?: string; expires_in?: number };
 
     const expiresIn = data.expires_in || 3600;
     const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
