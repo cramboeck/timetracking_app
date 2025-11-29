@@ -553,18 +553,27 @@ export async function getDeviceWithDetails(userId: string, deviceId: number): Pr
   if (!config) throw new Error('NinjaRMM not configured');
 
   try {
+    console.log(`Fetching device details from NinjaRMM for device ${deviceId}`);
+
     // Get basic device info
     const device = await ninjaFetch(config, `/device/${deviceId}`);
-    if (!device) return null;
+    if (!device) {
+      console.log(`Device ${deviceId} not found in NinjaRMM (basic info)`);
+      return null;
+    }
+
+    console.log(`Got basic device info for ${deviceId}, fetching additional details...`);
 
     // Get additional details in parallel
     const [osInfo, systemInfo, processors, disks, networkInterfaces] = await Promise.all([
-      ninjaFetch(config, `/device/${deviceId}/os`).catch(() => null),
-      ninjaFetch(config, `/device/${deviceId}/system`).catch(() => null),
-      ninjaFetch(config, `/device/${deviceId}/processors`).catch(() => []),
-      ninjaFetch(config, `/device/${deviceId}/disks`).catch(() => []),
-      ninjaFetch(config, `/device/${deviceId}/network-interfaces`).catch(() => []),
+      ninjaFetch(config, `/device/${deviceId}/os`).catch((e) => { console.log(`OS info fetch failed: ${e.message}`); return null; }),
+      ninjaFetch(config, `/device/${deviceId}/system`).catch((e) => { console.log(`System info fetch failed: ${e.message}`); return null; }),
+      ninjaFetch(config, `/device/${deviceId}/processors`).catch((e) => { console.log(`Processors fetch failed: ${e.message}`); return []; }),
+      ninjaFetch(config, `/device/${deviceId}/disks`).catch((e) => { console.log(`Disks fetch failed: ${e.message}`); return []; }),
+      ninjaFetch(config, `/device/${deviceId}/network-interfaces`).catch((e) => { console.log(`Network interfaces fetch failed: ${e.message}`); return []; }),
     ]);
+
+    console.log(`Device ${deviceId} details: os=${!!osInfo}, system=${!!systemInfo}`);
 
     return {
       ...device,
@@ -574,7 +583,8 @@ export async function getDeviceWithDetails(userId: string, deviceId: number): Pr
       volumes: disks,
       nics: networkInterfaces,
     };
-  } catch {
+  } catch (err: any) {
+    console.error(`Error fetching device ${deviceId} from NinjaRMM:`, err.message);
     return null;
   }
 }

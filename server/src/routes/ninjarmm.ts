@@ -366,7 +366,7 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
 
     // Get ninja_id from local device
     const result = await query(
-      'SELECT ninja_id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+      'SELECT ninja_id, ninja_device_id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
@@ -374,11 +374,21 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
       return res.status(404).json({ success: false, error: 'Device not found' });
     }
 
-    const ninjaId = result.rows[0].ninja_id;
+    // Try ninja_id first, fall back to ninja_device_id parsed as integer
+    let ninjaId = result.rows[0].ninja_id;
+    if (!ninjaId && result.rows[0].ninja_device_id) {
+      ninjaId = parseInt(result.rows[0].ninja_device_id, 10);
+    }
+
+    if (!ninjaId || isNaN(ninjaId)) {
+      return res.status(400).json({ success: false, error: 'Keine gültige NinjaRMM Device ID vorhanden' });
+    }
+
+    console.log(`Refreshing device details for ninja_id: ${ninjaId}`);
     const device = await ninjaService.getDeviceWithDetails(userId, ninjaId);
 
     if (!device) {
-      return res.status(404).json({ success: false, error: 'Device not found in NinjaRMM' });
+      return res.status(404).json({ success: false, error: 'Gerät nicht in NinjaRMM gefunden - möglicherweise gelöscht?' });
     }
 
     // Update local device with fetched details
