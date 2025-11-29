@@ -1737,6 +1737,13 @@ export const ninjaApi = {
     return authFetch(`/ninjarmm/devices/${deviceId}/details`);
   },
 
+  // Refresh device details (fetch from NinjaRMM and save locally)
+  refreshDeviceDetails: async (deviceId: string): Promise<{ success: boolean; data: NinjaDevice }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}/refresh`, {
+      method: 'POST',
+    });
+  },
+
   // Get alerts
   getAlerts: async (options?: {
     deviceId?: string;

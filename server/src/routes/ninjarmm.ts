@@ -358,6 +358,98 @@ router.get('/devices/:id/details', authenticateToken, requireNinjaFeature, async
   }
 });
 
+// POST /api/ninjarmm/devices/:id/refresh - Fetch and save device details from NinjaRMM
+router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    // Get ninja_id from local device
+    const result = await query(
+      'SELECT ninja_id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Device not found' });
+    }
+
+    const ninjaId = result.rows[0].ninja_id;
+    const device = await ninjaService.getDeviceWithDetails(userId, ninjaId);
+
+    if (!device) {
+      return res.status(404).json({ success: false, error: 'Device not found in NinjaRMM' });
+    }
+
+    // Update local device with fetched details
+    await query(
+      `UPDATE ninjarmm_devices SET
+        os_name = $1,
+        manufacturer = $2,
+        model = $3,
+        serial_number = $4,
+        last_logged_in_user = $5,
+        public_ip = $6,
+        synced_at = NOW()
+      WHERE id = $7 AND user_id = $8`,
+      [
+        device.os?.name || null,
+        device.system?.manufacturer || null,
+        device.system?.model || null,
+        device.system?.serialNumber || null,
+        device.lastLoggedInUser || null,
+        device.publicIP || null,
+        id,
+        userId,
+      ]
+    );
+
+    // Fetch and return updated local device
+    const updatedResult = await query(
+      `SELECT
+        d.id, d.ninja_id, d.system_name, d.display_name, d.node_class,
+        d.offline, d.last_contact, d.public_ip, d.os_name,
+        d.manufacturer, d.model, d.serial_number, d.last_logged_in_user, d.synced_at,
+        o.name as organization_name, c.name as customer_name
+      FROM ninjarmm_devices d
+      JOIN ninjarmm_organizations o ON d.organization_id = o.id
+      LEFT JOIN customers c ON o.customer_id = c.id
+      WHERE d.id = $1 AND d.user_id = $2`,
+      [id, userId]
+    );
+
+    if (updatedResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Device not found after update' });
+    }
+
+    const row = updatedResult.rows[0];
+    res.json({
+      success: true,
+      data: {
+        id: row.id,
+        ninjaId: row.ninja_id,
+        organizationName: row.organization_name,
+        customerName: row.customer_name,
+        systemName: row.system_name,
+        displayName: row.display_name,
+        nodeClass: row.node_class,
+        offline: row.offline,
+        lastContact: row.last_contact ? new Date(row.last_contact).toISOString() : null,
+        publicIp: row.public_ip,
+        osName: row.os_name,
+        manufacturer: row.manufacturer,
+        model: row.model,
+        serialNumber: row.serial_number,
+        lastLoggedInUser: row.last_logged_in_user,
+        syncedAt: new Date(row.synced_at).toISOString(),
+      },
+    });
+  } catch (error: any) {
+    console.error('Refresh device details error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================
 // Alerts
 // ============================================

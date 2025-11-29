@@ -40,6 +40,7 @@ export const NinjaRMMSettings = () => {
   const [selectedAlert, setSelectedAlert] = useState<NinjaAlert | null>(null);
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [resolvingAlert, setResolvingAlert] = useState(false);
+  const [refreshingDevice, setRefreshingDevice] = useState(false);
 
   // Search/Filter state
   const [deviceSearch, setDeviceSearch] = useState('');
@@ -298,6 +299,29 @@ export const NinjaRMMSettings = () => {
       setError(err.message || 'Fehler beim Markieren als gelöst');
     } finally {
       setResolvingAlert(false);
+    }
+  };
+
+  const handleRefreshDeviceDetails = async (deviceId: string) => {
+    try {
+      setRefreshingDevice(true);
+      setError('');
+      const result = await ninjaApi.refreshDeviceDetails(deviceId);
+      if (result.success) {
+        setSuccess('Gerätedetails aktualisiert');
+        // Update device in local state
+        setDevices(prev => prev.map(d =>
+          d.id === deviceId ? result.data : d
+        ));
+        // Update selected device
+        if (selectedDevice?.id === deviceId) {
+          setSelectedDevice(result.data);
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Laden der Details');
+    } finally {
+      setRefreshingDevice(false);
     }
   };
 
@@ -1062,7 +1086,15 @@ export const NinjaRMMSettings = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
+            <div className="flex justify-between gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
+              <button
+                onClick={() => handleRefreshDeviceDetails(selectedDevice.id)}
+                disabled={refreshingDevice}
+                className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors"
+              >
+                <RefreshCw size={16} className={refreshingDevice ? 'animate-spin' : ''} />
+                {refreshingDevice ? 'Lade Details...' : 'Details von NinjaRMM laden'}
+              </button>
               <button
                 onClick={() => setSelectedDevice(null)}
                 className="px-4 py-2 text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
