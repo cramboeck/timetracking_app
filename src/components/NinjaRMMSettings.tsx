@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Settings, Save, RefreshCw, Link2, Unlink, CheckCircle, XCircle,
   AlertTriangle, Server, Building, Clock, ExternalLink, Shield, Monitor,
-  Wifi, WifiOff, Bell, Ticket
+  Wifi, WifiOff, Bell, Ticket, X, Cpu, HardDrive, Globe, User
 } from 'lucide-react';
 import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert } from '../services/api';
 import { customersApi } from '../services/api';
@@ -34,6 +34,9 @@ export const NinjaRMMSettings = () => {
 
   // Active section
   const [activeSection, setActiveSection] = useState<'config' | 'organizations' | 'devices' | 'alerts' | 'sync'>('config');
+
+  // Modal state
+  const [selectedDevice, setSelectedDevice] = useState<NinjaDevice | null>(null);
 
   useEffect(() => {
     loadData();
@@ -559,7 +562,11 @@ export const NinjaRMMSettings = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
                     {devices.map(device => (
-                      <tr key={device.id} className="hover:bg-gray-50 dark:hover:bg-dark-50">
+                      <tr
+                        key={device.id}
+                        className="hover:bg-gray-50 dark:hover:bg-dark-50 cursor-pointer"
+                        onClick={() => setSelectedDevice(device)}
+                      >
                         <td className="px-4 py-3">
                           {device.offline ? (
                             <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
@@ -771,6 +778,157 @@ export const NinjaRMMSettings = () => {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Device Detail Modal */}
+      {selectedDevice && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-200">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${selectedDevice.offline ? 'bg-red-100 dark:bg-red-900/30' : 'bg-green-100 dark:bg-green-900/30'}`}>
+                  {selectedDevice.offline ? (
+                    <WifiOff className="text-red-600 dark:text-red-400" size={20} />
+                  ) : (
+                    <Wifi className="text-green-600 dark:text-green-400" size={20} />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    {selectedDevice.displayName || selectedDevice.systemName}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    {selectedDevice.offline ? 'Offline' : 'Online'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedDevice(null)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* System Info */}
+                <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Cpu size={16} className="text-gray-500" />
+                    <h4 className="font-medium text-gray-900 dark:text-white">System</h4>
+                  </div>
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Systemname</dt>
+                      <dd className="text-gray-900 dark:text-white font-medium">{selectedDevice.systemName}</dd>
+                    </div>
+                    {selectedDevice.displayName && selectedDevice.displayName !== selectedDevice.systemName && (
+                      <div className="flex justify-between">
+                        <dt className="text-gray-500 dark:text-dark-400">Anzeigename</dt>
+                        <dd className="text-gray-900 dark:text-white font-medium">{selectedDevice.displayName}</dd>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Typ</dt>
+                      <dd className="text-gray-900 dark:text-white">{selectedDevice.nodeClass?.replace(/_/g, ' ') || '-'}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Betriebssystem</dt>
+                      <dd className="text-gray-900 dark:text-white">{selectedDevice.osName || '-'}</dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {/* Hardware Info */}
+                <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <HardDrive size={16} className="text-gray-500" />
+                    <h4 className="font-medium text-gray-900 dark:text-white">Hardware</h4>
+                  </div>
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Hersteller</dt>
+                      <dd className="text-gray-900 dark:text-white">{selectedDevice.manufacturer || '-'}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Modell</dt>
+                      <dd className="text-gray-900 dark:text-white">{selectedDevice.model || '-'}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Seriennummer</dt>
+                      <dd className="text-gray-900 dark:text-white font-mono text-xs">{selectedDevice.serialNumber || '-'}</dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {/* Network Info */}
+                <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Globe size={16} className="text-gray-500" />
+                    <h4 className="font-medium text-gray-900 dark:text-white">Netzwerk</h4>
+                  </div>
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Öffentliche IP</dt>
+                      <dd className="text-gray-900 dark:text-white font-mono">{selectedDevice.publicIp || '-'}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Letzter Kontakt</dt>
+                      <dd className="text-gray-900 dark:text-white">
+                        {selectedDevice.lastContact
+                          ? new Date(selectedDevice.lastContact).toLocaleString('de-DE')
+                          : '-'
+                        }
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {/* Organization Info */}
+                <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Building size={16} className="text-gray-500" />
+                    <h4 className="font-medium text-gray-900 dark:text-white">Organisation</h4>
+                  </div>
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">NinjaRMM Org</dt>
+                      <dd className="text-gray-900 dark:text-white">{selectedDevice.organizationName}</dd>
+                    </div>
+                    {selectedDevice.customerName && (
+                      <div className="flex justify-between">
+                        <dt className="text-gray-500 dark:text-dark-400">Kunde</dt>
+                        <dd className="text-gray-900 dark:text-white font-medium">{selectedDevice.customerName}</dd>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Synchronisiert</dt>
+                      <dd className="text-gray-900 dark:text-white">
+                        {selectedDevice.syncedAt
+                          ? new Date(selectedDevice.syncedAt).toLocaleString('de-DE')
+                          : '-'
+                        }
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
+              <button
+                onClick={() => setSelectedDevice(null)}
+                className="px-4 py-2 text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
