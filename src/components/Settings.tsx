@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon, UserCog, Ticket, Book, Server } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon, UserCog, Ticket, Book, Server } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -64,6 +64,7 @@ export const Settings = ({
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Company Info State
   const [companyName, setCompanyName] = useState('');
@@ -859,24 +860,99 @@ export const Settings = ({
         </nav>
       </div>
 
-      {/* Mobile Header with Dropdown - positioned below AreaNavigation */}
+      {/* Mobile Header - iOS Style Button */}
       <div className="lg:hidden fixed top-12 left-0 right-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-700/50 px-4 py-2">
-        <select
-          value={activeTab}
-          onChange={(e) => setActiveTab(e.target.value as any)}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-xl bg-white dark:bg-dark-100 text-gray-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-accent-primary"
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-100/80 dark:bg-gray-800/80 rounded-xl active:scale-[0.98] transition-transform"
         >
-          {menuItems.map((section) => (
-            <optgroup key={section.category} label={section.category}>
-              {section.items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+          <div className="flex items-center gap-3">
+            {(() => {
+              const currentItem = menuItems.flatMap(s => s.items).find(i => i.id === activeTab);
+              const Icon = currentItem?.icon || UserIcon;
+              return (
+                <>
+                  <div className="w-8 h-8 rounded-lg bg-accent-primary/15 flex items-center justify-center">
+                    <Icon size={18} className="text-accent-primary" />
+                  </div>
+                  <span className="font-semibold text-gray-900 dark:text-white">{currentItem?.label}</span>
+                </>
+              );
+            })()}
+          </div>
+          <ChevronDown size={20} className="text-gray-400" />
+        </button>
       </div>
+
+      {/* iOS Style Bottom Sheet Menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+
+          {/* Sheet */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gray-100 dark:bg-gray-900 rounded-t-3xl max-h-[70vh] overflow-hidden animate-slide-up">
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+            </div>
+
+            {/* Menu Items */}
+            <div className="overflow-y-auto max-h-[calc(70vh-60px)] pb-8 px-4">
+              {menuItems.map((section, idx) => (
+                <div key={section.category} className={idx > 0 ? 'mt-6' : ''}>
+                  {/* Section Header */}
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2">
+                    {section.category}
+                  </h3>
+
+                  {/* Section Items - iOS grouped style */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden">
+                    {section.items.map((item, itemIdx) => {
+                      const Icon = item.icon;
+                      const isActive = activeTab === item.id;
+                      const isLast = itemIdx === section.items.length - 1;
+
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setActiveTab(item.id as any);
+                            setMobileMenuOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-100 dark:active:bg-gray-700 transition-colors ${
+                            !isLast ? 'border-b border-gray-100 dark:border-gray-700' : ''
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                            isActive ? 'bg-accent-primary/15' : 'bg-gray-100 dark:bg-gray-700'
+                          }`}>
+                            <Icon size={18} className={isActive ? 'text-accent-primary' : 'text-gray-500 dark:text-gray-400'} />
+                          </div>
+                          <div className="flex-1 text-left">
+                            <div className={`text-sm ${isActive ? 'font-semibold text-accent-primary' : 'font-medium text-gray-900 dark:text-white'}`}>
+                              {item.label}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {item.desc}
+                            </div>
+                          </div>
+                          {isActive && (
+                            <Check size={20} className="text-accent-primary" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
