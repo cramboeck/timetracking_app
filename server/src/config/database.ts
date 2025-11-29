@@ -446,6 +446,63 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add missing columns to ninjarmm_alerts
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_alerts' AND column_name = 'resolved'
+        ) THEN
+          ALTER TABLE ninjarmm_alerts ADD COLUMN resolved BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_alerts' AND column_name = 'resolved_at'
+        ) THEN
+          ALTER TABLE ninjarmm_alerts ADD COLUMN resolved_at TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_alerts' AND column_name = 'ninja_uid'
+        ) THEN
+          ALTER TABLE ninjarmm_alerts ADD COLUMN ninja_uid TEXT;
+          -- Copy data from ninja_alert_id to ninja_uid
+          UPDATE ninjarmm_alerts SET ninja_uid = ninja_alert_id WHERE ninja_uid IS NULL;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_alerts' AND column_name = 'activity_time'
+        ) THEN
+          ALTER TABLE ninjarmm_alerts ADD COLUMN activity_time TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_alerts' AND column_name = 'created_at'
+        ) THEN
+          ALTER TABLE ninjarmm_alerts ADD COLUMN created_at TIMESTAMP DEFAULT NOW();
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_alerts' AND column_name = 'source_name'
+        ) THEN
+          ALTER TABLE ninjarmm_alerts ADD COLUMN source_name TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_alerts' AND column_name = 'alert_data'
+        ) THEN
+          ALTER TABLE ninjarmm_alerts ADD COLUMN alert_data JSONB;
+        END IF;
+      END $$;
+    `);
+
+    // Create unique index on ninja_uid if it doesn't exist
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_ninjarmm_alerts_user_ninja_uid
+      ON ninjarmm_alerts(user_id, ninja_uid) WHERE ninja_uid IS NOT NULL
+    `);
+
     // Create indexes for NinjaRMM tables
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_user_id ON ninjarmm_devices(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_org_id ON ninjarmm_devices(organization_id)');
