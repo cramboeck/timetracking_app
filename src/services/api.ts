@@ -1580,6 +1580,196 @@ export const sevdeskApi = {
   },
 };
 
+// ============================================
+// NinjaRMM API
+// ============================================
+
+export interface NinjaRMMConfig {
+  instanceUrl: string;
+  clientId: string | null;
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  isConnected: boolean;
+  tokenExpiresAt: string | null;
+  autoSyncDevices: boolean;
+  syncIntervalMinutes: number;
+  lastSyncAt: string | null;
+}
+
+export interface NinjaSyncStatus {
+  lastSync: string | null;
+  organizationCount: number;
+  deviceCount: number;
+  alertCount: number;
+  unresolvedAlertCount: number;
+}
+
+export interface NinjaOrganization {
+  id: string;
+  ninjaId: number;
+  name: string;
+  description: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  deviceCount: number;
+  syncedAt: string;
+}
+
+export interface NinjaDevice {
+  id: string;
+  ninjaId: number;
+  organizationName: string;
+  customerName: string | null;
+  systemName: string;
+  displayName: string | null;
+  nodeClass: string;
+  offline: boolean;
+  lastContact: string | null;
+  publicIp: string | null;
+  osName: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  syncedAt: string;
+}
+
+export interface NinjaAlert {
+  id: string;
+  ninjaUid: string;
+  deviceName: string | null;
+  organizationName: string | null;
+  customerName: string | null;
+  severity: string;
+  priority: string;
+  message: string;
+  sourceType: string | null;
+  sourceName: string | null;
+  activityTime: string;
+  createdAt: string;
+  resolved: boolean;
+  resolvedAt: string | null;
+  ticketId: string | null;
+}
+
+export const ninjaApi = {
+  // Get configuration
+  getConfig: async (): Promise<{ success: boolean; data: NinjaRMMConfig | null }> => {
+    return authFetch('/ninjarmm/config');
+  },
+
+  // Save configuration
+  saveConfig: async (config: {
+    clientId?: string;
+    clientSecret?: string;
+    instanceUrl?: string;
+    autoSyncDevices?: boolean;
+    syncIntervalMinutes?: number;
+  }): Promise<{ success: boolean; data: NinjaRMMConfig }> => {
+    return authFetch('/ninjarmm/config', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  },
+
+  // Get OAuth2 authorization URL
+  getAuthUrl: async (): Promise<{ success: boolean; data: { authUrl: string; redirectUri: string } }> => {
+    return authFetch('/ninjarmm/auth-url');
+  },
+
+  // Disconnect from NinjaRMM
+  disconnect: async (): Promise<{ success: boolean }> => {
+    return authFetch('/ninjarmm/disconnect', { method: 'POST' });
+  },
+
+  // Test connection
+  testConnection: async (): Promise<{ success: boolean; data?: { organizationCount: number; deviceCount: number }; error?: string }> => {
+    return authFetch('/ninjarmm/test');
+  },
+
+  // Sync all data
+  syncAll: async (): Promise<{ success: boolean; data: { organizations: { synced: number; errors: number }; devices: { synced: number; errors: number }; alerts: { synced: number; errors: number } } }> => {
+    return authFetch('/ninjarmm/sync', { method: 'POST' });
+  },
+
+  // Get sync status
+  getSyncStatus: async (): Promise<{ success: boolean; data: NinjaSyncStatus }> => {
+    return authFetch('/ninjarmm/sync-status');
+  },
+
+  // Get organizations
+  getOrganizations: async (): Promise<{ success: boolean; data: NinjaOrganization[] }> => {
+    return authFetch('/ninjarmm/organizations');
+  },
+
+  // Link organization to customer
+  linkOrganization: async (organizationId: string, customerId: string | null): Promise<{ success: boolean }> => {
+    return authFetch(`/ninjarmm/organizations/${organizationId}/link`, {
+      method: 'PUT',
+      body: JSON.stringify({ customerId }),
+    });
+  },
+
+  // Get devices
+  getDevices: async (options?: {
+    organizationId?: string;
+    customerId?: string;
+    nodeClass?: string;
+    offline?: boolean;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ success: boolean; data: NinjaDevice[] }> => {
+    const params = new URLSearchParams();
+    if (options?.organizationId) params.append('organizationId', options.organizationId);
+    if (options?.customerId) params.append('customerId', options.customerId);
+    if (options?.nodeClass) params.append('nodeClass', options.nodeClass);
+    if (options?.offline !== undefined) params.append('offline', options.offline.toString());
+    if (options?.search) params.append('search', options.search);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    const queryString = params.toString();
+    return authFetch(`/ninjarmm/devices${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get device details
+  getDeviceDetails: async (deviceId: string): Promise<{ success: boolean; data: any }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}/details`);
+  },
+
+  // Get alerts
+  getAlerts: async (options?: {
+    deviceId?: string;
+    customerId?: string;
+    severity?: string;
+    resolved?: boolean;
+    ticketId?: string;
+    limit?: number;
+  }): Promise<{ success: boolean; data: NinjaAlert[] }> => {
+    const params = new URLSearchParams();
+    if (options?.deviceId) params.append('deviceId', options.deviceId);
+    if (options?.customerId) params.append('customerId', options.customerId);
+    if (options?.severity) params.append('severity', options.severity);
+    if (options?.resolved !== undefined) params.append('resolved', options.resolved.toString());
+    if (options?.ticketId) params.append('ticketId', options.ticketId);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    const queryString = params.toString();
+    return authFetch(`/ninjarmm/alerts${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Resolve alert
+  resolveAlert: async (alertId: string, ticketId?: string, resetInNinja?: boolean): Promise<{ success: boolean }> => {
+    return authFetch(`/ninjarmm/alerts/${alertId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ ticketId, resetInNinja }),
+    });
+  },
+
+  // Create ticket from alert
+  createTicketFromAlert: async (alertId: string): Promise<{ success: boolean; data: { ticketId: string } }> => {
+    return authFetch(`/ninjarmm/alerts/${alertId}/create-ticket`, { method: 'POST' });
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,

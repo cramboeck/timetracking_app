@@ -685,6 +685,20 @@ export async function syncOrganizations(userId: string): Promise<SyncResult> {
 }
 
 // Sync devices to local database
+// Helper to convert Unix timestamp or ISO string to Date
+function parseNinjaTimestamp(value: string | number | null | undefined): Date | null {
+  if (!value) return null;
+  // If it's a number or looks like a Unix timestamp (all digits)
+  if (typeof value === 'number' || /^\d+$/.test(String(value))) {
+    const timestamp = typeof value === 'number' ? value : parseInt(value);
+    // Unix timestamps from NinjaRMM are in seconds, not milliseconds
+    return new Date(timestamp * 1000);
+  }
+  // Otherwise try to parse as ISO string
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? null : date;
+}
+
 export async function syncDevices(userId: string): Promise<SyncResult> {
   let synced = 0;
   let errors = 0;
@@ -694,6 +708,8 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
 
     for (const device of devices) {
       try {
+        const lastContact = parseNinjaTimestamp(device.lastContact);
+
         await query(
           `INSERT INTO ninjarmm_devices (
             id, user_id, ninja_id, organization_id, ninja_org_id,
@@ -731,7 +747,7 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
             device.dnsName || null,
             device.nodeClass,
             device.offline,
-            device.lastContact || null,
+            lastContact,
             device.publicIP || null,
             device.os?.name || null,
             device.system?.manufacturer || null,
@@ -764,6 +780,9 @@ export async function syncAlerts(userId: string): Promise<SyncResult> {
 
     for (const alert of alerts) {
       try {
+        const activityTime = parseNinjaTimestamp(alert.activityTime);
+        const createTime = parseNinjaTimestamp(alert.createTime);
+
         await query(
           `INSERT INTO ninjarmm_alerts (
             id, user_id, ninja_uid, device_id,
@@ -791,8 +810,8 @@ export async function syncAlerts(userId: string): Promise<SyncResult> {
             alert.message,
             alert.sourceType || null,
             alert.sourceName || null,
-            alert.activityTime,
-            alert.createTime,
+            activityTime,
+            createTime,
             JSON.stringify(alert),
           ]
         );
