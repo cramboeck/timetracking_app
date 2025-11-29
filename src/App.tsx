@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView } from './components/AreaNavigation';
 import { Stopwatch } from './components/Stopwatch';
 import { ManualEntry } from './components/ManualEntry';
@@ -10,6 +10,7 @@ import { Tickets } from './components/Tickets';
 import { Finanzen } from './components/Finanzen';
 import { DevicesView } from './components/DevicesView';
 import { AlertsView } from './components/AlertsView';
+import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
@@ -18,6 +19,8 @@ import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { darkMode } from './utils/darkMode';
 import { useAuth } from './contexts/AuthContext';
+import { useSwipeGesture } from './hooks/useSwipeGesture';
+import { haptics } from './utils/haptics';
 import { notificationService } from './utils/notifications';
 import { projectsApi, customersApi, activitiesApi, entriesApi } from './services/api';
 
@@ -477,6 +480,52 @@ function App() {
     darkMode.set(newMode);
   };
 
+  // Get visible areas for swipe navigation
+  const visibleAreas: Area[] = ['arbeiten', 'support', 'business']; // TODO: Filter by enabled packages
+
+  // Swipe between areas
+  const handleSwipeLeft = useCallback(() => {
+    const currentIndex = visibleAreas.indexOf(currentArea);
+    if (currentIndex < visibleAreas.length - 1) {
+      haptics.light();
+      handleAreaChange(visibleAreas[currentIndex + 1]);
+    }
+  }, [currentArea, visibleAreas]);
+
+  const handleSwipeRight = useCallback(() => {
+    const currentIndex = visibleAreas.indexOf(currentArea);
+    if (currentIndex > 0) {
+      haptics.light();
+      handleAreaChange(visibleAreas[currentIndex - 1]);
+    }
+  }, [currentArea, visibleAreas]);
+
+  const swipeHandlers = useSwipeGesture({
+    onSwipeLeft: handleSwipeLeft,
+    onSwipeRight: handleSwipeRight,
+    minSwipeDistance: 75,
+  });
+
+  // FAB handlers
+  const handleFABStartTimer = () => {
+    setCurrentArea('arbeiten');
+    setCurrentSubView('stopwatch');
+  };
+
+  const handleFABStopTimer = async () => {
+    if (runningEntry) {
+      haptics.heavy();
+      const stoppedEntry = {
+        ...runningEntry,
+        isRunning: false,
+        endTime: new Date().toISOString(),
+        duration: Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000),
+      };
+      await handleSaveEntry(stoppedEntry);
+      setRunningEntry(null);
+    }
+  };
+
   // Loading state
   if (isLoading) {
     return (
@@ -505,7 +554,10 @@ function App() {
         onSubViewChange={handleSubViewChange}
       />
 
-      <main className="flex-1 overflow-y-auto pt-12 pb-16">
+      <main
+        className="flex-1 overflow-y-auto pt-12 pb-16"
+        {...swipeHandlers}
+      >
         {currentSubView === 'stopwatch' && (
           <Stopwatch
             onSave={handleSaveEntry}
@@ -625,6 +677,14 @@ function App() {
           />
         )}
       </main>
+
+      {/* Floating Action Button */}
+      <FloatingActionButton
+        isTimerRunning={!!runningEntry}
+        onStartTimer={handleFABStartTimer}
+        onStopTimer={handleFABStopTimer}
+        currentView={currentSubView}
+      />
 
       {/* Welcome Modal for new users */}
       {showWelcomeModal && (
