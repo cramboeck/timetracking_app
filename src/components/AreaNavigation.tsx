@@ -75,27 +75,32 @@ export const AreaNavigation = ({
 
   return (
     <>
-      {/* Sub-Navigation (Top) */}
-      <div className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-30">
+      {/* Sub-Navigation (Top) - iOS Glassmorphism */}
+      <div className="fixed top-0 left-0 right-0 z-30
+        bg-white/70 dark:bg-gray-900/70
+        backdrop-blur-xl
+        border-b border-white/20 dark:border-gray-700/50
+        shadow-sm
+      ">
         <div className="flex items-center h-12 px-2">
           {/* Area Title */}
           <div className="flex items-center gap-2 px-3 py-1 mr-2">
             <currentAreaConfig.icon size={18} className="text-accent-primary" />
-            <span className="font-medium text-gray-900 dark:text-white text-sm">
+            <span className="font-semibold text-gray-900 dark:text-white text-sm">
               {currentAreaConfig.label}
             </span>
           </div>
 
           {/* Sub-View Tabs */}
-          <div className="flex gap-1 flex-1 overflow-x-auto">
+          <div className="flex gap-1 flex-1 overflow-x-auto scrollbar-hide">
             {currentAreaConfig.subViews.map(({ view, icon: Icon, label }) => (
               <button
                 key={view}
                 onClick={() => onSubViewChange(view)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm whitespace-nowrap transition-all duration-200 ${
                   currentSubView === view
-                    ? 'bg-accent-primary/10 text-accent-primary font-medium'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    ? 'bg-accent-primary/20 text-accent-primary font-semibold shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-gray-800/50 active:scale-95'
                 }`}
               >
                 <Icon size={16} />
@@ -107,10 +112,10 @@ export const AreaNavigation = ({
           {/* Settings Button */}
           <button
             onClick={() => onSubViewChange('settings')}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`p-2 rounded-xl transition-all duration-200 ${
               currentSubView === 'settings'
-                ? 'bg-accent-primary/10 text-accent-primary'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                ? 'bg-accent-primary/20 text-accent-primary shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-gray-800/50 active:scale-95'
             }`}
           >
             <Settings size={20} />
@@ -118,8 +123,12 @@ export const AreaNavigation = ({
         </div>
       </div>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 safe-area-bottom z-40">
+      {/* Bottom Navigation - iOS Glassmorphism */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom
+        bg-white/70 dark:bg-gray-900/70
+        backdrop-blur-xl
+        border-t border-white/20 dark:border-gray-700/50
+      ">
         <div className="flex justify-around items-center h-16">
           {visibleAreas.map((area) => {
             const config = areaConfig[area];
@@ -130,14 +139,22 @@ export const AreaNavigation = ({
               <button
                 key={area}
                 onClick={() => onAreaChange(area)}
-                className={`flex flex-col items-center justify-center flex-1 h-full touch-manipulation transition-colors ${
+                className={`flex flex-col items-center justify-center flex-1 h-full touch-manipulation transition-all duration-200 active:scale-95 ${
                   isActive
                     ? 'text-accent-primary'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                    : 'text-gray-500 dark:text-gray-400'
                 }`}
               >
-                <Icon size={24} />
-                <span className="text-xs mt-1">{config.label}</span>
+                <div className={`p-1.5 rounded-xl transition-all duration-200 ${
+                  isActive ? 'bg-accent-primary/15' : ''
+                }`}>
+                  <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+                </div>
+                <span className={`text-xs mt-0.5 transition-all duration-200 ${
+                  isActive ? 'font-semibold' : 'font-medium'
+                }`}>
+                  {config.label}
+                </span>
               </button>
             );
           })}
