@@ -503,6 +503,92 @@ export async function initializeDatabase() {
       ON ninjarmm_alerts(user_id, ninja_uid) WHERE ninja_uid IS NOT NULL
     `);
 
+    // Migration: Add missing columns to ninjarmm_devices
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_devices' AND column_name = 'ninja_id'
+        ) THEN
+          ALTER TABLE ninjarmm_devices ADD COLUMN ninja_id INTEGER;
+          -- Copy from ninja_device_id
+          UPDATE ninjarmm_devices SET ninja_id = ninja_device_id::INTEGER WHERE ninja_id IS NULL AND ninja_device_id ~ '^[0-9]+$';
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_devices' AND column_name = 'display_name'
+        ) THEN
+          ALTER TABLE ninjarmm_devices ADD COLUMN display_name TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_devices' AND column_name = 'node_class'
+        ) THEN
+          ALTER TABLE ninjarmm_devices ADD COLUMN node_class TEXT;
+          UPDATE ninjarmm_devices SET node_class = device_type WHERE node_class IS NULL;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_devices' AND column_name = 'manufacturer'
+        ) THEN
+          ALTER TABLE ninjarmm_devices ADD COLUMN manufacturer TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_devices' AND column_name = 'model'
+        ) THEN
+          ALTER TABLE ninjarmm_devices ADD COLUMN model TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_devices' AND column_name = 'serial_number'
+        ) THEN
+          ALTER TABLE ninjarmm_devices ADD COLUMN serial_number TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_devices' AND column_name = 'synced_at'
+        ) THEN
+          ALTER TABLE ninjarmm_devices ADD COLUMN synced_at TIMESTAMP DEFAULT NOW();
+          UPDATE ninjarmm_devices SET synced_at = last_sync_at WHERE synced_at IS NULL;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_devices' AND column_name = 'device_data'
+        ) THEN
+          ALTER TABLE ninjarmm_devices ADD COLUMN device_data JSONB;
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Add missing columns to ninjarmm_organizations
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_organizations' AND column_name = 'ninja_id'
+        ) THEN
+          ALTER TABLE ninjarmm_organizations ADD COLUMN ninja_id INTEGER;
+          UPDATE ninjarmm_organizations SET ninja_id = ninja_org_id::INTEGER WHERE ninja_id IS NULL AND ninja_org_id ~ '^[0-9]+$';
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_organizations' AND column_name = 'synced_at'
+        ) THEN
+          ALTER TABLE ninjarmm_organizations ADD COLUMN synced_at TIMESTAMP DEFAULT NOW();
+          UPDATE ninjarmm_organizations SET synced_at = last_sync_at WHERE synced_at IS NULL;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_organizations' AND column_name = 'userdata'
+        ) THEN
+          ALTER TABLE ninjarmm_organizations ADD COLUMN userdata JSONB;
+        END IF;
+      END $$;
+    `);
+
     // Create indexes for NinjaRMM tables
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_user_id ON ninjarmm_devices(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_org_id ON ninjarmm_devices(organization_id)');
