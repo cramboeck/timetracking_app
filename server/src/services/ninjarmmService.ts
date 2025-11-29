@@ -723,11 +723,11 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
             id, user_id, ninja_device_id, ninja_id, organization_id, ninja_org_id,
             system_name, display_name, dns_name, node_class,
             offline, last_contact, public_ip, os_name,
-            manufacturer, model, serial_number, device_data, synced_at
+            manufacturer, model, serial_number, last_logged_in_user, device_data, synced_at
           ) VALUES (
             $1, $2, $3, $4,
             (SELECT id FROM ninjarmm_organizations WHERE user_id = $2 AND ninja_org_id = $5),
-            $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW()
+            $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW()
           )
           ON CONFLICT (user_id, ninja_device_id)
           DO UPDATE SET
@@ -744,6 +744,7 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
             manufacturer = EXCLUDED.manufacturer,
             model = EXCLUDED.model,
             serial_number = EXCLUDED.serial_number,
+            last_logged_in_user = EXCLUDED.last_logged_in_user,
             device_data = EXCLUDED.device_data,
             synced_at = NOW()`,
           [
@@ -763,6 +764,7 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
             device.system?.manufacturer || null,
             device.system?.model || null,
             device.system?.serialNumber || null,
+            device.lastLoggedInUser || null,
             JSON.stringify(device),
           ]
         );
@@ -931,13 +933,14 @@ export async function getLocalDevices(
   manufacturer: string | null;
   model: string | null;
   serialNumber: string | null;
+  lastLoggedInUser: string | null;
   syncedAt: Date;
 }>> {
   let sql = `
     SELECT
       d.id, d.ninja_id, d.system_name, d.display_name, d.node_class,
       d.offline, d.last_contact, d.public_ip, d.os_name,
-      d.manufacturer, d.model, d.serial_number, d.synced_at,
+      d.manufacturer, d.model, d.serial_number, d.last_logged_in_user, d.synced_at,
       o.name as organization_name, c.name as customer_name
     FROM ninjarmm_devices d
     JOIN ninjarmm_organizations o ON d.organization_id = o.id
@@ -1003,6 +1006,7 @@ export async function getLocalDevices(
     manufacturer: row.manufacturer,
     model: row.model,
     serialNumber: row.serial_number,
+    lastLoggedInUser: row.last_logged_in_user,
     syncedAt: new Date(row.synced_at),
   }));
 }

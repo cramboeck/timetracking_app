@@ -1630,6 +1630,7 @@ export interface NinjaDevice {
   manufacturer: string | null;
   model: string | null;
   serialNumber: string | null;
+  lastLoggedInUser: string | null;
   syncedAt: string;
 }
 

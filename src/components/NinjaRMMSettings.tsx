@@ -1007,7 +1007,7 @@ export const NinjaRMMSettings = () => {
                 <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Globe size={16} className="text-gray-500" />
-                    <h4 className="font-medium text-gray-900 dark:text-white">Netzwerk</h4>
+                    <h4 className="font-medium text-gray-900 dark:text-white">Netzwerk & Zugriff</h4>
                   </div>
                   <dl className="space-y-2 text-sm">
                     <div className="flex justify-between">
@@ -1022,6 +1022,10 @@ export const NinjaRMMSettings = () => {
                           : '-'
                         }
                       </dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Letzter Benutzer</dt>
+                      <dd className="text-gray-900 dark:text-white">{selectedDevice.lastLoggedInUser || '-'}</dd>
                     </div>
                   </dl>
                 </div>
