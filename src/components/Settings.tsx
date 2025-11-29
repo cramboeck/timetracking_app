@@ -859,12 +859,12 @@ export const Settings = ({
         </nav>
       </div>
 
-      {/* Mobile Header with Dropdown */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-10 bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-200 px-4 py-3">
+      {/* Mobile Header with Dropdown - positioned below AreaNavigation */}
+      <div className="lg:hidden fixed top-12 left-0 right-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-700/50 px-4 py-2">
         <select
           value={activeTab}
           onChange={(e) => setActiveTab(e.target.value as any)}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-accent-primary"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-xl bg-white dark:bg-dark-100 text-gray-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-accent-primary"
         >
           {menuItems.map((section) => (
             <optgroup key={section.category} label={section.category}>
@@ -880,7 +880,7 @@ export const Settings = ({
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="lg:hidden h-16"></div> {/* Spacer for mobile header */}
+        <div className="lg:hidden h-14"></div> {/* Spacer for mobile settings header */}
         <div className="p-4 sm:p-6 lg:p-8">
         {/* Account Tab */}
         {activeTab === 'account' && (
