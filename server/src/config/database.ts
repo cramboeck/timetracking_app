@@ -346,6 +346,115 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_report_approvals_token ON report_approvals(token)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_report_approvals_status ON report_approvals(status)');
 
+    // ============================================
+    // NinjaRMM Integration Tables
+    // ============================================
+
+    // NinjaRMM configuration per user
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_config (
+        id TEXT PRIMARY KEY,
+        user_id TEXT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        client_id TEXT,
+        client_secret TEXT,
+        instance_url TEXT DEFAULT 'https://app.ninjarmm.com',
+        access_token TEXT,
+        refresh_token TEXT,
+        token_expires_at TIMESTAMP,
+        auto_sync_devices BOOLEAN DEFAULT FALSE,
+        sync_interval_minutes INTEGER DEFAULT 60,
+        last_sync_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // NinjaRMM organizations (mapped to customers)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_organizations (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        ninja_org_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+        device_count INTEGER DEFAULT 0,
+        last_sync_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, ninja_org_id)
+      )
+    `);
+
+    // NinjaRMM devices
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_devices (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        ninja_device_id TEXT NOT NULL,
+        ninja_org_id TEXT NOT NULL,
+        organization_id TEXT REFERENCES ninjarmm_organizations(id) ON DELETE CASCADE,
+        system_name TEXT NOT NULL,
+        dns_name TEXT,
+        device_type TEXT,
+        os_name TEXT,
+        os_version TEXT,
+        last_contact TIMESTAMP,
+        last_logged_in_user TEXT,
+        public_ip TEXT,
+        private_ip TEXT,
+        offline BOOLEAN DEFAULT FALSE,
+        approval_status TEXT,
+        notes TEXT,
+        custom_fields JSONB,
+        last_sync_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, ninja_device_id)
+      )
+    `);
+
+    // NinjaRMM alerts (for future: alerts → tickets)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_alerts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        ninja_alert_id TEXT NOT NULL,
+        ninja_device_id TEXT,
+        device_id TEXT REFERENCES ninjarmm_devices(id) ON DELETE SET NULL,
+        severity TEXT,
+        priority TEXT,
+        message TEXT,
+        source_type TEXT,
+        created_at_ninja TIMESTAMP,
+        ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+        status TEXT DEFAULT 'new' CHECK(status IN ('new', 'acknowledged', 'resolved', 'ticket_created')),
+        synced_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, ninja_alert_id)
+      )
+    `);
+
+    // Add ninjarmm_organization_id to customers table
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'ninjarmm_organization_id'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN ninjarmm_organization_id TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // Create indexes for NinjaRMM tables
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_user_id ON ninjarmm_devices(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_org_id ON ninjarmm_devices(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_ninja_org_id ON ninjarmm_devices(ninja_org_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_organizations_user_id ON ninjarmm_organizations(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_organizations_customer_id ON ninjarmm_organizations(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_user_id ON ninjarmm_alerts(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_device_id ON ninjarmm_alerts(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customers_ninjarmm_org ON customers(ninjarmm_organization_id)');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {
