@@ -964,7 +964,7 @@ router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthReque
       return res.json({ success: true, data: [], message: 'Could not fetch invoices' });
     }
 
-    const data = await response.json();
+    const data = await response.json() as { objects?: any[] };
     const invoices = (data.objects || []).map((inv: any) => ({
       id: inv.id,
       invoiceNumber: inv.invoiceNumber,
@@ -1042,7 +1042,7 @@ router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest
       return res.json({ success: true, data: [], message: 'Could not fetch quotes' });
     }
 
-    const data = await response.json();
+    const data = await response.json() as { objects?: any[] };
     const quotes = (data.objects || [])
       .filter((order: any) => parseInt(order.status) < 500) // Only quotes, not confirmed orders
       .map((quote: any) => ({
