@@ -237,6 +237,9 @@ export interface CustomerContact {
   isPrimary: boolean;
   canCreateTickets: boolean;
   canViewAllTickets: boolean; // Or only their own
+  canViewDevices: boolean; // View NinjaRMM devices (Support feature)
+  canViewInvoices: boolean; // View sevDesk invoices (Business feature)
+  canViewQuotes: boolean; // View sevDesk quotes (Business feature)
   isActivated?: boolean; // Computed: has set password
   lastLogin?: string;
   createdAt: string;

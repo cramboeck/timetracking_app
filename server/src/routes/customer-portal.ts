@@ -90,6 +90,9 @@ router.post('/login', authLimiter, async (req, res) => {
         email: contact.email,
         canCreateTickets: contact.can_create_tickets,
         canViewAllTickets: contact.can_view_all_tickets,
+        canViewDevices: contact.can_view_devices ?? false,
+        canViewInvoices: contact.can_view_invoices ?? false,
+        canViewQuotes: contact.can_view_quotes ?? false,
       },
     });
   } catch (error) {
@@ -123,6 +126,9 @@ router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, re
       email: contact.email,
       canCreateTickets: contact.can_create_tickets,
       canViewAllTickets: contact.can_view_all_tickets,
+      canViewDevices: contact.can_view_devices ?? false,
+      canViewInvoices: contact.can_view_invoices ?? false,
+      canViewQuotes: contact.can_view_quotes ?? false,
     });
   } catch (error) {
     console.error('Get contact error:', error);
@@ -828,6 +834,233 @@ router.post('/tickets/:id/rate', authenticateCustomerToken, async (req: Customer
     res.json({ success: true, message: 'Thank you for your feedback!' });
   } catch (error) {
     console.error('Rate ticket error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================================================
+// DEVICES (NinjaRMM Integration)
+// ========================================================================
+
+// Get devices for the customer's organization
+router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    // Get customer's NinjaRMM organization ID
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    if (!customer.ninjarmm_organization_id) {
+      return res.json({ success: true, data: [], message: 'No NinjaRMM organization linked' });
+    }
+
+    // Get devices for this organization
+    const devicesResult = await pool.query(
+      `SELECT id, ninja_device_id, ninja_id, display_name, system_name, dns_name,
+              device_type, os_name, os_version, last_contact, last_logged_in_user,
+              public_ip, private_ip, offline, notes
+       FROM ninjarmm_devices
+       WHERE user_id = $1 AND organization_id = $2
+       ORDER BY offline ASC, display_name ASC`,
+      [customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    const devices = devicesResult.rows.map(row => ({
+      id: row.id,
+      ninjaId: row.ninja_id,
+      displayName: row.display_name || row.system_name || row.dns_name,
+      systemName: row.system_name,
+      deviceType: row.device_type,
+      osName: row.os_name,
+      osVersion: row.os_version,
+      lastContact: row.last_contact,
+      lastLoggedInUser: row.last_logged_in_user,
+      publicIp: row.public_ip,
+      privateIp: row.private_ip,
+      offline: row.offline,
+      notes: row.notes,
+    }));
+
+    res.json({ success: true, data: devices });
+  } catch (error) {
+    console.error('Get devices error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================================================
+// INVOICES & QUOTES (sevDesk Integration)
+// ========================================================================
+
+// Get invoices for the customer
+router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_invoices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_invoices) {
+      return res.status(403).json({ error: 'No permission to view invoices' });
+    }
+
+    // Get customer's sevDesk customer ID
+    const customerResult = await pool.query(
+      'SELECT user_id, sevdesk_customer_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    if (!customer.sevdesk_customer_id) {
+      return res.json({ success: true, data: [], message: 'No sevDesk customer linked' });
+    }
+
+    // Get sevDesk API token for the service provider
+    const configResult = await pool.query(
+      'SELECT api_token FROM sevdesk_config WHERE user_id = $1',
+      [customer.user_id]
+    );
+
+    if (!configResult.rows[0]?.api_token) {
+      return res.json({ success: true, data: [], message: 'sevDesk not configured' });
+    }
+
+    const apiToken = configResult.rows[0].api_token;
+
+    // Fetch invoices from sevDesk API
+    const response = await fetch(
+      `https://my.sevdesk.de/api/v1/Invoice?contact[id]=${customer.sevdesk_customer_id}&contact[objectName]=Contact&embed=positions&limit=50`,
+      {
+        headers: {
+          'Authorization': apiToken,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.error('sevDesk API error:', response.status, await response.text());
+      return res.json({ success: true, data: [], message: 'Could not fetch invoices' });
+    }
+
+    const data = await response.json();
+    const invoices = (data.objects || []).map((inv: any) => ({
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      invoiceDate: inv.invoiceDate,
+      deliveryDate: inv.deliveryDate,
+      status: inv.status, // 100=Draft, 200=Delivered, 1000=Paid
+      sumNet: parseFloat(inv.sumNet || 0),
+      sumGross: parseFloat(inv.sumGross || 0),
+      sumTax: parseFloat(inv.sumTax || 0),
+      currency: inv.currency,
+      paidAmount: parseFloat(inv.paidAmount || 0),
+      header: inv.header,
+    }));
+
+    res.json({ success: true, data: invoices });
+  } catch (error) {
+    console.error('Get invoices error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get quotes/offers for the customer
+router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_quotes FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_quotes) {
+      return res.status(403).json({ error: 'No permission to view quotes' });
+    }
+
+    // Get customer's sevDesk customer ID
+    const customerResult = await pool.query(
+      'SELECT user_id, sevdesk_customer_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    if (!customer.sevdesk_customer_id) {
+      return res.json({ success: true, data: [], message: 'No sevDesk customer linked' });
+    }
+
+    // Get sevDesk API token for the service provider
+    const configResult = await pool.query(
+      'SELECT api_token FROM sevdesk_config WHERE user_id = $1',
+      [customer.user_id]
+    );
+
+    if (!configResult.rows[0]?.api_token) {
+      return res.json({ success: true, data: [], message: 'sevDesk not configured' });
+    }
+
+    const apiToken = configResult.rows[0].api_token;
+
+    // Fetch quotes from sevDesk API (Order with status < 500 are quotes/offers)
+    const response = await fetch(
+      `https://my.sevdesk.de/api/v1/Order?contact[id]=${customer.sevdesk_customer_id}&contact[objectName]=Contact&embed=positions&limit=50`,
+      {
+        headers: {
+          'Authorization': apiToken,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.error('sevDesk API error:', response.status, await response.text());
+      return res.json({ success: true, data: [], message: 'Could not fetch quotes' });
+    }
+
+    const data = await response.json();
+    const quotes = (data.objects || [])
+      .filter((order: any) => parseInt(order.status) < 500) // Only quotes, not confirmed orders
+      .map((quote: any) => ({
+        id: quote.id,
+        orderNumber: quote.orderNumber,
+        orderDate: quote.orderDate,
+        status: quote.status, // 100=Draft, 200=Delivered, 300=Accepted
+        sumNet: parseFloat(quote.sumNet || 0),
+        sumGross: parseFloat(quote.sumGross || 0),
+        sumTax: parseFloat(quote.sumTax || 0),
+        currency: quote.currency,
+        header: quote.header,
+        validUntil: quote.deliveryDate,
+      }));
+
+    res.json({ success: true, data: quotes });
+  } catch (error) {
+    console.error('Get quotes error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

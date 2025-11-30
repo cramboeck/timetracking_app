@@ -223,6 +223,9 @@ const createContactSchema = z.object({
   isPrimary: z.boolean().optional().default(false),
   canCreateTickets: z.boolean().optional().default(true),
   canViewAllTickets: z.boolean().optional().default(false),
+  canViewDevices: z.boolean().optional().default(false),
+  canViewInvoices: z.boolean().optional().default(false),
+  canViewQuotes: z.boolean().optional().default(false),
 });
 
 const updateContactSchema = z.object({
@@ -231,6 +234,9 @@ const updateContactSchema = z.object({
   isPrimary: z.boolean().optional(),
   canCreateTickets: z.boolean().optional(),
   canViewAllTickets: z.boolean().optional(),
+  canViewDevices: z.boolean().optional(),
+  canViewInvoices: z.boolean().optional(),
+  canViewQuotes: z.boolean().optional(),
 });
 
 // GET /api/customers/:customerId/contacts - Get all contacts for a customer
@@ -247,6 +253,7 @@ router.get('/:customerId/contacts', authenticateToken, async (req: AuthRequest, 
 
     const result = await pool.query(
       `SELECT id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+              can_view_devices, can_view_invoices, can_view_quotes,
               last_login, created_at, password_hash IS NOT NULL as is_activated
        FROM customer_contacts
        WHERE customer_id = $1
@@ -262,6 +269,9 @@ router.get('/:customerId/contacts', authenticateToken, async (req: AuthRequest, 
       isPrimary: row.is_primary,
       canCreateTickets: row.can_create_tickets,
       canViewAllTickets: row.can_view_all_tickets,
+      canViewDevices: row.can_view_devices ?? false,
+      canViewInvoices: row.can_view_invoices ?? false,
+      canViewQuotes: row.can_view_quotes ?? false,
       isActivated: row.is_activated,
       lastLogin: row.last_login,
       createdAt: row.created_at,
@@ -282,7 +292,7 @@ router.post('/:customerId/contacts', authenticateToken, validate(createContactSc
   try {
     const userId = req.userId!;
     const { customerId } = req.params;
-    const { name, email, isPrimary, canCreateTickets, canViewAllTickets } = req.body;
+    const { name, email, isPrimary, canCreateTickets, canViewAllTickets, canViewDevices, canViewInvoices, canViewQuotes } = req.body;
 
     // Verify customer belongs to user
     const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [customerId, userId]);
@@ -306,9 +316,9 @@ router.post('/:customerId/contacts', authenticateToken, validate(createContactSc
 
     const id = crypto.randomUUID();
     await pool.query(
-      `INSERT INTO customer_contacts (id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-      [id, customerId, name, email, isPrimary, canCreateTickets, canViewAllTickets]
+      `INSERT INTO customer_contacts (id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets, can_view_devices, can_view_invoices, can_view_quotes, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
+      [id, customerId, name, email, isPrimary, canCreateTickets, canViewAllTickets, canViewDevices ?? false, canViewInvoices ?? false, canViewQuotes ?? false]
     );
 
     auditLog.log({
@@ -329,6 +339,9 @@ router.post('/:customerId/contacts', authenticateToken, validate(createContactSc
         isPrimary,
         canCreateTickets,
         canViewAllTickets,
+        canViewDevices: canViewDevices ?? false,
+        canViewInvoices: canViewInvoices ?? false,
+        canViewQuotes: canViewQuotes ?? false,
         isActivated: false,
         lastLogin: null,
         createdAt: new Date().toISOString(),
@@ -397,6 +410,18 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, validate(updat
       fields.push(`can_view_all_tickets = $${paramCount++}`);
       values.push(updates.canViewAllTickets);
     }
+    if (updates.canViewDevices !== undefined) {
+      fields.push(`can_view_devices = $${paramCount++}`);
+      values.push(updates.canViewDevices);
+    }
+    if (updates.canViewInvoices !== undefined) {
+      fields.push(`can_view_invoices = $${paramCount++}`);
+      values.push(updates.canViewInvoices);
+    }
+    if (updates.canViewQuotes !== undefined) {
+      fields.push(`can_view_quotes = $${paramCount++}`);
+      values.push(updates.canViewQuotes);
+    }
 
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -408,6 +433,7 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, validate(updat
 
     const updatedResult = await pool.query(
       `SELECT id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+              can_view_devices, can_view_invoices, can_view_quotes,
               last_login, created_at, password_hash IS NOT NULL as is_activated
        FROM customer_contacts WHERE id = $1`,
       [contactId]
@@ -424,6 +450,9 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, validate(updat
         isPrimary: updated.is_primary,
         canCreateTickets: updated.can_create_tickets,
         canViewAllTickets: updated.can_view_all_tickets,
+        canViewDevices: updated.can_view_devices ?? false,
+        canViewInvoices: updated.can_view_invoices ?? false,
+        canViewQuotes: updated.can_view_quotes ?? false,
         isActivated: updated.is_activated,
         lastLogin: updated.last_login,
         createdAt: updated.created_at,
