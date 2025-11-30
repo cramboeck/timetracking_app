@@ -9,6 +9,8 @@ export interface Customer {
   address?: string;
   reportTitle?: string; // Custom report title for this customer (e.g., "Stundenzettel" or "Tätigkeitsnachweis")
   sevdeskCustomerId?: string; // Link to sevDesk contact
+  hourlyRate?: number; // Customer-specific hourly rate (Business feature)
+  ninjarmmOrganizationId?: string; // Link to NinjaRMM organization (Support feature)
   createdAt: string;
 }
 

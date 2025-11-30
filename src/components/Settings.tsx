@@ -99,6 +99,8 @@ export const Settings = ({
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerReportTitle, setCustomerReportTitle] = useState('');
+  const [customerHourlyRate, setCustomerHourlyRate] = useState('');
+  const [customerNinjarmmOrgId, setCustomerNinjarmmOrgId] = useState('');
 
   // CSV Import
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -163,6 +165,8 @@ export const Settings = ({
       setCustomerEmail(customer.email || '');
       setCustomerAddress(customer.address || '');
       setCustomerReportTitle(customer.reportTitle || '');
+      setCustomerHourlyRate(customer.hourlyRate?.toString() || '');
+      setCustomerNinjarmmOrgId(customer.ninjarmmOrganizationId || '');
     } else {
       setEditingCustomer(null);
       setCustomerName('');
@@ -172,6 +176,8 @@ export const Settings = ({
       setCustomerEmail('');
       setCustomerAddress('');
       setCustomerReportTitle('');
+      setCustomerHourlyRate('');
+      setCustomerNinjarmmOrgId('');
     }
     setCustomerModalOpen(true);
   };
@@ -285,6 +291,8 @@ export const Settings = ({
   const handleSaveCustomer = () => {
     if (!customerName.trim()) return;
 
+    const hourlyRateValue = customerHourlyRate.trim() ? parseFloat(customerHourlyRate) : undefined;
+
     if (editingCustomer) {
       onUpdateCustomer(editingCustomer.id, {
         name: customerName.trim(),
@@ -293,7 +301,9 @@ export const Settings = ({
         contactPerson: customerContactPerson.trim() || undefined,
         email: customerEmail.trim() || undefined,
         address: customerAddress.trim() || undefined,
-        reportTitle: customerReportTitle.trim() || undefined
+        reportTitle: customerReportTitle.trim() || undefined,
+        hourlyRate: hourlyRateValue,
+        ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined
       });
     } else {
       onAddCustomer({
@@ -306,6 +316,8 @@ export const Settings = ({
         email: customerEmail.trim() || undefined,
         address: customerAddress.trim() || undefined,
         reportTitle: customerReportTitle.trim() || undefined,
+        hourlyRate: hourlyRateValue,
+        ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
         createdAt: new Date().toISOString()
       });
     }
@@ -1474,9 +1486,26 @@ export const Settings = ({
                                   </p>
                                 )}
                               </div>
-                              <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
-                                {projects.filter(p => p.customerId === customer.id).length} Projekt(e)
-                              </p>
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
+                                <span className="text-xs text-gray-500 dark:text-dark-400">
+                                  {projects.filter(p => p.customerId === customer.id).length} Projekt(e)
+                                </span>
+                                {billingEnabled && customer.hourlyRate && (
+                                  <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">
+                                    {customer.hourlyRate.toFixed(2)} €/h
+                                  </span>
+                                )}
+                                {customer.sevdeskCustomerId && (
+                                  <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                                    sevDesk
+                                  </span>
+                                )}
+                                {currentUser?.hasNinjaRmmAccess && customer.ninjarmmOrganizationId && (
+                                  <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full">
+                                    NinjaRMM
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <div className="flex gap-2 ml-2">
@@ -2432,6 +2461,46 @@ export const Settings = ({
               Optional: Individueller Titel für PDF-Reports dieses Kunden (Standard: "Stundenbericht")
             </p>
           </div>
+
+          {/* Hourly Rate - only show if billing is enabled */}
+          {billingEnabled && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Stundensatz (€)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={customerHourlyRate}
+                onChange={(e) => setCustomerHourlyRate(e.target.value)}
+                placeholder="z.B. 95.00"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Kundenspezifischer Stundensatz für Abrechnungen (überschreibt den Standard)
+              </p>
+            </div>
+          )}
+
+          {/* NinjaRMM Organization - only show if support is enabled */}
+          {currentUser?.hasNinjaRmmAccess && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                NinjaRMM Organisation ID
+              </label>
+              <input
+                type="text"
+                value={customerNinjarmmOrgId}
+                onChange={(e) => setCustomerNinjarmmOrgId(e.target.value)}
+                placeholder="z.B. org-12345"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Verknüpfung mit einer NinjaRMM Organisation für Geräte und Alerts
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

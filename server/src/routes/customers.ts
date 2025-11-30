@@ -18,7 +18,9 @@ const createCustomerSchema = z.object({
   contactPerson: z.string().max(200).optional(),
   email: z.string().email().optional(),
   address: z.string().max(500).optional(),
-  reportTitle: z.string().max(200).optional()
+  reportTitle: z.string().max(200).optional(),
+  hourlyRate: z.number().min(0).optional(),
+  ninjarmmOrganizationId: z.string().max(100).optional()
 });
 
 const updateCustomerSchema = z.object({
@@ -28,7 +30,9 @@ const updateCustomerSchema = z.object({
   contactPerson: z.string().max(200).optional(),
   email: z.string().email().optional(),
   address: z.string().max(500).optional(),
-  reportTitle: z.string().max(200).optional()
+  reportTitle: z.string().max(200).optional(),
+  hourlyRate: z.number().min(0).nullable().optional(),
+  ninjarmmOrganizationId: z.string().max(100).nullable().optional()
 });
 
 // GET /api/customers - Get all customers for current user
@@ -53,15 +57,15 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
 router.post('/', authenticateToken, validate(createCustomerSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    const { name, color, customerNumber, contactPerson, email, address, reportTitle } = req.body;
+    const { name, color, customerNumber, contactPerson, email, address, reportTitle, hourlyRate, ninjarmmOrganizationId } = req.body;
 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO customers (id, user_id, name, color, customer_number, contact_person, email, address, report_title, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [id, userId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, createdAt]
+      `INSERT INTO customers (id, user_id, name, color, customer_number, contact_person, email, address, report_title, hourly_rate, ninjarmm_organization_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [id, userId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, ninjarmmOrganizationId || null, createdAt]
     );
 
     const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
@@ -130,6 +134,14 @@ router.put('/:id', authenticateToken, validate(updateCustomerSchema), async (req
     if (updates.reportTitle !== undefined) {
       fields.push(`report_title = $${paramCount++}`);
       values.push(updates.reportTitle || null);
+    }
+    if (updates.hourlyRate !== undefined) {
+      fields.push(`hourly_rate = $${paramCount++}`);
+      values.push(updates.hourlyRate);
+    }
+    if (updates.ninjarmmOrganizationId !== undefined) {
+      fields.push(`ninjarmm_organization_id = $${paramCount++}`);
+      values.push(updates.ninjarmmOrganizationId || null);
     }
 
     if (fields.length === 0) {
