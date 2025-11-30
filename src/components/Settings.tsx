@@ -65,7 +65,6 @@ export const Settings = ({
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
-  const [ninjaRmmEnabled, setNinjaRmmEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
   const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -185,17 +184,15 @@ export const Settings = ({
     setCustomerModalOpen(true);
   };
 
-  // Load feature status (billing, NinjaRMM)
+  // Load billing feature status
   useEffect(() => {
     const loadFeatureStatus = async () => {
       try {
         const response = await sevdeskApi.getFeatureStatus();
         setBillingEnabled(response.data.billingEnabled);
-        setNinjaRmmEnabled(response.data.ninjaRmmEnabled);
       } catch (err) {
-        // Ignore error - features not available
+        // Ignore error - billing feature not available
         setBillingEnabled(false);
-        setNinjaRmmEnabled(false);
       }
     };
     loadFeatureStatus();
@@ -1505,7 +1502,7 @@ export const Settings = ({
                                     sevDesk
                                   </span>
                                 )}
-                                {ninjaRmmEnabled && customer.ninjarmmOrganizationId && (
+                                {customer.ninjarmmOrganizationId && (
                                   <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full">
                                     NinjaRMM
                                   </span>
@@ -1527,8 +1524,7 @@ export const Settings = ({
                                 <Link2 size={18} />
                               </button>
                             )}
-                            {ninjaRmmEnabled && (
-                              <button
+                            <button
                                 onClick={() => setNinjaRMMLinkCustomer(customer)}
                                 className={`p-2 rounded-lg transition-colors ${
                                   customer.ninjarmmOrganizationId
@@ -1539,7 +1535,6 @@ export const Settings = ({
                               >
                                 <Server size={18} />
                               </button>
-                            )}
                             {currentUser?.hasTicketAccess && (
                               <button
                                 onClick={() => setContactsCustomer(customer)}
@@ -2501,24 +2496,22 @@ export const Settings = ({
             </div>
           )}
 
-          {/* NinjaRMM Organization - only show if support is enabled */}
-          {ninjaRmmEnabled && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                NinjaRMM Organisation ID
-              </label>
-              <input
-                type="text"
-                value={customerNinjarmmOrgId}
-                onChange={(e) => setCustomerNinjarmmOrgId(e.target.value)}
-                placeholder="z.B. org-12345"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Verknüpfung mit einer NinjaRMM Organisation für Geräte und Alerts
-              </p>
-            </div>
-          )}
+          {/* NinjaRMM Organization */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              NinjaRMM Organisation ID
+            </label>
+            <input
+              type="text"
+              value={customerNinjarmmOrgId}
+              onChange={(e) => setCustomerNinjarmmOrgId(e.target.value)}
+              placeholder="z.B. org-12345"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Verknüpfung mit einer NinjaRMM Organisation für Geräte und Alerts
+            </p>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
