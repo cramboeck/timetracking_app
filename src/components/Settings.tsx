@@ -1366,7 +1366,7 @@ export const Settings = ({
 
         {/* Customers Tab */}
         {activeTab === 'customers' && (
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-7xl mx-auto">
             <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
@@ -1448,7 +1448,7 @@ export const Settings = ({
                     <p className="text-sm mt-2">Füge deinen ersten Kunden hinzu</p>
                   </div>
                 ) : (
-                  <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="grid gap-4 2xl:grid-cols-2">
                     {customers.map(customer => (
                       <div
                         key={customer.id}
