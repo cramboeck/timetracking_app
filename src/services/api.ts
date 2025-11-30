@@ -1065,6 +1065,24 @@ export interface PortalDevice {
   privateIp: string;
   offline: boolean;
   notes: string;
+  manufacturer?: string;
+  model?: string;
+  serialNumber?: string;
+  openAlerts: number;
+}
+
+export interface PortalDeviceAlert {
+  id: string;
+  severity: string;
+  priority: string;
+  message: string;
+  sourceType: string;
+  sourceName: string;
+  activityTime: string;
+  createdAt: string;
+  resolved: boolean;
+  resolvedAt?: string;
+  status: string;
 }
 
 export interface PortalInvoice {
@@ -1215,6 +1233,11 @@ export const customerPortalApi = {
   // Devices (NinjaRMM)
   getDevices: async (): Promise<{ data: PortalDevice[] }> => {
     return portalAuthFetch('/customer-portal/devices');
+  },
+
+  // Device Alerts (NinjaRMM)
+  getDeviceAlerts: async (deviceId: string): Promise<{ data: PortalDeviceAlert[] }> => {
+    return portalAuthFetch(`/customer-portal/devices/${deviceId}/alerts`);
   },
 
   // Invoices (sevDesk)

@@ -872,12 +872,13 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
 
     // Get devices for this organization
     const devicesResult = await pool.query(
-      `SELECT id, ninja_device_id, ninja_id, display_name, system_name, dns_name,
-              device_type, os_name, os_version, last_contact, last_logged_in_user,
-              public_ip, private_ip, offline, notes
-       FROM ninjarmm_devices
-       WHERE user_id = $1 AND organization_id = $2
-       ORDER BY offline ASC, display_name ASC`,
+      `SELECT d.id, d.ninja_device_id, d.ninja_id, d.display_name, d.system_name, d.dns_name,
+              d.device_type, d.os_name, d.os_version, d.last_contact, d.last_logged_in_user,
+              d.public_ip, d.private_ip, d.offline, d.notes, d.manufacturer, d.model, d.serial_number,
+              (SELECT COUNT(*) FROM ninjarmm_alerts a WHERE a.device_id = d.id AND a.resolved = false) as open_alerts
+       FROM ninjarmm_devices d
+       WHERE d.user_id = $1 AND d.organization_id = $2
+       ORDER BY d.offline ASC, d.display_name ASC`,
       [customer.user_id, customer.ninjarmm_organization_id]
     );
 
@@ -895,11 +896,85 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
       privateIp: row.private_ip,
       offline: row.offline,
       notes: row.notes,
+      manufacturer: row.manufacturer,
+      model: row.model,
+      serialNumber: row.serial_number,
+      openAlerts: parseInt(row.open_alerts) || 0,
     }));
 
     res.json({ success: true, data: devices });
   } catch (error) {
     console.error('Get devices error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get alerts for a specific device
+router.get('/devices/:deviceId/alerts', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    const { deviceId } = req.params;
+
+    // Verify the device belongs to this customer's organization
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer?.ninjarmm_organization_id) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get device and verify ownership
+    const deviceResult = await pool.query(
+      `SELECT id FROM ninjarmm_devices
+       WHERE id = $1 AND user_id = $2 AND organization_id = $3`,
+      [deviceId, customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get recent alerts for this device (last 30 days, max 20)
+    const alertsResult = await pool.query(
+      `SELECT id, severity, priority, message, source_type, source_name,
+              activity_time, created_at, resolved, resolved_at, status
+       FROM ninjarmm_alerts
+       WHERE device_id = $1 AND user_id = $2
+         AND (activity_time > NOW() - INTERVAL '30 days' OR resolved = false)
+       ORDER BY resolved ASC, activity_time DESC
+       LIMIT 20`,
+      [deviceId, customer.user_id]
+    );
+
+    const alerts = alertsResult.rows.map(row => ({
+      id: row.id,
+      severity: row.severity,
+      priority: row.priority,
+      message: row.message,
+      sourceType: row.source_type,
+      sourceName: row.source_name,
+      activityTime: row.activity_time,
+      createdAt: row.created_at,
+      resolved: row.resolved,
+      resolvedAt: row.resolved_at,
+      status: row.status,
+    }));
+
+    res.json({ success: true, data: alerts });
+  } catch (error) {
+    console.error('Get device alerts error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
