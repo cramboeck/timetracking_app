@@ -965,19 +965,27 @@ router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthReque
     }
 
     const data = await response.json() as { objects?: any[] };
-    const invoices = (data.objects || []).map((inv: any) => ({
-      id: inv.id,
-      invoiceNumber: inv.invoiceNumber,
-      invoiceDate: inv.invoiceDate,
-      deliveryDate: inv.deliveryDate,
-      status: inv.status, // 100=Draft, 200=Delivered, 1000=Paid
-      sumNet: parseFloat(inv.sumNet || 0),
-      sumGross: parseFloat(inv.sumGross || 0),
-      sumTax: parseFloat(inv.sumTax || 0),
-      currency: inv.currency,
-      paidAmount: parseFloat(inv.paidAmount || 0),
-      header: inv.header,
-    }));
+    const invoices = (data.objects || []).map((inv: any) => {
+      const totalNet = parseFloat(inv.sumNet || 0);
+      const totalGross = parseFloat(inv.sumGross || 0);
+      const sumTax = parseFloat(inv.sumTax || 0);
+      // Calculate tax rate from net and tax amounts
+      const taxRate = totalNet > 0 ? Math.round((sumTax / totalNet) * 100) : 19;
+
+      return {
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        invoiceDate: inv.invoiceDate,
+        deliveryDate: inv.deliveryDate,
+        status: parseInt(inv.status), // 100=Draft, 200=Delivered, 1000=Paid
+        totalNet,
+        totalGross,
+        taxRate,
+        currency: inv.currency || 'EUR',
+        payDate: inv.payDate || null,
+        header: inv.header,
+      };
+    });
 
     res.json({ success: true, data: invoices });
   } catch (error) {
@@ -1045,18 +1053,26 @@ router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest
     const data = await response.json() as { objects?: any[] };
     const quotes = (data.objects || [])
       .filter((order: any) => parseInt(order.status) < 500) // Only quotes, not confirmed orders
-      .map((quote: any) => ({
-        id: quote.id,
-        orderNumber: quote.orderNumber,
-        orderDate: quote.orderDate,
-        status: quote.status, // 100=Draft, 200=Delivered, 300=Accepted
-        sumNet: parseFloat(quote.sumNet || 0),
-        sumGross: parseFloat(quote.sumGross || 0),
-        sumTax: parseFloat(quote.sumTax || 0),
-        currency: quote.currency,
-        header: quote.header,
-        validUntil: quote.deliveryDate,
-      }));
+      .map((quote: any) => {
+        const totalNet = parseFloat(quote.sumNet || 0);
+        const totalGross = parseFloat(quote.sumGross || 0);
+        const sumTax = parseFloat(quote.sumTax || 0);
+        // Calculate tax rate from net and tax amounts
+        const taxRate = totalNet > 0 ? Math.round((sumTax / totalNet) * 100) : 19;
+
+        return {
+          id: quote.id,
+          orderNumber: quote.orderNumber,
+          orderDate: quote.orderDate,
+          status: parseInt(quote.status), // 100=Draft, 200=Delivered, 300=Accepted
+          totalNet,
+          totalGross,
+          taxRate,
+          currency: quote.currency || 'EUR',
+          header: quote.header,
+          validUntil: quote.deliveryDate,
+        };
+      });
 
     res.json({ success: true, data: quotes });
   } catch (error) {
