@@ -25,6 +25,35 @@
       transform: translateY(0);
     }
   }
+
+  /* Minimum touch target size (44x44px as per Apple HIG) */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Safe touch target for inline elements */
+  .touch-target-inline {
+    padding: 12px;
+    margin: -12px;
+  }
+}
+
+@layer components {
+  /* iOS-style list item */
+  .ios-list-item {
+    @apply flex items-center min-h-[44px] px-4 py-3 bg-white dark:bg-gray-800;
+  }
+
+  /* iOS-style card */
+  .ios-card {
+    @apply bg-white dark:bg-gray-800 rounded-xl overflow-hidden;
+  }
+
+  /* iOS-style section header */
+  .ios-section-header {
+    @apply text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2;
+  }
 }
 
 @layer base {
