@@ -1448,7 +1448,7 @@ export const Settings = ({
                     <p className="text-sm mt-2">Füge deinen ersten Kunden hinzu</p>
                   </div>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 xl:grid-cols-2">
                     {customers.map(customer => (
                       <div
                         key={customer.id}
