@@ -483,6 +483,7 @@ export async function getInvoiceExports(
   limit: number = 50
 ): Promise<Array<{
   id: string;
+  customerId: string;
   customerName: string;
   sevdeskInvoiceNumber: string | null;
   periodStart: string;
@@ -504,6 +505,7 @@ export async function getInvoiceExports(
 
   return result.rows.map(row => ({
     id: row.id,
+    customerId: row.customer_id,
     customerName: row.customer_name,
     sevdeskInvoiceNumber: row.sevdesk_invoice_number,
     periodStart: row.period_start,
