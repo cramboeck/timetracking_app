@@ -9,6 +9,7 @@ import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { NinjaRMMSettings } from './NinjaRMMSettings';
 import { PushNotificationSettings } from './PushNotificationSettings';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
+import { CustomerNinjaRMMLink } from './CustomerNinjaRMMLink';
 import { IOSSwitch } from './IOSSwitch';
 import { Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -65,6 +66,7 @@ export const Settings = ({
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
+  const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Notification Settings State (synced with localStorage)
@@ -1520,6 +1522,19 @@ export const Settings = ({
                                 title={customer.sevdeskCustomerId ? 'sevDesk verknüpft' : 'Mit sevDesk verknüpfen'}
                               >
                                 <Link2 size={18} />
+                              </button>
+                            )}
+                            {currentUser?.hasNinjaRmmAccess && (
+                              <button
+                                onClick={() => setNinjaRMMLinkCustomer(customer)}
+                                className={`p-2 rounded-lg transition-colors ${
+                                  customer.ninjarmmOrganizationId
+                                    ? 'text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                                    : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                                }`}
+                                title={customer.ninjarmmOrganizationId ? 'NinjaRMM verknüpft' : 'Mit NinjaRMM verknüpfen'}
+                              >
+                                <Server size={18} />
                               </button>
                             )}
                             {currentUser?.hasTicketAccess && (
@@ -3137,6 +3152,19 @@ export const Settings = ({
           onLinked={() => {
             // Reload customers to get updated sevdeskCustomerId
             // This will trigger a refresh in the parent component
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {/* NinjaRMM Customer Link Modal */}
+      {ninjaRMMLinkCustomer && (
+        <CustomerNinjaRMMLink
+          isOpen={!!ninjaRMMLinkCustomer}
+          customer={ninjaRMMLinkCustomer}
+          onClose={() => setNinjaRMMLinkCustomer(null)}
+          onLinked={() => {
+            // Reload customers to get updated ninjarmmOrganizationId
             window.location.reload();
           }}
         />

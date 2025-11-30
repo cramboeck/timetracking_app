@@ -1128,11 +1128,28 @@ export async function linkOrganizationToCustomer(
   organizationId: string,
   customerId: string
 ): Promise<void> {
+  // First, clear any existing organization link for this customer
+  await query(
+    `UPDATE customers
+     SET ninjarmm_organization_id = NULL
+     WHERE ninjarmm_organization_id = $1 AND user_id = $2`,
+    [organizationId, userId]
+  );
+
+  // Update organization's customer reference
   await query(
     `UPDATE ninjarmm_organizations
      SET customer_id = $1
      WHERE id = $2 AND user_id = $3`,
     [customerId, organizationId, userId]
+  );
+
+  // Also update customer's organization reference (for customer portal)
+  await query(
+    `UPDATE customers
+     SET ninjarmm_organization_id = $1
+     WHERE id = $2 AND user_id = $3`,
+    [organizationId, customerId, userId]
   );
 }
 
@@ -1141,12 +1158,31 @@ export async function unlinkOrganizationFromCustomer(
   userId: string,
   organizationId: string
 ): Promise<void> {
+  // Get the customer ID first
+  const result = await query(
+    `SELECT customer_id FROM ninjarmm_organizations WHERE id = $1 AND user_id = $2`,
+    [organizationId, userId]
+  );
+
+  const customerId = result.rows[0]?.customer_id;
+
+  // Update organization
   await query(
     `UPDATE ninjarmm_organizations
      SET customer_id = NULL
      WHERE id = $1 AND user_id = $2`,
     [organizationId, userId]
   );
+
+  // Also clear customer's organization reference
+  if (customerId) {
+    await query(
+      `UPDATE customers
+       SET ninjarmm_organization_id = NULL
+       WHERE id = $1 AND user_id = $2`,
+      [customerId, userId]
+    );
+  }
 }
 
 // ============================================
