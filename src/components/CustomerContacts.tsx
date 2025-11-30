@@ -23,6 +23,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
   const [formIsPrimary, setFormIsPrimary] = useState(false);
   const [formCanCreateTickets, setFormCanCreateTickets] = useState(true);
   const [formCanViewAllTickets, setFormCanViewAllTickets] = useState(false);
+  const [formCanViewDevices, setFormCanViewDevices] = useState(false);
+  const [formCanViewInvoices, setFormCanViewInvoices] = useState(false);
+  const [formCanViewQuotes, setFormCanViewQuotes] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Delete confirmation
@@ -61,6 +64,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       setFormIsPrimary(contact.isPrimary || false);
       setFormCanCreateTickets(contact.canCreateTickets ?? true);
       setFormCanViewAllTickets(contact.canViewAllTickets ?? false);
+      setFormCanViewDevices(contact.canViewDevices ?? false);
+      setFormCanViewInvoices(contact.canViewInvoices ?? false);
+      setFormCanViewQuotes(contact.canViewQuotes ?? false);
     } else {
       setEditingContact(null);
       setFormName('');
@@ -68,6 +74,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       setFormIsPrimary(false);
       setFormCanCreateTickets(true);
       setFormCanViewAllTickets(false);
+      setFormCanViewDevices(false);
+      setFormCanViewInvoices(false);
+      setFormCanViewQuotes(false);
     }
     setShowForm(true);
   };
@@ -93,6 +102,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
           isPrimary: formIsPrimary,
           canCreateTickets: formCanCreateTickets,
           canViewAllTickets: formCanViewAllTickets,
+          canViewDevices: formCanViewDevices,
+          canViewInvoices: formCanViewInvoices,
+          canViewQuotes: formCanViewQuotes,
         });
         setContacts(prev => prev.map(c => c.id === editingContact.id ? response.data : c));
       } else {
@@ -103,6 +115,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
           isPrimary: formIsPrimary,
           canCreateTickets: formCanCreateTickets,
           canViewAllTickets: formCanViewAllTickets,
+          canViewDevices: formCanViewDevices,
+          canViewInvoices: formCanViewInvoices,
+          canViewQuotes: formCanViewQuotes,
         });
         setContacts(prev => [...prev, response.data]);
       }
@@ -269,6 +284,60 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                     </p>
                   </div>
                 </label>
+
+                {/* Devices permission (Support feature) */}
+                {customer.ninjarmmOrganizationId && (
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formCanViewDevices}
+                      onChange={(e) => setFormCanViewDevices(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300"
+                    />
+                    <div>
+                      <span className="text-gray-900 dark:text-white font-medium">Kann Geräte sehen</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Sieht alle Geräte des Unternehmens im Portal
+                      </p>
+                    </div>
+                  </label>
+                )}
+
+                {/* Invoices permission (Business feature) */}
+                {customer.sevdeskCustomerId && (
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formCanViewInvoices}
+                      onChange={(e) => setFormCanViewInvoices(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300"
+                    />
+                    <div>
+                      <span className="text-gray-900 dark:text-white font-medium">Kann Rechnungen sehen</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Sieht alle Rechnungen des Unternehmens im Portal
+                      </p>
+                    </div>
+                  </label>
+                )}
+
+                {/* Quotes permission (Business feature) */}
+                {customer.sevdeskCustomerId && (
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formCanViewQuotes}
+                      onChange={(e) => setFormCanViewQuotes(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300"
+                    />
+                    <div>
+                      <span className="text-gray-900 dark:text-white font-medium">Kann Angebote sehen</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Sieht alle Angebote des Unternehmens im Portal
+                      </p>
+                    </div>
+                  </label>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4">
@@ -341,6 +410,21 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                           {contact.canViewAllTickets && (
                             <span className="bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded">
                               Sieht alle Tickets
+                            </span>
+                          )}
+                          {contact.canViewDevices && (
+                            <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                              Geräte
+                            </span>
+                          )}
+                          {contact.canViewInvoices && (
+                            <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">
+                              Rechnungen
+                            </span>
+                          )}
+                          {contact.canViewQuotes && (
+                            <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">
+                              Angebote
                             </span>
                           )}
                         </div>

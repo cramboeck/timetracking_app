@@ -1010,6 +1010,9 @@ export interface PortalContact {
   email: string;
   canCreateTickets: boolean;
   canViewAllTickets: boolean;
+  canViewDevices: boolean;
+  canViewInvoices: boolean;
+  canViewQuotes: boolean;
 }
 
 export interface PortalTicket {
@@ -1046,6 +1049,50 @@ export interface PortalComment {
   authorName: string;
   isFromCustomer: boolean;
   createdAt: string;
+}
+
+export interface PortalDevice {
+  id: string;
+  ninjaId: number;
+  displayName: string;
+  systemName: string;
+  deviceType: string;
+  osName: string;
+  osVersion: string;
+  lastContact: string;
+  lastLoggedInUser: string;
+  publicIp: string;
+  privateIp: string;
+  offline: boolean;
+  notes: string;
+}
+
+export interface PortalInvoice {
+  id: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  deliveryDate?: string;
+  status: number;
+  header?: string;
+  totalNet: number;
+  totalGross: number;
+  taxRate: number;
+  currency: string;
+  payDate?: string;
+  dunningLevel?: number;
+}
+
+export interface PortalQuote {
+  id: string;
+  orderNumber: string;
+  orderDate: string;
+  status: number;
+  header?: string;
+  totalNet: number;
+  totalGross: number;
+  taxRate: number;
+  currency: string;
+  validUntil?: string;
 }
 
 export const customerPortalApi = {
@@ -1163,6 +1210,21 @@ export const customerPortalApi = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     });
+  },
+
+  // Devices (NinjaRMM)
+  getDevices: async (): Promise<{ data: PortalDevice[] }> => {
+    return portalAuthFetch('/customer-portal/devices');
+  },
+
+  // Invoices (sevDesk)
+  getInvoices: async (): Promise<{ data: PortalInvoice[] }> => {
+    return portalAuthFetch('/customer-portal/invoices');
+  },
+
+  // Quotes (sevDesk)
+  getQuotes: async (): Promise<{ data: PortalQuote[] }> => {
+    return portalAuthFetch('/customer-portal/quotes');
   },
 };
 
