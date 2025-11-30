@@ -1380,6 +1380,7 @@ export interface BillingSummaryItem {
   totalSeconds: number;
   totalHours: number;
   totalAmount: number | null;
+  isBilled?: boolean;
   entries: Array<{
     id: string;
     duration: number;
@@ -1393,6 +1394,7 @@ export interface BillingSummaryItem {
 
 export interface InvoiceExport {
   id: string;
+  customerId: string;
   customerName: string;
   sevdeskInvoiceNumber: string | null;
   periodStart: string;

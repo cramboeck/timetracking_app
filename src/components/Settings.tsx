@@ -67,6 +67,12 @@ export const Settings = ({
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Notification Settings State (synced with localStorage)
+  const [notifMonthEnd, setNotifMonthEnd] = useState(() => localStorage.getItem('notification_month_end') !== 'false');
+  const [notifMissingEntries, setNotifMissingEntries] = useState(() => localStorage.getItem('notification_missing_entries') !== 'false');
+  const [notifQualityCheck, setNotifQualityCheck] = useState(() => localStorage.getItem('notification_quality_check') !== 'false');
+  const [notifWeeklyReport, setNotifWeeklyReport] = useState(() => localStorage.getItem('notification_weekly_report') !== 'false');
+
   // Company Info State
   const [companyName, setCompanyName] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
@@ -1272,8 +1278,9 @@ export const Settings = ({
                         <IOSSwitch
                           label="Monatserinnerung"
                           description="Benachrichtigung 3 Tage vor Monatsende"
-                          checked={localStorage.getItem('notification_month_end') !== 'false'}
+                          checked={notifMonthEnd}
                           onChange={(checked) => {
+                            setNotifMonthEnd(checked);
                             localStorage.setItem('notification_month_end', checked ? 'true' : 'false');
                           }}
                           disabled={!notificationService.hasPermission()}
@@ -1284,8 +1291,9 @@ export const Settings = ({
                         <IOSSwitch
                           label="Fehlende Einträge"
                           description="Tägliche Erinnerung um 18:00 Uhr"
-                          checked={localStorage.getItem('notification_missing_entries') !== 'false'}
+                          checked={notifMissingEntries}
                           onChange={(checked) => {
+                            setNotifMissingEntries(checked);
                             localStorage.setItem('notification_missing_entries', checked ? 'true' : 'false');
                           }}
                           disabled={!notificationService.hasPermission()}
@@ -1296,8 +1304,9 @@ export const Settings = ({
                         <IOSSwitch
                           label="Qualitätsprüfung"
                           description="Warnung bei Einträgen ohne Beschreibung"
-                          checked={localStorage.getItem('notification_quality_check') !== 'false'}
+                          checked={notifQualityCheck}
                           onChange={(checked) => {
+                            setNotifQualityCheck(checked);
                             localStorage.setItem('notification_quality_check', checked ? 'true' : 'false');
                           }}
                           disabled={!notificationService.hasPermission()}
@@ -1308,8 +1317,9 @@ export const Settings = ({
                         <IOSSwitch
                           label="Wochenreport"
                           description="Freitag 16:00 Uhr Zusammenfassung"
-                          checked={localStorage.getItem('notification_weekly_report') !== 'false'}
+                          checked={notifWeeklyReport}
                           onChange={(checked) => {
+                            setNotifWeeklyReport(checked);
                             localStorage.setItem('notification_weekly_report', checked ? 'true' : 'false');
                           }}
                           disabled={!notificationService.hasPermission()}

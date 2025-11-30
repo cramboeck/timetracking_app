@@ -283,6 +283,34 @@ const BillingTab = () => {
   }
 
   const unbilledItems = billingSummary.filter(item => !item.isBilled);
+  const billedItems = billingSummary.filter(item => item.isBilled);
+
+  const handleRevertBilling = async (customerId: string, customerName: string) => {
+    try {
+      setProcessing(customerId);
+      setError(null);
+
+      // Find the export for this customer and period, then delete it
+      const matchingExport = invoiceExports.find(exp =>
+        exp.customerId === customerId &&
+        new Date(exp.periodStart).getMonth() === selectedMonth.getMonth() &&
+        new Date(exp.periodStart).getFullYear() === selectedMonth.getFullYear()
+      );
+
+      if (matchingExport) {
+        await sevdeskApi.deleteExport(matchingExport.id);
+        setSuccess(`Abrechnung für ${customerName} zurückgesetzt`);
+        await loadData();
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        setError(`Kein Export für ${customerName} in diesem Monat gefunden`);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Zurücksetzen');
+    } finally {
+      setProcessing(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -401,6 +429,59 @@ const BillingTab = () => {
           </div>
         )}
       </div>
+
+      {/* Billed Items from current month */}
+      {billedItems.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <CheckCircle size={18} className="text-green-500" />
+              Abgerechnete Zeiten in {monthName} ({billedItems.length})
+            </h3>
+          </div>
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            {billedItems.map((item) => (
+              <div key={item.customerId} className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <div>
+                      <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                        {item.customerName}
+                        {item.sevdeskCustomerId && (
+                          <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                            <ExternalLink size={10} /> sevDesk
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500">{formatHours(item.totalHours)}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</div>
+                      <div className="text-xs text-green-600 dark:text-green-400">Abgerechnet</div>
+                    </div>
+                    <button
+                      onClick={() => handleRevertBilling(item.customerId, item.customerName)}
+                      disabled={processing === item.customerId}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg text-sm hover:bg-amber-200 dark:hover:bg-amber-900/50 disabled:opacity-50"
+                      title="Abrechnung zurücksetzen"
+                    >
+                      {processing === item.customerId ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <RotateCcw size={14} />
+                      )}
+                      Zurücksetzen
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Completed Exports */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
