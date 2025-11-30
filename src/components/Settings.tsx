@@ -9,6 +9,7 @@ import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { NinjaRMMSettings } from './NinjaRMMSettings';
 import { PushNotificationSettings } from './PushNotificationSettings';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
+import { IOSSwitch } from './IOSSwitch';
 import { Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
@@ -1265,78 +1266,56 @@ export const Settings = ({
                 <div className="space-y-4">
                   <h3 className="font-medium text-gray-900 dark:text-white">Browser-Benachrichtigungen</h3>
 
-                  <div className="space-y-3">
-                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-white mb-1">Monatserinnerung</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          Benachrichtigung 3 Tage vor Monatsende zur Prüfung deiner Zeiteinträge
-                        </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                      <div className="px-4">
+                        <IOSSwitch
+                          label="Monatserinnerung"
+                          description="Benachrichtigung 3 Tage vor Monatsende"
+                          checked={localStorage.getItem('notification_month_end') !== 'false'}
+                          onChange={(checked) => {
+                            localStorage.setItem('notification_month_end', checked ? 'true' : 'false');
+                          }}
+                          disabled={!notificationService.hasPermission()}
+                        />
                       </div>
-                      <input
-                        type="checkbox"
-                        checked={localStorage.getItem('notification_month_end') !== 'false'}
-                        onChange={(e) => {
-                          localStorage.setItem('notification_month_end', e.target.checked ? 'true' : 'false');
-                        }}
-                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                        disabled={!notificationService.hasPermission()}
-                      />
-                    </label>
 
-                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-white mb-1">Fehlende Einträge</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          Tägliche Erinnerung um 18:00 Uhr, wenn noch keine Stunden eingetragen wurden
-                        </div>
+                      <div className="px-4">
+                        <IOSSwitch
+                          label="Fehlende Einträge"
+                          description="Tägliche Erinnerung um 18:00 Uhr"
+                          checked={localStorage.getItem('notification_missing_entries') !== 'false'}
+                          onChange={(checked) => {
+                            localStorage.setItem('notification_missing_entries', checked ? 'true' : 'false');
+                          }}
+                          disabled={!notificationService.hasPermission()}
+                        />
                       </div>
-                      <input
-                        type="checkbox"
-                        checked={localStorage.getItem('notification_missing_entries') !== 'false'}
-                        onChange={(e) => {
-                          localStorage.setItem('notification_missing_entries', e.target.checked ? 'true' : 'false');
-                        }}
-                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                        disabled={!notificationService.hasPermission()}
-                      />
-                    </label>
 
-                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-white mb-1">Qualitätsprüfung</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          Warnung bei Zeiteinträgen ohne Beschreibung oder Projekt
-                        </div>
+                      <div className="px-4">
+                        <IOSSwitch
+                          label="Qualitätsprüfung"
+                          description="Warnung bei Einträgen ohne Beschreibung"
+                          checked={localStorage.getItem('notification_quality_check') !== 'false'}
+                          onChange={(checked) => {
+                            localStorage.setItem('notification_quality_check', checked ? 'true' : 'false');
+                          }}
+                          disabled={!notificationService.hasPermission()}
+                        />
                       </div>
-                      <input
-                        type="checkbox"
-                        checked={localStorage.getItem('notification_quality_check') !== 'false'}
-                        onChange={(e) => {
-                          localStorage.setItem('notification_quality_check', e.target.checked ? 'true' : 'false');
-                        }}
-                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                        disabled={!notificationService.hasPermission()}
-                      />
-                    </label>
 
-                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-white mb-1">Wochenreport</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          Jeden Freitag um 16:00 Uhr eine Zusammenfassung deiner Arbeitswoche
-                        </div>
+                      <div className="px-4">
+                        <IOSSwitch
+                          label="Wochenreport"
+                          description="Freitag 16:00 Uhr Zusammenfassung"
+                          checked={localStorage.getItem('notification_weekly_report') !== 'false'}
+                          onChange={(checked) => {
+                            localStorage.setItem('notification_weekly_report', checked ? 'true' : 'false');
+                          }}
+                          disabled={!notificationService.hasPermission()}
+                        />
                       </div>
-                      <input
-                        type="checkbox"
-                        checked={localStorage.getItem('notification_weekly_report') !== 'false'}
-                        onChange={(e) => {
-                          localStorage.setItem('notification_weekly_report', e.target.checked ? 'true' : 'false');
-                        }}
-                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                        disabled={!notificationService.hasPermission()}
-                      />
-                    </label>
+                    </div>
                   </div>
                 </div>
 
@@ -2241,26 +2220,12 @@ export const Settings = ({
 
               <div className="space-y-6">
                 {/* Dark Mode Toggle */}
-                <div className="flex items-center justify-between py-3">
-                  <div>
-                    <h3 className="font-medium text-gray-900 dark:text-white">Dark Mode</h3>
-                    <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
-                      Dunkles Farbschema mit tiefen Grautönen
-                    </p>
-                  </div>
-                  <button
-                    onClick={onToggleDarkMode}
-                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent-${currentUser?.accentColor || 'blue'}-500 focus:ring-offset-2 ${
-                      darkMode ? `bg-accent-${currentUser?.accentColor || 'blue'}-600` : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                        darkMode ? 'translate-x-7' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
+                <IOSSwitch
+                  label="Dark Mode"
+                  description="Dunkles Farbschema mit tiefen Grautönen"
+                  checked={darkMode}
+                  onChange={onToggleDarkMode}
+                />
 
                 {/* Accent Color Selection */}
                 <div className="pt-3 border-t border-gray-200 dark:border-dark-200">
