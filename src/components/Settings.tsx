@@ -1366,7 +1366,7 @@ export const Settings = ({
 
         {/* Customers Tab */}
         {activeTab === 'customers' && (
-          <div className="max-w-7xl mx-auto">
+          <div className="w-full">
             <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
