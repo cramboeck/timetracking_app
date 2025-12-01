@@ -391,7 +391,7 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
       return res.status(404).json({ success: false, error: 'Gerät nicht in NinjaRMM gefunden - möglicherweise gelöscht?' });
     }
 
-    // Update local device with fetched details
+    // Update local device with fetched details including full device_data JSON
     await query(
       `UPDATE ninjarmm_devices SET
         os_name = $1,
@@ -400,8 +400,9 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
         serial_number = $4,
         last_logged_in_user = $5,
         public_ip = $6,
+        device_data = $7,
         synced_at = NOW()
-      WHERE id = $7 AND user_id = $8`,
+      WHERE id = $8 AND user_id = $9`,
       [
         device.os?.name || null,
         device.system?.manufacturer || null,
@@ -409,17 +410,19 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
         device.system?.serialNumber || null,
         device.lastLoggedInUser || null,
         device.publicIP || null,
+        JSON.stringify(device),
         id,
         userId,
       ]
     );
 
-    // Fetch and return updated local device
+    // Fetch and return updated local device with device_data
     const updatedResult = await query(
       `SELECT
         d.id, d.ninja_id, d.system_name, d.display_name, d.node_class,
         d.offline, d.last_contact, d.public_ip, d.os_name,
         d.manufacturer, d.model, d.serial_number, d.last_logged_in_user, d.synced_at,
+        d.device_data,
         o.name as organization_name, c.name as customer_name
       FROM ninjarmm_devices d
       JOIN ninjarmm_organizations o ON d.organization_id = o.id
@@ -433,6 +436,26 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
     }
 
     const row = updatedResult.rows[0];
+
+    // Parse device_data for additional details
+    let deviceData: any = {};
+    try {
+      deviceData = typeof row.device_data === 'string' ? JSON.parse(row.device_data) : (row.device_data || {});
+    } catch (e) {
+      console.error('Failed to parse device_data:', e);
+    }
+
+    const osInfo = deviceData.os || {};
+    const systemInfo = deviceData.system || {};
+    const processorInfo = deviceData.processor || (deviceData.processors?.[0]) || {};
+    const memoryInfo = deviceData.memory || {};
+
+    // Build full OS version string
+    let osVersion = osInfo.name || row.os_name || '';
+    if (osInfo.buildNumber) {
+      osVersion = `${osVersion} (Build ${osInfo.buildNumber})`;
+    }
+
     res.json({
       success: true,
       data: {
@@ -447,10 +470,16 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
         lastContact: row.last_contact ? new Date(row.last_contact).toISOString() : null,
         publicIp: row.public_ip,
         osName: row.os_name,
-        manufacturer: row.manufacturer,
-        model: row.model,
-        serialNumber: row.serial_number,
+        osVersion: osVersion,
+        osBuild: osInfo.buildNumber || null,
+        osArchitecture: osInfo.architecture || null,
+        manufacturer: row.manufacturer || systemInfo.manufacturer,
+        model: row.model || systemInfo.model,
+        serialNumber: row.serial_number || systemInfo.serialNumber || systemInfo.biosSerialNumber,
         lastLoggedInUser: row.last_logged_in_user,
+        processorName: processorInfo.name || null,
+        processorCores: processorInfo.cores || null,
+        memoryGb: memoryInfo.capacity ? Math.round(memoryInfo.capacity / (1024 * 1024 * 1024)) : null,
         syncedAt: new Date(row.synced_at).toISOString(),
       },
     });
