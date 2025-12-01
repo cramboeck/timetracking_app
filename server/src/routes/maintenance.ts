@@ -182,23 +182,44 @@ router.post('/announcements', authenticateToken, validate(createAnnouncementSche
       title, description, maintenanceType, affectedSystems,
       scheduledStart, scheduledEnd, requireApproval,
       approvalDeadline, autoProceedOnNoResponse, notes,
-      customerIds, deviceIds
+      customerIds, deviceIds, createTicket
     } = req.body;
 
     const announcementId = crypto.randomUUID();
+    let ticketId: string | null = null;
+
+    // Create ticket if requested (only for single customer)
+    if (createTicket && customerIds && customerIds.length === 1) {
+      ticketId = crypto.randomUUID();
+
+      // Get the next ticket number
+      const ticketNumberResult = await query(
+        `SELECT COALESCE(MAX(CAST(SUBSTRING(ticket_number FROM 2) AS INTEGER)), 0) + 1 as next_number
+         FROM tickets WHERE user_id = $1`,
+        [userId]
+      );
+      const ticketNumber = `T${String(ticketNumberResult.rows[0].next_number).padStart(5, '0')}`;
+
+      // Create the ticket
+      await query(
+        `INSERT INTO tickets (id, ticket_number, user_id, customer_id, title, description, priority, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'medium', 'open')`,
+        [ticketId, ticketNumber, userId, customerIds[0], `Wartung: ${title}`, description || `Geplante Wartung: ${title}`]
+      );
+    }
 
     // Create announcement
     await query(
       `INSERT INTO maintenance_announcements
        (id, user_id, title, description, maintenance_type, affected_systems,
         scheduled_start, scheduled_end, require_approval, approval_deadline,
-        auto_proceed_on_no_response, notes, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft')`,
+        auto_proceed_on_no_response, notes, status, ticket_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft', $13)`,
       [
         announcementId, userId, title, description || null, maintenanceType,
         affectedSystems || null, scheduledStart, scheduledEnd || null,
         requireApproval, approvalDeadline || null, autoProceedOnNoResponse,
-        notes || null
+        notes || null, ticketId
       ]
     );
 
@@ -230,12 +251,13 @@ router.post('/announcements', authenticateToken, validate(createAnnouncementSche
     }
 
     // Log activity
-    await logActivity(announcementId, 'created', 'admin', userId, undefined, { title });
+    await logActivity(announcementId, 'created', 'admin', userId, undefined, { title, ticketCreated: !!ticketId });
 
     res.json({
       success: true,
       announcementId,
-      message: 'Wartungsankündigung erstellt'
+      ticketId,
+      message: ticketId ? 'Wartungsankündigung und Ticket erstellt' : 'Wartungsankündigung erstellt'
     });
   } catch (error) {
     console.error('Create announcement error:', error);
@@ -684,7 +706,7 @@ router.post('/announcements/:id/status', authenticateToken, async (req: AuthRequ
   try {
     const { id } = req.params;
     const userId = req.userId!;
-    const { status } = req.body;
+    const { status, completionNotes, sendCompletionEmail } = req.body;
 
     if (!['scheduled', 'in_progress', 'completed', 'cancelled'].includes(status)) {
       return res.status(400).json({ error: 'Ungültiger Status' });
@@ -692,17 +714,65 @@ router.post('/announcements/:id/status', authenticateToken, async (req: AuthRequ
 
     const result = await query(
       `UPDATE maintenance_announcements
-       SET status = $1, updated_at = NOW()
+       SET status = $1, updated_at = NOW()${status === 'completed' ? ', notes = COALESCE($4, notes)' : ''}
        WHERE id = $2 AND user_id = $3
        RETURNING *`,
-      [status, id, userId]
+      status === 'completed' ? [status, id, userId, completionNotes] : [status, id, userId]
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Ankündigung nicht gefunden' });
     }
 
+    const announcement = result.rows[0];
     await logActivity(id, `status_changed_to_${status}`, 'admin', userId);
+
+    // Send completion emails when status is set to completed
+    if (status === 'completed' && sendCompletionEmail !== false) {
+      // Get user info for sender name
+      const userResult = await query(
+        `SELECT u.username, ci.name as company_name
+         FROM users u
+         LEFT JOIN company_info ci ON ci.user_id = u.id
+         WHERE u.id = $1`,
+        [userId]
+      );
+      const senderName = userResult.rows[0]?.company_name || userResult.rows[0]?.username || 'IT-Service';
+
+      // Get all customers for this announcement
+      const customersResult = await query(
+        `SELECT mac.*, c.name as customer_name, c.email as customer_email
+         FROM maintenance_announcement_customers mac
+         JOIN customers c ON mac.customer_id = c.id
+         WHERE mac.announcement_id = $1`,
+        [id]
+      );
+
+      // Send completion email to each customer
+      for (const customer of customersResult.rows) {
+        if (customer.customer_email) {
+          try {
+            await emailService.sendMaintenanceCompletionNotification({
+              to: customer.customer_email,
+              customerName: customer.customer_name,
+              senderName,
+              announcement: {
+                title: announcement.title,
+                maintenanceType: announcement.maintenance_type,
+                affectedSystems: announcement.affected_systems,
+                scheduledStart: new Date(announcement.scheduled_start),
+                scheduledEnd: announcement.scheduled_end ? new Date(announcement.scheduled_end) : undefined
+              },
+              completionNotes
+            });
+          } catch (emailError) {
+            console.error(`Failed to send completion email to ${customer.customer_email}:`, emailError);
+          }
+        }
+      }
+
+      await logActivity(id, 'completion_emails_sent', 'admin', userId);
+    }
 
     res.json({ success: true, message: 'Status aktualisiert' });
   } catch (error) {

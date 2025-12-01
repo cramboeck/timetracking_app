@@ -49,6 +49,65 @@ const STATUS_COLORS: Record<MaintenanceStatus, string> = {
   cancelled: 'bg-red-100 text-red-800'
 };
 
+// Default templates per maintenance type
+const MAINTENANCE_TYPE_TEMPLATES: Record<MaintenanceType, { title: string; description: string; affectedSystems: string }> = {
+  patch: {
+    title: 'Patch- und Update-Installation',
+    description: `Sehr geehrte Damen und Herren,
+
+im Rahmen unserer regelmäßigen Wartungsarbeiten werden wir wichtige Sicherheits- und Systemupdates installieren.
+
+Während der Wartungsarbeiten kann es zu kurzzeitigen Unterbrechungen kommen. Wir empfehlen, wichtige Arbeiten vor dem Wartungsfenster zu speichern.
+
+Bei Fragen stehen wir Ihnen gerne zur Verfügung.`,
+    affectedSystems: 'Windows Server, Clients'
+  },
+  reboot: {
+    title: 'Geplanter Systemneustart',
+    description: `Sehr geehrte Damen und Herren,
+
+zur Anwendung von installierten Updates und zur Systemoptimierung ist ein Neustart der betroffenen Systeme erforderlich.
+
+Während des Neustarts (ca. 10-15 Minuten) sind die Systeme nicht verfügbar. Bitte speichern Sie Ihre Arbeit und melden Sie sich vor dem Wartungszeitpunkt ab.
+
+Vielen Dank für Ihr Verständnis.`,
+    affectedSystems: 'Server, Clients'
+  },
+  security_update: {
+    title: 'Kritische Sicherheitsupdates',
+    description: `Sehr geehrte Damen und Herren,
+
+aufgrund wichtiger Sicherheitsupdates müssen wir dringend Aktualisierungen an Ihren Systemen durchführen. Diese Updates schließen bekannte Sicherheitslücken und schützen Ihre IT-Infrastruktur.
+
+Während der Wartungsarbeiten kann es zu kurzzeitigen Einschränkungen kommen. Die Systeme werden nach Abschluss der Arbeiten automatisch wieder verfügbar sein.
+
+Bei Fragen zur Dringlichkeit dieser Updates kontaktieren Sie uns gerne.`,
+    affectedSystems: 'Firewall, Server, Endpoints'
+  },
+  firmware: {
+    title: 'Firmware-Aktualisierung',
+    description: `Sehr geehrte Damen und Herren,
+
+wir führen eine Firmware-Aktualisierung an Ihren Netzwerkgeräten durch. Diese Updates verbessern die Stabilität, Sicherheit und Leistung der Hardware.
+
+Während der Aktualisierung (je nach Gerät 5-30 Minuten) kann es zu Verbindungsunterbrechungen kommen.
+
+Wir empfehlen, keine kritischen Arbeiten während des Wartungsfensters durchzuführen.`,
+    affectedSystems: 'Firewall, Switches, Access Points'
+  },
+  general: {
+    title: 'Geplante Wartungsarbeiten',
+    description: `Sehr geehrte Damen und Herren,
+
+wir führen geplante Wartungsarbeiten an Ihrer IT-Infrastruktur durch.
+
+Während der Wartungsarbeiten kann es zu Einschränkungen bei der Systemverfügbarkeit kommen. Wir werden die Arbeiten so schnell wie möglich abschließen.
+
+Bei Fragen stehen wir Ihnen gerne zur Verfügung.`,
+    affectedSystems: ''
+  }
+};
+
 function formatDateTime(dateStr: string): string {
   return new Date(dateStr).toLocaleString('de-DE', {
     day: '2-digit',
@@ -79,11 +138,14 @@ function AnnouncementDialog({
   onSave: (data: any) => Promise<void>;
   onClose: () => void;
 }) {
+  const initialType = (announcement?.maintenance_type || 'general') as MaintenanceType;
+  const initialTemplate = MAINTENANCE_TYPE_TEMPLATES[initialType];
+
   const [formData, setFormData] = useState({
-    title: announcement?.title || '',
-    description: announcement?.description || '',
-    maintenanceType: (announcement?.maintenance_type || 'general') as MaintenanceType,
-    affectedSystems: announcement?.affected_systems || '',
+    title: announcement?.title || initialTemplate.title,
+    description: announcement?.description || initialTemplate.description,
+    maintenanceType: initialType,
+    affectedSystems: announcement?.affected_systems || initialTemplate.affectedSystems,
     scheduledStart: announcement?.scheduled_start
       ? new Date(announcement.scheduled_start).toISOString().slice(0, 16)
       : '',
@@ -96,10 +158,31 @@ function AnnouncementDialog({
       : '',
     autoProceedOnNoResponse: announcement?.auto_proceed_on_no_response ?? false,
     notes: announcement?.notes || '',
-    customerIds: [] as string[]
+    customerIds: [] as string[],
+    createTicket: false
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Handle maintenance type change - apply template if fields are empty or unchanged
+  const handleTypeChange = (newType: MaintenanceType) => {
+    const template = MAINTENANCE_TYPE_TEMPLATES[newType];
+    const currentTemplate = MAINTENANCE_TYPE_TEMPLATES[formData.maintenanceType];
+
+    // Check if current values match the current template (unchanged) or are empty
+    const titleIsDefault = !formData.title || formData.title === currentTemplate.title;
+    const descriptionIsDefault = !formData.description || formData.description === currentTemplate.description;
+    const systemsIsDefault = !formData.affectedSystems || formData.affectedSystems === currentTemplate.affectedSystems;
+
+    setFormData({
+      ...formData,
+      maintenanceType: newType,
+      // Only update if the field was empty or had the default value
+      title: titleIsDefault ? template.title : formData.title,
+      description: descriptionIsDefault ? template.description : formData.description,
+      affectedSystems: systemsIsDefault ? template.affectedSystems : formData.affectedSystems
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,7 +244,7 @@ function AnnouncementDialog({
               </label>
               <select
                 value={formData.maintenanceType}
-                onChange={(e) => setFormData({ ...formData, maintenanceType: e.target.value as MaintenanceType })}
+                onChange={(e) => handleTypeChange(e.target.value as MaintenanceType)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 {Object.entries(MAINTENANCE_TYPE_LABELS).map(([value, label]) => (
@@ -304,6 +387,28 @@ function AnnouncementDialog({
               {formData.customerIds.length} Kunde(n) ausgewählt
             </p>
           </div>
+
+          {/* Ticket creation option - only shown when exactly one customer is selected */}
+          {formData.customerIds.length === 1 && !announcement && (
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={formData.createTicket}
+                  onChange={(e) => setFormData({ ...formData, createTicket: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <div>
+                  <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    Ticket für Zeiterfassung erstellen
+                  </span>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                    Erstellt automatisch ein Ticket mit dem Wartungstitel für die Zeiterfassung
+                  </p>
+                </div>
+              </label>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
