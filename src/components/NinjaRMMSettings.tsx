@@ -424,16 +424,29 @@ export const NinjaRMMSettings = () => {
                 </select>
               </div>
 
+              {/* Honeypot fields to confuse browser autofill */}
+              <div style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
+                <input type="text" name="username" tabIndex={-1} autoComplete="username" />
+                <input type="password" name="password" tabIndex={-1} autoComplete="current-password" />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
                   Client ID {config?.hasClientId && <span className="text-green-500">(gespeichert)</span>}
                 </label>
                 <input
                   type="text"
-                  name="ninja_api_client_id"
+                  id={`ninja_cid_${Date.now()}`}
+                  name={`ninja_cid_${Date.now()}`}
                   autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
                   data-lpignore="true"
                   data-form-type="other"
+                  data-1p-ignore="true"
+                  readOnly
+                  onFocus={(e) => e.target.removeAttribute('readOnly')}
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
                   placeholder={config?.hasClientId ? '••••••••' : 'Client ID eingeben'}
@@ -446,15 +459,23 @@ export const NinjaRMMSettings = () => {
                   Client Secret {config?.hasClientSecret && <span className="text-green-500">(gespeichert)</span>}
                 </label>
                 <input
-                  type="password"
-                  name="ninja_api_client_secret"
-                  autoComplete="new-password"
+                  type="text"
+                  id={`ninja_sec_${Date.now()}`}
+                  name={`ninja_sec_${Date.now()}`}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
                   data-lpignore="true"
                   data-form-type="other"
+                  data-1p-ignore="true"
+                  readOnly
+                  onFocus={(e) => e.target.removeAttribute('readOnly')}
                   value={clientSecret}
                   onChange={(e) => setClientSecret(e.target.value)}
                   placeholder={config?.hasClientSecret ? '••••••••' : 'Client Secret eingeben'}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                  style={{ WebkitTextSecurity: 'disc' } as React.CSSProperties}
                 />
               </div>
 
