@@ -8,14 +8,14 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Darker grays for improved dark mode
+        // Dynamic dark mode grays - uses CSS variables for gray tone switching
         'dark': {
-          50: '#18181b',
-          100: '#27272a',
-          200: '#3f3f46',
-          300: '#52525b',
-          400: '#71717a',
-          500: '#a1a1aa',
+          50: 'rgb(var(--dark-50) / <alpha-value>)',
+          100: 'rgb(var(--dark-100) / <alpha-value>)',
+          200: 'rgb(var(--dark-200) / <alpha-value>)',
+          300: 'rgb(var(--dark-300) / <alpha-value>)',
+          400: 'rgb(var(--dark-400) / <alpha-value>)',
+          500: 'rgb(var(--dark-500) / <alpha-value>)',
           600: '#d4d4d8',
           700: '#e4e4e7',
           800: '#f4f4f5',

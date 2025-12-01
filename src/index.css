@@ -70,6 +70,48 @@
     --accent-700: 29 78 216;
     --accent-800: 30 64 175;
     --accent-900: 30 58 138;
+
+    /* Default dark mode gray tones (medium) */
+    --dark-50: 24 24 27;      /* zinc-900 */
+    --dark-100: 39 39 42;     /* zinc-800 */
+    --dark-200: 63 63 70;     /* zinc-700 */
+    --dark-300: 82 82 91;     /* zinc-600 */
+    --dark-400: 161 161 170;  /* zinc-400 */
+    --dark-500: 212 212 216;  /* zinc-300 */
+    --dark-border: 63 63 70;  /* zinc-700 */
+  }
+
+  /* Light gray tone - lighter backgrounds, less contrast */
+  .tone-light.dark {
+    --dark-50: 31 41 55;      /* gray-800 */
+    --dark-100: 55 65 81;     /* gray-700 */
+    --dark-200: 75 85 99;     /* gray-600 */
+    --dark-300: 107 114 128;  /* gray-500 */
+    --dark-400: 156 163 175;  /* gray-400 */
+    --dark-500: 209 213 219;  /* gray-300 */
+    --dark-border: 75 85 99;  /* gray-600 */
+  }
+
+  /* Medium gray tone - balanced (default) */
+  .tone-medium.dark {
+    --dark-50: 24 24 27;      /* zinc-900 */
+    --dark-100: 39 39 42;     /* zinc-800 */
+    --dark-200: 63 63 70;     /* zinc-700 */
+    --dark-300: 82 82 91;     /* zinc-600 */
+    --dark-400: 161 161 170;  /* zinc-400 */
+    --dark-500: 212 212 216;  /* zinc-300 */
+    --dark-border: 63 63 70;  /* zinc-700 */
+  }
+
+  /* Dark gray tone - deepest blacks, maximum contrast */
+  .tone-dark.dark {
+    --dark-50: 9 9 11;        /* zinc-950 */
+    --dark-100: 17 17 20;     /* between 950-900 */
+    --dark-200: 24 24 27;     /* zinc-900 */
+    --dark-300: 39 39 42;     /* zinc-800 */
+    --dark-400: 113 113 122;  /* zinc-500 */
+    --dark-500: 161 161 170;  /* zinc-400 */
+    --dark-border: 39 39 42;  /* zinc-800 */
   }
 
   /* Accent color variants */
@@ -153,6 +195,11 @@
 
   body {
     @apply bg-gray-50 text-gray-900;
+  }
+
+  .dark body,
+  body.dark {
+    background-color: rgb(var(--dark-50));
   }
 
   /* Smooth scrolling on mobile */
