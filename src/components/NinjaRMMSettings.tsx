@@ -1000,7 +1000,7 @@ export const NinjaRMMSettings = () => {
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-gray-500 dark:text-dark-400">Betriebssystem</dt>
-                      <dd className="text-gray-900 dark:text-white">{selectedDevice.osName || '-'}</dd>
+                      <dd className="text-gray-900 dark:text-white">{selectedDevice.osVersion || selectedDevice.osName || '-'}</dd>
                     </div>
                   </dl>
                 </div>
@@ -1024,6 +1024,21 @@ export const NinjaRMMSettings = () => {
                       <dt className="text-gray-500 dark:text-dark-400">Seriennummer</dt>
                       <dd className="text-gray-900 dark:text-white font-mono text-xs">{selectedDevice.serialNumber || '-'}</dd>
                     </div>
+                    {selectedDevice.processorName && (
+                      <div className="flex justify-between">
+                        <dt className="text-gray-500 dark:text-dark-400">Prozessor</dt>
+                        <dd className="text-gray-900 dark:text-white text-xs">
+                          {selectedDevice.processorName}
+                          {selectedDevice.processorCores && ` (${selectedDevice.processorCores} Kerne)`}
+                        </dd>
+                      </div>
+                    )}
+                    {selectedDevice.memoryGb && (
+                      <div className="flex justify-between">
+                        <dt className="text-gray-500 dark:text-dark-400">Arbeitsspeicher</dt>
+                        <dd className="text-gray-900 dark:text-white">{selectedDevice.memoryGb} GB</dd>
+                      </div>
+                    )}
                   </dl>
                 </div>
 

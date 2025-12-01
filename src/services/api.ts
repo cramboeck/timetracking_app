@@ -1720,10 +1720,16 @@ export interface NinjaDevice {
   lastContact: string | null;
   publicIp: string | null;
   osName: string | null;
+  osVersion?: string | null;
+  osBuild?: string | null;
+  osArchitecture?: string | null;
   manufacturer: string | null;
   model: string | null;
   serialNumber: string | null;
   lastLoggedInUser: string | null;
+  processorName?: string | null;
+  processorCores?: number | null;
+  memoryGb?: number | null;
   syncedAt: string;
 }
 
