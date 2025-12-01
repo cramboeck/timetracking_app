@@ -984,10 +984,16 @@ export async function getLocalDevices(
   lastContact: Date | null;
   publicIp: string | null;
   osName: string | null;
+  osVersion: string | null;
+  osBuild: string | null;
+  osArchitecture: string | null;
   manufacturer: string | null;
   model: string | null;
   serialNumber: string | null;
   lastLoggedInUser: string | null;
+  processorName: string | null;
+  processorCores: number | null;
+  memoryGb: number | null;
   syncedAt: Date;
 }>> {
   let sql = `
@@ -995,6 +1001,7 @@ export async function getLocalDevices(
       d.id, d.ninja_id, d.system_name, d.display_name, d.node_class,
       d.offline, d.last_contact, d.public_ip, d.os_name,
       d.manufacturer, d.model, d.serial_number, d.last_logged_in_user, d.synced_at,
+      d.device_data,
       o.name as organization_name, c.name as customer_name
     FROM ninjarmm_devices d
     JOIN ninjarmm_organizations o ON d.organization_id = o.id
@@ -1045,24 +1052,51 @@ export async function getLocalDevices(
 
   const result = await query(sql, params);
 
-  return result.rows.map(row => ({
-    id: row.id,
-    ninjaId: row.ninja_id,
-    organizationName: row.organization_name,
-    customerName: row.customer_name,
-    systemName: row.system_name,
-    displayName: row.display_name,
-    nodeClass: row.node_class,
-    offline: row.offline,
-    lastContact: row.last_contact ? new Date(row.last_contact) : null,
-    publicIp: row.public_ip,
-    osName: row.os_name,
-    manufacturer: row.manufacturer,
-    model: row.model,
-    serialNumber: row.serial_number,
-    lastLoggedInUser: row.last_logged_in_user,
-    syncedAt: new Date(row.synced_at),
-  }));
+  return result.rows.map(row => {
+    // Parse device_data JSON for additional fields
+    let deviceData: any = {};
+    try {
+      deviceData = typeof row.device_data === 'string' ? JSON.parse(row.device_data) : (row.device_data || {});
+    } catch (e) {
+      // Ignore parse errors
+    }
+
+    const osInfo = deviceData.os || {};
+    const systemInfo = deviceData.system || {};
+    const processorInfo = deviceData.processor || (deviceData.processors?.[0]) || {};
+    const memoryInfo = deviceData.memory || {};
+
+    // Build full OS version string
+    let osVersion = osInfo.name || row.os_name || '';
+    if (osInfo.buildNumber) {
+      osVersion = `${osVersion} (Build ${osInfo.buildNumber})`;
+    }
+
+    return {
+      id: row.id,
+      ninjaId: row.ninja_id,
+      organizationName: row.organization_name,
+      customerName: row.customer_name,
+      systemName: row.system_name,
+      displayName: row.display_name,
+      nodeClass: row.node_class,
+      offline: row.offline,
+      lastContact: row.last_contact ? new Date(row.last_contact) : null,
+      publicIp: row.public_ip,
+      osName: row.os_name,
+      osVersion: osVersion || null,
+      osBuild: osInfo.buildNumber || null,
+      osArchitecture: osInfo.architecture || null,
+      manufacturer: row.manufacturer || systemInfo.manufacturer || null,
+      model: row.model || systemInfo.model || null,
+      serialNumber: row.serial_number || systemInfo.serialNumber || systemInfo.biosSerialNumber || null,
+      lastLoggedInUser: row.last_logged_in_user,
+      processorName: processorInfo.name || null,
+      processorCores: processorInfo.cores || null,
+      memoryGb: memoryInfo.capacity ? Math.round(memoryInfo.capacity / (1024 * 1024 * 1024)) : null,
+      syncedAt: new Date(row.synced_at),
+    };
+  });
 }
 
 // Get synced alerts from local DB
