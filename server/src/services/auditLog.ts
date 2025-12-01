@@ -27,7 +27,10 @@ export type AuditAction =
   | 'activity.delete'
   | 'settings.update'
   | 'ninjarmm.auto_sync'
-  | 'ninjarmm.auto_sync_error';
+  | 'ninjarmm.auto_sync_error'
+  | 'mfa.device_trusted'
+  | 'mfa.device_revoked'
+  | 'mfa.all_devices_revoked';
 
 export interface AuditLogEntry {
   id: string;
