@@ -28,12 +28,21 @@ interface SecurityAlert {
 class SecurityService {
   private failedAttempts: Map<string, FailedLoginAttempt[]> = new Map();
   private alertedIPs: Map<string, Date> = new Map(); // Track when we last alerted for an IP
+  private logFileWritable: boolean = true;
 
   constructor() {
-    // Ensure log directory exists
+    // Ensure log directory exists and is writable
     const logDir = path.dirname(SECURITY_LOG_PATH);
-    if (!fs.existsSync(logDir)) {
-      fs.mkdirSync(logDir, { recursive: true });
+    try {
+      if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+      }
+      // Test if we can write to the log file
+      fs.appendFileSync(SECURITY_LOG_PATH, '');
+      console.log(`✅ Security log file writable: ${SECURITY_LOG_PATH}`);
+    } catch (err) {
+      console.warn(`⚠️ Security log file not writable: ${SECURITY_LOG_PATH} - Fail2Ban integration disabled`);
+      this.logFileWritable = false;
     }
 
     // Clean up old failed attempts every 5 minutes
@@ -48,8 +57,15 @@ class SecurityService {
     const timestamp = new Date().toISOString();
     const logLine = `[${timestamp}] AUTH_FAILED ip=${ip} user=${username}\n`;
 
-    // Write to security log file (for Fail2Ban)
-    fs.appendFileSync(SECURITY_LOG_PATH, logLine);
+    // Write to security log file (for Fail2Ban) - don't crash if it fails
+    if (this.logFileWritable) {
+      try {
+        fs.appendFileSync(SECURITY_LOG_PATH, logLine);
+      } catch (err) {
+        // Log to console but don't crash the login process
+        console.error('Failed to write to security log:', err);
+      }
+    }
 
     // Track in memory for alerting
     this.trackFailedAttempt({ ip, username, timestamp: new Date(), userAgent });
@@ -64,7 +80,14 @@ class SecurityService {
     const timestamp = new Date().toISOString();
     const logLine = `[${timestamp}] AUTH_SUCCESS ip=${ip} user=${username}\n`;
 
-    fs.appendFileSync(SECURITY_LOG_PATH, logLine);
+    // Write to security log file - don't crash if it fails
+    if (this.logFileWritable) {
+      try {
+        fs.appendFileSync(SECURITY_LOG_PATH, logLine);
+      } catch (err) {
+        console.error('Failed to write to security log:', err);
+      }
+    }
 
     // Clear failed attempts for this IP after successful login
     this.failedAttempts.delete(ip);
