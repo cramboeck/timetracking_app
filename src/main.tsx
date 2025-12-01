@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App.tsx'
 import { ReportApprovalReview } from './components/ReportApprovalReview.tsx'
 import { CustomerPortal } from './components/portal/CustomerPortal.tsx'
+import MaintenanceApproval from './components/MaintenanceApproval.tsx'
 import { AuthProvider } from './contexts/AuthContext.tsx'
 import { FeaturesProvider } from './contexts/FeaturesContext.tsx'
 import { accentColor } from './utils/accentColor.ts'
@@ -33,6 +34,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Routes>
             {/* Public route for report approval */}
             <Route path="/approve/:token" element={<ReportApprovalReview />} />
+
+            {/* Public route for maintenance approval */}
+            <Route path="/maintenance/approve/:token" element={<MaintenanceApproval />} />
 
             {/* Customer Portal (separate from main app) */}
             <Route path="/portal" element={<CustomerPortal />} />

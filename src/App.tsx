@@ -10,6 +10,7 @@ import { Tickets } from './components/Tickets';
 import { Finanzen } from './components/Finanzen';
 import { DevicesView } from './components/DevicesView';
 import { AlertsView } from './components/AlertsView';
+import MaintenanceView from './components/MaintenanceView';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
@@ -648,6 +649,9 @@ function App() {
         )}
         {currentSubView === 'alerts' && (
           <AlertsView />
+        )}
+        {currentSubView === 'maintenance' && (
+          <MaintenanceView />
         )}
         {currentSubView === 'billing' && (
           <Finanzen onBack={() => setCurrentSubView('dashboard')} />

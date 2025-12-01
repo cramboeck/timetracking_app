@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Clock, List, Calendar,
-  Ticket, Monitor, Bell,
+  Ticket, Monitor, Bell, Wrench,
   BarChart3, Wallet, FileText,
   Settings, Briefcase, HeadphonesIcon, TrendingUp
 } from 'lucide-react';
@@ -13,7 +13,7 @@ export type SubView =
   // Arbeiten
   | 'stopwatch' | 'list' | 'calendar' | 'manual'
   // Support
-  | 'tickets' | 'devices' | 'alerts'
+  | 'tickets' | 'devices' | 'alerts' | 'maintenance'
   // Business
   | 'dashboard' | 'billing' | 'reports'
   // Settings (special)
@@ -43,6 +43,7 @@ const areaConfig = {
       { view: 'tickets' as SubView, icon: Ticket, label: 'Tickets' },
       { view: 'devices' as SubView, icon: Monitor, label: 'Geräte' },
       { view: 'alerts' as SubView, icon: Bell, label: 'Alerts' },
+      { view: 'maintenance' as SubView, icon: Wrench, label: 'Wartung' },
     ],
   },
   business: {
@@ -164,7 +165,7 @@ export const AreaNavigation = ({
 // Helper to get area from subView
 export const getAreaFromSubView = (subView: SubView): Area => {
   if (['stopwatch', 'list', 'calendar', 'manual'].includes(subView)) return 'arbeiten';
-  if (['tickets', 'devices', 'alerts'].includes(subView)) return 'support';
+  if (['tickets', 'devices', 'alerts', 'maintenance'].includes(subView)) return 'support';
   if (['dashboard', 'billing', 'reports'].includes(subView)) return 'business';
   return 'arbeiten'; // Default
 };

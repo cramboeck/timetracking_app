@@ -1931,6 +1931,280 @@ export const featuresApi = {
   },
 };
 
+// Maintenance Announcements API
+export type MaintenanceType = 'patch' | 'reboot' | 'security_update' | 'firmware' | 'general';
+export type MaintenanceStatus = 'draft' | 'scheduled' | 'sent' | 'in_progress' | 'completed' | 'cancelled';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'no_response';
+
+export interface MaintenanceAnnouncement {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  maintenance_type: MaintenanceType;
+  affected_systems: string | null;
+  scheduled_start: string;
+  scheduled_end: string | null;
+  status: MaintenanceStatus;
+  require_approval: boolean;
+  approval_deadline: string | null;
+  auto_proceed_on_no_response: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Computed fields
+  customer_count?: number;
+  approved_count?: number;
+  rejected_count?: number;
+  pending_count?: number;
+}
+
+export interface MaintenanceAnnouncementCustomer {
+  id: string;
+  announcement_id: string;
+  customer_id: string;
+  customer_name: string;
+  customer_email: string | null;
+  approval_token: string;
+  status: ApprovalStatus;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
+  notification_sent_at: string | null;
+  reminder_sent_at: string | null;
+  created_at: string;
+}
+
+export interface MaintenanceAnnouncementDevice {
+  id: string;
+  announcement_id: string;
+  device_id: string;
+  system_name: string;
+  display_name: string | null;
+  node_class: string;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'skipped' | 'failed';
+  started_at: string | null;
+  completed_at: string | null;
+  notes: string | null;
+}
+
+export interface MaintenanceActivityLog {
+  id: string;
+  announcement_id: string;
+  action: string;
+  actor_type: 'admin' | 'customer' | 'system';
+  actor_id: string | null;
+  actor_name: string | null;
+  details: any;
+  created_at: string;
+  announcement_title?: string;
+}
+
+export interface MaintenanceTemplate {
+  id: string;
+  user_id: string;
+  name: string;
+  title: string;
+  description: string | null;
+  maintenance_type: MaintenanceType;
+  affected_systems: string | null;
+  estimated_duration_minutes: number | null;
+  require_approval: boolean;
+  auto_proceed_on_no_response: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaintenanceDashboard {
+  upcoming: MaintenanceAnnouncement[];
+  pendingApprovals: number;
+  recentActivity: MaintenanceActivityLog[];
+  statistics: {
+    completed_count: number;
+    scheduled_count: number;
+    in_progress_count: number;
+  };
+}
+
+export interface MaintenanceApprovalDetails {
+  customerName: string;
+  companyName: string;
+  title: string;
+  description: string | null;
+  maintenanceType: MaintenanceType;
+  affectedSystems: string | null;
+  scheduledStart: string;
+  scheduledEnd: string | null;
+  approvalDeadline: string | null;
+  requireApproval: boolean;
+  status: ApprovalStatus;
+  alreadyResponded?: boolean;
+  respondedAt?: string;
+  rejectionReason?: string | null;
+}
+
+export const maintenanceApi = {
+  // Get dashboard data
+  getDashboard: async (): Promise<MaintenanceDashboard> => {
+    return authFetch('/maintenance/dashboard');
+  },
+
+  // List announcements
+  getAnnouncements: async (options?: {
+    status?: MaintenanceStatus;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ announcements: MaintenanceAnnouncement[] }> => {
+    const params = new URLSearchParams();
+    if (options?.status) params.append('status', options.status);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    const queryString = params.toString();
+    return authFetch(`/maintenance/announcements${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get single announcement with details
+  getAnnouncement: async (id: string): Promise<{
+    announcement: MaintenanceAnnouncement;
+    customers: MaintenanceAnnouncementCustomer[];
+    devices: MaintenanceAnnouncementDevice[];
+    activityLog: MaintenanceActivityLog[];
+  }> => {
+    return authFetch(`/maintenance/announcements/${id}`);
+  },
+
+  // Create announcement
+  createAnnouncement: async (data: {
+    title: string;
+    description?: string;
+    maintenanceType: MaintenanceType;
+    affectedSystems?: string;
+    scheduledStart: string;
+    scheduledEnd?: string;
+    requireApproval?: boolean;
+    approvalDeadline?: string;
+    autoProceedOnNoResponse?: boolean;
+    notes?: string;
+    customerIds?: string[];
+    deviceIds?: string[];
+  }): Promise<{ success: boolean; announcementId: string; message: string }> => {
+    return authFetch('/maintenance/announcements', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update announcement
+  updateAnnouncement: async (id: string, data: Partial<{
+    title: string;
+    description: string;
+    maintenanceType: MaintenanceType;
+    affectedSystems: string;
+    scheduledStart: string;
+    scheduledEnd: string;
+    requireApproval: boolean;
+    approvalDeadline: string;
+    autoProceedOnNoResponse: boolean;
+    notes: string;
+    customerIds: string[];
+    deviceIds: string[];
+  }>): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/maintenance/announcements/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete announcement
+  deleteAnnouncement: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/maintenance/announcements/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Send notifications to customers
+  sendNotifications: async (id: string, customerIds: string[]): Promise<{
+    success: boolean;
+    sentCount: number;
+    failedCount: number;
+    message: string;
+  }> => {
+    return authFetch(`/maintenance/announcements/${id}/send`, {
+      method: 'POST',
+      body: JSON.stringify({ customerIds }),
+    });
+  },
+
+  // Send reminders to pending customers
+  sendReminders: async (id: string): Promise<{
+    success: boolean;
+    sentCount: number;
+    message: string;
+  }> => {
+    return authFetch(`/maintenance/announcements/${id}/remind`, {
+      method: 'POST',
+    });
+  },
+
+  // Update announcement status
+  updateStatus: async (id: string, status: MaintenanceStatus): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/maintenance/announcements/${id}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  // Get templates
+  getTemplates: async (): Promise<{ templates: MaintenanceTemplate[] }> => {
+    return authFetch('/maintenance/templates');
+  },
+
+  // Create template
+  createTemplate: async (data: {
+    name: string;
+    title: string;
+    description?: string;
+    maintenanceType: MaintenanceType;
+    affectedSystems?: string;
+    estimatedDurationMinutes?: number;
+    requireApproval?: boolean;
+    autoProceedOnNoResponse?: boolean;
+  }): Promise<{ success: boolean; templateId: string; message: string }> => {
+    return authFetch('/maintenance/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete template
+  deleteTemplate: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/maintenance/templates/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // PUBLIC: Get approval details (no auth required)
+  getApprovalDetails: async (token: string): Promise<MaintenanceApprovalDetails> => {
+    const response = await fetch(`${API_BASE_URL}/maintenance/approve/${token}`);
+    return handleResponse(response);
+  },
+
+  // PUBLIC: Submit approval/rejection (no auth required)
+  submitApproval: async (token: string, data: {
+    action: 'approve' | 'reject';
+    reason?: string;
+    approverName?: string;
+  }): Promise<{ success: boolean; message: string; status: ApprovalStatus }> => {
+    const response = await fetch(`${API_BASE_URL}/maintenance/approve/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,

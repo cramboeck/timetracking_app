@@ -874,6 +874,111 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_feature_packages_user ON feature_packages(user_id)');
 
+    // ============================================
+    // Maintenance Announcements System
+    // ============================================
+
+    // Maintenance announcements (the main announcement)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS maintenance_announcements (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT,
+        maintenance_type TEXT NOT NULL CHECK(maintenance_type IN ('patch', 'reboot', 'security_update', 'firmware', 'general')),
+        affected_systems TEXT,
+        scheduled_start TIMESTAMP NOT NULL,
+        scheduled_end TIMESTAMP,
+        status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'scheduled', 'sent', 'in_progress', 'completed', 'cancelled')),
+        require_approval BOOLEAN DEFAULT true,
+        approval_deadline TIMESTAMP,
+        auto_proceed_on_no_response BOOLEAN DEFAULT false,
+        notes TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Customer-specific announcements (links announcement to customers with approval status)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS maintenance_announcement_customers (
+        id TEXT PRIMARY KEY,
+        announcement_id TEXT NOT NULL REFERENCES maintenance_announcements(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        approval_token TEXT UNIQUE NOT NULL,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'no_response')),
+        approved_by TEXT,
+        approved_at TIMESTAMP,
+        rejection_reason TEXT,
+        notification_sent_at TIMESTAMP,
+        reminder_sent_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(announcement_id, customer_id)
+      )
+    `);
+
+    // Device-specific maintenance tracking (optional - link to specific devices)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS maintenance_announcement_devices (
+        id TEXT PRIMARY KEY,
+        announcement_id TEXT NOT NULL REFERENCES maintenance_announcements(id) ON DELETE CASCADE,
+        device_id TEXT NOT NULL REFERENCES ninjarmm_devices(id) ON DELETE CASCADE,
+        status TEXT DEFAULT 'scheduled' CHECK(status IN ('scheduled', 'in_progress', 'completed', 'skipped', 'failed')),
+        started_at TIMESTAMP,
+        completed_at TIMESTAMP,
+        notes TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(announcement_id, device_id)
+      )
+    `);
+
+    // Maintenance templates for recurring announcements
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS maintenance_templates (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        maintenance_type TEXT NOT NULL CHECK(maintenance_type IN ('patch', 'reboot', 'security_update', 'firmware', 'general')),
+        affected_systems TEXT,
+        estimated_duration_minutes INTEGER,
+        require_approval BOOLEAN DEFAULT true,
+        auto_proceed_on_no_response BOOLEAN DEFAULT false,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, name)
+      )
+    `);
+
+    // Activity log for maintenance
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS maintenance_activity_log (
+        id TEXT PRIMARY KEY,
+        announcement_id TEXT NOT NULL REFERENCES maintenance_announcements(id) ON DELETE CASCADE,
+        action TEXT NOT NULL,
+        actor_type TEXT CHECK(actor_type IN ('admin', 'customer', 'system')),
+        actor_id TEXT,
+        actor_name TEXT,
+        details JSONB,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Create indexes for Maintenance tables
+    await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_announcements_user ON maintenance_announcements(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_announcements_status ON maintenance_announcements(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_announcements_scheduled ON maintenance_announcements(scheduled_start)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_customers_announcement ON maintenance_announcement_customers(announcement_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_customers_customer ON maintenance_announcement_customers(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_customers_token ON maintenance_announcement_customers(approval_token)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_customers_status ON maintenance_announcement_customers(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_devices_announcement ON maintenance_announcement_devices(announcement_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_devices_device ON maintenance_announcement_devices(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_templates_user ON maintenance_templates(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_activity_announcement ON maintenance_activity_log(announcement_id)');
+
     // Migration: Add new portal permission columns to customer_contacts
     await client.query(`
       DO $$
