@@ -430,6 +430,10 @@ export const NinjaRMMSettings = () => {
                 </label>
                 <input
                   type="text"
+                  name="ninja_api_client_id"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-form-type="other"
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
                   placeholder={config?.hasClientId ? '••••••••' : 'Client ID eingeben'}
@@ -443,6 +447,10 @@ export const NinjaRMMSettings = () => {
                 </label>
                 <input
                   type="password"
+                  name="ninja_api_client_secret"
+                  autoComplete="new-password"
+                  data-lpignore="true"
+                  data-form-type="other"
                   value={clientSecret}
                   onChange={(e) => setClientSecret(e.target.value)}
                   placeholder={config?.hasClientSecret ? '••••••••' : 'Client Secret eingeben'}
