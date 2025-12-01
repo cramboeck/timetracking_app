@@ -1018,6 +1018,25 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // ============================================
+    // Security Alerts Table
+    // ============================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS security_alerts (
+        id TEXT PRIMARY KEY,
+        alert_type TEXT NOT NULL CHECK(alert_type IN ('brute_force', 'suspicious_login', 'account_lockout')),
+        ip_address TEXT NOT NULL,
+        username TEXT,
+        details TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_security_alerts_ip ON security_alerts(ip_address)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_security_alerts_created ON security_alerts(created_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_security_alerts_type ON security_alerts(alert_type)');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../config/database';
 import { emailService } from '../services/emailService';
 import { auditLog } from '../services/auditLog';
+import { securityService } from '../services/securityService';
 import { authLimiter } from '../middleware/rateLimiter';
 import { validate, registerSchema, loginSchema } from '../middleware/validation';
 
@@ -91,6 +92,10 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
   try {
     const { username, password } = req.body;
 
+    // Get client IP (handle proxy)
+    const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const userAgent = req.headers['user-agent'];
+
     // Try to find user by email (case-insensitive) or username (case-insensitive)
     const userResult = await pool.query(
       'SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)',
@@ -99,14 +104,21 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
     const user = userResult.rows[0] as any;
 
     if (!user) {
+      // Log failed login attempt (user not found)
+      securityService.logFailedLogin(clientIP, username, userAgent);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const validPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!validPassword) {
+      // Log failed login attempt (wrong password)
+      securityService.logFailedLogin(clientIP, username, userAgent);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    // Log successful login
+    securityService.logSuccessfulLogin(clientIP, user.username, user.id);
 
     // Update last login
     await pool.query('UPDATE users SET last_login = $1 WHERE id = $2', [new Date().toISOString(), user.id]);
@@ -115,9 +127,9 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
     auditLog.log({
       userId: user.id,
       action: 'user.login',
-      details: JSON.stringify({ username: user.username, email: user.email }),
-      ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
-      userAgent: req.headers['user-agent']
+      details: JSON.stringify({ username: user.username, email: user.email, ip: clientIP }),
+      ipAddress: clientIP,
+      userAgent: userAgent
     });
 
     // Generate token
