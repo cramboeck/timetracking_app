@@ -1053,6 +1053,50 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add MFA columns to customer_contacts
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'mfa_enabled'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN mfa_enabled BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'mfa_secret'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN mfa_secret TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'mfa_recovery_codes'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN mfa_recovery_codes TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // Portal trusted devices table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS portal_trusted_devices (
+        id TEXT PRIMARY KEY,
+        contact_id TEXT NOT NULL REFERENCES customer_contacts(id) ON DELETE CASCADE,
+        device_token TEXT NOT NULL UNIQUE,
+        device_name TEXT,
+        browser TEXT,
+        os TEXT,
+        ip_address TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_used_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMP NOT NULL
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_trusted_devices_contact ON portal_trusted_devices(contact_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_trusted_devices_token ON portal_trusted_devices(device_token)');
+
     // ============================================
     // Security Alerts Table
     // ============================================

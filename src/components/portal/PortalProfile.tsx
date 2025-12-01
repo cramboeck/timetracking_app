@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { ArrowLeft, User, Lock, Eye, EyeOff, Check } from 'lucide-react';
-import { customerPortalApi, PortalContact } from '../../services/api';
+import { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, User, Lock, Eye, EyeOff, Check, Smartphone, Shield, Copy, Trash2, Monitor, AlertCircle, X, Key } from 'lucide-react';
+import { customerPortalApi, PortalContact, TrustedDevice } from '../../services/api';
 
 interface PortalProfileProps {
   contact: PortalContact;
@@ -16,6 +16,151 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // MFA State
+  const [mfaEnabled, setMfaEnabled] = useState(false);
+  const [mfaLoading, setMfaLoading] = useState(true);
+  const [showMfaSetup, setShowMfaSetup] = useState(false);
+  const [mfaSetupData, setMfaSetupData] = useState<{ qrCode: string; secret: string; manualEntryKey: string; recoveryCodes: string[] } | null>(null);
+  const [mfaSetupCode, setMfaSetupCode] = useState(['', '', '', '', '', '']);
+  const [mfaSetupError, setMfaSetupError] = useState<string | null>(null);
+  const [mfaSetupLoading, setMfaSetupLoading] = useState(false);
+  const [showRecoveryCodes, setShowRecoveryCodes] = useState(false);
+  const [recoveryCodesCount, setRecoveryCodesCount] = useState(0);
+  const [showDisableMfa, setShowDisableMfa] = useState(false);
+  const [disablePassword, setDisablePassword] = useState('');
+  const [disableCode, setDisableCode] = useState('');
+  const [disableError, setDisableError] = useState<string | null>(null);
+  const [disableLoading, setDisableLoading] = useState(false);
+  const [trustedDevices, setTrustedDevices] = useState<TrustedDevice[]>([]);
+  const [showTrustedDevices, setShowTrustedDevices] = useState(false);
+  const mfaInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Load MFA status
+  useEffect(() => {
+    loadMfaStatus();
+  }, []);
+
+  const loadMfaStatus = async () => {
+    try {
+      const status = await customerPortalApi.getMfaStatus();
+      setMfaEnabled(status.enabled);
+      if (status.enabled) {
+        const codesCount = await customerPortalApi.getRecoveryCodesCount();
+        setRecoveryCodesCount(codesCount.remaining);
+        const devicesResult = await customerPortalApi.getTrustedDevices();
+        setTrustedDevices(devicesResult.devices || []);
+      }
+    } catch (err) {
+      console.error('Failed to load MFA status:', err);
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleStartMfaSetup = async () => {
+    setMfaSetupLoading(true);
+    setMfaSetupError(null);
+    try {
+      const data = await customerPortalApi.setupMfa();
+      setMfaSetupData(data);
+      setShowMfaSetup(true);
+      setTimeout(() => mfaInputRefs.current[0]?.focus(), 100);
+    } catch (err: any) {
+      setMfaSetupError(err.message || 'Fehler beim Einrichten der 2FA');
+    } finally {
+      setMfaSetupLoading(false);
+    }
+  };
+
+  const handleMfaSetupCodeChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    const newCode = [...mfaSetupCode];
+    newCode[index] = value.slice(-1);
+    setMfaSetupCode(newCode);
+    if (value && index < 5) {
+      mfaInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleMfaSetupKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !mfaSetupCode[index] && index > 0) {
+      mfaInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleMfaSetupPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pastedData) {
+      const newCode = [...mfaSetupCode];
+      for (let i = 0; i < pastedData.length; i++) {
+        newCode[i] = pastedData[i];
+      }
+      setMfaSetupCode(newCode);
+    }
+  };
+
+  const handleVerifyMfaSetup = async () => {
+    const code = mfaSetupCode.join('');
+    if (code.length !== 6) return;
+
+    setMfaSetupLoading(true);
+    setMfaSetupError(null);
+    try {
+      await customerPortalApi.verifyMfaSetup(code);
+      setMfaEnabled(true);
+      setShowMfaSetup(false);
+      setShowRecoveryCodes(true);
+      setRecoveryCodesCount(mfaSetupData?.recoveryCodes.length || 8);
+    } catch (err: any) {
+      setMfaSetupError(err.message || 'Ungültiger Code');
+      setMfaSetupCode(['', '', '', '', '', '']);
+      mfaInputRefs.current[0]?.focus();
+    } finally {
+      setMfaSetupLoading(false);
+    }
+  };
+
+  const handleDisableMfa = async () => {
+    if (!disablePassword || !disableCode) return;
+    setDisableLoading(true);
+    setDisableError(null);
+    try {
+      await customerPortalApi.disableMfa(disablePassword, disableCode);
+      setMfaEnabled(false);
+      setShowDisableMfa(false);
+      setDisablePassword('');
+      setDisableCode('');
+      setTrustedDevices([]);
+    } catch (err: any) {
+      setDisableError(err.message || 'Fehler beim Deaktivieren der 2FA');
+    } finally {
+      setDisableLoading(false);
+    }
+  };
+
+  const handleRemoveTrustedDevice = async (deviceId: string) => {
+    try {
+      await customerPortalApi.removeTrustedDevice(deviceId);
+      setTrustedDevices(prev => prev.filter(d => d.id !== deviceId));
+    } catch (err) {
+      console.error('Failed to remove trusted device:', err);
+    }
+  };
+
+  const handleRemoveAllTrustedDevices = async () => {
+    try {
+      await customerPortalApi.removeAllTrustedDevices();
+      setTrustedDevices([]);
+    } catch (err) {
+      console.error('Failed to remove all trusted devices:', err);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,6 +352,350 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
           </button>
         </form>
       </div>
+
+      {/* Two-Factor Authentication */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+            <Smartphone size={20} className="text-green-600 dark:text-green-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              Zwei-Faktor-Authentifizierung (2FA)
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Zusätzliche Sicherheit für Ihr Konto
+            </p>
+          </div>
+          {!mfaLoading && (
+            <div className={`px-3 py-1 rounded-full text-xs font-medium ${mfaEnabled
+              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+            }`}>
+              {mfaEnabled ? 'Aktiviert' : 'Deaktiviert'}
+            </div>
+          )}
+        </div>
+
+        {mfaLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : mfaEnabled ? (
+          <div className="space-y-4">
+            {/* Recovery Codes Status */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+              <div className="flex items-center gap-3">
+                <Key size={20} className="text-gray-500 dark:text-gray-400" />
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">Wiederherstellungscodes</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {recoveryCodesCount} Code{recoveryCodesCount !== 1 ? 's' : ''} verfügbar
+                  </p>
+                </div>
+              </div>
+              {recoveryCodesCount <= 2 && (
+                <span className="text-amber-600 dark:text-amber-400 text-sm">
+                  Bald erneuern
+                </span>
+              )}
+            </div>
+
+            {/* Trusted Devices */}
+            {trustedDevices.length > 0 && (
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Monitor size={18} className="text-gray-500 dark:text-gray-400" />
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      Vertrauenswürdige Geräte ({trustedDevices.length})
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowTrustedDevices(!showTrustedDevices)}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    {showTrustedDevices ? 'Ausblenden' : 'Anzeigen'}
+                  </button>
+                </div>
+                {showTrustedDevices && (
+                  <div className="space-y-2">
+                    {trustedDevices.map(device => (
+                      <div key={device.id} className="flex items-center justify-between py-2 border-t border-gray-200 dark:border-gray-600">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {device.browser} auf {device.os}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Zuletzt: {new Date(device.lastUsedAt).toLocaleDateString('de-DE')}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveTrustedDevice(device.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={handleRemoveAllTrustedDevices}
+                      className="w-full mt-2 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                    >
+                      Alle Geräte entfernen
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Disable MFA */}
+            <button
+              onClick={() => setShowDisableMfa(true)}
+              className="w-full py-3 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              2FA deaktivieren
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-gray-600 dark:text-gray-400">
+              Schützen Sie Ihr Konto mit einem zusätzlichen Sicherheitscode bei der Anmeldung.
+              Sie benötigen eine Authenticator-App wie Google Authenticator oder Microsoft Authenticator.
+            </p>
+            {mfaSetupError && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm">
+                <AlertCircle size={18} />
+                <span>{mfaSetupError}</span>
+              </div>
+            )}
+            <button
+              onClick={handleStartMfaSetup}
+              disabled={mfaSetupLoading}
+              className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              {mfaSetupLoading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Wird vorbereitet...
+                </>
+              ) : (
+                <>
+                  <Shield size={20} />
+                  2FA aktivieren
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* MFA Setup Modal */}
+      {showMfaSetup && mfaSetupData && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                2FA einrichten
+              </h3>
+              <button
+                onClick={() => {
+                  setShowMfaSetup(false);
+                  setMfaSetupCode(['', '', '', '', '', '']);
+                  setMfaSetupError(null);
+                }}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* QR Code */}
+              <div className="text-center">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Scannen Sie diesen QR-Code mit Ihrer Authenticator-App
+                </p>
+                <div className="inline-block p-4 bg-white rounded-xl border border-gray-200">
+                  <img src={mfaSetupData.qrCode} alt="QR Code" className="w-48 h-48" />
+                </div>
+              </div>
+
+              {/* Manual Entry Key */}
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                  Oder manuell eingeben:
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-sm font-mono bg-white dark:bg-gray-800 px-3 py-2 rounded border border-gray-200 dark:border-gray-600 break-all">
+                    {mfaSetupData.manualEntryKey}
+                  </code>
+                  <button
+                    onClick={() => copyToClipboard(mfaSetupData.manualEntryKey)}
+                    className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  >
+                    <Copy size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Verification Code Input */}
+              <div>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 text-center">
+                  Geben Sie den 6-stelligen Code aus Ihrer App ein
+                </p>
+                {mfaSetupError && (
+                  <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm text-center">
+                    {mfaSetupError}
+                  </div>
+                )}
+                <div className="flex justify-center gap-2 mb-4">
+                  {mfaSetupCode.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={el => mfaInputRefs.current[index] = el}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleMfaSetupCodeChange(index, e.target.value)}
+                      onKeyDown={(e) => handleMfaSetupKeyDown(index, e)}
+                      onPaste={handleMfaSetupPaste}
+                      disabled={mfaSetupLoading}
+                      className="w-11 h-13 text-center text-xl font-bold rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={handleVerifyMfaSetup}
+                  disabled={mfaSetupLoading || mfaSetupCode.join('').length !== 6}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl font-medium"
+                >
+                  {mfaSetupLoading ? 'Wird überprüft...' : 'Bestätigen'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recovery Codes Modal */}
+      {showRecoveryCodes && mfaSetupData && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                Wiederherstellungscodes
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Speichern Sie diese Codes an einem sicheren Ort
+              </p>
+            </div>
+            <div className="p-6">
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-4">
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  Diese Codes werden nur einmal angezeigt. Sie können sie verwenden, wenn Sie keinen Zugriff auf Ihre Authenticator-App haben.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {mfaSetupData.recoveryCodes.map((code, index) => (
+                  <div key={index} className="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded text-center">
+                    {code}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => copyToClipboard(mfaSetupData.recoveryCodes.join('\n'))}
+                className="w-full py-2 border border-gray-300 dark:border-gray-600 rounded-xl flex items-center justify-center gap-2 mb-4 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                <Copy size={18} />
+                Alle kopieren
+              </button>
+              <button
+                onClick={() => {
+                  setShowRecoveryCodes(false);
+                  setMfaSetupData(null);
+                }}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium"
+              >
+                Fertig
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disable MFA Modal */}
+      {showDisableMfa && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                2FA deaktivieren
+              </h3>
+              <button
+                onClick={() => {
+                  setShowDisableMfa(false);
+                  setDisablePassword('');
+                  setDisableCode('');
+                  setDisableError(null);
+                }}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                <p className="text-sm text-red-700 dark:text-red-400">
+                  Achtung: Die Deaktivierung der 2FA verringert die Sicherheit Ihres Kontos.
+                </p>
+              </div>
+
+              {disableError && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm">
+                  {disableError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Passwort
+                </label>
+                <input
+                  type="password"
+                  value={disablePassword}
+                  onChange={(e) => setDisablePassword(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ihr Passwort"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  2FA-Code
+                </label>
+                <input
+                  type="text"
+                  value={disableCode}
+                  onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  inputMode="numeric"
+                  maxLength={6}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="6-stelliger Code"
+                />
+              </div>
+
+              <button
+                onClick={handleDisableMfa}
+                disabled={disableLoading || !disablePassword || disableCode.length !== 6}
+                className="w-full py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-xl font-medium"
+              >
+                {disableLoading ? 'Wird deaktiviert...' : '2FA deaktivieren'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1231,15 +1231,28 @@ export interface PortalQuote {
 }
 
 export const customerPortalApi = {
-  login: async (email: string, password: string): Promise<{ success: boolean; token: string; contact: PortalContact }> => {
+  login: async (email: string, password: string): Promise<{
+    success: boolean;
+    token?: string;
+    contact?: PortalContact;
+    mfaRequired?: boolean;
+    mfaToken?: string;
+  }> => {
+    // Include device token if available (for trusted devices)
+    const deviceToken = localStorage.getItem('portal_device_token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (deviceToken) {
+      headers['X-Device-Token'] = deviceToken;
+    }
+
     const response = await fetch(`${API_BASE_URL}/customer-portal/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ email, password }),
     });
     const result = await handleResponse(response);
 
-    if (result.token) {
+    if (result.token && !result.mfaRequired) {
       localStorage.setItem('portal_auth_token', result.token);
     }
     return result;
@@ -1365,6 +1378,100 @@ export const customerPortalApi = {
   // Quotes (sevDesk)
   getQuotes: async (): Promise<{ data: PortalQuote[] }> => {
     return portalAuthFetch('/customer-portal/quotes');
+  },
+
+  // MFA
+  verifyMfa: async (mfaToken: string, code: string, trustDevice: boolean = false): Promise<{
+    success: boolean;
+    token: string;
+    contact: PortalContact;
+    deviceToken?: string;
+  }> => {
+    // Include device token if available (for trusted devices)
+    const deviceToken = localStorage.getItem('portal_device_token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (deviceToken) {
+      headers['X-Device-Token'] = deviceToken;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/customer-portal/mfa/verify`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ mfaToken, code, trustDevice }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'An error occurred' }));
+      const error: any = new Error(errorData.error || 'MFA verification failed');
+      error.attemptsLeft = errorData.attemptsLeft;
+      error.retryAfter = errorData.retryAfter;
+      throw error;
+    }
+
+    const result = await response.json();
+
+    if (result.token) {
+      localStorage.setItem('portal_auth_token', result.token);
+    }
+
+    if (result.deviceToken) {
+      localStorage.setItem('portal_device_token', result.deviceToken);
+    }
+
+    return result;
+  },
+
+  getMfaStatus: async (): Promise<{ enabled: boolean; hasRecoveryCodes: boolean }> => {
+    return portalAuthFetch('/customer-portal/mfa/status');
+  },
+
+  setupMfa: async (): Promise<{
+    secret: string;
+    qrCode: string;
+    recoveryCodes: string[];
+    manualEntryKey: string;
+  }> => {
+    return portalAuthFetch('/customer-portal/mfa/setup', { method: 'POST' });
+  },
+
+  verifyMfaSetup: async (code: string): Promise<{ success: boolean; message: string }> => {
+    return portalAuthFetch('/customer-portal/mfa/verify-setup', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  },
+
+  disableMfa: async (password: string, code: string): Promise<{ success: boolean; message: string }> => {
+    return portalAuthFetch('/customer-portal/mfa/disable', {
+      method: 'POST',
+      body: JSON.stringify({ password, code }),
+    });
+  },
+
+  getRecoveryCodesCount: async (): Promise<{ remaining: number }> => {
+    return portalAuthFetch('/customer-portal/mfa/recovery-codes');
+  },
+
+  regenerateRecoveryCodes: async (password: string, code: string): Promise<{
+    success: boolean;
+    recoveryCodes: string[];
+  }> => {
+    return portalAuthFetch('/customer-portal/mfa/regenerate-recovery-codes', {
+      method: 'POST',
+      body: JSON.stringify({ password, code }),
+    });
+  },
+
+  getTrustedDevices: async (): Promise<{ devices: TrustedDevice[] }> => {
+    return portalAuthFetch('/customer-portal/mfa/trusted-devices');
+  },
+
+  removeTrustedDevice: async (deviceId: string): Promise<{ success: boolean }> => {
+    return portalAuthFetch(`/customer-portal/mfa/trusted-devices/${deviceId}`, { method: 'DELETE' });
+  },
+
+  removeAllTrustedDevices: async (): Promise<{ success: boolean; count: number }> => {
+    return portalAuthFetch('/customer-portal/mfa/trusted-devices', { method: 'DELETE' });
   },
 };
 
