@@ -549,7 +549,7 @@ router.get('/approve/:token', async (req, res) => {
 
     const result = await query(
       `SELECT mac.status as customer_status, mac.approved_at, mac.rejection_reason,
-              mac.approver_name, a.*, c.name as customer_name,
+              mac.approved_by, a.*, c.name as customer_name,
               u.username as admin_name, ci.name as company_name
        FROM maintenance_announcement_customers mac
        JOIN maintenance_announcements a ON mac.announcement_id = a.id
