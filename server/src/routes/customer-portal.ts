@@ -905,7 +905,8 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
       }
 
       // Get last boot time (various possible field names from NinjaRMM)
-      const lastBoot = deviceData.lastBoot || deviceData.lastReboot || deviceData.system?.lastBoot || null;
+      const lastBoot = deviceData.lastBoot || deviceData.lastReboot ||
+                       deviceData.system?.lastBoot || deviceData.os?.lastBootTime || null;
 
       return {
         id: row.id,

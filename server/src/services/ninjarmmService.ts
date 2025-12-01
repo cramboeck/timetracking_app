@@ -48,6 +48,7 @@ export interface NinjaRMMDevice {
   created: string;
   lastContact?: string;
   lastUpdate?: string;
+  lastBoot?: string; // Last system boot/reboot time
   userData?: Record<string, unknown>;
   tags?: string[];
   // OS Info
@@ -56,6 +57,8 @@ export interface NinjaRMMDevice {
     manufacturer?: string;
     architecture?: string;
     buildNumber?: string;
+    installDate?: string;
+    lastBootTime?: string;
   };
   // System info
   system?: {
@@ -64,6 +67,7 @@ export interface NinjaRMMDevice {
     model?: string;
     biosSerialNumber?: string;
     serialNumber?: string;
+    lastBoot?: string;
   };
   // Processor
   processor?: {
@@ -537,6 +541,37 @@ export async function getDevices(
   return response || [];
 }
 
+// Get devices with detailed hardware info (OS, system, processor, memory)
+export async function getDevicesDetailed(
+  userId: string,
+  options: {
+    organizationId?: number;
+    nodeClass?: string;
+    offline?: boolean;
+  } = {}
+): Promise<NinjaRMMDevice[]> {
+  const config = await getConfig(userId);
+  if (!config) throw new Error('NinjaRMM not configured');
+
+  const params = new URLSearchParams();
+  if (options.organizationId) params.append('org', options.organizationId.toString());
+  if (options.nodeClass) params.append('class', options.nodeClass);
+  if (options.offline !== undefined) params.append('offline', options.offline.toString());
+
+  const queryString = params.toString();
+  // Use the devices-detailed endpoint which includes OS, system, and hardware info
+  const endpoint = queryString ? `/devices-detailed?${queryString}` : '/devices-detailed';
+
+  try {
+    const response = await ninjaFetch(config, endpoint);
+    return response || [];
+  } catch (error: any) {
+    // Fall back to regular /devices if /devices-detailed is not available
+    console.log('devices-detailed endpoint not available, falling back to /devices');
+    return getDevices(userId, options);
+  }
+}
+
 export async function getDevice(userId: string, deviceId: number): Promise<NinjaRMMDevice | null> {
   const config = await getConfig(userId);
   if (!config) throw new Error('NinjaRMM not configured');
@@ -719,8 +754,9 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
   let errors = 0;
 
   try {
-    const devices = await getDevices(userId);
-    console.log(`Syncing ${devices.length} devices for user ${userId}`);
+    // Use getDevicesDetailed to get full hardware info (OS, system, processor, memory)
+    const devices = await getDevicesDetailed(userId);
+    console.log(`Syncing ${devices.length} devices with detailed info for user ${userId}`);
 
     for (const device of devices) {
       try {
