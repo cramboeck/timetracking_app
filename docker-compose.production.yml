@@ -59,6 +59,10 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # CORS
       CORS_ORIGINS: ${CORS_ORIGINS}
+      # Security
+      SECURITY_LOG_PATH: /app/logs/security.log
+      SECURITY_ALERT_EMAIL: ${SECURITY_ALERT_EMAIL:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
     volumes:
       - backend_logs:/app/logs
       - backend_uploads:/app/uploads

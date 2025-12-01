@@ -1,4 +1,4 @@
-# Fail2Ban Integration für TimeTracking App
+# Fail2Ban Integration für TimeTracking App (Docker Production Setup)
 
 ## Installation
 
@@ -12,25 +12,33 @@ sudo apt update && sudo apt install fail2ban
 sudo yum install epel-release && sudo yum install fail2ban
 ```
 
-### 2. Log-Verzeichnis erstellen
+### 2. Log-Verzeichnis prüfen
 
-```bash
-sudo mkdir -p /var/log/timetracking
-sudo chown www-data:www-data /var/log/timetracking  # oder den Benutzer, unter dem Node.js läuft
+Das Log-Verzeichnis wird automatisch durch Docker erstellt unter:
 ```
+/var/lib/ramboflow/logs/
+```
+
+Die Security-Logs werden dort als `security.log` geschrieben.
 
 ### 3. Environment Variable setzen
 
-In deiner `.env` Datei:
+In deiner `.env.production` Datei:
 
 ```env
-SECURITY_LOG_PATH=/var/log/timetracking/security.log
+# Security Alert Email (empfängt Brute-Force-Warnungen)
 SECURITY_ALERT_EMAIL=deine-email@beispiel.de
+# oder
+ADMIN_EMAIL=deine-email@beispiel.de
 ```
+
+**Hinweis:** `SECURITY_LOG_PATH` ist bereits in docker-compose.production.yml konfiguriert.
 
 ### 4. Fail2Ban Konfiguration kopieren
 
 ```bash
+# Ins Projekt-Verzeichnis wechseln
+cd /pfad/zu/timetracking_app
 # Filter kopieren
 sudo cp filter.d/timetracking.conf /etc/fail2ban/filter.d/
 
