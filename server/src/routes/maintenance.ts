@@ -548,7 +548,8 @@ router.get('/approve/:token', async (req, res) => {
     const { token } = req.params;
 
     const result = await query(
-      `SELECT mac.*, a.*, c.name as customer_name,
+      `SELECT mac.status as customer_status, mac.approved_at, mac.rejection_reason,
+              mac.approver_name, a.*, c.name as customer_name,
               u.username as admin_name, ci.name as company_name
        FROM maintenance_announcement_customers mac
        JOIN maintenance_announcements a ON mac.announcement_id = a.id
@@ -565,11 +566,11 @@ router.get('/approve/:token', async (req, res) => {
 
     const data = result.rows[0];
 
-    // Check if already responded
-    if (data.status !== 'pending') {
+    // Check if already responded (using customer_status, not announcement status)
+    if (data.customer_status !== 'pending') {
       return res.json({
         alreadyResponded: true,
-        status: data.status,
+        status: data.customer_status,
         respondedAt: data.approved_at,
         rejectionReason: data.rejection_reason,
         customerName: data.customer_name,
@@ -596,7 +597,7 @@ router.get('/approve/:token', async (req, res) => {
       scheduledEnd: data.scheduled_end,
       approvalDeadline: data.approval_deadline,
       requireApproval: data.require_approval,
-      status: data.status
+      status: data.customer_status
     });
   } catch (error) {
     console.error('Get approval details error:', error);
@@ -611,7 +612,8 @@ router.post('/approve/:token', validate(approvalActionSchema), async (req, res) 
     const { action, reason, approverName } = req.body;
 
     const result = await query(
-      `SELECT mac.*, a.id as announcement_id, a.title, a.user_id,
+      `SELECT mac.id, mac.customer_id, mac.status as customer_status,
+              a.id as announcement_id, a.title, a.user_id,
               c.name as customer_name, u.email as admin_email
        FROM maintenance_announcement_customers mac
        JOIN maintenance_announcements a ON mac.announcement_id = a.id
@@ -627,7 +629,7 @@ router.post('/approve/:token', validate(approvalActionSchema), async (req, res) 
 
     const data = result.rows[0];
 
-    if (data.status !== 'pending') {
+    if (data.customer_status !== 'pending') {
       return res.status(400).json({ error: 'Diese Anfrage wurde bereits beantwortet' });
     }
 
