@@ -364,9 +364,9 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
     const userId = req.user!.id;
     const { id } = req.params;
 
-    // Get ninja_id from local device
+    // Get existing device data including device_data JSON
     const result = await query(
-      'SELECT ninja_id, ninja_device_id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+      'SELECT ninja_id, ninja_device_id, device_data, os_name, manufacturer, model, serial_number FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
@@ -374,10 +374,22 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
       return res.status(404).json({ success: false, error: 'Device not found' });
     }
 
+    const existingRow = result.rows[0];
+
+    // Parse existing device_data to preserve it
+    let existingDeviceData: any = {};
+    try {
+      existingDeviceData = typeof existingRow.device_data === 'string'
+        ? JSON.parse(existingRow.device_data)
+        : (existingRow.device_data || {});
+    } catch (e) {
+      console.log('Failed to parse existing device_data:', e);
+    }
+
     // Try ninja_id first, fall back to ninja_device_id parsed as integer
-    let ninjaId = result.rows[0].ninja_id;
-    if (!ninjaId && result.rows[0].ninja_device_id) {
-      ninjaId = parseInt(result.rows[0].ninja_device_id, 10);
+    let ninjaId = existingRow.ninja_id;
+    if (!ninjaId && existingRow.ninja_device_id) {
+      ninjaId = parseInt(existingRow.ninja_device_id, 10);
     }
 
     if (!ninjaId || isNaN(ninjaId)) {
@@ -391,15 +403,28 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
       return res.status(404).json({ success: false, error: 'Gerät nicht in NinjaRMM gefunden - möglicherweise gelöscht?' });
     }
 
-    // Update local device with fetched details including full device_data JSON
+    // Merge new data with existing data - only update if new value exists
+    const mergedDeviceData = {
+      ...existingDeviceData,
+      ...device,
+      // Preserve existing detailed info if new API didn't return it
+      os: device.os || existingDeviceData.os,
+      system: device.system || existingDeviceData.system,
+      processor: device.processor || existingDeviceData.processor,
+      memory: device.memory || existingDeviceData.memory,
+      volumes: device.volumes || existingDeviceData.volumes,
+      nics: device.nics || existingDeviceData.nics,
+    };
+
+    // Update local device - only update columns if we have new values, else keep existing
     await query(
       `UPDATE ninjarmm_devices SET
-        os_name = $1,
-        manufacturer = $2,
-        model = $3,
-        serial_number = $4,
-        last_logged_in_user = $5,
-        public_ip = $6,
+        os_name = COALESCE($1, os_name),
+        manufacturer = COALESCE($2, manufacturer),
+        model = COALESCE($3, model),
+        serial_number = COALESCE($4, serial_number),
+        last_logged_in_user = COALESCE($5, last_logged_in_user),
+        public_ip = COALESCE($6, public_ip),
         device_data = $7,
         synced_at = NOW()
       WHERE id = $8 AND user_id = $9`,
@@ -410,7 +435,7 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
         device.system?.serialNumber || null,
         device.lastLoggedInUser || null,
         device.publicIP || null,
-        JSON.stringify(device),
+        JSON.stringify(mergedDeviceData),
         id,
         userId,
       ]

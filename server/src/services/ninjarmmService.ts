@@ -600,21 +600,29 @@ export async function getDeviceWithDetails(userId: string, deviceId: number): Pr
     console.log(`Got basic device info for ${deviceId}, fetching additional details...`);
 
     // Get additional details in parallel
-    const [osInfo, systemInfo, processors, disks, networkInterfaces] = await Promise.all([
+    const [osInfo, systemInfo, processors, memory, disks, networkInterfaces] = await Promise.all([
       ninjaFetch(config, `/device/${deviceId}/os`).catch((e) => { console.log(`OS info fetch failed: ${e.message}`); return null; }),
       ninjaFetch(config, `/device/${deviceId}/system`).catch((e) => { console.log(`System info fetch failed: ${e.message}`); return null; }),
       ninjaFetch(config, `/device/${deviceId}/processors`).catch((e) => { console.log(`Processors fetch failed: ${e.message}`); return []; }),
+      ninjaFetch(config, `/device/${deviceId}/os/patches`).catch(() => null).then(() =>
+        // Try to get memory from system info or a separate endpoint
+        ninjaFetch(config, `/device/${deviceId}/software`).catch(() => null)
+      ).catch(() => null),
       ninjaFetch(config, `/device/${deviceId}/disks`).catch((e) => { console.log(`Disks fetch failed: ${e.message}`); return []; }),
       ninjaFetch(config, `/device/${deviceId}/network-interfaces`).catch((e) => { console.log(`Network interfaces fetch failed: ${e.message}`); return []; }),
     ]);
 
-    console.log(`Device ${deviceId} details: os=${!!osInfo}, system=${!!systemInfo}`);
+    console.log(`Device ${deviceId} details: os=${JSON.stringify(osInfo)}, system=${JSON.stringify(systemInfo)}, processors=${JSON.stringify(processors)}`);
+
+    // Memory is often in systemInfo for NinjaRMM
+    const memoryInfo = systemInfo?.memory || systemInfo?.ram || { capacity: systemInfo?.totalPhysicalMemory };
 
     return {
       ...device,
       os: osInfo,
       system: systemInfo,
-      processor: processors[0] || undefined,
+      processor: processors?.[0] || undefined,
+      memory: memoryInfo,
       volumes: disks,
       nics: networkInterfaces,
     };
