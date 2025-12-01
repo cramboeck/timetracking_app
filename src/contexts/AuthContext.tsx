@@ -25,7 +25,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<LoginResult>;
-  verifyMfa: (mfaToken: string, code: string) => Promise<MfaVerifyResult>;
+  verifyMfa: (mfaToken: string, code: string, trustDevice?: boolean) => Promise<MfaVerifyResult>;
   register: (data: RegisterData) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   updateAccentColor: (color: AccentColor) => void;
@@ -151,12 +151,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const verifyMfa = async (mfaToken: string, code: string): Promise<MfaVerifyResult> => {
+  const verifyMfa = async (mfaToken: string, code: string, trustDevice: boolean = false): Promise<MfaVerifyResult> => {
     try {
-      console.log('🔐 [AUTH] Verifying MFA code...');
+      console.log('🔐 [AUTH] Verifying MFA code...', { trustDevice });
 
       // Call backend API
-      const mfaResponse = await authApi.verifyMfa(mfaToken, code);
+      const mfaResponse = await authApi.verifyMfa(mfaToken, code, trustDevice);
       console.log('✅ [AUTH] MFA verification successful!', mfaResponse);
 
       // Token is automatically stored by authApi.verifyMfa()

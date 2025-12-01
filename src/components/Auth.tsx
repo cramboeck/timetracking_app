@@ -19,6 +19,7 @@ export const Auth = () => {
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [mfaAttemptsLeft, setMfaAttemptsLeft] = useState<number | undefined>();
   const [mfaLockedUntil, setMfaLockedUntil] = useState<Date | undefined>();
+  const [trustDevice, setTrustDevice] = useState(false);
 
   // Check URL for reset token
   useEffect(() => {
@@ -93,7 +94,7 @@ export const Auth = () => {
       return;
     }
 
-    const result = await verifyMfa(mfaToken, loginMfaCode);
+    const result = await verifyMfa(mfaToken, loginMfaCode, trustDevice);
 
     if (!result.success) {
       // Handle rate limiting
@@ -117,6 +118,7 @@ export const Auth = () => {
     setError('');
     setMfaAttemptsLeft(undefined);
     setMfaLockedUntil(undefined);
+    setTrustDevice(false);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -276,6 +278,24 @@ export const Auth = () => {
                       </p>
                     )}
                   </div>
+
+                  {/* Trust this device checkbox */}
+                  <label className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={trustDevice}
+                      onChange={(e) => setTrustDevice(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-accent-primary focus:ring-accent-primary"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Diesem Gerät vertrauen
+                      </span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        30 Tage ohne MFA-Abfrage auf diesem Browser
+                      </p>
+                    </div>
+                  </label>
 
                   <div className="flex gap-3">
                     <button

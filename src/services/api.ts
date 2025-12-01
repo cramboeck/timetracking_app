@@ -75,9 +75,17 @@ export const authApi = {
 
   login: async (username: string, password: string) => {
     console.log('🌐 [API] Calling POST /auth/login');
+
+    // Include device token if available (for trusted devices)
+    const deviceToken = localStorage.getItem('device_token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (deviceToken) {
+      headers['X-Device-Token'] = deviceToken;
+    }
+
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ username, password }),
     });
     console.log('🌐 [API] Login response status:', response.status);
@@ -118,12 +126,12 @@ export const authApi = {
   },
 
   // MFA verification during login
-  verifyMfa: async (mfaToken: string, code: string) => {
+  verifyMfa: async (mfaToken: string, code: string, trustDevice: boolean = false) => {
     console.log('🌐 [API] Calling POST /mfa/verify');
     const response = await fetch(`${API_BASE_URL}/mfa/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mfaToken, code }),
+      body: JSON.stringify({ mfaToken, code, trustDevice }),
     });
 
     if (!response.ok) {
@@ -141,9 +149,28 @@ export const authApi = {
       localStorage.setItem('auth_token', result.token);
       console.log('✅ [API] MFA verified, token stored');
     }
+
+    // Store device token if returned
+    if (result.deviceToken) {
+      localStorage.setItem('device_token', result.deviceToken);
+      console.log('✅ [API] Device token stored');
+    }
+
     return result;
   },
 };
+
+// Trusted Device type
+export interface TrustedDevice {
+  id: string;
+  deviceName: string;
+  browser: string;
+  os: string;
+  ipAddress: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+}
 
 // MFA API
 export const mfaApi = {
@@ -186,6 +213,19 @@ export const mfaApi = {
       method: 'POST',
       body: JSON.stringify({ password, code }),
     });
+  },
+
+  // Trusted devices
+  getTrustedDevices: async (): Promise<{ devices: TrustedDevice[] }> => {
+    return authFetch('/mfa/trusted-devices');
+  },
+
+  removeTrustedDevice: async (deviceId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/mfa/trusted-devices/${deviceId}`, { method: 'DELETE' });
+  },
+
+  removeAllTrustedDevices: async (): Promise<{ success: boolean; count: number }> => {
+    return authFetch('/mfa/trusted-devices', { method: 'DELETE' });
   },
 };
 

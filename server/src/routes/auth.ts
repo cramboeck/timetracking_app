@@ -7,6 +7,7 @@ import { auditLog } from '../services/auditLog';
 import { securityService } from '../services/securityService';
 import { authLimiter } from '../middleware/rateLimiter';
 import { validate, registerSchema, loginSchema } from '../middleware/validation';
+import { checkTrustedDevice } from './mfa';
 
 const router = Router();
 
@@ -119,27 +120,39 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
 
     // Check if MFA is enabled
     if (user.mfa_enabled && user.mfa_secret) {
-      // Generate a temporary token for MFA verification (short-lived)
-      const mfaToken = jwt.sign(
-        { userId: user.id, mfaPending: true },
-        process.env.JWT_SECRET!,
-        { expiresIn: '5m' } // 5 minutes to complete MFA
-      );
+      // Check if this is a trusted device
+      const deviceToken = req.headers['x-device-token'] as string;
+      const isTrusted = deviceToken ? await checkTrustedDevice(user.id, deviceToken) : false;
 
-      console.log(`🔐 MFA required for user "${user.username}"`);
+      if (isTrusted) {
+        console.log(`🔐 MFA skipped for trusted device for user "${user.username}"`);
+        // Skip MFA for trusted device - continue with login
+      } else {
+        // Generate a temporary token for MFA verification (short-lived)
+        const mfaToken = jwt.sign(
+          { userId: user.id, mfaPending: true },
+          process.env.JWT_SECRET!,
+          { expiresIn: '5m' } // 5 minutes to complete MFA
+        );
 
-      return res.json({
-        success: true,
-        mfaRequired: true,
-        mfaToken,
-        user: {
-          id: user.id,
-          username: user.username
-        }
-      });
+        console.log(`🔐 MFA required for user "${user.username}"`);
+
+        return res.json({
+          success: true,
+          mfaRequired: true,
+          mfaToken,
+          user: {
+            id: user.id,
+            username: user.username
+          }
+        });
+      }
     }
 
-    // Log successful login (no MFA)
+    // Determine if this was a trusted device login (MFA enabled but skipped)
+    const wasTrustedDevice = user.mfa_enabled && user.mfa_secret;
+
+    // Log successful login (no MFA or trusted device)
     securityService.logSuccessfulLogin(clientIP, user.username, user.id);
 
     // Update last login
@@ -149,7 +162,13 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
     auditLog.log({
       userId: user.id,
       action: 'user.login',
-      details: JSON.stringify({ username: user.username, email: user.email, ip: clientIP, mfa: false }),
+      details: JSON.stringify({
+        username: user.username,
+        email: user.email,
+        ip: clientIP,
+        mfa: false,
+        trustedDevice: wasTrustedDevice
+      }),
       ipAddress: clientIP,
       userAgent: userAgent
     });

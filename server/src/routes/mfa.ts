@@ -6,8 +6,89 @@ import jwt from 'jsonwebtoken';
 import { auditLog } from '../services/auditLog';
 import { securityService } from '../services/securityService';
 import bcrypt from 'bcryptjs';
+import { UAParser } from 'ua-parser-js';
 
 const router = Router();
+
+// Trusted device settings
+const TRUST_DURATION_DAYS = 30;
+
+// Helper to parse user agent
+function parseUserAgent(userAgent?: string): { browser: string; os: string; deviceName: string } {
+  if (!userAgent) {
+    return { browser: 'Unknown', os: 'Unknown', deviceName: 'Unknown Device' };
+  }
+  const parser = new UAParser(userAgent);
+  const result = parser.getResult();
+  const browser = result.browser.name || 'Unknown';
+  const browserVersion = result.browser.version?.split('.')[0] || '';
+  const os = result.os.name || 'Unknown';
+  const osVersion = result.os.version || '';
+
+  return {
+    browser: browserVersion ? `${browser} ${browserVersion}` : browser,
+    os: osVersion ? `${os} ${osVersion}` : os,
+    deviceName: `${browser} on ${os}`
+  };
+}
+
+// Generate secure device token
+function generateDeviceToken(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let token = '';
+  for (let i = 0; i < 64; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+}
+
+// Check if device is trusted
+async function checkTrustedDevice(userId: string, deviceToken: string): Promise<boolean> {
+  if (!deviceToken) return false;
+
+  try {
+    const result = await pool.query(
+      `SELECT id FROM trusted_devices
+       WHERE user_id = $1 AND device_token = $2 AND expires_at > NOW()`,
+      [userId, deviceToken]
+    );
+
+    if (result.rows.length > 0) {
+      // Update last used timestamp
+      await pool.query(
+        'UPDATE trusted_devices SET last_used_at = NOW() WHERE id = $1',
+        [result.rows[0].id]
+      );
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error checking trusted device:', error);
+    return false;
+  }
+}
+
+// Create trusted device
+async function createTrustedDevice(
+  userId: string,
+  userAgent: string | undefined,
+  ipAddress: string
+): Promise<string> {
+  const deviceToken = generateDeviceToken();
+  const { browser, os, deviceName } = parseUserAgent(userAgent);
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + TRUST_DURATION_DAYS);
+
+  const id = crypto.randomUUID();
+
+  await pool.query(
+    `INSERT INTO trusted_devices (id, user_id, device_token, device_name, browser, os, ip_address, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [id, userId, deviceToken, deviceName, browser, os, ipAddress, expiresAt.toISOString()]
+  );
+
+  return deviceToken;
+}
 
 // MFA verification rate limiting (in-memory, per IP+userId)
 interface MfaAttempt {
@@ -305,7 +386,7 @@ router.post('/disable', async (req, res) => {
  */
 router.post('/verify', async (req, res) => {
   try {
-    const { mfaToken, code } = req.body;
+    const { mfaToken, code, trustDevice } = req.body;
     const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
     const userAgent = req.headers['user-agent'];
 
@@ -411,6 +492,25 @@ router.post('/verify', async (req, res) => {
     // Update last login
     await pool.query('UPDATE users SET last_login = $1 WHERE id = $2', [new Date().toISOString(), user.id]);
 
+    // Create trusted device if requested
+    let deviceToken: string | undefined;
+    if (trustDevice) {
+      deviceToken = await createTrustedDevice(user.id, userAgent, clientIP);
+      console.log(`🔐 MFA: Trusted device created for user "${user.username}"`);
+
+      // Audit log for device trust
+      auditLog.log({
+        userId: user.id,
+        action: 'mfa.device_trusted',
+        details: JSON.stringify({
+          deviceName: parseUserAgent(userAgent).deviceName,
+          ipAddress: clientIP
+        }),
+        ipAddress: clientIP,
+        userAgent: userAgent
+      });
+    }
+
     // Audit log
     auditLog.log({
       userId: user.id,
@@ -419,7 +519,8 @@ router.post('/verify', async (req, res) => {
         username: user.username,
         email: user.email,
         mfa: true,
-        recoveryCode: isRecoveryCode
+        recoveryCode: isRecoveryCode,
+        deviceTrusted: !!trustDevice
       }),
       ipAddress: clientIP,
       userAgent: userAgent
@@ -431,6 +532,7 @@ router.post('/verify', async (req, res) => {
     res.json({
       success: true,
       token,
+      deviceToken, // Will be undefined if not requested
       user: {
         id: user.id,
         username: user.username,
@@ -526,5 +628,116 @@ router.post('/regenerate-recovery-codes', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+/**
+ * GET /api/mfa/trusted-devices
+ * List all trusted devices for the current user
+ */
+router.get('/trusted-devices', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, device_name, browser, os, ip_address, created_at, last_used_at, expires_at
+       FROM trusted_devices
+       WHERE user_id = $1 AND expires_at > NOW()
+       ORDER BY last_used_at DESC`,
+      [user.id]
+    );
+
+    res.json({
+      devices: result.rows.map(row => ({
+        id: row.id,
+        deviceName: row.device_name,
+        browser: row.browser,
+        os: row.os,
+        ipAddress: row.ip_address,
+        createdAt: row.created_at,
+        lastUsedAt: row.last_used_at,
+        expiresAt: row.expires_at
+      }))
+    });
+  } catch (error) {
+    console.error('List trusted devices error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/mfa/trusted-devices/:id
+ * Remove a trusted device
+ */
+router.delete('/trusted-devices/:id', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { id } = req.params;
+
+    // Make sure the device belongs to this user
+    const result = await pool.query(
+      'DELETE FROM trusted_devices WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, user.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Audit log
+    auditLog.log({
+      userId: user.id,
+      action: 'mfa.device_revoked',
+      details: JSON.stringify({ deviceId: id }),
+      ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete trusted device error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/mfa/trusted-devices
+ * Remove all trusted devices for the current user
+ */
+router.delete('/trusted-devices', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM trusted_devices WHERE user_id = $1',
+      [user.id]
+    );
+
+    // Audit log
+    auditLog.log({
+      userId: user.id,
+      action: 'mfa.all_devices_revoked',
+      details: JSON.stringify({ count: result.rowCount }),
+      ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, count: result.rowCount });
+  } catch (error) {
+    console.error('Delete all trusted devices error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Export checkTrustedDevice for use in auth.ts
+export { checkTrustedDevice };
 
 export default router;

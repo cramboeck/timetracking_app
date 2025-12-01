@@ -127,6 +127,28 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Trusted devices table for "Remember this device" MFA feature
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS trusted_devices (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        device_token TEXT NOT NULL UNIQUE,
+        device_name TEXT,
+        browser TEXT,
+        os TEXT,
+        ip_address TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_used_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMP NOT NULL
+      )
+    `);
+
+    // Index for faster lookups
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_id ON trusted_devices(user_id);
+      CREATE INDEX IF NOT EXISTS idx_trusted_devices_token ON trusted_devices(device_token);
+    `);
+
     // Add foreign key to teams after users table exists
     await client.query(`
       DO $$

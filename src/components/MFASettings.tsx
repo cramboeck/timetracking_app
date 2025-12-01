@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Check, X, Copy, Key, AlertTriangle, RefreshCw, Eye, EyeOff } from 'lucide-react';
-import { mfaApi } from '../services/api';
+import { Shield, Check, X, Copy, Key, AlertTriangle, RefreshCw, Eye, EyeOff, Smartphone, Trash2, Monitor } from 'lucide-react';
+import { mfaApi, TrustedDevice } from '../services/api';
 import { Modal } from './Modal';
 
 interface MFASettingsProps {
@@ -41,6 +41,11 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
   const [newRecoveryCodes, setNewRecoveryCodes] = useState<string[] | null>(null);
   const [showRegeneratePassword, setShowRegeneratePassword] = useState(false);
 
+  // Trusted devices state
+  const [trustedDevices, setTrustedDevices] = useState<TrustedDevice[]>([]);
+  const [trustedDevicesLoading, setTrustedDevicesLoading] = useState(false);
+  const [removingDeviceId, setRemovingDeviceId] = useState<string | null>(null);
+
   useEffect(() => {
     loadStatus();
   }, []);
@@ -54,12 +59,62 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
       if (status.enabled) {
         const codesStatus = await mfaApi.getRecoveryCodesCount();
         setRecoveryCodesRemaining(codesStatus.remaining);
+        // Load trusted devices
+        await loadTrustedDevices();
       }
     } catch (error) {
       console.error('Failed to load MFA status:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadTrustedDevices = async () => {
+    try {
+      setTrustedDevicesLoading(true);
+      const response = await mfaApi.getTrustedDevices();
+      setTrustedDevices(response.devices || []);
+    } catch (error) {
+      console.error('Failed to load trusted devices:', error);
+    } finally {
+      setTrustedDevicesLoading(false);
+    }
+  };
+
+  const handleRemoveDevice = async (deviceId: string) => {
+    try {
+      setRemovingDeviceId(deviceId);
+      await mfaApi.removeTrustedDevice(deviceId);
+      setTrustedDevices(prev => prev.filter(d => d.id !== deviceId));
+    } catch (error) {
+      console.error('Failed to remove device:', error);
+    } finally {
+      setRemovingDeviceId(null);
+    }
+  };
+
+  const handleRemoveAllDevices = async () => {
+    try {
+      setTrustedDevicesLoading(true);
+      await mfaApi.removeAllTrustedDevices();
+      setTrustedDevices([]);
+      // Also clear local device token
+      localStorage.removeItem('device_token');
+    } catch (error) {
+      console.error('Failed to remove all devices:', error);
+    } finally {
+      setTrustedDevicesLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const handleStartSetup = async () => {
@@ -230,6 +285,73 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
                 <X size={18} />
                 2FA deaktivieren
               </button>
+            </div>
+
+            {/* Trusted Devices Section */}
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-dark-200">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Smartphone size={20} className="text-gray-500 dark:text-dark-400" />
+                  <h4 className="font-semibold text-gray-900 dark:text-white">
+                    Vertrauenswürdige Geräte
+                  </h4>
+                </div>
+                {trustedDevices.length > 0 && (
+                  <button
+                    onClick={handleRemoveAllDevices}
+                    disabled={trustedDevicesLoading}
+                    className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50"
+                  >
+                    Alle entfernen
+                  </button>
+                )}
+              </div>
+
+              {trustedDevicesLoading ? (
+                <div className="text-center py-4 text-gray-500 dark:text-dark-400">
+                  Lädt...
+                </div>
+              ) : trustedDevices.length === 0 ? (
+                <div className="text-center py-4 text-gray-500 dark:text-dark-400 text-sm">
+                  Keine vertrauenswürdigen Geräte registriert.
+                  <br />
+                  <span className="text-xs">
+                    Aktiviere "Diesem Gerät vertrauen" beim nächsten Login.
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {trustedDevices.map((device) => (
+                    <div
+                      key={device.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-200 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Monitor size={20} className="text-gray-400 dark:text-dark-400" />
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white text-sm">
+                            {device.deviceName}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-dark-400">
+                            {device.browser} · {device.os}
+                          </div>
+                          <div className="text-xs text-gray-400 dark:text-dark-500">
+                            Zuletzt: {formatDate(device.lastUsedAt)} · Gültig bis: {formatDate(device.expiresAt)}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveDevice(device.id)}
+                        disabled={removingDeviceId === device.id}
+                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                        title="Gerät entfernen"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ) : (
