@@ -25,7 +25,9 @@ export type AuditAction =
   | 'activity.create'
   | 'activity.update'
   | 'activity.delete'
-  | 'settings.update';
+  | 'settings.update'
+  | 'ninjarmm.auto_sync'
+  | 'ninjarmm.auto_sync_error';
 
 export interface AuditLogEntry {
   id: string;

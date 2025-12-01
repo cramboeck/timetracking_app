@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import { initializeDatabase } from './config/database';
 import { startNotificationJobs } from './jobs/notificationJobs';
+import { startNinjaJobs } from './jobs/ninjaJobs';
 import authRoutes from './routes/auth';
 import entriesRoutes from './routes/entries';
 import projectsRoutes from './routes/projects';
@@ -113,6 +114,9 @@ app.get('/health', (req, res) => {
 
 // Start notification jobs
 startNotificationJobs();
+
+// Start NinjaRMM auto-sync jobs
+startNinjaJobs();
 
 // Start server
 app.listen(PORT, () => {
