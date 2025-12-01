@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import { pool } from '../config/database';
 import { authLimiter } from '../middleware/rateLimiter';
+import { securityService } from '../services/securityService';
 import { CustomerAuthRequest, authenticateCustomerToken } from '../middleware/customerAuth';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { z } from 'zod';
@@ -39,6 +40,10 @@ router.post('/login', authLimiter, async (req, res) => {
 
     const { email, password } = validation.data;
 
+    // Get client IP (handle proxy)
+    const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const userAgent = req.headers['user-agent'];
+
     // Find customer contact by email
     const contactResult = await pool.query(
       `SELECT cc.*, c.name as customer_name, c.user_id
@@ -51,17 +56,26 @@ router.post('/login', authLimiter, async (req, res) => {
     const contact = contactResult.rows[0];
 
     if (!contact) {
+      // Log failed login (user not found)
+      securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     if (!contact.password_hash) {
+      // Log failed login (account not activated)
+      securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Account not activated. Please contact support.' });
     }
 
     const validPassword = await bcrypt.compare(password, contact.password_hash);
     if (!validPassword) {
+      // Log failed login (wrong password)
+      securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    // Log successful login
+    securityService.logSuccessfulLogin(clientIP, `portal:${email}`, contact.id);
 
     // Update last login
     await pool.query('UPDATE customer_contacts SET last_login = NOW() WHERE id = $1', [contact.id]);
