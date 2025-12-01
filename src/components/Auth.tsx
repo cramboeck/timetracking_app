@@ -17,6 +17,8 @@ export const Auth = () => {
   // MFA state
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [mfaAttemptsLeft, setMfaAttemptsLeft] = useState<number | undefined>();
+  const [mfaLockedUntil, setMfaLockedUntil] = useState<Date | undefined>();
 
   // Check URL for reset token
   useEffect(() => {
@@ -82,9 +84,25 @@ export const Auth = () => {
       return;
     }
 
+    // Check if still locked
+    if (mfaLockedUntil && mfaLockedUntil > new Date()) {
+      const secondsLeft = Math.ceil((mfaLockedUntil.getTime() - Date.now()) / 1000);
+      const minutesLeft = Math.ceil(secondsLeft / 60);
+      setError(`Zu viele Fehlversuche. Bitte warte noch ${minutesLeft} Minute${minutesLeft > 1 ? 'n' : ''}.`);
+      setIsLoading(false);
+      return;
+    }
+
     const result = await verifyMfa(mfaToken, loginMfaCode);
 
     if (!result.success) {
+      // Handle rate limiting
+      if (result.retryAfter) {
+        setMfaLockedUntil(new Date(Date.now() + result.retryAfter * 1000));
+        setMfaAttemptsLeft(0);
+      } else {
+        setMfaAttemptsLeft(result.attemptsLeft);
+      }
       setError(result.message || 'Ungültiger Code');
     }
 
@@ -97,6 +115,8 @@ export const Auth = () => {
     setLoginMfaCode('');
     setLoginPassword('');
     setError('');
+    setMfaAttemptsLeft(undefined);
+    setMfaLockedUntil(undefined);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -238,13 +258,23 @@ export const Auth = () => {
                       value={loginMfaCode}
                       onChange={(e) => setLoginMfaCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
                       placeholder="000000"
-                      className="w-full px-4 py-3 text-center text-2xl font-mono tracking-widest border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-4 py-3 text-center text-2xl font-mono tracking-widest border rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        mfaAttemptsLeft !== undefined && mfaAttemptsLeft <= 2
+                          ? 'border-amber-500 dark:border-amber-400'
+                          : 'border-gray-300 dark:border-gray-600'
+                      }`}
                       autoFocus
                       autoComplete="one-time-code"
+                      disabled={mfaLockedUntil !== undefined && mfaLockedUntil > new Date()}
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                       Du kannst auch einen 8-stelligen Wiederherstellungscode verwenden
                     </p>
+                    {mfaAttemptsLeft !== undefined && mfaAttemptsLeft > 0 && mfaAttemptsLeft <= 3 && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 font-medium">
+                        Noch {mfaAttemptsLeft} Versuch{mfaAttemptsLeft > 1 ? 'e' : ''} übrig
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex gap-3">
@@ -257,7 +287,7 @@ export const Auth = () => {
                     </button>
                     <button
                       type="submit"
-                      disabled={isLoading || loginMfaCode.length < 6}
+                      disabled={isLoading || loginMfaCode.length < 6 || (mfaLockedUntil !== undefined && mfaLockedUntil > new Date())}
                       className="flex-1 py-3 btn-accent disabled:opacity-50"
                     >
                       {isLoading ? 'Überprüfen...' : 'Bestätigen'}

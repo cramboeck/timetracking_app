@@ -4,9 +4,95 @@ import * as QRCode from 'qrcode';
 import { pool } from '../config/database';
 import jwt from 'jsonwebtoken';
 import { auditLog } from '../services/auditLog';
+import { securityService } from '../services/securityService';
 import bcrypt from 'bcryptjs';
 
 const router = Router();
+
+// MFA verification rate limiting (in-memory, per IP+userId)
+interface MfaAttempt {
+  count: number;
+  firstAttempt: Date;
+  lockedUntil?: Date;
+}
+const mfaAttempts = new Map<string, MfaAttempt>();
+
+const MFA_MAX_ATTEMPTS = 5;
+const MFA_WINDOW_MINUTES = 15;
+const MFA_LOCKOUT_MINUTES = 15;
+
+function getMfaRateLimitKey(ip: string, userId: string): string {
+  return `${ip}:${userId}`;
+}
+
+function checkMfaRateLimit(ip: string, userId: string): { allowed: boolean; retryAfter?: number; attemptsLeft?: number } {
+  const key = getMfaRateLimitKey(ip, userId);
+  const now = new Date();
+  const attempt = mfaAttempts.get(key);
+
+  if (!attempt) {
+    return { allowed: true, attemptsLeft: MFA_MAX_ATTEMPTS };
+  }
+
+  // Check if locked out
+  if (attempt.lockedUntil && attempt.lockedUntil > now) {
+    const retryAfter = Math.ceil((attempt.lockedUntil.getTime() - now.getTime()) / 1000);
+    return { allowed: false, retryAfter };
+  }
+
+  // Check if window has expired (reset counter)
+  const windowExpiry = new Date(attempt.firstAttempt.getTime() + MFA_WINDOW_MINUTES * 60 * 1000);
+  if (now > windowExpiry) {
+    mfaAttempts.delete(key);
+    return { allowed: true, attemptsLeft: MFA_MAX_ATTEMPTS };
+  }
+
+  // Check attempts within window
+  if (attempt.count >= MFA_MAX_ATTEMPTS) {
+    // Lock the user out
+    attempt.lockedUntil = new Date(now.getTime() + MFA_LOCKOUT_MINUTES * 60 * 1000);
+    const retryAfter = MFA_LOCKOUT_MINUTES * 60;
+    return { allowed: false, retryAfter };
+  }
+
+  return { allowed: true, attemptsLeft: MFA_MAX_ATTEMPTS - attempt.count };
+}
+
+function recordMfaAttempt(ip: string, userId: string, success: boolean): void {
+  const key = getMfaRateLimitKey(ip, userId);
+
+  if (success) {
+    // Clear on successful verification
+    mfaAttempts.delete(key);
+    return;
+  }
+
+  const now = new Date();
+  const attempt = mfaAttempts.get(key);
+
+  if (!attempt) {
+    mfaAttempts.set(key, { count: 1, firstAttempt: now });
+  } else {
+    // Check if window expired
+    const windowExpiry = new Date(attempt.firstAttempt.getTime() + MFA_WINDOW_MINUTES * 60 * 1000);
+    if (now > windowExpiry) {
+      mfaAttempts.set(key, { count: 1, firstAttempt: now });
+    } else {
+      attempt.count++;
+    }
+  }
+}
+
+// Cleanup old entries every 30 minutes
+setInterval(() => {
+  const now = new Date();
+  for (const [key, attempt] of mfaAttempts.entries()) {
+    const windowExpiry = new Date(attempt.firstAttempt.getTime() + MFA_WINDOW_MINUTES * 60 * 1000);
+    if (now > windowExpiry && (!attempt.lockedUntil || now > attempt.lockedUntil)) {
+      mfaAttempts.delete(key);
+    }
+  }
+}, 30 * 60 * 1000);
 
 // Middleware to get user from token
 async function getUserFromToken(req: any): Promise<any | null> {
@@ -220,6 +306,8 @@ router.post('/disable', async (req, res) => {
 router.post('/verify', async (req, res) => {
   try {
     const { mfaToken, code } = req.body;
+    const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const userAgent = req.headers['user-agent'];
 
     if (!mfaToken || !code) {
       return res.status(400).json({ error: 'Missing MFA token or code' });
@@ -237,6 +325,17 @@ router.post('/verify', async (req, res) => {
       return res.status(400).json({ error: 'Invalid MFA token' });
     }
 
+    // Check rate limit BEFORE attempting verification
+    const rateLimit = checkMfaRateLimit(clientIP, decoded.userId);
+    if (!rateLimit.allowed) {
+      console.log(`🚫 MFA rate limit exceeded for user ${decoded.userId} from ${clientIP}`);
+      securityService.logFailedLogin(clientIP, `mfa:${decoded.userId}`, userAgent);
+      return res.status(429).json({
+        error: 'Zu viele Fehlversuche. Bitte warte bevor du es erneut versuchst.',
+        retryAfter: rateLimit.retryAfter
+      });
+    }
+
     // Get user
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [decoded.userId]);
     const user = userResult.rows[0];
@@ -247,6 +346,7 @@ router.post('/verify', async (req, res) => {
 
     // Check if this is a recovery code (8 uppercase alphanumeric characters)
     const isRecoveryCode = /^[A-Z0-9]{8}$/.test(code);
+    let verificationSuccess = false;
 
     if (isRecoveryCode) {
       // Try to use recovery code
@@ -262,7 +362,14 @@ router.post('/verify', async (req, res) => {
       }
 
       if (usedCodeIndex === -1) {
-        return res.status(400).json({ error: 'Invalid recovery code' });
+        // Record failed attempt
+        recordMfaAttempt(clientIP, decoded.userId, false);
+        const updatedLimit = checkMfaRateLimit(clientIP, decoded.userId);
+        console.log(`🔐 MFA: Invalid recovery code for user "${user.username}" (${updatedLimit.attemptsLeft} attempts left)`);
+        return res.status(400).json({
+          error: 'Ungültiger Wiederherstellungscode',
+          attemptsLeft: updatedLimit.attemptsLeft
+        });
       }
 
       // Remove used recovery code
@@ -273,6 +380,7 @@ router.post('/verify', async (req, res) => {
       );
 
       console.log(`🔐 MFA: Recovery code used for user "${user.username}" (${recoveryCodes.length} remaining)`);
+      verificationSuccess = true;
     } else {
       // Verify TOTP code
       const isValid = authenticator.verify({
@@ -281,9 +389,24 @@ router.post('/verify', async (req, res) => {
       });
 
       if (!isValid) {
-        return res.status(400).json({ error: 'Invalid verification code' });
+        // Record failed attempt
+        recordMfaAttempt(clientIP, decoded.userId, false);
+        const updatedLimit = checkMfaRateLimit(clientIP, decoded.userId);
+        console.log(`🔐 MFA: Invalid code for user "${user.username}" (${updatedLimit.attemptsLeft} attempts left)`);
+        return res.status(400).json({
+          error: 'Ungültiger Code',
+          attemptsLeft: updatedLimit.attemptsLeft
+        });
       }
+
+      verificationSuccess = true;
     }
+
+    // Record successful attempt (clears rate limit)
+    recordMfaAttempt(clientIP, decoded.userId, true);
+
+    // Log successful MFA login
+    securityService.logSuccessfulLogin(clientIP, user.username, user.id);
 
     // Update last login
     await pool.query('UPDATE users SET last_login = $1 WHERE id = $2', [new Date().toISOString(), user.id]);
@@ -298,8 +421,8 @@ router.post('/verify', async (req, res) => {
         mfa: true,
         recoveryCode: isRecoveryCode
       }),
-      ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
-      userAgent: req.headers['user-agent']
+      ipAddress: clientIP,
+      userAgent: userAgent
     });
 
     // Generate full session token

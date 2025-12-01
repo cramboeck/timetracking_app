@@ -13,12 +13,19 @@ interface LoginResult {
   mfaToken?: string;
 }
 
+interface MfaVerifyResult {
+  success: boolean;
+  message?: string;
+  attemptsLeft?: number;
+  retryAfter?: number; // seconds until retry allowed
+}
+
 interface AuthContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<LoginResult>;
-  verifyMfa: (mfaToken: string, code: string) => Promise<{ success: boolean; message?: string }>;
+  verifyMfa: (mfaToken: string, code: string) => Promise<MfaVerifyResult>;
   register: (data: RegisterData) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   updateAccentColor: (color: AccentColor) => void;
@@ -144,7 +151,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const verifyMfa = async (mfaToken: string, code: string): Promise<{ success: boolean; message?: string }> => {
+  const verifyMfa = async (mfaToken: string, code: string): Promise<MfaVerifyResult> => {
     try {
       console.log('🔐 [AUTH] Verifying MFA code...');
 
@@ -176,7 +183,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return { success: true };
     } catch (error: any) {
       console.error('❌ [AUTH] MFA verification error:', error);
-      return { success: false, message: error.message || 'Ungültiger Code' };
+      return {
+        success: false,
+        message: error.message || 'Ungültiger Code',
+        attemptsLeft: error.attemptsLeft,
+        retryAfter: error.retryAfter
+      };
     }
   };
 

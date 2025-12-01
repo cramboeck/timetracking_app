@@ -125,7 +125,17 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mfaToken, code }),
     });
-    const result = await handleResponse(response);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'An error occurred' }));
+      // Create error with additional rate limit info
+      const error: any = new Error(errorData.error || 'MFA verification failed');
+      error.attemptsLeft = errorData.attemptsLeft;
+      error.retryAfter = errorData.retryAfter;
+      throw error;
+    }
+
+    const result = await response.json();
 
     if (result.token) {
       localStorage.setItem('auth_token', result.token);
