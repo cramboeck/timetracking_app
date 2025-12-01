@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Monitor, Laptop, Server, Smartphone, Wifi, WifiOff, RefreshCw, Search, User, Globe, Network, AlertTriangle, ChevronDown, ChevronUp, Clock, CheckCircle, Info, HardDrive } from 'lucide-react';
+import { Monitor, Laptop, Server, Wifi, WifiOff, RefreshCw, Search, User, Globe, AlertTriangle, ChevronDown, ChevronUp, Clock, CheckCircle, HardDrive, Cpu, Power } from 'lucide-react';
 import { customerPortalApi, PortalContact, PortalDevice, PortalDeviceAlert } from '../../services/api';
 
 interface PortalDevicesProps {
@@ -243,7 +243,7 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                       </div>
 
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {device.osName} {device.osVersion}
+                        {device.osVersion || device.osName}
                       </p>
 
                       <div className="mt-3 space-y-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -253,9 +253,15 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                             <span className="truncate">{device.lastLoggedInUser}</span>
                           </div>
                         )}
+                        {device.lastBoot && (
+                          <div className="flex items-center gap-1.5">
+                            <Clock size={12} />
+                            <span>Neustart: {formatRelativeTime(device.lastBoot)}</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-1.5">
                           <RefreshCw size={12} />
-                          <span>Zuletzt: {formatDate(device.lastContact)}</span>
+                          <span>Online: {formatRelativeTime(device.lastContact)}</span>
                         </div>
                       </div>
                     </div>
@@ -268,7 +274,7 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                 {/* Expanded Details */}
                 {isExpanded && (
                   <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50">
-                    {/* Device Details */}
+                    {/* System Info */}
                     <div className="grid grid-cols-2 gap-3 text-xs mb-4">
                       {device.manufacturer && (
                         <div>
@@ -288,19 +294,66 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                           <p className="font-medium text-gray-900 dark:text-white font-mono">{device.serialNumber}</p>
                         </div>
                       )}
-                      {device.privateIp && (
+                      {device.osArchitecture && (
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">Lokale IP</span>
-                          <p className="font-medium text-gray-900 dark:text-white font-mono">{device.privateIp}</p>
-                        </div>
-                      )}
-                      {device.publicIp && (
-                        <div>
-                          <span className="text-gray-500 dark:text-gray-400">Öffentliche IP</span>
-                          <p className="font-medium text-gray-900 dark:text-white font-mono">{device.publicIp}</p>
+                          <span className="text-gray-500 dark:text-gray-400">Architektur</span>
+                          <p className="font-medium text-gray-900 dark:text-white">{device.osArchitecture}</p>
                         </div>
                       )}
                     </div>
+
+                    {/* Hardware Info */}
+                    {(device.processorName || device.memoryGb) && (
+                      <div className="grid grid-cols-2 gap-3 text-xs mb-4 border-t border-gray-200 dark:border-gray-700 pt-3">
+                        {device.processorName && (
+                          <div className="col-span-2">
+                            <span className="text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                              <Cpu size={10} /> Prozessor
+                            </span>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {device.processorName}
+                              {device.processorCores && ` (${device.processorCores} Kerne)`}
+                            </p>
+                          </div>
+                        )}
+                        {device.memoryGb && (
+                          <div>
+                            <span className="text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                              <HardDrive size={10} /> Arbeitsspeicher
+                            </span>
+                            <p className="font-medium text-gray-900 dark:text-white">{device.memoryGb} GB</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Network Info */}
+                    {(device.privateIp || device.publicIp) && (
+                      <div className="grid grid-cols-2 gap-3 text-xs mb-4 border-t border-gray-200 dark:border-gray-700 pt-3">
+                        {device.privateIp && (
+                          <div>
+                            <span className="text-gray-500 dark:text-gray-400">Lokale IP</span>
+                            <p className="font-medium text-gray-900 dark:text-white font-mono">{device.privateIp}</p>
+                          </div>
+                        )}
+                        {device.publicIp && (
+                          <div>
+                            <span className="text-gray-500 dark:text-gray-400">Öffentliche IP</span>
+                            <p className="font-medium text-gray-900 dark:text-white font-mono">{device.publicIp}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Last Boot Time */}
+                    {device.lastBoot && (
+                      <div className="text-xs mb-4 border-t border-gray-200 dark:border-gray-700 pt-3">
+                        <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                          <Power size={12} />
+                          <span>Letzter Neustart: {formatDate(device.lastBoot)}</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Alerts Section */}
                     <div className="border-t border-gray-200 dark:border-gray-700 pt-3">

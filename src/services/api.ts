@@ -1059,6 +1059,9 @@ export interface PortalDevice {
   deviceType: string;
   osName: string;
   osVersion: string;
+  osBuild?: string;
+  osArchitecture?: string;
+  lastBoot?: string;
   lastContact: string;
   lastLoggedInUser: string;
   publicIp: string;
@@ -1068,6 +1071,9 @@ export interface PortalDevice {
   manufacturer?: string;
   model?: string;
   serialNumber?: string;
+  processorName?: string;
+  processorCores?: number;
+  memoryGb?: number;
   openAlerts: number;
 }
 

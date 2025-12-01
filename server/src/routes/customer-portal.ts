@@ -873,8 +873,9 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
     // Get devices for this organization
     const devicesResult = await pool.query(
       `SELECT d.id, d.ninja_device_id, d.ninja_id, d.display_name, d.system_name, d.dns_name,
-              d.device_type, d.os_name, d.os_version, d.last_contact, d.last_logged_in_user,
+              d.node_class, d.os_name, d.last_contact, d.last_logged_in_user,
               d.public_ip, d.private_ip, d.offline, d.notes, d.manufacturer, d.model, d.serial_number,
+              d.device_data,
               (SELECT COUNT(*) FROM ninjarmm_alerts a WHERE a.device_id = d.id AND a.resolved = false) as open_alerts
        FROM ninjarmm_devices d
        WHERE d.user_id = $1 AND d.organization_id = $2
@@ -882,25 +883,57 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
       [customer.user_id, customer.ninjarmm_organization_id]
     );
 
-    const devices = devicesResult.rows.map(row => ({
-      id: row.id,
-      ninjaId: row.ninja_id,
-      displayName: row.display_name || row.system_name || row.dns_name,
-      systemName: row.system_name,
-      deviceType: row.device_type,
-      osName: row.os_name,
-      osVersion: row.os_version,
-      lastContact: row.last_contact,
-      lastLoggedInUser: row.last_logged_in_user,
-      publicIp: row.public_ip,
-      privateIp: row.private_ip,
-      offline: row.offline,
-      notes: row.notes,
-      manufacturer: row.manufacturer,
-      model: row.model,
-      serialNumber: row.serial_number,
-      openAlerts: parseInt(row.open_alerts) || 0,
-    }));
+    const devices = devicesResult.rows.map(row => {
+      // Parse device_data JSON for additional fields
+      let deviceData: any = {};
+      try {
+        deviceData = typeof row.device_data === 'string' ? JSON.parse(row.device_data) : (row.device_data || {});
+      } catch (e) {
+        console.error('Failed to parse device_data:', e);
+      }
+
+      // Extract OS details from device_data
+      const osInfo = deviceData.os || {};
+      const systemInfo = deviceData.system || {};
+      const processorInfo = deviceData.processor || (deviceData.processors?.[0]) || {};
+      const memoryInfo = deviceData.memory || {};
+
+      // Build full OS version string
+      let osVersion = osInfo.name || row.os_name || '';
+      if (osInfo.buildNumber) {
+        osVersion = `${osVersion} (Build ${osInfo.buildNumber})`;
+      }
+
+      // Get last boot time (various possible field names from NinjaRMM)
+      const lastBoot = deviceData.lastBoot || deviceData.lastReboot || deviceData.system?.lastBoot || null;
+
+      return {
+        id: row.id,
+        ninjaId: row.ninja_id,
+        displayName: row.display_name || row.system_name || row.dns_name,
+        systemName: row.system_name,
+        deviceType: row.node_class,
+        osName: row.os_name,
+        osVersion: osVersion,
+        osBuild: osInfo.buildNumber || null,
+        osArchitecture: osInfo.architecture || null,
+        lastBoot: lastBoot,
+        lastContact: row.last_contact,
+        lastLoggedInUser: row.last_logged_in_user,
+        publicIp: row.public_ip,
+        privateIp: row.private_ip,
+        offline: row.offline,
+        notes: row.notes,
+        manufacturer: row.manufacturer || systemInfo.manufacturer,
+        model: row.model || systemInfo.model,
+        serialNumber: row.serial_number || systemInfo.serialNumber || systemInfo.biosSerialNumber,
+        // Additional hardware info
+        processorName: processorInfo.name || null,
+        processorCores: processorInfo.cores || null,
+        memoryGb: memoryInfo.capacity ? Math.round(memoryInfo.capacity / (1024 * 1024 * 1024)) : null,
+        openAlerts: parseInt(row.open_alerts) || 0,
+      };
+    });
 
     res.json({ success: true, data: devices });
   } catch (error) {
