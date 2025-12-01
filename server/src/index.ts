@@ -26,6 +26,7 @@ import sevdeskRoutes from './routes/sevdesk';
 import ninjarmmRoutes from './routes/ninjarmm';
 import featuresRoutes from './routes/features';
 import maintenanceRoutes from './routes/maintenance';
+import mfaRoutes from './routes/mfa';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -94,6 +95,7 @@ app.use('/api/sevdesk', sevdeskRoutes);
 app.use('/api/ninjarmm', ninjarmmRoutes);
 app.use('/api/features', featuresRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/mfa', mfaRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';

@@ -116,6 +116,67 @@ export const authApi = {
   logout: () => {
     localStorage.removeItem('auth_token');
   },
+
+  // MFA verification during login
+  verifyMfa: async (mfaToken: string, code: string) => {
+    console.log('🌐 [API] Calling POST /mfa/verify');
+    const response = await fetch(`${API_BASE_URL}/mfa/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mfaToken, code }),
+    });
+    const result = await handleResponse(response);
+
+    if (result.token) {
+      localStorage.setItem('auth_token', result.token);
+      console.log('✅ [API] MFA verified, token stored');
+    }
+    return result;
+  },
+};
+
+// MFA API
+export const mfaApi = {
+  getStatus: async (): Promise<{ enabled: boolean }> => {
+    return authFetch('/mfa/status');
+  },
+
+  setup: async (): Promise<{
+    secret: string;
+    qrCode: string;
+    recoveryCodes: string[];
+    manualEntryKey: string;
+  }> => {
+    return authFetch('/mfa/setup', { method: 'POST' });
+  },
+
+  verifySetup: async (code: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch('/mfa/verify-setup', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  },
+
+  disable: async (password: string, code: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch('/mfa/disable', {
+      method: 'POST',
+      body: JSON.stringify({ password, code }),
+    });
+  },
+
+  getRecoveryCodesCount: async (): Promise<{ remaining: number }> => {
+    return authFetch('/mfa/recovery-codes');
+  },
+
+  regenerateRecoveryCodes: async (password: string, code: string): Promise<{
+    success: boolean;
+    recoveryCodes: string[];
+  }> => {
+    return authFetch('/mfa/regenerate-recovery-codes', {
+      method: 'POST',
+      body: JSON.stringify({ password, code }),
+    });
+  },
 };
 
 // User API

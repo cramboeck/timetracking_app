@@ -114,6 +114,19 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add mfa_recovery_codes column to users table
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'mfa_recovery_codes'
+        ) THEN
+          ALTER TABLE users ADD COLUMN mfa_recovery_codes TEXT;
+        END IF;
+      END $$;
+    `);
+
     // Add foreign key to teams after users table exists
     await client.query(`
       DO $$

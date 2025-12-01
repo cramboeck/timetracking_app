@@ -11,6 +11,7 @@ import { PushNotificationSettings } from './PushNotificationSettings';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 import { CustomerNinjaRMMLink } from './CustomerNinjaRMMLink';
 import { IOSSwitch } from './IOSSwitch';
+import { MFASettings } from './MFASettings';
 import { Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
@@ -1118,6 +1119,8 @@ export const Settings = ({
               </div>
             </div>
 
+            {/* Two-Factor Authentication */}
+            <MFASettings />
 
             {/* GDPR / Data Protection */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">

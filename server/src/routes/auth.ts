@@ -117,7 +117,29 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Log successful login
+    // Check if MFA is enabled
+    if (user.mfa_enabled && user.mfa_secret) {
+      // Generate a temporary token for MFA verification (short-lived)
+      const mfaToken = jwt.sign(
+        { userId: user.id, mfaPending: true },
+        process.env.JWT_SECRET!,
+        { expiresIn: '5m' } // 5 minutes to complete MFA
+      );
+
+      console.log(`🔐 MFA required for user "${user.username}"`);
+
+      return res.json({
+        success: true,
+        mfaRequired: true,
+        mfaToken,
+        user: {
+          id: user.id,
+          username: user.username
+        }
+      });
+    }
+
+    // Log successful login (no MFA)
     securityService.logSuccessfulLogin(clientIP, user.username, user.id);
 
     // Update last login
@@ -127,7 +149,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
     auditLog.log({
       userId: user.id,
       action: 'user.login',
-      details: JSON.stringify({ username: user.username, email: user.email, ip: clientIP }),
+      details: JSON.stringify({ username: user.username, email: user.email, ip: clientIP, mfa: false }),
       ipAddress: clientIP,
       userAgent: userAgent
     });

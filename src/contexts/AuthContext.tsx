@@ -6,11 +6,19 @@ import { accentColor } from '../utils/accentColor';
 import { grayTone } from '../utils/theme';
 import { authApi, userApi } from '../services/api';
 
+interface LoginResult {
+  success: boolean;
+  message?: string;
+  mfaRequired?: boolean;
+  mfaToken?: string;
+}
+
 interface AuthContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (credentials: LoginCredentials) => Promise<{ success: boolean; message?: string }>;
+  login: (credentials: LoginCredentials) => Promise<LoginResult>;
+  verifyMfa: (mfaToken: string, code: string) => Promise<{ success: boolean; message?: string }>;
   register: (data: RegisterData) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   updateAccentColor: (color: AccentColor) => void;
@@ -88,7 +96,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     loadUser();
   }, []);
 
-  const login = async (credentials: LoginCredentials): Promise<{ success: boolean; message?: string }> => {
+  const login = async (credentials: LoginCredentials): Promise<LoginResult> => {
     try {
       console.log('🔐 [AUTH] Starting login process...');
       console.log('🔐 [AUTH] Username:', credentials.username);
@@ -96,7 +104,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Call backend API
       console.log('🔐 [AUTH] Calling backend API: POST /auth/login');
       const loginResponse = await authApi.login(credentials.username, credentials.password);
-      console.log('✅ [AUTH] Backend login successful!', loginResponse);
+      console.log('✅ [AUTH] Backend login response:', loginResponse);
+
+      // Check if MFA is required
+      if (loginResponse.mfaRequired) {
+        console.log('🔐 [AUTH] MFA required for this user');
+        return {
+          success: true,
+          mfaRequired: true,
+          mfaToken: loginResponse.mfaToken
+        };
+      }
 
       // Token is automatically stored by authApi.login()
       console.log('🔐 [AUTH] JWT Token stored in localStorage');
@@ -123,6 +141,42 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (error) {
       console.error('❌ [AUTH] Login error:', error);
       return { success: false, message: 'Benutzername oder Passwort falsch' };
+    }
+  };
+
+  const verifyMfa = async (mfaToken: string, code: string): Promise<{ success: boolean; message?: string }> => {
+    try {
+      console.log('🔐 [AUTH] Verifying MFA code...');
+
+      // Call backend API
+      const mfaResponse = await authApi.verifyMfa(mfaToken, code);
+      console.log('✅ [AUTH] MFA verification successful!', mfaResponse);
+
+      // Token is automatically stored by authApi.verifyMfa()
+      console.log('🔐 [AUTH] JWT Token stored in localStorage');
+
+      // Fetch user data from backend
+      console.log('🔐 [AUTH] Fetching user data from backend...');
+      const userResponse = await userApi.getMe();
+      console.log('✅ [AUTH] User data received:', userResponse);
+
+      const user = userResponse.data as User;
+
+      // Store user in state
+      setCurrentUser(user);
+      console.log('✅ [AUTH] User stored in React state');
+
+      // Apply user's theme
+      accentColor.set(user.accentColor);
+      grayTone.set(user.grayTone);
+      applyAccentColorToRoot(user.accentColor);
+      console.log('✅ [AUTH] Theme applied:', { accentColor: user.accentColor, grayTone: user.grayTone });
+
+      console.log('🎉 [AUTH] MFA verification complete!');
+      return { success: true };
+    } catch (error: any) {
+      console.error('❌ [AUTH] MFA verification error:', error);
+      return { success: false, message: error.message || 'Ungültiger Code' };
     }
   };
 
@@ -267,6 +321,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     isAuthenticated: !!currentUser,
     isLoading,
     login,
+    verifyMfa,
     register,
     logout,
     updateAccentColor,

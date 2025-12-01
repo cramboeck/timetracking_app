@@ -8,11 +8,15 @@ import { ResetPassword } from './ResetPassword';
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
 
 export const Auth = () => {
-  const { login, register } = useAuth();
+  const { login, verifyMfa, register } = useAuth();
   const [authView, setAuthView] = useState<AuthView>('login');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [resetToken, setResetToken] = useState<string | null>(null);
+
+  // MFA state
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
 
   // Check URL for reset token
   useEffect(() => {
@@ -48,15 +52,51 @@ export const Auth = () => {
 
     const result = await login({
       username: loginUsername,
-      password: loginPassword,
-      mfaCode: loginMfaCode || undefined
+      password: loginPassword
     });
+
+    if (result.mfaRequired && result.mfaToken) {
+      // MFA is required, show MFA form
+      setMfaRequired(true);
+      setMfaToken(result.mfaToken);
+      setLoginMfaCode('');
+      setIsLoading(false);
+      return;
+    }
 
     if (!result.success) {
       setError(result.message || 'Login fehlgeschlagen');
     }
 
     setIsLoading(false);
+  };
+
+  const handleMfaVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    if (!mfaToken) {
+      setError('MFA-Token fehlt. Bitte erneut anmelden.');
+      setIsLoading(false);
+      return;
+    }
+
+    const result = await verifyMfa(mfaToken, loginMfaCode);
+
+    if (!result.success) {
+      setError(result.message || 'Ungültiger Code');
+    }
+
+    setIsLoading(false);
+  };
+
+  const handleCancelMfa = () => {
+    setMfaRequired(false);
+    setMfaToken(null);
+    setLoginMfaCode('');
+    setLoginPassword('');
+    setError('');
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -174,76 +214,112 @@ export const Auth = () => {
 
             {/* Login Form */}
             {isLogin ? (
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Benutzername
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              mfaRequired ? (
+                /* MFA Verification Form */
+                <form onSubmit={handleMfaVerify} className="space-y-4">
+                  <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <Shield className="text-blue-600 dark:text-blue-400" size={24} />
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        Zwei-Faktor-Authentifizierung
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Gib den Code aus deiner Authenticator-App ein
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      6-stelliger Code
+                    </label>
                     <input
                       type="text"
-                      value={loginUsername}
-                      onChange={(e) => setLoginUsername(e.target.value)}
-                      placeholder="Benutzername eingeben"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
+                      value={loginMfaCode}
+                      onChange={(e) => setLoginMfaCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                      placeholder="000000"
+                      className="w-full px-4 py-3 text-center text-2xl font-mono tracking-widest border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       autoFocus
+                      autoComplete="one-time-code"
                     />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      Du kannst auch einen 8-stelligen Wiederherstellungscode verwenden
+                    </p>
                   </div>
-                </div>
 
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Passwort
-                    </label>
+                  <div className="flex gap-3">
                     <button
                       type="button"
-                      onClick={() => setAuthView('forgot-password')}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors"
+                      onClick={handleCancelMfa}
+                      className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
                     >
-                      Passwort vergessen?
+                      Abbrechen
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isLoading || loginMfaCode.length < 6}
+                      className="flex-1 py-3 btn-accent disabled:opacity-50"
+                    >
+                      {isLoading ? 'Überprüfen...' : 'Bestätigen'}
                     </button>
                   </div>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                    <input
-                      type="password"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      placeholder="Passwort eingeben"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
+                </form>
+              ) : (
+                /* Normal Login Form */
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Benutzername
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                      <input
+                        type="text"
+                        value={loginUsername}
+                        onChange={(e) => setLoginUsername(e.target.value)}
+                        placeholder="Benutzername eingeben"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                        autoFocus
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* MFA Code (future) */}
-                <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
-                    <Shield size={16} />
-                    <span className="text-xs font-medium">MFA (in Vorbereitung)</span>
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Passwort
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setAuthView('forgot-password')}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors"
+                      >
+                        Passwort vergessen?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                      <input
+                        type="password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="Passwort eingeben"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    value={loginMfaCode}
-                    onChange={(e) => setLoginMfaCode(e.target.value)}
-                    placeholder="6-stelliger Code (optional)"
-                    maxLength={6}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 dark:text-gray-400 text-sm opacity-50 cursor-not-allowed"
-                  />
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full py-3 btn-accent"
-                >
-                  {isLoading ? 'Anmelden...' : 'Anmelden'}
-                </button>
-              </form>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full py-3 btn-accent"
+                  >
+                    {isLoading ? 'Anmelden...' : 'Anmelden'}
+                  </button>
+                </form>
+              )
             ) : (
               /* Register Form */
               <form onSubmit={handleRegister} className="space-y-4">
