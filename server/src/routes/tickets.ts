@@ -2407,7 +2407,7 @@ export { calculateSlaDeadlines };
 // ============================================================================
 
 // Helper function to transform task
-function transformTask(row: any) {
+function transformTask(row: any): any {
   return {
     id: row.id,
     ticketId: row.ticket_id,
@@ -2417,6 +2417,10 @@ function transformTask(row: any) {
     visibleToCustomer: row.visible_to_customer,
     createdAt: row.created_at?.toISOString(),
     completedAt: row.completed_at?.toISOString(),
+    assignedTo: row.assigned_to,
+    assignedToName: row.assigned_to_name || null,
+    dueDate: row.due_date?.toISOString() || null,
+    description: row.description || null,
   };
 }
 

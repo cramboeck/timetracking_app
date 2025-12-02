@@ -49,6 +49,7 @@ export type AuditAction =
   | 'ticket_task.update'
   | 'ticket_task.delete'
   | 'ticket_task.complete'
+  | 'ticket_task.assign'
   // Ticket attachment actions
   | 'ticket_attachment.upload'
   | 'ticket_attachment.delete'
@@ -60,6 +61,12 @@ export type AuditAction =
   | 'sla_policy.update'
   | 'sla_policy.delete'
   | 'sla_policy.apply'
+  // Lead actions
+  | 'lead.create'
+  | 'lead.update'
+  | 'lead.delete'
+  | 'lead.convert'
+  | 'lead.activity_add'
   // Organization actions
   | 'organization.create'
   | 'organization.update'
