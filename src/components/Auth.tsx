@@ -90,6 +90,10 @@ export const Auth = () => {
   const [registerOrganizationName, setRegisterOrganizationName] = useState('');
   const [registerInviteCode, setRegisterInviteCode] = useState('');
 
+  // Track if registering via invitation (to show simplified form)
+  const [registeringViaInvitation, setRegisteringViaInvitation] = useState(false);
+  const [invitationOrgName, setInvitationOrgName] = useState<string | null>(null);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -172,7 +176,8 @@ export const Auth = () => {
       return;
     }
 
-    if ((registerAccountType === 'business' || registerAccountType === 'team') && !registerOrganizationName.trim()) {
+    // Only require organization name for business/team if NOT registering via invitation
+    if (!registeringViaInvitation && (registerAccountType === 'business' || registerAccountType === 'team') && !registerOrganizationName.trim()) {
       setError('Bitte gib einen Firmennamen/Team-Namen ein');
       return;
     }
@@ -187,16 +192,20 @@ export const Auth = () => {
       username: registerUsername,
       email: registerEmail,
       password: registerPassword,
-      accountType: registerAccountType,
-      organizationName: registerOrganizationName.trim() || undefined,
+      accountType: registeringViaInvitation ? 'personal' : registerAccountType, // Use personal when joining via invitation
+      organizationName: registeringViaInvitation ? undefined : (registerOrganizationName.trim() || undefined),
       inviteCode: effectiveInviteCode
     });
 
     if (!result.success) {
       setError(result.message || 'Registrierung fehlgeschlagen');
-    } else if (pendingInvitation) {
-      // Clear pending invitation after successful registration with it
-      localStorage.removeItem('pending_invitation');
+    } else {
+      // Clear invitation-related state after successful registration
+      if (pendingInvitation) {
+        localStorage.removeItem('pending_invitation');
+      }
+      setRegisteringViaInvitation(false);
+      setInvitationOrgName(null);
     }
 
     setIsLoading(false);
@@ -335,8 +344,10 @@ export const Auth = () => {
                     </button>
                     <button
                       onClick={() => {
-                        // Store invitation code for after register
+                        // Store invitation code and set registration via invitation mode
                         localStorage.setItem('pending_invitation', invitationCode);
+                        setRegisteringViaInvitation(true);
+                        setInvitationOrgName(invitationInfo?.organizationName || null);
                         window.history.replaceState({}, '', '/');
                         setAuthView('register');
                       }}
@@ -565,59 +576,78 @@ export const Auth = () => {
             ) : (
               /* Register Form */
               <form onSubmit={handleRegister} className="space-y-4">
-                {/* Account Type Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Account-Typ *
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRegisterAccountType('personal')}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                        registerAccountType === 'personal'
-                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
-                      }`}
-                    >
-                      <User size={24} className={registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-400'} />
-                      <span className={`text-xs font-medium ${registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
-                        Freelancer
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRegisterAccountType('business')}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                        registerAccountType === 'business'
-                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
-                      }`}
-                    >
-                      <Building2 size={24} className={registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-400'} />
-                      <span className={`text-xs font-medium ${registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
-                        Unternehmen
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRegisterAccountType('team')}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                        registerAccountType === 'team'
-                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
-                      }`}
-                    >
-                      <Users size={24} className={registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-400'} />
-                      <span className={`text-xs font-medium ${registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
-                        Team
-                      </span>
-                    </button>
+                {/* Invitation Banner - when registering via invitation */}
+                {registeringViaInvitation && invitationOrgName && (
+                  <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                      <UserPlus size={20} className="text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-green-800 dark:text-green-200">
+                        Du trittst bei: {invitationOrgName}
+                      </p>
+                      <p className="text-sm text-green-600 dark:text-green-400">
+                        Erstelle deinen Account um der Organisation beizutreten
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Organization Name - only for business/team */}
-                {(registerAccountType === 'business' || registerAccountType === 'team') && (
+                {/* Account Type Selection - only show when NOT registering via invitation */}
+                {!registeringViaInvitation && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Account-Typ *
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRegisterAccountType('personal')}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                          registerAccountType === 'personal'
+                            ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                        }`}
+                      >
+                        <User size={24} className={registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-400'} />
+                        <span className={`text-xs font-medium ${registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
+                          Freelancer
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegisterAccountType('business')}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                          registerAccountType === 'business'
+                            ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                        }`}
+                      >
+                        <Building2 size={24} className={registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-400'} />
+                        <span className={`text-xs font-medium ${registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
+                          Unternehmen
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegisterAccountType('team')}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                          registerAccountType === 'team'
+                            ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                        }`}
+                      >
+                        <Users size={24} className={registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-400'} />
+                        <span className={`text-xs font-medium ${registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
+                          Team
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Organization Name - only for business/team AND not registering via invitation */}
+                {!registeringViaInvitation && (registerAccountType === 'business' || registerAccountType === 'team') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       {registerAccountType === 'business' ? 'Firmenname' : 'Team-Name'} *
@@ -705,25 +735,27 @@ export const Auth = () => {
                   </div>
                 </div>
 
-                {/* Invite Code - Optional */}
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Ticket size={18} className="text-gray-500 dark:text-gray-400" />
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Einladungscode (optional)
-                    </label>
+                {/* Invite Code - Optional - only show when NOT registering via invitation */}
+                {!registeringViaInvitation && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Ticket size={18} className="text-gray-500 dark:text-gray-400" />
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Einladungscode (optional)
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      value={registerInviteCode}
+                      onChange={(e) => setRegisterInviteCode(e.target.value.toUpperCase())}
+                      placeholder="INVITE-XXXXXXXXX"
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      💡 Du hast einen Einladungscode? Gib ihn hier ein, um einem bestehenden Team beizutreten
+                    </p>
                   </div>
-                  <input
-                    type="text"
-                    value={registerInviteCode}
-                    onChange={(e) => setRegisterInviteCode(e.target.value.toUpperCase())}
-                    placeholder="INVITE-XXXXXXXXX"
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    💡 Du hast einen Einladungscode? Gib ihn hier ein, um einem bestehenden Team beizutreten
-                  </p>
-                </div>
+                )}
 
                 <button
                   type="submit"
