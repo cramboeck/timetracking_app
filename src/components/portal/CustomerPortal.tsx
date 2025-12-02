@@ -8,8 +8,10 @@ import { PortalCreateTicket } from './PortalCreateTicket';
 import { PortalActivate } from './PortalActivate';
 import { PortalProfile } from './PortalProfile';
 import { PortalKnowledgeBase } from './PortalKnowledgeBase';
+import { PortalDevices } from './PortalDevices';
+import { PortalInvoices } from './PortalInvoices';
 
-type PortalView = 'tickets' | 'ticket-detail' | 'profile' | 'kb';
+type PortalView = 'tickets' | 'ticket-detail' | 'profile' | 'kb' | 'devices' | 'invoices';
 
 export const CustomerPortal = () => {
   const [contact, setContact] = useState<PortalContact | null>(null);
@@ -97,6 +99,21 @@ export const CustomerPortal = () => {
     setSelectedTicketId(null);
   };
 
+  const handleShowDevices = () => {
+    setCurrentView('devices');
+    setSelectedTicketId(null);
+  };
+
+  const handleShowInvoices = () => {
+    setCurrentView('invoices');
+    setSelectedTicketId(null);
+  };
+
+  const handleShowTickets = () => {
+    setCurrentView('tickets');
+    setSelectedTicketId(null);
+  };
+
   const handleTicketCreated = (ticket: PortalTicket) => {
     // Navigate to the new ticket
     setSelectedTicketId(ticket.id);
@@ -141,6 +158,9 @@ export const CustomerPortal = () => {
       onLogout={handleLogout}
       onShowProfile={handleShowProfile}
       onShowKnowledgeBase={portalSettings?.showKnowledgeBase !== false ? handleShowKnowledgeBase : undefined}
+      onShowDevices={contact.canViewDevices ? handleShowDevices : undefined}
+      onShowInvoices={(contact.canViewInvoices || contact.canViewQuotes) ? handleShowInvoices : undefined}
+      onShowTickets={handleShowTickets}
       currentView={currentView}
       portalSettings={portalSettings}
     >
@@ -148,6 +168,10 @@ export const CustomerPortal = () => {
         <PortalKnowledgeBase userId={contact.userId} onBack={handleBack} />
       ) : currentView === 'profile' ? (
         <PortalProfile contact={contact} onBack={handleBack} />
+      ) : currentView === 'devices' ? (
+        <PortalDevices contact={contact} />
+      ) : currentView === 'invoices' ? (
+        <PortalInvoices contact={contact} />
       ) : currentView === 'ticket-detail' && selectedTicketId ? (
         <PortalTicketDetail
           ticketId={selectedTicketId}

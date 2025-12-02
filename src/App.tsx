@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Navigation } from './components/Navigation';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView } from './components/AreaNavigation';
 import { Stopwatch } from './components/Stopwatch';
 import { ManualEntry } from './components/ManualEntry';
 import { TimeEntriesList } from './components/TimeEntriesList';
@@ -8,20 +8,27 @@ import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
 import { Tickets } from './components/Tickets';
 import { Finanzen } from './components/Finanzen';
+import { DevicesView } from './components/DevicesView';
+import { AlertsView } from './components/AlertsView';
+import MaintenanceView from './components/MaintenanceView';
+import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
-import { TimeEntry, ViewMode, Customer, Project, Activity, Ticket } from './types';
+import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { darkMode } from './utils/darkMode';
 import { useAuth } from './contexts/AuthContext';
+import { useSwipeGesture } from './hooks/useSwipeGesture';
+import { haptics } from './utils/haptics';
 import { notificationService } from './utils/notifications';
 import { projectsApi, customersApi, activitiesApi, entriesApi } from './services/api';
 
 function App() {
   const { currentUser, isAuthenticated, isLoading } = useAuth();
-  const [currentView, setCurrentView] = useState<ViewMode>('settings');
+  const [currentArea, setCurrentArea] = useState<Area>('arbeiten');
+  const [currentSubView, setCurrentSubView] = useState<SubView>('stopwatch');
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -74,7 +81,7 @@ function App() {
 
         // If there are customers/projects, switch to stopwatch view
         if (customersResponse.data.length > 0 && projectsResponse.data.length > 0) {
-          setCurrentView('stopwatch');
+          setCurrentSubView('stopwatch');
         }
 
         console.log('✅ [DATA] All data loaded successfully');
@@ -447,7 +454,24 @@ function App() {
       activityId: entry.activityId,
       description: entry.description
     });
-    setCurrentView('stopwatch');
+    setCurrentArea('arbeiten');
+    setCurrentSubView('stopwatch');
+  };
+
+  // Area change handler
+  const handleAreaChange = (area: Area) => {
+    setCurrentArea(area);
+    setCurrentSubView(getDefaultSubView(area));
+  };
+
+  // SubView change handler
+  const handleSubViewChange = (subView: SubView) => {
+    setCurrentSubView(subView);
+    // Update area if subView belongs to different area
+    const newArea = getAreaFromSubView(subView);
+    if (newArea !== currentArea) {
+      setCurrentArea(newArea);
+    }
   };
 
   // Dark Mode handler
@@ -455,6 +479,52 @@ function App() {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
     darkMode.set(newMode);
+  };
+
+  // Get visible areas for swipe navigation
+  const visibleAreas: Area[] = ['arbeiten', 'support', 'business']; // TODO: Filter by enabled packages
+
+  // Swipe between areas
+  const handleSwipeLeft = useCallback(() => {
+    const currentIndex = visibleAreas.indexOf(currentArea);
+    if (currentIndex < visibleAreas.length - 1) {
+      haptics.light();
+      handleAreaChange(visibleAreas[currentIndex + 1]);
+    }
+  }, [currentArea, visibleAreas]);
+
+  const handleSwipeRight = useCallback(() => {
+    const currentIndex = visibleAreas.indexOf(currentArea);
+    if (currentIndex > 0) {
+      haptics.light();
+      handleAreaChange(visibleAreas[currentIndex - 1]);
+    }
+  }, [currentArea, visibleAreas]);
+
+  const swipeHandlers = useSwipeGesture({
+    onSwipeLeft: handleSwipeLeft,
+    onSwipeRight: handleSwipeRight,
+    minSwipeDistance: 75,
+  });
+
+  // FAB handlers
+  const handleFABStartTimer = () => {
+    setCurrentArea('arbeiten');
+    setCurrentSubView('stopwatch');
+  };
+
+  const handleFABStopTimer = async () => {
+    if (runningEntry) {
+      haptics.heavy();
+      const stoppedEntry = {
+        ...runningEntry,
+        isRunning: false,
+        endTime: new Date().toISOString(),
+        duration: Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000),
+      };
+      await handleSaveEntry(stoppedEntry);
+      setRunningEntry(null);
+    }
   };
 
   // Loading state
@@ -477,8 +547,19 @@ function App() {
   // Authenticated - show main app
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-      <main className="flex-1 overflow-y-auto pb-16">
-        {currentView === 'stopwatch' && (
+      {/* Top Navigation Header */}
+      <AreaNavigation
+        currentArea={currentArea}
+        currentSubView={currentSubView}
+        onAreaChange={handleAreaChange}
+        onSubViewChange={handleSubViewChange}
+      />
+
+      <main
+        className="flex-1 overflow-y-auto pt-12 pb-16"
+        {...swipeHandlers}
+      >
+        {currentSubView === 'stopwatch' && (
           <Stopwatch
             onSave={handleSaveEntry}
             runningEntry={runningEntry}
@@ -486,12 +567,12 @@ function App() {
             projects={projects}
             customers={customers}
             activities={activities}
-            onOpenManualEntry={() => setCurrentView('manual')}
+            onOpenManualEntry={() => setCurrentSubView('manual')}
             prefilledEntry={prefilledEntry}
             onPrefilledEntryUsed={() => setPrefilledEntry(null)}
           />
         )}
-        {currentView === 'manual' && (
+        {currentSubView === 'manual' && (
           <ManualEntry
             onSave={handleSaveEntry}
             projects={projects}
@@ -499,7 +580,7 @@ function App() {
             activities={activities}
           />
         )}
-        {currentView === 'list' && (
+        {currentSubView === 'list' && (
           <TimeEntriesList
             entries={entries}
             projects={projects}
@@ -510,7 +591,7 @@ function App() {
             onRepeatEntry={handleRepeatEntry}
           />
         )}
-        {currentView === 'calendar' && (
+        {currentSubView === 'calendar' && (
           <CalendarView
             entries={entries}
             projects={projects}
@@ -532,16 +613,16 @@ function App() {
             }}
           />
         )}
-        {currentView === 'dashboard' && (
+        {currentSubView === 'dashboard' && (
           <Dashboard
             entries={entries}
             projects={projects}
             customers={customers}
             activities={activities}
-            onNavigateToBilling={() => setCurrentView('billing')}
+            onNavigateToBilling={() => setCurrentSubView('billing')}
           />
         )}
-        {currentView === 'tickets' && (
+        {currentSubView === 'tickets' && (
           <Tickets
             customers={customers}
             projects={projects}
@@ -558,14 +639,29 @@ function App() {
                 description: `${ticket.ticketNumber}: ${ticket.title}`,
                 ticketId: ticket.id,
               });
-              setCurrentView('stopwatch');
+              setCurrentArea('arbeiten');
+              setCurrentSubView('stopwatch');
             }}
           />
         )}
-        {currentView === 'billing' && (
-          <Finanzen onBack={() => setCurrentView('dashboard')} />
+        {currentSubView === 'devices' && (
+          <DevicesView />
         )}
-        {currentView === 'settings' && (
+        {currentSubView === 'alerts' && (
+          <AlertsView />
+        )}
+        {currentSubView === 'maintenance' && (
+          <MaintenanceView />
+        )}
+        {currentSubView === 'billing' && (
+          <Finanzen onBack={() => setCurrentSubView('dashboard')} />
+        )}
+        {currentSubView === 'reports' && (
+          <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+            <p>Berichte-Modul kommt bald...</p>
+          </div>
+        )}
+        {currentSubView === 'settings' && (
           <Settings
             customers={customers}
             projects={projects}
@@ -585,7 +681,14 @@ function App() {
           />
         )}
       </main>
-      <Navigation currentView={currentView} onViewChange={setCurrentView} />
+
+      {/* Floating Action Button */}
+      <FloatingActionButton
+        isTimerRunning={!!runningEntry}
+        onStartTimer={handleFABStartTimer}
+        onStopTimer={handleFABStopTimer}
+        currentView={currentSubView}
+      />
 
       {/* Welcome Modal for new users */}
       {showWelcomeModal && (

@@ -1,10 +1,20 @@
-import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge } from 'lucide-react';
-import { Ticket, TicketComment, TicketStatus, TicketPriority, Customer, Project, TimeEntry } from '../types';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb } from 'lucide-react';
+import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
 import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SlaStatus } from './SlaStatus';
 import { TicketMergeDialog } from './TicketMergeDialog';
+
+// Resolution type labels
+const resolutionTypeConfig: Record<TicketResolutionType, { label: string; description: string }> = {
+  solved: { label: 'Gelöst', description: 'Problem wurde behoben' },
+  not_reproducible: { label: 'Nicht reproduzierbar', description: 'Problem konnte nicht nachgestellt werden' },
+  duplicate: { label: 'Duplikat', description: 'Bereits in einem anderen Ticket behandelt' },
+  wont_fix: { label: 'Wird nicht behoben', description: 'Absichtlich nicht behoben' },
+  resolved_itself: { label: 'Hat sich erledigt', description: 'Problem hat sich von selbst gelöst' },
+  workaround: { label: 'Workaround', description: 'Umgehungslösung bereitgestellt' },
+};
 
 interface TicketDetailProps {
   ticketId: string;
@@ -83,11 +93,27 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Solution Modal
+  const [showSolutionModal, setShowSolutionModal] = useState(false);
+  const [solutionText, setSolutionText] = useState('');
+  const [resolutionType, setResolutionType] = useState<TicketResolutionType>('solved');
+  const [pendingStatusChange, setPendingStatusChange] = useState<TicketStatus | null>(null);
+  const [savingSolution, setSavingSolution] = useState(false);
+
+  // Tasks
+  const [tasks, setTasks] = useState<TicketTask[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskVisible, setNewTaskVisible] = useState(false);
+  const [addingTask, setAddingTask] = useState(false);
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+
   useEffect(() => {
     loadTicket();
     loadTags();
     loadAttachments();
     loadCannedResponses();
+    loadTasks();
   }, [ticketId]);
 
   // Close dropdowns on outside click
@@ -155,6 +181,100 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     } catch (err) {
       console.error('Failed to load attachments:', err);
     }
+  };
+
+  const loadTasks = async () => {
+    try {
+      setLoadingTasks(true);
+      const response = await ticketsApi.getTasks(ticketId);
+      setTasks(response.data);
+    } catch (err) {
+      console.error('Failed to load tasks:', err);
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
+
+  const handleAddTask = async () => {
+    if (!newTaskTitle.trim()) return;
+
+    try {
+      setAddingTask(true);
+      const response = await ticketsApi.createTask(ticketId, {
+        title: newTaskTitle.trim(),
+        visibleToCustomer: newTaskVisible,
+      });
+      setTasks(prev => [...prev, response.data]);
+      setNewTaskTitle('');
+      setNewTaskVisible(false);
+    } catch (err) {
+      console.error('Failed to add task:', err);
+    } finally {
+      setAddingTask(false);
+    }
+  };
+
+  const handleToggleTask = async (task: TicketTask) => {
+    try {
+      const response = await ticketsApi.updateTask(ticketId, task.id, {
+        completed: !task.completed,
+      });
+      setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
+    } catch (err) {
+      console.error('Failed to toggle task:', err);
+    }
+  };
+
+  const handleToggleTaskVisibility = async (task: TicketTask) => {
+    try {
+      const response = await ticketsApi.updateTask(ticketId, task.id, {
+        visibleToCustomer: !task.visibleToCustomer,
+      });
+      setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
+    } catch (err) {
+      console.error('Failed to update task visibility:', err);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await ticketsApi.deleteTask(ticketId, taskId);
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+    }
+  };
+
+  const handleDragStart = (taskId: string) => {
+    setDraggedTaskId(taskId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetTaskId: string) => {
+    e.preventDefault();
+    if (!draggedTaskId || draggedTaskId === targetTaskId) return;
+
+    const draggedIndex = tasks.findIndex(t => t.id === draggedTaskId);
+    const targetIndex = tasks.findIndex(t => t.id === targetTaskId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    const newTasks = [...tasks];
+    const [draggedTask] = newTasks.splice(draggedIndex, 1);
+    newTasks.splice(targetIndex, 0, draggedTask);
+    setTasks(newTasks);
+  };
+
+  const handleDragEnd = async () => {
+    if (!draggedTaskId) return;
+
+    try {
+      await ticketsApi.reorderTasks(ticketId, tasks.map(t => t.id));
+    } catch (err) {
+      console.error('Failed to reorder tasks:', err);
+      // Reload to get correct order
+      loadTasks();
+    }
+    setDraggedTaskId(null);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -381,6 +501,15 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const handleSaveEdit = async () => {
     if (!ticket) return;
 
+    // Check if we're closing the ticket and need solution
+    if (editStatus === 'closed' && ticket.status !== 'closed') {
+      setPendingStatusChange(editStatus);
+      setSolutionText(ticket.solution || '');
+      setResolutionType(ticket.resolutionType || 'solved');
+      setShowSolutionModal(true);
+      return;
+    }
+
     try {
       const response = await ticketsApi.update(ticket.id, {
         title: editTitle,
@@ -393,6 +522,32 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     } catch (err) {
       console.error('Failed to update ticket:', err);
       alert('Fehler beim Speichern des Tickets');
+    }
+  };
+
+  const handleSaveSolution = async () => {
+    if (!ticket || !solutionText.trim()) return;
+
+    try {
+      setSavingSolution(true);
+      const response = await ticketsApi.update(ticket.id, {
+        title: editTitle,
+        description: editDescription,
+        status: 'closed',
+        priority: editPriority,
+        solution: solutionText.trim(),
+        resolutionType: resolutionType,
+      });
+      setTicket(response.data);
+      setIsEditing(false);
+      setShowSolutionModal(false);
+      setPendingStatusChange(null);
+      setSolutionText('');
+    } catch (err) {
+      console.error('Failed to save solution:', err);
+      alert('Fehler beim Speichern der Lösung');
+    } finally {
+      setSavingSolution(false);
     }
   };
 
@@ -794,6 +949,140 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
           </div>
         )}
 
+        {/* Solution (shown when ticket is closed) */}
+        {(ticket.status === 'closed' || ticket.status === 'resolved') && ticket.solution && (
+          <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <Lightbulb className="text-green-600 dark:text-green-400" size={18} />
+              <h3 className="text-sm font-medium text-green-800 dark:text-green-300">
+                Lösung
+                {ticket.resolutionType && (
+                  <span className="ml-2 text-xs font-normal text-green-600 dark:text-green-400">
+                    ({resolutionTypeConfig[ticket.resolutionType]?.label || ticket.resolutionType})
+                  </span>
+                )}
+              </h3>
+            </div>
+            <p className="text-green-900 dark:text-green-100 whitespace-pre-wrap">
+              {ticket.solution}
+            </p>
+          </div>
+        )}
+
+        {/* Tasks */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <CheckSquare size={16} />
+              Aufgaben ({tasks.filter(t => t.completed).length}/{tasks.length})
+            </h2>
+          </div>
+
+          {/* Task List */}
+          {loadingTasks ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {tasks.map((task) => (
+                <div
+                  key={task.id}
+                  draggable
+                  onDragStart={() => handleDragStart(task.id)}
+                  onDragOver={(e) => handleDragOver(e, task.id)}
+                  onDragEnd={handleDragEnd}
+                  className={`flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg group cursor-move transition-opacity ${
+                    draggedTaskId === task.id ? 'opacity-50' : ''
+                  }`}
+                >
+                  {/* Drag Handle */}
+                  <GripVertical
+                    size={16}
+                    className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                  />
+
+                  {/* Checkbox */}
+                  <button
+                    onClick={() => handleToggleTask(task)}
+                    className="flex-shrink-0"
+                  >
+                    {task.completed ? (
+                      <CheckSquare size={20} className="text-green-500" />
+                    ) : (
+                      <Square size={20} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                    )}
+                  </button>
+
+                  {/* Task Title */}
+                  <span
+                    className={`flex-1 text-sm ${
+                      task.completed
+                        ? 'text-gray-500 dark:text-gray-400 line-through'
+                        : 'text-gray-900 dark:text-white'
+                    }`}
+                  >
+                    {task.title}
+                  </span>
+
+                  {/* Visibility Toggle */}
+                  <button
+                    onClick={() => handleToggleTaskVisibility(task)}
+                    className={`p-1.5 rounded transition-colors ${
+                      task.visibleToCustomer
+                        ? 'text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                        : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                    title={task.visibleToCustomer ? 'Für Kunden sichtbar' : 'Nur intern sichtbar'}
+                  >
+                    {task.visibleToCustomer ? <Eye size={16} /> : <EyeOff size={16} />}
+                  </button>
+
+                  {/* Delete Button */}
+                  <button
+                    onClick={() => handleDeleteTask(task.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded opacity-0 group-hover:opacity-100 transition-all"
+                    title="Aufgabe löschen"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+
+              {/* Add Task Form */}
+              <div className="flex items-center gap-2 p-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                <Square size={20} className="text-gray-300 dark:text-gray-600 flex-shrink-0" />
+                <input
+                  type="text"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddTask()}
+                  placeholder="Neue Aufgabe hinzufügen..."
+                  className="flex-1 bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+                />
+                <button
+                  onClick={() => setNewTaskVisible(!newTaskVisible)}
+                  className={`p-1.5 rounded transition-colors ${
+                    newTaskVisible
+                      ? 'text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                      : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  title={newTaskVisible ? 'Für Kunden sichtbar' : 'Nur intern sichtbar'}
+                >
+                  {newTaskVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+                </button>
+                <button
+                  onClick={handleAddTask}
+                  disabled={!newTaskTitle.trim() || addingTask}
+                  className="px-3 py-1.5 text-sm btn-accent rounded disabled:opacity-50"
+                >
+                  {addingTask ? '...' : 'Hinzufügen'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Attachments */}
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -1152,6 +1441,87 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
           loadTicket(); // Reload to get updated comments etc.
         }}
       />
+
+      {/* Solution Modal */}
+      {showSolutionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                  <Lightbulb className="text-green-600 dark:text-green-400" size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Ticket schließen
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Bitte dokumentiere die Lösung für dieses Ticket
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Lösungstyp *
+                </label>
+                <select
+                  value={resolutionType}
+                  onChange={(e) => setResolutionType(e.target.value as TicketResolutionType)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  {Object.entries(resolutionTypeConfig).map(([key, { label, description }]) => (
+                    <option key={key} value={key}>
+                      {label} - {description}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Lösung / Beschreibung *
+                </label>
+                <textarea
+                  value={solutionText}
+                  onChange={(e) => setSolutionText(e.target.value)}
+                  rows={5}
+                  placeholder="Beschreibe, wie das Problem gelöst wurde oder warum es geschlossen wird..."
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowSolutionModal(false);
+                  setPendingStatusChange(null);
+                }}
+                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleSaveSolution}
+                disabled={!solutionText.trim() || savingSolution}
+                className="px-4 py-2 btn-accent rounded-lg disabled:opacity-50 flex items-center gap-2"
+              >
+                {savingSolution ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Speichern...
+                  </>
+                ) : (
+                  <>
+                    <CheckSquare size={16} />
+                    Ticket schließen
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

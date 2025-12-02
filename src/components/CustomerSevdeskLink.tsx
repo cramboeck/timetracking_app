@@ -144,38 +144,38 @@ export const CustomerSevdeskLink = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="sevDesk-Kontakt suchen..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
 
         {/* Customer List */}
-        <div className="max-h-80 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
           {loading ? (
             <div className="flex items-center justify-center p-8">
               <Loader2 className="animate-spin text-accent-primary" size={24} />
             </div>
           ) : filteredCustomers.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+            <div className="p-8 text-center text-gray-500">
               {searchQuery ? 'Keine Kontakte gefunden' : 'Keine sevDesk-Kontakte vorhanden'}
             </div>
           ) : (
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            <div className="divide-y divide-gray-200">
               {filteredCustomers.map((sevdeskCustomer) => (
                 <button
                   key={sevdeskCustomer.id}
                   onClick={() => setSelectedCustomerId(sevdeskCustomer.id)}
-                  className={`w-full p-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
+                  className={`w-full p-3 text-left hover:bg-gray-50 transition-colors ${
                     selectedCustomerId === sevdeskCustomer.id
-                      ? 'bg-accent-light/30 dark:bg-accent-lighter/10'
+                      ? 'bg-blue-50'
                       : ''
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
                         selectedCustomerId === sevdeskCustomer.id
-                          ? 'border-accent-primary bg-accent-primary'
-                          : 'border-gray-300 dark:border-gray-600'
+                          ? 'border-blue-600 bg-blue-600'
+                          : 'border-gray-300'
                       }`}
                     >
                       {selectedCustomerId === sevdeskCustomer.id && (
@@ -184,17 +184,17 @@ export const CustomerSevdeskLink = ({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900 dark:text-white truncate">
-                          {sevdeskCustomer.name}
+                        <span className="font-medium text-gray-900 truncate">
+                          {sevdeskCustomer.name || 'Unbenannt'}
                         </span>
                         {sevdeskCustomer.customerNumber && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                          <span className="text-xs text-gray-500 flex-shrink-0 bg-gray-100 px-2 py-0.5 rounded">
                             #{sevdeskCustomer.customerNumber}
                           </span>
                         )}
                       </div>
                       {sevdeskCustomer.email && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                        <p className="text-sm text-gray-500 truncate">
                           {sevdeskCustomer.email}
                         </p>
                       )}
@@ -210,14 +210,14 @@ export const CustomerSevdeskLink = ({
         <div className="flex justify-end gap-3 pt-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           >
             Abbrechen
           </button>
           <button
             onClick={handleLink}
             disabled={!selectedCustomerId || saving}
-            className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             {saving ? (
               <Loader2 className="animate-spin" size={18} />

@@ -285,16 +285,18 @@ export async function getBillingSummary(
   totalSeconds: number;
   totalHours: number;
   totalAmount: number | null;
+  isBilled: boolean;
   entries: TimeEntryForBilling[];
 }>> {
   // Get default hourly rate from config
   const config = await getConfig(userId);
   const defaultRate = config?.defaultHourlyRate || 95;
 
-  // Get all unbilled entries grouped by customer
+  // Get ALL entries (billed and unbilled) grouped by customer
   const result = await query(
     `SELECT c.id as customer_id, c.name as customer_name, c.hourly_rate, c.sevdesk_customer_id,
             te.id as entry_id, te.duration, te.description, te.start_time,
+            te.invoice_export_id,
             t.ticket_number, t.title as ticket_title,
             p.name as project_name
      FROM customers c
@@ -302,36 +304,40 @@ export async function getBillingSummary(
      JOIN time_entries te ON te.project_id = p.id
      LEFT JOIN tickets t ON te.ticket_id = t.id
      WHERE c.user_id = $1
-       AND te.invoice_export_id IS NULL
        AND te.start_time >= $2
        AND te.start_time <= $3
      ORDER BY c.name, te.start_time`,
     [userId, startDate, endDate]
   );
 
-  // Group by customer
+  // Group by customer AND billing status
   const customerMap = new Map<string, {
     customerId: string;
     customerName: string;
     hourlyRate: number | null;
     sevdeskCustomerId: string | null;
     totalSeconds: number;
+    isBilled: boolean;
     entries: TimeEntryForBilling[];
   }>();
 
   for (const row of result.rows) {
-    if (!customerMap.has(row.customer_id)) {
-      customerMap.set(row.customer_id, {
+    const isBilled = row.invoice_export_id !== null;
+    const key = `${row.customer_id}_${isBilled ? 'billed' : 'unbilled'}`;
+
+    if (!customerMap.has(key)) {
+      customerMap.set(key, {
         customerId: row.customer_id,
         customerName: row.customer_name,
         hourlyRate: row.hourly_rate ? parseFloat(row.hourly_rate) : null,
         sevdeskCustomerId: row.sevdesk_customer_id,
         totalSeconds: 0,
+        isBilled,
         entries: [],
       });
     }
 
-    const customer = customerMap.get(row.customer_id)!;
+    const customer = customerMap.get(key)!;
     customer.totalSeconds += row.duration;
     customer.entries.push({
       id: row.entry_id,
@@ -483,6 +489,7 @@ export async function getInvoiceExports(
   limit: number = 50
 ): Promise<Array<{
   id: string;
+  customerId: string;
   customerName: string;
   sevdeskInvoiceNumber: string | null;
   periodStart: string;
@@ -504,6 +511,7 @@ export async function getInvoiceExports(
 
   return result.rows.map(row => ({
     id: row.id,
+    customerId: row.customer_id,
     customerName: row.customer_name,
     sevdeskInvoiceNumber: row.sevdesk_invoice_number,
     periodStart: row.period_start,

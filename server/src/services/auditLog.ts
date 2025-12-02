@@ -1,6 +1,7 @@
 import { pool } from '../config/database';
 
 export type AuditAction =
+  // User actions
   | 'user.register'
   | 'user.login'
   | 'user.logout'
@@ -9,9 +10,11 @@ export type AuditAction =
   | 'user.update'
   | 'user.delete'
   | 'data.export'
+  // Time entry actions
   | 'time_entry.create'
   | 'time_entry.update'
   | 'time_entry.delete'
+  // Customer actions
   | 'customer.create'
   | 'customer.update'
   | 'customer.delete'
@@ -19,13 +22,63 @@ export type AuditAction =
   | 'customer_contact.update'
   | 'customer_contact.delete'
   | 'customer_contact.send_invite'
+  // Project actions
   | 'project.create'
   | 'project.update'
   | 'project.delete'
+  // Activity actions
   | 'activity.create'
   | 'activity.update'
   | 'activity.delete'
-  | 'settings.update';
+  // Ticket actions
+  | 'ticket.create'
+  | 'ticket.update'
+  | 'ticket.delete'
+  | 'ticket.close'
+  | 'ticket.reopen'
+  | 'ticket.merge'
+  | 'ticket.assign'
+  | 'ticket.status_change'
+  | 'ticket.priority_change'
+  // Ticket comment actions
+  | 'ticket_comment.create'
+  | 'ticket_comment.update'
+  | 'ticket_comment.delete'
+  // Ticket task actions
+  | 'ticket_task.create'
+  | 'ticket_task.update'
+  | 'ticket_task.delete'
+  | 'ticket_task.complete'
+  // Ticket attachment actions
+  | 'ticket_attachment.upload'
+  | 'ticket_attachment.delete'
+  // Ticket tag actions
+  | 'ticket_tag.add'
+  | 'ticket_tag.remove'
+  // SLA actions
+  | 'sla_policy.create'
+  | 'sla_policy.update'
+  | 'sla_policy.delete'
+  | 'sla_policy.apply'
+  // Organization actions
+  | 'organization.create'
+  | 'organization.update'
+  | 'organization.delete'
+  | 'organization.member_add'
+  | 'organization.member_remove'
+  | 'organization.member_role_change'
+  | 'organization.invitation_create'
+  | 'organization.invitation_accept'
+  | 'organization.invitation_cancel'
+  | 'organization.leave'
+  // Settings & system actions
+  | 'settings.update'
+  | 'ninjarmm.auto_sync'
+  | 'ninjarmm.auto_sync_error'
+  // MFA actions
+  | 'mfa.device_trusted'
+  | 'mfa.device_revoked'
+  | 'mfa.all_devices_revoked';
 
 export interface AuditLogEntry {
   id: string;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon, UserCog, Ticket, Book, Server } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon, UserCog, Ticket, Book, Server } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TeamInvitation, User, TimeRoundingInterval } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -9,6 +9,9 @@ import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { NinjaRMMSettings } from './NinjaRMMSettings';
 import { PushNotificationSettings } from './PushNotificationSettings';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
+import { CustomerNinjaRMMLink } from './CustomerNinjaRMMLink';
+import { IOSSwitch } from './IOSSwitch';
+import { MFASettings } from './MFASettings';
 import { Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
@@ -64,6 +67,14 @@ export const Settings = ({
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
+  const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Notification Settings State (synced with localStorage)
+  const [notifMonthEnd, setNotifMonthEnd] = useState(() => localStorage.getItem('notification_month_end') !== 'false');
+  const [notifMissingEntries, setNotifMissingEntries] = useState(() => localStorage.getItem('notification_missing_entries') !== 'false');
+  const [notifQualityCheck, setNotifQualityCheck] = useState(() => localStorage.getItem('notification_quality_check') !== 'false');
+  const [notifWeeklyReport, setNotifWeeklyReport] = useState(() => localStorage.getItem('notification_weekly_report') !== 'false');
 
   // Company Info State
   const [companyName, setCompanyName] = useState('');
@@ -91,6 +102,8 @@ export const Settings = ({
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerReportTitle, setCustomerReportTitle] = useState('');
+  const [customerHourlyRate, setCustomerHourlyRate] = useState('');
+  const [customerNinjarmmOrgId, setCustomerNinjarmmOrgId] = useState('');
 
   // CSV Import
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -155,6 +168,8 @@ export const Settings = ({
       setCustomerEmail(customer.email || '');
       setCustomerAddress(customer.address || '');
       setCustomerReportTitle(customer.reportTitle || '');
+      setCustomerHourlyRate(customer.hourlyRate?.toString() || '');
+      setCustomerNinjarmmOrgId(customer.ninjarmmOrganizationId || '');
     } else {
       setEditingCustomer(null);
       setCustomerName('');
@@ -164,13 +179,15 @@ export const Settings = ({
       setCustomerEmail('');
       setCustomerAddress('');
       setCustomerReportTitle('');
+      setCustomerHourlyRate('');
+      setCustomerNinjarmmOrgId('');
     }
     setCustomerModalOpen(true);
   };
 
   // Load billing feature status
   useEffect(() => {
-    const loadBillingStatus = async () => {
+    const loadFeatureStatus = async () => {
       try {
         const response = await sevdeskApi.getFeatureStatus();
         setBillingEnabled(response.data.billingEnabled);
@@ -179,7 +196,7 @@ export const Settings = ({
         setBillingEnabled(false);
       }
     };
-    loadBillingStatus();
+    loadFeatureStatus();
   }, []);
 
   // Profile Edit Handlers
@@ -277,6 +294,8 @@ export const Settings = ({
   const handleSaveCustomer = () => {
     if (!customerName.trim()) return;
 
+    const hourlyRateValue = customerHourlyRate.trim() ? parseFloat(customerHourlyRate) : undefined;
+
     if (editingCustomer) {
       onUpdateCustomer(editingCustomer.id, {
         name: customerName.trim(),
@@ -285,7 +304,9 @@ export const Settings = ({
         contactPerson: customerContactPerson.trim() || undefined,
         email: customerEmail.trim() || undefined,
         address: customerAddress.trim() || undefined,
-        reportTitle: customerReportTitle.trim() || undefined
+        reportTitle: customerReportTitle.trim() || undefined,
+        hourlyRate: hourlyRateValue,
+        ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined
       });
     } else {
       onAddCustomer({
@@ -298,6 +319,8 @@ export const Settings = ({
         email: customerEmail.trim() || undefined,
         address: customerAddress.trim() || undefined,
         reportTitle: customerReportTitle.trim() || undefined,
+        hourlyRate: hourlyRateValue,
+        ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
         createdAt: new Date().toISOString()
       });
     }
@@ -859,28 +882,103 @@ export const Settings = ({
         </nav>
       </div>
 
-      {/* Mobile Header with Dropdown */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-10 bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-200 px-4 py-3">
-        <select
-          value={activeTab}
-          onChange={(e) => setActiveTab(e.target.value as any)}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-accent-primary"
+      {/* Mobile Header - iOS Style Button */}
+      <div className="lg:hidden fixed top-12 left-0 right-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-700/50 px-4 py-2">
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-100/80 dark:bg-gray-800/80 rounded-xl active:scale-[0.98] transition-transform"
         >
-          {menuItems.map((section) => (
-            <optgroup key={section.category} label={section.category}>
-              {section.items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+          <div className="flex items-center gap-3">
+            {(() => {
+              const currentItem = menuItems.flatMap(s => s.items).find(i => i.id === activeTab);
+              const Icon = currentItem?.icon || UserIcon;
+              return (
+                <>
+                  <div className="w-8 h-8 rounded-lg bg-accent-primary/15 flex items-center justify-center">
+                    <Icon size={18} className="text-accent-primary" />
+                  </div>
+                  <span className="font-semibold text-gray-900 dark:text-white">{currentItem?.label}</span>
+                </>
+              );
+            })()}
+          </div>
+          <ChevronDown size={20} className="text-gray-400" />
+        </button>
       </div>
+
+      {/* iOS Style Bottom Sheet Menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+
+          {/* Sheet */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gray-100 dark:bg-gray-900 rounded-t-3xl max-h-[70vh] overflow-hidden animate-slide-up">
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+            </div>
+
+            {/* Menu Items */}
+            <div className="overflow-y-auto max-h-[calc(70vh-60px)] pb-8 px-4">
+              {menuItems.map((section, idx) => (
+                <div key={section.category} className={idx > 0 ? 'mt-6' : ''}>
+                  {/* Section Header */}
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2">
+                    {section.category}
+                  </h3>
+
+                  {/* Section Items - iOS grouped style */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden">
+                    {section.items.map((item, itemIdx) => {
+                      const Icon = item.icon;
+                      const isActive = activeTab === item.id;
+                      const isLast = itemIdx === section.items.length - 1;
+
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setActiveTab(item.id as any);
+                            setMobileMenuOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-100 dark:active:bg-gray-700 transition-colors ${
+                            !isLast ? 'border-b border-gray-100 dark:border-gray-700' : ''
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                            isActive ? 'bg-accent-primary/15' : 'bg-gray-100 dark:bg-gray-700'
+                          }`}>
+                            <Icon size={18} className={isActive ? 'text-accent-primary' : 'text-gray-500 dark:text-gray-400'} />
+                          </div>
+                          <div className="flex-1 text-left">
+                            <div className={`text-sm ${isActive ? 'font-semibold text-accent-primary' : 'font-medium text-gray-900 dark:text-white'}`}>
+                              {item.label}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {item.desc}
+                            </div>
+                          </div>
+                          {isActive && (
+                            <Check size={20} className="text-accent-primary" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="lg:hidden h-16"></div> {/* Spacer for mobile header */}
+        <div className="lg:hidden h-14"></div> {/* Spacer for mobile settings header */}
         <div className="p-4 sm:p-6 lg:p-8">
         {/* Account Tab */}
         {activeTab === 'account' && (
@@ -1021,6 +1119,8 @@ export const Settings = ({
               </div>
             </div>
 
+            {/* Two-Factor Authentication */}
+            <MFASettings />
 
             {/* GDPR / Data Protection */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
@@ -1189,78 +1289,60 @@ export const Settings = ({
                 <div className="space-y-4">
                   <h3 className="font-medium text-gray-900 dark:text-white">Browser-Benachrichtigungen</h3>
 
-                  <div className="space-y-3">
-                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-white mb-1">Monatserinnerung</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          Benachrichtigung 3 Tage vor Monatsende zur Prüfung deiner Zeiteinträge
-                        </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                      <div className="px-4">
+                        <IOSSwitch
+                          label="Monatserinnerung"
+                          description="Benachrichtigung 3 Tage vor Monatsende"
+                          checked={notifMonthEnd}
+                          onChange={(checked) => {
+                            setNotifMonthEnd(checked);
+                            localStorage.setItem('notification_month_end', checked ? 'true' : 'false');
+                          }}
+                          disabled={!notificationService.hasPermission()}
+                        />
                       </div>
-                      <input
-                        type="checkbox"
-                        checked={localStorage.getItem('notification_month_end') !== 'false'}
-                        onChange={(e) => {
-                          localStorage.setItem('notification_month_end', e.target.checked ? 'true' : 'false');
-                        }}
-                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                        disabled={!notificationService.hasPermission()}
-                      />
-                    </label>
 
-                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-white mb-1">Fehlende Einträge</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          Tägliche Erinnerung um 18:00 Uhr, wenn noch keine Stunden eingetragen wurden
-                        </div>
+                      <div className="px-4">
+                        <IOSSwitch
+                          label="Fehlende Einträge"
+                          description="Tägliche Erinnerung um 18:00 Uhr"
+                          checked={notifMissingEntries}
+                          onChange={(checked) => {
+                            setNotifMissingEntries(checked);
+                            localStorage.setItem('notification_missing_entries', checked ? 'true' : 'false');
+                          }}
+                          disabled={!notificationService.hasPermission()}
+                        />
                       </div>
-                      <input
-                        type="checkbox"
-                        checked={localStorage.getItem('notification_missing_entries') !== 'false'}
-                        onChange={(e) => {
-                          localStorage.setItem('notification_missing_entries', e.target.checked ? 'true' : 'false');
-                        }}
-                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                        disabled={!notificationService.hasPermission()}
-                      />
-                    </label>
 
-                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-white mb-1">Qualitätsprüfung</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          Warnung bei Zeiteinträgen ohne Beschreibung oder Projekt
-                        </div>
+                      <div className="px-4">
+                        <IOSSwitch
+                          label="Qualitätsprüfung"
+                          description="Warnung bei Einträgen ohne Beschreibung"
+                          checked={notifQualityCheck}
+                          onChange={(checked) => {
+                            setNotifQualityCheck(checked);
+                            localStorage.setItem('notification_quality_check', checked ? 'true' : 'false');
+                          }}
+                          disabled={!notificationService.hasPermission()}
+                        />
                       </div>
-                      <input
-                        type="checkbox"
-                        checked={localStorage.getItem('notification_quality_check') !== 'false'}
-                        onChange={(e) => {
-                          localStorage.setItem('notification_quality_check', e.target.checked ? 'true' : 'false');
-                        }}
-                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                        disabled={!notificationService.hasPermission()}
-                      />
-                    </label>
 
-                    <label className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-white mb-1">Wochenreport</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          Jeden Freitag um 16:00 Uhr eine Zusammenfassung deiner Arbeitswoche
-                        </div>
+                      <div className="px-4">
+                        <IOSSwitch
+                          label="Wochenreport"
+                          description="Freitag 16:00 Uhr Zusammenfassung"
+                          checked={notifWeeklyReport}
+                          onChange={(checked) => {
+                            setNotifWeeklyReport(checked);
+                            localStorage.setItem('notification_weekly_report', checked ? 'true' : 'false');
+                          }}
+                          disabled={!notificationService.hasPermission()}
+                        />
                       </div>
-                      <input
-                        type="checkbox"
-                        checked={localStorage.getItem('notification_weekly_report') !== 'false'}
-                        onChange={(e) => {
-                          localStorage.setItem('notification_weekly_report', e.target.checked ? 'true' : 'false');
-                        }}
-                        className="mt-1 ml-4 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                        disabled={!notificationService.hasPermission()}
-                      />
-                    </label>
+                    </div>
                   </div>
                 </div>
 
@@ -1289,7 +1371,7 @@ export const Settings = ({
 
         {/* Customers Tab */}
         {activeTab === 'customers' && (
-          <div className="max-w-4xl mx-auto">
+          <div className="w-full">
             <div>
                 <div className="flex justify-between items-center mb-6">
                   <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
@@ -1371,7 +1453,7 @@ export const Settings = ({
                     <p className="text-sm mt-2">Füge deinen ersten Kunden hinzu</p>
                   </div>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 2xl:grid-cols-2">
                     {customers.map(customer => (
                       <div
                         key={customer.id}
@@ -1409,9 +1491,26 @@ export const Settings = ({
                                   </p>
                                 )}
                               </div>
-                              <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
-                                {projects.filter(p => p.customerId === customer.id).length} Projekt(e)
-                              </p>
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
+                                <span className="text-xs text-gray-500 dark:text-dark-400">
+                                  {projects.filter(p => p.customerId === customer.id).length} Projekt(e)
+                                </span>
+                                {billingEnabled && customer.hourlyRate && (
+                                  <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">
+                                    {customer.hourlyRate.toFixed(2)} €/h
+                                  </span>
+                                )}
+                                {customer.sevdeskCustomerId && (
+                                  <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                                    sevDesk
+                                  </span>
+                                )}
+                                {customer.ninjarmmOrganizationId && (
+                                  <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full">
+                                    NinjaRMM
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <div className="flex gap-2 ml-2">
@@ -1428,6 +1527,17 @@ export const Settings = ({
                                 <Link2 size={18} />
                               </button>
                             )}
+                            <button
+                                onClick={() => setNinjaRMMLinkCustomer(customer)}
+                                className={`p-2 rounded-lg transition-colors ${
+                                  customer.ninjarmmOrganizationId
+                                    ? 'text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                                    : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                                }`}
+                                title={customer.ninjarmmOrganizationId ? 'NinjaRMM verknüpft' : 'Mit NinjaRMM verknüpfen'}
+                              >
+                                <Server size={18} />
+                              </button>
                             {currentUser?.hasTicketAccess && (
                               <button
                                 onClick={() => setContactsCustomer(customer)}
@@ -2165,26 +2275,12 @@ export const Settings = ({
 
               <div className="space-y-6">
                 {/* Dark Mode Toggle */}
-                <div className="flex items-center justify-between py-3">
-                  <div>
-                    <h3 className="font-medium text-gray-900 dark:text-white">Dark Mode</h3>
-                    <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
-                      Dunkles Farbschema mit tiefen Grautönen
-                    </p>
-                  </div>
-                  <button
-                    onClick={onToggleDarkMode}
-                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent-${currentUser?.accentColor || 'blue'}-500 focus:ring-offset-2 ${
-                      darkMode ? `bg-accent-${currentUser?.accentColor || 'blue'}-600` : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                        darkMode ? 'translate-x-7' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
+                <IOSSwitch
+                  label="Dark Mode"
+                  description="Dunkles Farbschema mit tiefen Grautönen"
+                  checked={darkMode}
+                  onChange={onToggleDarkMode}
+                />
 
                 {/* Accent Color Selection */}
                 <div className="pt-3 border-t border-gray-200 dark:border-dark-200">
@@ -2379,6 +2475,44 @@ export const Settings = ({
             />
             <p className="text-xs text-gray-500 mt-1">
               Optional: Individueller Titel für PDF-Reports dieses Kunden (Standard: "Stundenbericht")
+            </p>
+          </div>
+
+          {/* Hourly Rate - only show if billing is enabled */}
+          {billingEnabled && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Stundensatz (€)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={customerHourlyRate}
+                onChange={(e) => setCustomerHourlyRate(e.target.value)}
+                placeholder="z.B. 95.00"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Kundenspezifischer Stundensatz für Abrechnungen (überschreibt den Standard)
+              </p>
+            </div>
+          )}
+
+          {/* NinjaRMM Organization */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              NinjaRMM Organisation ID
+            </label>
+            <input
+              type="text"
+              value={customerNinjarmmOrgId}
+              onChange={(e) => setCustomerNinjarmmOrgId(e.target.value)}
+              placeholder="z.B. org-12345"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Verknüpfung mit einer NinjaRMM Organisation für Geräte und Alerts
             </p>
           </div>
 
@@ -3017,6 +3151,19 @@ export const Settings = ({
           onLinked={() => {
             // Reload customers to get updated sevdeskCustomerId
             // This will trigger a refresh in the parent component
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {/* NinjaRMM Customer Link Modal */}
+      {ninjaRMMLinkCustomer && (
+        <CustomerNinjaRMMLink
+          isOpen={!!ninjaRMMLinkCustomer}
+          customer={ninjaRMMLinkCustomer}
+          onClose={() => setNinjaRMMLinkCustomer(null)}
+          onLinked={() => {
+            // Reload customers to get updated ninjarmmOrganizationId
             window.location.reload();
           }}
         />

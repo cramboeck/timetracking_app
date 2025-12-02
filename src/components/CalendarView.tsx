@@ -6,10 +6,12 @@ import { de } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import '../styles/calendar.css';
 import { TimeEntry, Project, Customer, Activity } from '../types';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { formatDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { TimePicker } from './TimePicker';
+import { maintenanceApi, MaintenanceAnnouncement } from '../services/api';
+import { Wrench, Clock, AlertCircle } from 'lucide-react';
 
 const locales = {
   'de': de,
@@ -26,6 +28,9 @@ const localizer = dateFnsLocalizer({
 // Create DnD Calendar
 const DnDCalendar = withDragAndDrop(Calendar);
 
+// Event types for calendar
+type EventType = 'timeEntry' | 'maintenance';
+
 interface CalendarViewProps {
   entries: TimeEntry[];
   projects: Project[];
@@ -41,14 +46,27 @@ interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
+  allDay?: boolean;
   resource: {
-    entry: TimeEntry;
+    type: EventType;
+    entry?: TimeEntry;
+    maintenance?: MaintenanceAnnouncement;
     project?: Project;
     customer?: Customer;
     activity?: Activity;
     color: string;
+    isDraggable: boolean;
   };
 }
+
+// Event type colors
+const EVENT_COLORS = {
+  timeEntry: '#3B82F6',      // Blue
+  maintenance: '#F59E0B',    // Orange/Amber
+  maintenanceDraft: '#9CA3AF', // Gray
+  maintenanceInProgress: '#8B5CF6', // Purple
+  maintenanceCompleted: '#10B981', // Green
+};
 
 export const CalendarView = ({
   entries,
@@ -62,6 +80,18 @@ export const CalendarView = ({
   const [view, setView] = useState<View>('month');
   const [date, setDate] = useState(new Date());
 
+  // Maintenance events state
+  const [maintenances, setMaintenances] = useState<MaintenanceAnnouncement[]>([]);
+  const [showMaintenances, setShowMaintenances] = useState(true);
+  const [showTimeEntries, setShowTimeEntries] = useState(true);
+
+  // Load maintenances
+  useEffect(() => {
+    maintenanceApi.getAnnouncements()
+      .then(data => setMaintenances(data.announcements || []))
+      .catch(err => console.error('Failed to load maintenances for calendar:', err));
+  }, []);
+
   // Edit modal state
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editProjectId, setEditProjectId] = useState('');
@@ -72,8 +102,8 @@ export const CalendarView = ({
   const [editEndTime, setEditEndTime] = useState('');
 
   // Convert time entries to calendar events
-  const events: CalendarEvent[] = useMemo(() => {
-    console.log('📅 [CALENDAR] Converting entries to events:', entries);
+  const timeEntryEvents: CalendarEvent[] = useMemo(() => {
+    if (!showTimeEntries) return [];
 
     return entries
       .filter(entry => !entry.isRunning && entry.endTime) // Only completed entries
@@ -91,7 +121,7 @@ export const CalendarView = ({
         const projectName = project?.name || 'Unbekannt';
         const activityName = activity ? ` - ${activity.name}` : '';
 
-        const title = `${duration} | ${customerName} - ${projectName}${activityName}`;
+        const title = `⏱️ ${duration} | ${customerName} - ${projectName}${activityName}`;
 
         return {
           id: entry.id,
@@ -99,17 +129,66 @@ export const CalendarView = ({
           start: startTime,
           end: endTime,
           resource: {
+            type: 'timeEntry' as EventType,
             entry,
             project,
             customer,
             activity,
-            color: customer?.color || '#3B82F6',
+            color: customer?.color || EVENT_COLORS.timeEntry,
+            isDraggable: true,
           },
         };
       });
-  }, [entries, projects, customers, activities]);
+  }, [entries, projects, customers, activities, showTimeEntries]);
 
-  console.log('📅 [CALENDAR] Generated events:', events);
+  // Convert maintenances to calendar events
+  const maintenanceEvents: CalendarEvent[] = useMemo(() => {
+    if (!showMaintenances) return [];
+
+    return maintenances.map(maintenance => {
+      const startTime = new Date(maintenance.scheduled_start);
+      const endTime = maintenance.scheduled_end
+        ? new Date(maintenance.scheduled_end)
+        : new Date(startTime.getTime() + 2 * 60 * 60 * 1000); // Default 2 hours if no end time
+
+      // Color based on status
+      let color = EVENT_COLORS.maintenance;
+      if (maintenance.status === 'draft') color = EVENT_COLORS.maintenanceDraft;
+      else if (maintenance.status === 'in_progress') color = EVENT_COLORS.maintenanceInProgress;
+      else if (maintenance.status === 'completed') color = EVENT_COLORS.maintenanceCompleted;
+
+      const statusEmoji = {
+        draft: '📝',
+        scheduled: '📅',
+        sent: '📧',
+        in_progress: '🔧',
+        completed: '✅',
+        cancelled: '❌'
+      }[maintenance.status] || '🔧';
+
+      const title = `${statusEmoji} ${maintenance.title}`;
+
+      return {
+        id: `maintenance-${maintenance.id}`,
+        title,
+        start: startTime,
+        end: endTime,
+        resource: {
+          type: 'maintenance' as EventType,
+          maintenance,
+          color,
+          isDraggable: false,
+        },
+      };
+    });
+  }, [maintenances, showMaintenances]);
+
+  // Combine all events
+  const events = useMemo(() => {
+    return [...timeEntryEvents, ...maintenanceEvents];
+  }, [timeEntryEvents, maintenanceEvents]);
+
+  console.log('📅 [CALENDAR] Generated events:', events.length, 'time entries:', timeEntryEvents.length, 'maintenances:', maintenanceEvents.length);
 
   // Calculate total hours for visible date range
   const visibleHours = useMemo(() => {
@@ -138,12 +217,16 @@ export const CalendarView = ({
       return event.start >= start && event.start <= end;
     });
 
-    const totalSeconds = filtered.reduce((sum, event) => sum + event.resource.entry.duration, 0);
+    // Only count hours from time entries (not maintenances)
+    const timeEntries = filtered.filter(e => e.resource.type === 'timeEntry' && e.resource.entry);
+    const maintenanceCount = filtered.filter(e => e.resource.type === 'maintenance').length;
+    const totalSeconds = timeEntries.reduce((sum, event) => sum + (event.resource.entry?.duration || 0), 0);
     const hours = totalSeconds / 3600;
 
     return {
       hours: hours.toFixed(2),
-      count: filtered.length,
+      count: timeEntries.length,
+      maintenanceCount,
       startDate: start,
       endDate: end
     };
@@ -211,7 +294,16 @@ export const CalendarView = ({
   // Handle event click
   const handleSelectEvent = (event: CalendarEvent) => {
     console.log('📅 [CALENDAR] Event clicked:', event);
-    openEditModal(event.resource.entry);
+
+    // Only open edit modal for time entries
+    if (event.resource.type === 'timeEntry' && event.resource.entry) {
+      openEditModal(event.resource.entry);
+    }
+    // For maintenance events, we could navigate to maintenance view or show info
+    // For now, just log it
+    if (event.resource.type === 'maintenance') {
+      console.log('📅 [CALENDAR] Maintenance clicked:', event.resource.maintenance);
+    }
   };
 
   // Handle event drag & drop (move event to different time)
@@ -340,6 +432,33 @@ export const CalendarView = ({
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
           <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Kalender</h1>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+            {/* Filter toggles */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowTimeEntries(!showTimeEntries)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                  showTimeEntries
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200'
+                    : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                Zeit ({visibleHours.count})
+              </button>
+              <button
+                onClick={() => setShowMaintenances(!showMaintenances)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                  showMaintenances
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
+                    : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                }`}
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                Wartung ({visibleHours.maintenanceCount})
+              </button>
+            </div>
+
+            {/* Time summary */}
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
               <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
                 {view === 'day' && 'Heute'}
@@ -350,9 +469,6 @@ export const CalendarView = ({
               <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
                 {visibleHours.hours}h
               </span>
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {visibleHours.count} {visibleHours.count === 1 ? 'Eintrag' : 'Einträge'}
             </div>
           </div>
         </div>
@@ -383,7 +499,7 @@ export const CalendarView = ({
             popup
             selectable
             resizable
-            draggableAccessor={() => true}
+            draggableAccessor={(event: CalendarEvent) => event.resource.isDraggable}
           />
         </div>
       </div>

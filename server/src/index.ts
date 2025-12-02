@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import { initializeDatabase } from './config/database';
 import { startNotificationJobs } from './jobs/notificationJobs';
+import { startNinjaJobs } from './jobs/ninjaJobs';
 import authRoutes from './routes/auth';
 import entriesRoutes from './routes/entries';
 import projectsRoutes from './routes/projects';
@@ -23,6 +24,10 @@ import knowledgeBaseRoutes from './routes/knowledge-base';
 import pushRoutes from './routes/push';
 import sevdeskRoutes from './routes/sevdesk';
 import ninjarmmRoutes from './routes/ninjarmm';
+import featuresRoutes from './routes/features';
+import maintenanceRoutes from './routes/maintenance';
+import mfaRoutes from './routes/mfa';
+import organizationsRoutes from './routes/organizations';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -89,6 +94,10 @@ app.use('/api/knowledge-base', knowledgeBaseRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/sevdesk', sevdeskRoutes);
 app.use('/api/ninjarmm', ninjarmmRoutes);
+app.use('/api/features', featuresRoutes);
+app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/mfa', mfaRoutes);
+app.use('/api/organizations', organizationsRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
@@ -109,6 +118,9 @@ app.get('/health', (req, res) => {
 
 // Start notification jobs
 startNotificationJobs();
+
+// Start NinjaRMM auto-sync jobs
+startNinjaJobs();
 
 // Start server
 app.listen(PORT, () => {

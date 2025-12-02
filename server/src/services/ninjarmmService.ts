@@ -48,6 +48,7 @@ export interface NinjaRMMDevice {
   created: string;
   lastContact?: string;
   lastUpdate?: string;
+  lastBoot?: string; // Last system boot/reboot time
   userData?: Record<string, unknown>;
   tags?: string[];
   // OS Info
@@ -56,6 +57,8 @@ export interface NinjaRMMDevice {
     manufacturer?: string;
     architecture?: string;
     buildNumber?: string;
+    installDate?: string;
+    lastBootTime?: string;
   };
   // System info
   system?: {
@@ -64,6 +67,7 @@ export interface NinjaRMMDevice {
     model?: string;
     biosSerialNumber?: string;
     serialNumber?: string;
+    lastBoot?: string;
   };
   // Processor
   processor?: {
@@ -537,6 +541,37 @@ export async function getDevices(
   return response || [];
 }
 
+// Get devices with detailed hardware info (OS, system, processor, memory)
+export async function getDevicesDetailed(
+  userId: string,
+  options: {
+    organizationId?: number;
+    nodeClass?: string;
+    offline?: boolean;
+  } = {}
+): Promise<NinjaRMMDevice[]> {
+  const config = await getConfig(userId);
+  if (!config) throw new Error('NinjaRMM not configured');
+
+  const params = new URLSearchParams();
+  if (options.organizationId) params.append('org', options.organizationId.toString());
+  if (options.nodeClass) params.append('class', options.nodeClass);
+  if (options.offline !== undefined) params.append('offline', options.offline.toString());
+
+  const queryString = params.toString();
+  // Use the devices-detailed endpoint which includes OS, system, and hardware info
+  const endpoint = queryString ? `/devices-detailed?${queryString}` : '/devices-detailed';
+
+  try {
+    const response = await ninjaFetch(config, endpoint);
+    return response || [];
+  } catch (error: any) {
+    // Fall back to regular /devices if /devices-detailed is not available
+    console.log('devices-detailed endpoint not available, falling back to /devices');
+    return getDevices(userId, options);
+  }
+}
+
 export async function getDevice(userId: string, deviceId: number): Promise<NinjaRMMDevice | null> {
   const config = await getConfig(userId);
   if (!config) throw new Error('NinjaRMM not configured');
@@ -553,28 +588,46 @@ export async function getDeviceWithDetails(userId: string, deviceId: number): Pr
   if (!config) throw new Error('NinjaRMM not configured');
 
   try {
+    console.log(`Fetching device details from NinjaRMM for device ${deviceId}`);
+
     // Get basic device info
     const device = await ninjaFetch(config, `/device/${deviceId}`);
-    if (!device) return null;
+    if (!device) {
+      console.log(`Device ${deviceId} not found in NinjaRMM (basic info)`);
+      return null;
+    }
+
+    console.log(`Got basic device info for ${deviceId}, fetching additional details...`);
 
     // Get additional details in parallel
-    const [osInfo, systemInfo, processors, disks, networkInterfaces] = await Promise.all([
-      ninjaFetch(config, `/device/${deviceId}/os`).catch(() => null),
-      ninjaFetch(config, `/device/${deviceId}/system`).catch(() => null),
-      ninjaFetch(config, `/device/${deviceId}/processors`).catch(() => []),
-      ninjaFetch(config, `/device/${deviceId}/disks`).catch(() => []),
-      ninjaFetch(config, `/device/${deviceId}/network-interfaces`).catch(() => []),
+    const [osInfo, systemInfo, processors, memory, disks, networkInterfaces] = await Promise.all([
+      ninjaFetch(config, `/device/${deviceId}/os`).catch((e) => { console.log(`OS info fetch failed: ${e.message}`); return null; }),
+      ninjaFetch(config, `/device/${deviceId}/system`).catch((e) => { console.log(`System info fetch failed: ${e.message}`); return null; }),
+      ninjaFetch(config, `/device/${deviceId}/processors`).catch((e) => { console.log(`Processors fetch failed: ${e.message}`); return []; }),
+      ninjaFetch(config, `/device/${deviceId}/os/patches`).catch(() => null).then(() =>
+        // Try to get memory from system info or a separate endpoint
+        ninjaFetch(config, `/device/${deviceId}/software`).catch(() => null)
+      ).catch(() => null),
+      ninjaFetch(config, `/device/${deviceId}/disks`).catch((e) => { console.log(`Disks fetch failed: ${e.message}`); return []; }),
+      ninjaFetch(config, `/device/${deviceId}/network-interfaces`).catch((e) => { console.log(`Network interfaces fetch failed: ${e.message}`); return []; }),
     ]);
+
+    console.log(`Device ${deviceId} details: os=${JSON.stringify(osInfo)}, system=${JSON.stringify(systemInfo)}, processors=${JSON.stringify(processors)}`);
+
+    // Memory is often in systemInfo for NinjaRMM
+    const memoryInfo = systemInfo?.memory || systemInfo?.ram || { capacity: systemInfo?.totalPhysicalMemory };
 
     return {
       ...device,
       os: osInfo,
       system: systemInfo,
-      processor: processors[0] || undefined,
+      processor: processors?.[0] || undefined,
+      memory: memoryInfo,
       volumes: disks,
       nics: networkInterfaces,
     };
-  } catch {
+  } catch (err: any) {
+    console.error(`Error fetching device ${deviceId} from NinjaRMM:`, err.message);
     return null;
   }
 }
@@ -648,15 +701,18 @@ export async function syncOrganizations(userId: string): Promise<SyncResult> {
 
   try {
     const orgs = await getOrganizations(userId);
+    console.log(`Syncing ${orgs.length} organizations for user ${userId}`);
 
     for (const org of orgs) {
       try {
+        // Note: UNIQUE constraint is on (user_id, ninja_org_id) where ninja_org_id is TEXT
         await query(
           `INSERT INTO ninjarmm_organizations (
-            id, user_id, ninja_id, name, description, userdata, synced_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-          ON CONFLICT (user_id, ninja_id)
+            id, user_id, ninja_org_id, ninja_id, name, description, userdata, synced_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+          ON CONFLICT (user_id, ninja_org_id)
           DO UPDATE SET
+            ninja_id = EXCLUDED.ninja_id,
             name = EXCLUDED.name,
             description = EXCLUDED.description,
             userdata = EXCLUDED.userdata,
@@ -664,7 +720,8 @@ export async function syncOrganizations(userId: string): Promise<SyncResult> {
           [
             `${userId}_${org.id}`,
             userId,
-            org.id,
+            String(org.id),  // ninja_org_id is TEXT
+            org.id,          // ninja_id is INTEGER
             org.name,
             org.description || null,
             JSON.stringify(org.userdata || {}),
@@ -681,6 +738,7 @@ export async function syncOrganizations(userId: string): Promise<SyncResult> {
     errors++;
   }
 
+  console.log(`Organizations sync complete: ${synced} synced, ${errors} errors`);
   return { synced, errors };
 }
 
@@ -704,25 +762,30 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
   let errors = 0;
 
   try {
-    const devices = await getDevices(userId);
+    // Use getDevicesDetailed to get full hardware info (OS, system, processor, memory)
+    const devices = await getDevicesDetailed(userId);
+    console.log(`Syncing ${devices.length} devices with detailed info for user ${userId}`);
 
     for (const device of devices) {
       try {
         const lastContact = parseNinjaTimestamp(device.lastContact);
 
+        // Note: UNIQUE constraint is on (user_id, ninja_device_id) where ninja_device_id is TEXT
+        // Organization lookup uses ninja_org_id (TEXT) to match the organization
         await query(
           `INSERT INTO ninjarmm_devices (
-            id, user_id, ninja_id, organization_id, ninja_org_id,
+            id, user_id, ninja_device_id, ninja_id, organization_id, ninja_org_id,
             system_name, display_name, dns_name, node_class,
             offline, last_contact, public_ip, os_name,
-            manufacturer, model, serial_number, device_data, synced_at
+            manufacturer, model, serial_number, last_logged_in_user, device_data, synced_at
           ) VALUES (
-            $1, $2, $3,
-            (SELECT id FROM ninjarmm_organizations WHERE user_id = $2 AND ninja_id = $4),
-            $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW()
+            $1, $2, $3, $4,
+            (SELECT id FROM ninjarmm_organizations WHERE user_id = $2 AND ninja_org_id = $5),
+            $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW()
           )
-          ON CONFLICT (user_id, ninja_id)
+          ON CONFLICT (user_id, ninja_device_id)
           DO UPDATE SET
+            ninja_id = EXCLUDED.ninja_id,
             organization_id = EXCLUDED.organization_id,
             system_name = EXCLUDED.system_name,
             display_name = EXCLUDED.display_name,
@@ -735,13 +798,15 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
             manufacturer = EXCLUDED.manufacturer,
             model = EXCLUDED.model,
             serial_number = EXCLUDED.serial_number,
+            last_logged_in_user = EXCLUDED.last_logged_in_user,
             device_data = EXCLUDED.device_data,
             synced_at = NOW()`,
           [
             `${userId}_${device.id}`,
             userId,
-            device.id,
-            device.organizationId,
+            String(device.id),      // ninja_device_id is TEXT
+            device.id,              // ninja_id is INTEGER
+            String(device.organizationId),  // ninja_org_id for lookup is TEXT
             device.systemName,
             device.displayName || null,
             device.dnsName || null,
@@ -753,6 +818,7 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
             device.system?.manufacturer || null,
             device.system?.model || null,
             device.system?.serialNumber || null,
+            device.lastLoggedInUser || null,
             JSON.stringify(device),
           ]
         );
@@ -767,6 +833,7 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
     errors++;
   }
 
+  console.log(`Devices sync complete: ${synced} synced, ${errors} errors`);
   return { synced, errors };
 }
 
@@ -777,24 +844,28 @@ export async function syncAlerts(userId: string): Promise<SyncResult> {
 
   try {
     const alerts = await getAlerts(userId);
+    console.log(`Syncing ${alerts.length} alerts for user ${userId}`);
 
     for (const alert of alerts) {
       try {
         const activityTime = parseNinjaTimestamp(alert.activityTime);
         const createTime = parseNinjaTimestamp(alert.createTime);
 
+        // Note: UNIQUE constraint is on (user_id, ninja_alert_id) where ninja_alert_id is TEXT
+        // Device lookup uses ninja_device_id (TEXT) to match the device
         await query(
           `INSERT INTO ninjarmm_alerts (
-            id, user_id, ninja_uid, device_id,
+            id, user_id, ninja_alert_id, ninja_uid, device_id, ninja_device_id,
             severity, priority, message, source_type, source_name,
             activity_time, created_at, alert_data, synced_at
           ) VALUES (
-            $1, $2, $3,
-            (SELECT id FROM ninjarmm_devices WHERE user_id = $2 AND ninja_id = $4),
-            $5, $6, $7, $8, $9, $10, $11, $12, NOW()
+            $1, $2, $3, $4,
+            (SELECT id FROM ninjarmm_devices WHERE user_id = $2 AND ninja_device_id = $5),
+            $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW()
           )
-          ON CONFLICT (user_id, ninja_uid)
+          ON CONFLICT (user_id, ninja_alert_id)
           DO UPDATE SET
+            ninja_uid = EXCLUDED.ninja_uid,
             severity = EXCLUDED.severity,
             priority = EXCLUDED.priority,
             message = EXCLUDED.message,
@@ -803,8 +874,9 @@ export async function syncAlerts(userId: string): Promise<SyncResult> {
           [
             `${userId}_${alert.uid}`,
             userId,
-            alert.uid,
-            alert.deviceId,
+            alert.uid,          // ninja_alert_id is TEXT
+            alert.uid,          // ninja_uid is also TEXT (same value)
+            String(alert.deviceId),  // ninja_device_id for lookup is TEXT
             alert.severity,
             alert.priority,
             alert.message,
@@ -826,6 +898,7 @@ export async function syncAlerts(userId: string): Promise<SyncResult> {
     errors++;
   }
 
+  console.log(`Alerts sync complete: ${synced} synced, ${errors} errors`);
   return { synced, errors };
 }
 
@@ -911,16 +984,24 @@ export async function getLocalDevices(
   lastContact: Date | null;
   publicIp: string | null;
   osName: string | null;
+  osVersion: string | null;
+  osBuild: string | null;
+  osArchitecture: string | null;
   manufacturer: string | null;
   model: string | null;
   serialNumber: string | null;
+  lastLoggedInUser: string | null;
+  processorName: string | null;
+  processorCores: number | null;
+  memoryGb: number | null;
   syncedAt: Date;
 }>> {
   let sql = `
     SELECT
       d.id, d.ninja_id, d.system_name, d.display_name, d.node_class,
       d.offline, d.last_contact, d.public_ip, d.os_name,
-      d.manufacturer, d.model, d.serial_number, d.synced_at,
+      d.manufacturer, d.model, d.serial_number, d.last_logged_in_user, d.synced_at,
+      d.device_data,
       o.name as organization_name, c.name as customer_name
     FROM ninjarmm_devices d
     JOIN ninjarmm_organizations o ON d.organization_id = o.id
@@ -971,23 +1052,51 @@ export async function getLocalDevices(
 
   const result = await query(sql, params);
 
-  return result.rows.map(row => ({
-    id: row.id,
-    ninjaId: row.ninja_id,
-    organizationName: row.organization_name,
-    customerName: row.customer_name,
-    systemName: row.system_name,
-    displayName: row.display_name,
-    nodeClass: row.node_class,
-    offline: row.offline,
-    lastContact: row.last_contact ? new Date(row.last_contact) : null,
-    publicIp: row.public_ip,
-    osName: row.os_name,
-    manufacturer: row.manufacturer,
-    model: row.model,
-    serialNumber: row.serial_number,
-    syncedAt: new Date(row.synced_at),
-  }));
+  return result.rows.map(row => {
+    // Parse device_data JSON for additional fields
+    let deviceData: any = {};
+    try {
+      deviceData = typeof row.device_data === 'string' ? JSON.parse(row.device_data) : (row.device_data || {});
+    } catch (e) {
+      // Ignore parse errors
+    }
+
+    const osInfo = deviceData.os || {};
+    const systemInfo = deviceData.system || {};
+    const processorInfo = deviceData.processor || (deviceData.processors?.[0]) || {};
+    const memoryInfo = deviceData.memory || {};
+
+    // Build full OS version string
+    let osVersion = osInfo.name || row.os_name || '';
+    if (osInfo.buildNumber) {
+      osVersion = `${osVersion} (Build ${osInfo.buildNumber})`;
+    }
+
+    return {
+      id: row.id,
+      ninjaId: row.ninja_id,
+      organizationName: row.organization_name,
+      customerName: row.customer_name,
+      systemName: row.system_name,
+      displayName: row.display_name,
+      nodeClass: row.node_class,
+      offline: row.offline,
+      lastContact: row.last_contact ? new Date(row.last_contact) : null,
+      publicIp: row.public_ip,
+      osName: row.os_name,
+      osVersion: osVersion || null,
+      osBuild: osInfo.buildNumber || null,
+      osArchitecture: osInfo.architecture || null,
+      manufacturer: row.manufacturer || systemInfo.manufacturer || null,
+      model: row.model || systemInfo.model || null,
+      serialNumber: row.serial_number || systemInfo.serialNumber || systemInfo.biosSerialNumber || null,
+      lastLoggedInUser: row.last_logged_in_user,
+      processorName: processorInfo.name || null,
+      processorCores: processorInfo.cores || null,
+      memoryGb: memoryInfo.capacity ? Math.round(memoryInfo.capacity / (1024 * 1024 * 1024)) : null,
+      syncedAt: new Date(row.synced_at),
+    };
+  });
 }
 
 // Get synced alerts from local DB
@@ -1097,11 +1206,28 @@ export async function linkOrganizationToCustomer(
   organizationId: string,
   customerId: string
 ): Promise<void> {
+  // First, clear any existing organization link for this customer
+  await query(
+    `UPDATE customers
+     SET ninjarmm_organization_id = NULL
+     WHERE ninjarmm_organization_id = $1 AND user_id = $2`,
+    [organizationId, userId]
+  );
+
+  // Update organization's customer reference
   await query(
     `UPDATE ninjarmm_organizations
      SET customer_id = $1
      WHERE id = $2 AND user_id = $3`,
     [customerId, organizationId, userId]
+  );
+
+  // Also update customer's organization reference (for customer portal)
+  await query(
+    `UPDATE customers
+     SET ninjarmm_organization_id = $1
+     WHERE id = $2 AND user_id = $3`,
+    [organizationId, customerId, userId]
   );
 }
 
@@ -1110,12 +1236,31 @@ export async function unlinkOrganizationFromCustomer(
   userId: string,
   organizationId: string
 ): Promise<void> {
+  // Get the customer ID first
+  const result = await query(
+    `SELECT customer_id FROM ninjarmm_organizations WHERE id = $1 AND user_id = $2`,
+    [organizationId, userId]
+  );
+
+  const customerId = result.rows[0]?.customer_id;
+
+  // Update organization
   await query(
     `UPDATE ninjarmm_organizations
      SET customer_id = NULL
      WHERE id = $1 AND user_id = $2`,
     [organizationId, userId]
   );
+
+  // Also clear customer's organization reference
+  if (customerId) {
+    await query(
+      `UPDATE customers
+       SET ninjarmm_organization_id = NULL
+       WHERE id = $1 AND user_id = $2`,
+      [customerId, userId]
+    );
+  }
 }
 
 // ============================================

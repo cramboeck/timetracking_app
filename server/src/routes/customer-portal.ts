@@ -6,10 +6,70 @@ import path from 'path';
 import fs from 'fs';
 import { pool } from '../config/database';
 import { authLimiter } from '../middleware/rateLimiter';
+import { securityService } from '../services/securityService';
 import { CustomerAuthRequest, authenticateCustomerToken } from '../middleware/customerAuth';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { z } from 'zod';
 import { sendTicketNotification } from '../services/pushNotifications';
+import { authenticator } from 'otplib';
+import QRCode from 'qrcode';
+import { UAParser } from 'ua-parser-js';
+
+// MFA Constants
+const TRUST_DURATION_DAYS = 30;
+
+// Helper to parse user agent for trusted devices
+function parseUserAgent(userAgent?: string): { browser: string; os: string; deviceName: string } {
+  if (!userAgent) {
+    return { browser: 'Unknown', os: 'Unknown', deviceName: 'Unknown Device' };
+  }
+  const parser = new UAParser(userAgent);
+  const result = parser.getResult();
+  const browser = result.browser.name || 'Unknown';
+  const browserVersion = result.browser.version?.split('.')[0] || '';
+  const os = result.os.name || 'Unknown';
+  const osVersion = result.os.version || '';
+
+  return {
+    browser: browserVersion ? `${browser} ${browserVersion}` : browser,
+    os: osVersion ? `${os} ${osVersion}` : os,
+    deviceName: `${browser} on ${os}`
+  };
+}
+
+// Check if device is trusted for portal
+async function checkPortalTrustedDevice(contactId: string, deviceToken: string): Promise<boolean> {
+  if (!deviceToken) return false;
+  try {
+    const result = await pool.query(
+      `SELECT id FROM portal_trusted_devices WHERE contact_id = $1 AND device_token = $2 AND expires_at > NOW()`,
+      [contactId, deviceToken]
+    );
+    if (result.rows.length > 0) {
+      await pool.query('UPDATE portal_trusted_devices SET last_used_at = NOW() WHERE id = $1', [result.rows[0].id]);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    return false;
+  }
+}
+
+// Create trusted device for portal
+async function createPortalTrustedDevice(contactId: string, userAgent: string | undefined, ipAddress: string): Promise<string> {
+  const deviceToken = crypto.randomBytes(32).toString('hex');
+  const { browser, os, deviceName } = parseUserAgent(userAgent);
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + TRUST_DURATION_DAYS);
+  const id = crypto.randomUUID();
+
+  await pool.query(
+    `INSERT INTO portal_trusted_devices (id, contact_id, device_token, device_name, browser, os, ip_address, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [id, contactId, deviceToken, deviceName, browser, os, ipAddress, expiresAt.toISOString()]
+  );
+  return deviceToken;
+}
 
 const router = Router();
 
@@ -39,6 +99,10 @@ router.post('/login', authLimiter, async (req, res) => {
 
     const { email, password } = validation.data;
 
+    // Get client IP (handle proxy)
+    const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const userAgent = req.headers['user-agent'];
+
     // Find customer contact by email
     const contactResult = await pool.query(
       `SELECT cc.*, c.name as customer_name, c.user_id
@@ -51,17 +115,57 @@ router.post('/login', authLimiter, async (req, res) => {
     const contact = contactResult.rows[0];
 
     if (!contact) {
+      // Log failed login (user not found)
+      securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     if (!contact.password_hash) {
+      // Log failed login (account not activated)
+      securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Account not activated. Please contact support.' });
     }
 
     const validPassword = await bcrypt.compare(password, contact.password_hash);
     if (!validPassword) {
+      // Log failed login (wrong password)
+      securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    // Check if MFA is enabled
+    if (contact.mfa_enabled && contact.mfa_secret) {
+      // Check if this is a trusted device
+      const deviceToken = req.headers['x-device-token'] as string;
+      const isTrusted = deviceToken ? await checkPortalTrustedDevice(contact.id, deviceToken) : false;
+
+      if (isTrusted) {
+        console.log(`🔐 Portal MFA skipped for trusted device for contact "${contact.email}"`);
+        // Skip MFA for trusted device - continue with login
+      } else {
+        // Generate a temporary token for MFA verification
+        const mfaToken = jwt.sign(
+          { contactId: contact.id, customerId: contact.customer_id, userId: contact.user_id, mfaPending: true },
+          process.env.JWT_SECRET!,
+          { expiresIn: '5m' }
+        );
+
+        console.log(`🔐 Portal MFA required for contact "${contact.email}"`);
+
+        return res.json({
+          success: true,
+          mfaRequired: true,
+          mfaToken,
+          contact: {
+            id: contact.id,
+            name: contact.name
+          }
+        });
+      }
+    }
+
+    // Log successful login
+    securityService.logSuccessfulLogin(clientIP, `portal:${email}`, contact.id);
 
     // Update last login
     await pool.query('UPDATE customer_contacts SET last_login = NOW() WHERE id = $1', [contact.id]);
@@ -90,6 +194,9 @@ router.post('/login', authLimiter, async (req, res) => {
         email: contact.email,
         canCreateTickets: contact.can_create_tickets,
         canViewAllTickets: contact.can_view_all_tickets,
+        canViewDevices: contact.can_view_devices ?? false,
+        canViewInvoices: contact.can_view_invoices ?? false,
+        canViewQuotes: contact.can_view_quotes ?? false,
       },
     });
   } catch (error) {
@@ -123,6 +230,9 @@ router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, re
       email: contact.email,
       canCreateTickets: contact.can_create_tickets,
       canViewAllTickets: contact.can_view_all_tickets,
+      canViewDevices: contact.can_view_devices ?? false,
+      canViewInvoices: contact.can_view_invoices ?? false,
+      canViewQuotes: contact.can_view_quotes ?? false,
     });
   } catch (error) {
     console.error('Get contact error:', error);
@@ -828,6 +938,783 @@ router.post('/tickets/:id/rate', authenticateCustomerToken, async (req: Customer
     res.json({ success: true, message: 'Thank you for your feedback!' });
   } catch (error) {
     console.error('Rate ticket error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================================================
+// DEVICES (NinjaRMM Integration)
+// ========================================================================
+
+// Get devices for the customer's organization
+router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    // Get customer's NinjaRMM organization ID
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    if (!customer.ninjarmm_organization_id) {
+      return res.json({ success: true, data: [], message: 'No NinjaRMM organization linked' });
+    }
+
+    // Get devices for this organization
+    const devicesResult = await pool.query(
+      `SELECT d.id, d.ninja_device_id, d.ninja_id, d.display_name, d.system_name, d.dns_name,
+              d.node_class, d.os_name, d.last_contact, d.last_logged_in_user,
+              d.public_ip, d.private_ip, d.offline, d.notes, d.manufacturer, d.model, d.serial_number,
+              d.device_data,
+              (SELECT COUNT(*) FROM ninjarmm_alerts a WHERE a.device_id = d.id AND a.resolved = false) as open_alerts
+       FROM ninjarmm_devices d
+       WHERE d.user_id = $1 AND d.organization_id = $2
+       ORDER BY d.offline ASC, d.display_name ASC`,
+      [customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    const devices = devicesResult.rows.map(row => {
+      // Parse device_data JSON for additional fields
+      let deviceData: any = {};
+      try {
+        deviceData = typeof row.device_data === 'string' ? JSON.parse(row.device_data) : (row.device_data || {});
+      } catch (e) {
+        console.error('Failed to parse device_data:', e);
+      }
+
+      // Extract OS details from device_data
+      const osInfo = deviceData.os || {};
+      const systemInfo = deviceData.system || {};
+      const processorInfo = deviceData.processor || (deviceData.processors?.[0]) || {};
+      const memoryInfo = deviceData.memory || {};
+
+      // Build full OS version string
+      let osVersion = osInfo.name || row.os_name || '';
+      if (osInfo.buildNumber) {
+        osVersion = `${osVersion} (Build ${osInfo.buildNumber})`;
+      }
+
+      // Get last boot time (various possible field names from NinjaRMM)
+      const lastBoot = deviceData.lastBoot || deviceData.lastReboot ||
+                       deviceData.system?.lastBoot || deviceData.os?.lastBootTime || null;
+
+      return {
+        id: row.id,
+        ninjaId: row.ninja_id,
+        displayName: row.display_name || row.system_name || row.dns_name,
+        systemName: row.system_name,
+        deviceType: row.node_class,
+        osName: row.os_name,
+        osVersion: osVersion,
+        osBuild: osInfo.buildNumber || null,
+        osArchitecture: osInfo.architecture || null,
+        lastBoot: lastBoot,
+        lastContact: row.last_contact,
+        lastLoggedInUser: row.last_logged_in_user,
+        publicIp: row.public_ip,
+        privateIp: row.private_ip,
+        offline: row.offline,
+        notes: row.notes,
+        manufacturer: row.manufacturer || systemInfo.manufacturer,
+        model: row.model || systemInfo.model,
+        serialNumber: row.serial_number || systemInfo.serialNumber || systemInfo.biosSerialNumber,
+        // Additional hardware info
+        processorName: processorInfo.name || null,
+        processorCores: processorInfo.cores || null,
+        memoryGb: memoryInfo.capacity ? Math.round(memoryInfo.capacity / (1024 * 1024 * 1024)) : null,
+        openAlerts: parseInt(row.open_alerts) || 0,
+      };
+    });
+
+    res.json({ success: true, data: devices });
+  } catch (error) {
+    console.error('Get devices error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get alerts for a specific device
+router.get('/devices/:deviceId/alerts', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    const { deviceId } = req.params;
+
+    // Verify the device belongs to this customer's organization
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer?.ninjarmm_organization_id) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get device and verify ownership
+    const deviceResult = await pool.query(
+      `SELECT id FROM ninjarmm_devices
+       WHERE id = $1 AND user_id = $2 AND organization_id = $3`,
+      [deviceId, customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get recent alerts for this device (last 30 days, max 20)
+    const alertsResult = await pool.query(
+      `SELECT id, severity, priority, message, source_type, source_name,
+              activity_time, created_at, resolved, resolved_at, status
+       FROM ninjarmm_alerts
+       WHERE device_id = $1 AND user_id = $2
+         AND (activity_time > NOW() - INTERVAL '30 days' OR resolved = false)
+       ORDER BY resolved ASC, activity_time DESC
+       LIMIT 20`,
+      [deviceId, customer.user_id]
+    );
+
+    const alerts = alertsResult.rows.map(row => ({
+      id: row.id,
+      severity: row.severity,
+      priority: row.priority,
+      message: row.message,
+      sourceType: row.source_type,
+      sourceName: row.source_name,
+      activityTime: row.activity_time,
+      createdAt: row.created_at,
+      resolved: row.resolved,
+      resolvedAt: row.resolved_at,
+      status: row.status,
+    }));
+
+    res.json({ success: true, data: alerts });
+  } catch (error) {
+    console.error('Get device alerts error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================================================
+// INVOICES & QUOTES (sevDesk Integration)
+// ========================================================================
+
+// Get invoices for the customer
+router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_invoices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_invoices) {
+      return res.status(403).json({ error: 'No permission to view invoices' });
+    }
+
+    // Get customer's sevDesk customer ID
+    const customerResult = await pool.query(
+      'SELECT user_id, sevdesk_customer_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    if (!customer.sevdesk_customer_id) {
+      return res.json({ success: true, data: [], message: 'No sevDesk customer linked' });
+    }
+
+    // Get sevDesk API token for the service provider
+    const configResult = await pool.query(
+      'SELECT api_token FROM sevdesk_config WHERE user_id = $1',
+      [customer.user_id]
+    );
+
+    if (!configResult.rows[0]?.api_token) {
+      return res.json({ success: true, data: [], message: 'sevDesk not configured' });
+    }
+
+    const apiToken = configResult.rows[0].api_token;
+
+    // Fetch invoices from sevDesk API
+    const response = await fetch(
+      `https://my.sevdesk.de/api/v1/Invoice?contact[id]=${customer.sevdesk_customer_id}&contact[objectName]=Contact&embed=positions&limit=50`,
+      {
+        headers: {
+          'Authorization': apiToken,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.error('sevDesk API error:', response.status, await response.text());
+      return res.json({ success: true, data: [], message: 'Could not fetch invoices' });
+    }
+
+    const data = await response.json() as { objects?: any[] };
+    const invoices = (data.objects || []).map((inv: any) => {
+      const totalNet = parseFloat(inv.sumNet || 0);
+      const totalGross = parseFloat(inv.sumGross || 0);
+      const sumTax = parseFloat(inv.sumTax || 0);
+      // Calculate tax rate from net and tax amounts
+      const taxRate = totalNet > 0 ? Math.round((sumTax / totalNet) * 100) : 19;
+
+      return {
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        invoiceDate: inv.invoiceDate,
+        deliveryDate: inv.deliveryDate,
+        status: parseInt(inv.status), // 100=Draft, 200=Delivered, 1000=Paid
+        totalNet,
+        totalGross,
+        taxRate,
+        currency: inv.currency || 'EUR',
+        payDate: inv.payDate || null,
+        header: inv.header,
+      };
+    });
+
+    res.json({ success: true, data: invoices });
+  } catch (error) {
+    console.error('Get invoices error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get quotes/offers for the customer
+router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_quotes FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_quotes) {
+      return res.status(403).json({ error: 'No permission to view quotes' });
+    }
+
+    // Get customer's sevDesk customer ID
+    const customerResult = await pool.query(
+      'SELECT user_id, sevdesk_customer_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    if (!customer.sevdesk_customer_id) {
+      return res.json({ success: true, data: [], message: 'No sevDesk customer linked' });
+    }
+
+    // Get sevDesk API token for the service provider
+    const configResult = await pool.query(
+      'SELECT api_token FROM sevdesk_config WHERE user_id = $1',
+      [customer.user_id]
+    );
+
+    if (!configResult.rows[0]?.api_token) {
+      return res.json({ success: true, data: [], message: 'sevDesk not configured' });
+    }
+
+    const apiToken = configResult.rows[0].api_token;
+
+    // Fetch quotes from sevDesk API (Order with status < 500 are quotes/offers)
+    const response = await fetch(
+      `https://my.sevdesk.de/api/v1/Order?contact[id]=${customer.sevdesk_customer_id}&contact[objectName]=Contact&embed=positions&limit=50`,
+      {
+        headers: {
+          'Authorization': apiToken,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.error('sevDesk API error:', response.status, await response.text());
+      return res.json({ success: true, data: [], message: 'Could not fetch quotes' });
+    }
+
+    const data = await response.json() as { objects?: any[] };
+    const quotes = (data.objects || [])
+      .filter((order: any) => parseInt(order.status) < 500) // Only quotes, not confirmed orders
+      .map((quote: any) => {
+        const totalNet = parseFloat(quote.sumNet || 0);
+        const totalGross = parseFloat(quote.sumGross || 0);
+        const sumTax = parseFloat(quote.sumTax || 0);
+        // Calculate tax rate from net and tax amounts
+        const taxRate = totalNet > 0 ? Math.round((sumTax / totalNet) * 100) : 19;
+
+        return {
+          id: quote.id,
+          orderNumber: quote.orderNumber,
+          orderDate: quote.orderDate,
+          status: parseInt(quote.status), // 100=Draft, 200=Delivered, 300=Accepted
+          totalNet,
+          totalGross,
+          taxRate,
+          currency: quote.currency || 'EUR',
+          header: quote.header,
+          validUntil: quote.deliveryDate,
+        };
+      });
+
+    res.json({ success: true, data: quotes });
+  } catch (error) {
+    console.error('Get quotes error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================================================
+// MFA (Two-Factor Authentication)
+// ========================================================================
+
+// Verify MFA code during login
+router.post('/mfa/verify', async (req, res) => {
+  try {
+    const { mfaToken, code, trustDevice } = req.body;
+
+    if (!mfaToken || !code) {
+      return res.status(400).json({ error: 'MFA token and code required' });
+    }
+
+    // Verify the MFA token
+    let decoded;
+    try {
+      decoded = jwt.verify(mfaToken, process.env.JWT_SECRET!) as {
+        contactId: string;
+        customerId: string;
+        userId: string;
+        mfaPending: boolean;
+      };
+    } catch {
+      return res.status(401).json({ error: 'MFA session expired. Please login again.' });
+    }
+
+    if (!decoded.mfaPending) {
+      return res.status(400).json({ error: 'Invalid MFA token' });
+    }
+
+    // Get contact's MFA secret
+    const contactResult = await pool.query(
+      `SELECT cc.*, c.name as customer_name FROM customer_contacts cc
+       JOIN customers c ON cc.customer_id = c.id
+       WHERE cc.id = $1`,
+      [decoded.contactId]
+    );
+
+    const contact = contactResult.rows[0];
+    if (!contact || !contact.mfa_secret) {
+      return res.status(400).json({ error: 'MFA not configured' });
+    }
+
+    // Try TOTP code first
+    let isValid = authenticator.verify({
+      token: code,
+      secret: contact.mfa_secret
+    });
+
+    // If TOTP fails, try recovery code
+    if (!isValid && code.length === 8) {
+      const recoveryCodes = contact.mfa_recovery_codes ? JSON.parse(contact.mfa_recovery_codes) : [];
+      for (let i = 0; i < recoveryCodes.length; i++) {
+        const match = await bcrypt.compare(code.toUpperCase(), recoveryCodes[i]);
+        if (match) {
+          recoveryCodes.splice(i, 1);
+          await pool.query(
+            'UPDATE customer_contacts SET mfa_recovery_codes = $1 WHERE id = $2',
+            [JSON.stringify(recoveryCodes), decoded.contactId]
+          );
+          isValid = true;
+          break;
+        }
+      }
+    }
+
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const userAgent = req.headers['user-agent'];
+
+    // Log successful login
+    securityService.logSuccessfulLogin(clientIP, `portal:${contact.email}`, contact.id);
+
+    // Update last login
+    await pool.query('UPDATE customer_contacts SET last_login = NOW() WHERE id = $1', [contact.id]);
+
+    // Create trusted device if requested
+    let deviceToken: string | undefined;
+    if (trustDevice) {
+      deviceToken = await createPortalTrustedDevice(decoded.contactId, userAgent, clientIP);
+    }
+
+    // Generate full session token
+    const token = jwt.sign(
+      {
+        contactId: contact.id,
+        customerId: contact.customer_id,
+        userId: decoded.userId,
+        type: 'customer_portal',
+      },
+      process.env.JWT_SECRET!,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      deviceToken,
+      contact: {
+        id: contact.id,
+        customerId: contact.customer_id,
+        customerName: contact.customer_name,
+        userId: decoded.userId,
+        name: contact.name,
+        email: contact.email,
+        canCreateTickets: contact.can_create_tickets,
+        canViewAllTickets: contact.can_view_all_tickets,
+        canViewDevices: contact.can_view_devices ?? false,
+        canViewInvoices: contact.can_view_invoices ?? false,
+        canViewQuotes: contact.can_view_quotes ?? false,
+      },
+    });
+  } catch (error) {
+    console.error('Portal MFA verify error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get MFA status
+router.get('/mfa/status', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      'SELECT mfa_enabled FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    res.json({ enabled: result.rows[0]?.mfa_enabled ?? false });
+  } catch (error) {
+    console.error('Get MFA status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Setup MFA
+router.post('/mfa/setup', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const contactResult = await pool.query(
+      'SELECT email, mfa_enabled FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    const contact = contactResult.rows[0];
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    if (contact.mfa_enabled) {
+      return res.status(400).json({ error: 'MFA already enabled' });
+    }
+
+    // Generate new secret
+    const secret = authenticator.generateSecret();
+
+    // Store temporarily (not enabled yet)
+    await pool.query(
+      'UPDATE customer_contacts SET mfa_secret = $1 WHERE id = $2',
+      [secret, req.contactId]
+    );
+
+    // Generate QR code
+    const otpauth = authenticator.keyuri(contact.email, 'Kundenportal', secret);
+    const qrCode = await QRCode.toDataURL(otpauth);
+
+    // Generate recovery codes
+    const recoveryCodes = Array.from({ length: 8 }, () =>
+      crypto.randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase()
+    );
+
+    res.json({
+      secret,
+      qrCode,
+      recoveryCodes,
+      manualEntryKey: secret
+    });
+  } catch (error) {
+    console.error('MFA setup error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Verify setup and enable MFA
+router.post('/mfa/verify-setup', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { code } = req.body;
+
+    if (!code || code.length !== 6) {
+      return res.status(400).json({ error: 'Invalid code' });
+    }
+
+    const contactResult = await pool.query(
+      'SELECT mfa_secret, mfa_enabled FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    const contact = contactResult.rows[0];
+    if (!contact?.mfa_secret) {
+      return res.status(400).json({ error: 'MFA setup not started' });
+    }
+
+    if (contact.mfa_enabled) {
+      return res.status(400).json({ error: 'MFA already enabled' });
+    }
+
+    const isValid = authenticator.verify({
+      token: code,
+      secret: contact.mfa_secret
+    });
+
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    // Generate and store recovery codes
+    const recoveryCodes = Array.from({ length: 8 }, () =>
+      crypto.randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase()
+    );
+
+    const hashedCodes = await Promise.all(
+      recoveryCodes.map(code => bcrypt.hash(code, 10))
+    );
+
+    await pool.query(
+      'UPDATE customer_contacts SET mfa_enabled = true, mfa_recovery_codes = $1 WHERE id = $2',
+      [JSON.stringify(hashedCodes), req.contactId]
+    );
+
+    res.json({ success: true, message: 'MFA enabled successfully' });
+  } catch (error) {
+    console.error('MFA verify setup error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Disable MFA
+router.post('/mfa/disable', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { password, code } = req.body;
+
+    if (!password || !code) {
+      return res.status(400).json({ error: 'Password and code required' });
+    }
+
+    const contactResult = await pool.query(
+      'SELECT password_hash, mfa_secret, mfa_enabled FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    const contact = contactResult.rows[0];
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    if (!contact.mfa_enabled) {
+      return res.status(400).json({ error: 'MFA not enabled' });
+    }
+
+    // Verify password
+    const validPassword = await bcrypt.compare(password, contact.password_hash);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    // Verify TOTP code
+    const isValid = authenticator.verify({
+      token: code,
+      secret: contact.mfa_secret
+    });
+
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    // Disable MFA and remove all trusted devices
+    await pool.query(
+      'UPDATE customer_contacts SET mfa_enabled = false, mfa_secret = NULL, mfa_recovery_codes = NULL WHERE id = $1',
+      [req.contactId]
+    );
+
+    await pool.query(
+      'DELETE FROM portal_trusted_devices WHERE contact_id = $1',
+      [req.contactId]
+    );
+
+    res.json({ success: true, message: 'MFA disabled successfully' });
+  } catch (error) {
+    console.error('MFA disable error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get recovery codes count
+router.get('/mfa/recovery-codes', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      'SELECT mfa_recovery_codes FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    const codes = result.rows[0]?.mfa_recovery_codes;
+    const remaining = codes ? JSON.parse(codes).length : 0;
+
+    res.json({ remaining });
+  } catch (error) {
+    console.error('Get recovery codes error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Regenerate recovery codes
+router.post('/mfa/regenerate-recovery-codes', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { password, code } = req.body;
+
+    const contactResult = await pool.query(
+      'SELECT password_hash, mfa_secret, mfa_enabled FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    const contact = contactResult.rows[0];
+    if (!contact?.mfa_enabled) {
+      return res.status(400).json({ error: 'MFA not enabled' });
+    }
+
+    const validPassword = await bcrypt.compare(password, contact.password_hash);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    const isValid = authenticator.verify({
+      token: code,
+      secret: contact.mfa_secret
+    });
+
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    const recoveryCodes = Array.from({ length: 8 }, () =>
+      crypto.randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase()
+    );
+
+    const hashedCodes = await Promise.all(
+      recoveryCodes.map(code => bcrypt.hash(code, 10))
+    );
+
+    await pool.query(
+      'UPDATE customer_contacts SET mfa_recovery_codes = $1 WHERE id = $2',
+      [JSON.stringify(hashedCodes), req.contactId]
+    );
+
+    res.json({ success: true, recoveryCodes });
+  } catch (error) {
+    console.error('Regenerate recovery codes error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get trusted devices
+router.get('/mfa/trusted-devices', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, device_name, browser, os, ip_address, created_at, last_used_at, expires_at
+       FROM portal_trusted_devices
+       WHERE contact_id = $1 AND expires_at > NOW()
+       ORDER BY last_used_at DESC`,
+      [req.contactId]
+    );
+
+    res.json({
+      devices: result.rows.map(row => ({
+        id: row.id,
+        deviceName: row.device_name,
+        browser: row.browser,
+        os: row.os,
+        ipAddress: row.ip_address,
+        createdAt: row.created_at,
+        lastUsedAt: row.last_used_at,
+        expiresAt: row.expires_at
+      }))
+    });
+  } catch (error) {
+    console.error('Get trusted devices error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Remove trusted device
+router.delete('/mfa/trusted-devices/:id', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'DELETE FROM portal_trusted_devices WHERE id = $1 AND contact_id = $2 RETURNING id',
+      [id, req.contactId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Remove trusted device error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Remove all trusted devices
+router.delete('/mfa/trusted-devices', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM portal_trusted_devices WHERE contact_id = $1',
+      [req.contactId]
+    );
+
+    res.json({ success: true, count: result.rowCount });
+  } catch (error) {
+    console.error('Remove all trusted devices error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

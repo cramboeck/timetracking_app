@@ -9,6 +9,8 @@ export interface Customer {
   address?: string;
   reportTitle?: string; // Custom report title for this customer (e.g., "Stundenzettel" or "Tätigkeitsnachweis")
   sevdeskCustomerId?: string; // Link to sevDesk contact
+  hourlyRate?: number; // Customer-specific hourly rate (Business feature)
+  ninjarmmOrganizationId?: string; // Link to NinjaRMM organization (Support feature)
   createdAt: string;
 }
 
@@ -158,6 +160,7 @@ export interface TimeEntry {
 
 export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'closed' | 'archived';
 export type TicketPriority = 'low' | 'normal' | 'high' | 'critical';
+export type TicketResolutionType = 'solved' | 'not_reproducible' | 'duplicate' | 'wont_fix' | 'resolved_itself' | 'workaround';
 
 export interface Ticket {
   id: string;
@@ -175,6 +178,9 @@ export interface Ticket {
   updatedAt: string;
   resolvedAt?: string;
   closedAt?: string;
+  // Solution fields
+  solution?: string;
+  resolutionType?: TicketResolutionType;
   // SLA fields
   slaPolicyId?: string;
   firstResponseDueAt?: string;
@@ -182,6 +188,27 @@ export interface Ticket {
   firstResponseAt?: string;
   slaFirstResponseBreached?: boolean;
   slaResolutionBreached?: boolean;
+}
+
+export interface TicketTask {
+  id: string;
+  ticketId: string;
+  title: string;
+  completed: boolean;
+  sortOrder: number;
+  visibleToCustomer: boolean;
+  createdAt: string;
+  completedAt?: string;
+}
+
+// Extended task with ticket info for overview
+export interface TicketTaskWithInfo extends TicketTask {
+  ticketNumber: string;
+  ticketTitle: string;
+  ticketStatus: TicketStatus;
+  ticketPriority: TicketPriority;
+  customerId: string;
+  customerName?: string;
 }
 
 // SLA Policy
@@ -235,6 +262,9 @@ export interface CustomerContact {
   isPrimary: boolean;
   canCreateTickets: boolean;
   canViewAllTickets: boolean; // Or only their own
+  canViewDevices: boolean; // View NinjaRMM devices (Support feature)
+  canViewInvoices: boolean; // View sevDesk invoices (Business feature)
+  canViewQuotes: boolean; // View sevDesk quotes (Business feature)
   isActivated?: boolean; // Computed: has set password
   lastLogin?: string;
   createdAt: string;

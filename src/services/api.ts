@@ -1,4 +1,4 @@
-import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation, Ticket, TicketComment, CustomerContact, TicketStatus, TicketPriority, SlaPolicy } from '../types';
+import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation, Ticket, TicketComment, CustomerContact, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, TicketTaskWithInfo, SlaPolicy } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -75,9 +75,17 @@ export const authApi = {
 
   login: async (username: string, password: string) => {
     console.log('🌐 [API] Calling POST /auth/login');
+
+    // Include device token if available (for trusted devices)
+    const deviceToken = localStorage.getItem('device_token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (deviceToken) {
+      headers['X-Device-Token'] = deviceToken;
+    }
+
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ username, password }),
     });
     console.log('🌐 [API] Login response status:', response.status);
@@ -115,6 +123,109 @@ export const authApi = {
 
   logout: () => {
     localStorage.removeItem('auth_token');
+  },
+
+  // MFA verification during login
+  verifyMfa: async (mfaToken: string, code: string, trustDevice: boolean = false) => {
+    console.log('🌐 [API] Calling POST /mfa/verify');
+    const response = await fetch(`${API_BASE_URL}/mfa/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mfaToken, code, trustDevice }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'An error occurred' }));
+      // Create error with additional rate limit info
+      const error: any = new Error(errorData.error || 'MFA verification failed');
+      error.attemptsLeft = errorData.attemptsLeft;
+      error.retryAfter = errorData.retryAfter;
+      throw error;
+    }
+
+    const result = await response.json();
+
+    if (result.token) {
+      localStorage.setItem('auth_token', result.token);
+      console.log('✅ [API] MFA verified, token stored');
+    }
+
+    // Store device token if returned
+    if (result.deviceToken) {
+      localStorage.setItem('device_token', result.deviceToken);
+      console.log('✅ [API] Device token stored');
+    }
+
+    return result;
+  },
+};
+
+// Trusted Device type
+export interface TrustedDevice {
+  id: string;
+  deviceName: string;
+  browser: string;
+  os: string;
+  ipAddress: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+}
+
+// MFA API
+export const mfaApi = {
+  getStatus: async (): Promise<{ enabled: boolean }> => {
+    return authFetch('/mfa/status');
+  },
+
+  setup: async (): Promise<{
+    secret: string;
+    qrCode: string;
+    recoveryCodes: string[];
+    manualEntryKey: string;
+  }> => {
+    return authFetch('/mfa/setup', { method: 'POST' });
+  },
+
+  verifySetup: async (code: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch('/mfa/verify-setup', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  },
+
+  disable: async (password: string, code: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch('/mfa/disable', {
+      method: 'POST',
+      body: JSON.stringify({ password, code }),
+    });
+  },
+
+  getRecoveryCodesCount: async (): Promise<{ remaining: number }> => {
+    return authFetch('/mfa/recovery-codes');
+  },
+
+  regenerateRecoveryCodes: async (password: string, code: string): Promise<{
+    success: boolean;
+    recoveryCodes: string[];
+  }> => {
+    return authFetch('/mfa/regenerate-recovery-codes', {
+      method: 'POST',
+      body: JSON.stringify({ password, code }),
+    });
+  },
+
+  // Trusted devices
+  getTrustedDevices: async (): Promise<{ devices: TrustedDevice[] }> => {
+    return authFetch('/mfa/trusted-devices');
+  },
+
+  removeTrustedDevice: async (deviceId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/mfa/trusted-devices/${deviceId}`, { method: 'DELETE' });
+  },
+
+  removeAllTrustedDevices: async (): Promise<{ success: boolean; count: number }> => {
+    return authFetch('/mfa/trusted-devices', { method: 'DELETE' });
   },
 };
 
@@ -425,7 +536,9 @@ export const ticketsApi = {
     status: TicketStatus;
     priority: TicketPriority;
     assignedToUserId: string | null;
-  }>): Promise<{ success: boolean; data: Ticket }> => {
+    solution: string;
+    resolutionType: TicketResolutionType;
+  }>): Promise<{ success: boolean; data: Ticket; requiresSolution?: boolean }> => {
     return authFetch(`/tickets/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
@@ -681,6 +794,55 @@ export const ticketsApi = {
     return authFetch(`/tickets/${ticketId}/attachments/${attachmentId}`, {
       method: 'DELETE',
     });
+  },
+
+  // Tasks
+  getTasks: async (ticketId: string): Promise<{ success: boolean; data: TicketTask[] }> => {
+    return authFetch(`/tickets/${ticketId}/tasks`);
+  },
+
+  createTask: async (ticketId: string, data: { title: string; visibleToCustomer?: boolean }): Promise<{ success: boolean; data: TicketTask }> => {
+    return authFetch(`/tickets/${ticketId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateTask: async (ticketId: string, taskId: string, updates: {
+    title?: string;
+    completed?: boolean;
+    visibleToCustomer?: boolean;
+  }): Promise<{ success: boolean; data: TicketTask }> => {
+    return authFetch(`/tickets/${ticketId}/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  reorderTasks: async (ticketId: string, taskIds: string[]): Promise<{ success: boolean; data: TicketTask[] }> => {
+    return authFetch(`/tickets/${ticketId}/tasks/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ taskIds }),
+    });
+  },
+
+  deleteTask: async (ticketId: string, taskId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/tickets/${ticketId}/tasks/${taskId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get all tasks across all tickets (for task overview)
+  getAllTasks: async (filters?: { status?: 'open' | 'completed' | 'all'; customerId?: string }): Promise<{ success: boolean; data: TicketTaskWithInfo[] }> => {
+    const params = new URLSearchParams();
+    if (filters?.status && filters.status !== 'all') {
+      params.append('status', filters.status);
+    }
+    if (filters?.customerId) {
+      params.append('customerId', filters.customerId);
+    }
+    const queryString = params.toString();
+    return authFetch(`/tickets/tasks/all${queryString ? `?${queryString}` : ''}`);
   },
 };
 
@@ -1010,6 +1172,9 @@ export interface PortalContact {
   email: string;
   canCreateTickets: boolean;
   canViewAllTickets: boolean;
+  canViewDevices: boolean;
+  canViewInvoices: boolean;
+  canViewQuotes: boolean;
 }
 
 export interface PortalTicket {
@@ -1048,16 +1213,97 @@ export interface PortalComment {
   createdAt: string;
 }
 
+export interface PortalDevice {
+  id: string;
+  ninjaId: number;
+  displayName: string;
+  systemName: string;
+  deviceType: string;
+  osName: string;
+  osVersion: string;
+  osBuild?: string;
+  osArchitecture?: string;
+  lastBoot?: string;
+  lastContact: string;
+  lastLoggedInUser: string;
+  publicIp: string;
+  privateIp: string;
+  offline: boolean;
+  notes: string;
+  manufacturer?: string;
+  model?: string;
+  serialNumber?: string;
+  processorName?: string;
+  processorCores?: number;
+  memoryGb?: number;
+  openAlerts: number;
+}
+
+export interface PortalDeviceAlert {
+  id: string;
+  severity: string;
+  priority: string;
+  message: string;
+  sourceType: string;
+  sourceName: string;
+  activityTime: string;
+  createdAt: string;
+  resolved: boolean;
+  resolvedAt?: string;
+  status: string;
+}
+
+export interface PortalInvoice {
+  id: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  deliveryDate?: string;
+  status: number;
+  header?: string;
+  totalNet: number;
+  totalGross: number;
+  taxRate: number;
+  currency: string;
+  payDate?: string;
+  dunningLevel?: number;
+}
+
+export interface PortalQuote {
+  id: string;
+  orderNumber: string;
+  orderDate: string;
+  status: number;
+  header?: string;
+  totalNet: number;
+  totalGross: number;
+  taxRate: number;
+  currency: string;
+  validUntil?: string;
+}
+
 export const customerPortalApi = {
-  login: async (email: string, password: string): Promise<{ success: boolean; token: string; contact: PortalContact }> => {
+  login: async (email: string, password: string): Promise<{
+    success: boolean;
+    token?: string;
+    contact?: PortalContact;
+    mfaRequired?: boolean;
+    mfaToken?: string;
+  }> => {
+    // Include device token if available (for trusted devices)
+    const deviceToken = localStorage.getItem('portal_device_token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (deviceToken) {
+      headers['X-Device-Token'] = deviceToken;
+    }
+
     const response = await fetch(`${API_BASE_URL}/customer-portal/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ email, password }),
     });
     const result = await handleResponse(response);
 
-    if (result.token) {
+    if (result.token && !result.mfaRequired) {
       localStorage.setItem('portal_auth_token', result.token);
     }
     return result;
@@ -1163,6 +1409,120 @@ export const customerPortalApi = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     });
+  },
+
+  // Devices (NinjaRMM)
+  getDevices: async (): Promise<{ data: PortalDevice[] }> => {
+    return portalAuthFetch('/customer-portal/devices');
+  },
+
+  // Device Alerts (NinjaRMM)
+  getDeviceAlerts: async (deviceId: string): Promise<{ data: PortalDeviceAlert[] }> => {
+    return portalAuthFetch(`/customer-portal/devices/${deviceId}/alerts`);
+  },
+
+  // Invoices (sevDesk)
+  getInvoices: async (): Promise<{ data: PortalInvoice[] }> => {
+    return portalAuthFetch('/customer-portal/invoices');
+  },
+
+  // Quotes (sevDesk)
+  getQuotes: async (): Promise<{ data: PortalQuote[] }> => {
+    return portalAuthFetch('/customer-portal/quotes');
+  },
+
+  // MFA
+  verifyMfa: async (mfaToken: string, code: string, trustDevice: boolean = false): Promise<{
+    success: boolean;
+    token: string;
+    contact: PortalContact;
+    deviceToken?: string;
+  }> => {
+    // Include device token if available (for trusted devices)
+    const deviceToken = localStorage.getItem('portal_device_token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (deviceToken) {
+      headers['X-Device-Token'] = deviceToken;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/customer-portal/mfa/verify`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ mfaToken, code, trustDevice }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'An error occurred' }));
+      const error: any = new Error(errorData.error || 'MFA verification failed');
+      error.attemptsLeft = errorData.attemptsLeft;
+      error.retryAfter = errorData.retryAfter;
+      throw error;
+    }
+
+    const result = await response.json();
+
+    if (result.token) {
+      localStorage.setItem('portal_auth_token', result.token);
+    }
+
+    if (result.deviceToken) {
+      localStorage.setItem('portal_device_token', result.deviceToken);
+    }
+
+    return result;
+  },
+
+  getMfaStatus: async (): Promise<{ enabled: boolean; hasRecoveryCodes: boolean }> => {
+    return portalAuthFetch('/customer-portal/mfa/status');
+  },
+
+  setupMfa: async (): Promise<{
+    secret: string;
+    qrCode: string;
+    recoveryCodes: string[];
+    manualEntryKey: string;
+  }> => {
+    return portalAuthFetch('/customer-portal/mfa/setup', { method: 'POST' });
+  },
+
+  verifyMfaSetup: async (code: string): Promise<{ success: boolean; message: string }> => {
+    return portalAuthFetch('/customer-portal/mfa/verify-setup', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  },
+
+  disableMfa: async (password: string, code: string): Promise<{ success: boolean; message: string }> => {
+    return portalAuthFetch('/customer-portal/mfa/disable', {
+      method: 'POST',
+      body: JSON.stringify({ password, code }),
+    });
+  },
+
+  getRecoveryCodesCount: async (): Promise<{ remaining: number }> => {
+    return portalAuthFetch('/customer-portal/mfa/recovery-codes');
+  },
+
+  regenerateRecoveryCodes: async (password: string, code: string): Promise<{
+    success: boolean;
+    recoveryCodes: string[];
+  }> => {
+    return portalAuthFetch('/customer-portal/mfa/regenerate-recovery-codes', {
+      method: 'POST',
+      body: JSON.stringify({ password, code }),
+    });
+  },
+
+  getTrustedDevices: async (): Promise<{ devices: TrustedDevice[] }> => {
+    return portalAuthFetch('/customer-portal/mfa/trusted-devices');
+  },
+
+  removeTrustedDevice: async (deviceId: string): Promise<{ success: boolean }> => {
+    return portalAuthFetch(`/customer-portal/mfa/trusted-devices/${deviceId}`, { method: 'DELETE' });
+  },
+
+  removeAllTrustedDevices: async (): Promise<{ success: boolean; count: number }> => {
+    return portalAuthFetch('/customer-portal/mfa/trusted-devices', { method: 'DELETE' });
   },
 };
 
@@ -1380,6 +1740,7 @@ export interface BillingSummaryItem {
   totalSeconds: number;
   totalHours: number;
   totalAmount: number | null;
+  isBilled?: boolean;
   entries: Array<{
     id: string;
     duration: number;
@@ -1393,6 +1754,7 @@ export interface BillingSummaryItem {
 
 export interface InvoiceExport {
   id: string;
+  customerId: string;
   customerName: string;
   sevdeskInvoiceNumber: string | null;
   periodStart: string;
@@ -1627,9 +1989,16 @@ export interface NinjaDevice {
   lastContact: string | null;
   publicIp: string | null;
   osName: string | null;
+  osVersion?: string | null;
+  osBuild?: string | null;
+  osArchitecture?: string | null;
   manufacturer: string | null;
   model: string | null;
   serialNumber: string | null;
+  lastLoggedInUser: string | null;
+  processorName?: string | null;
+  processorCores?: number | null;
+  memoryGb?: number | null;
   syncedAt: string;
 }
 
@@ -1736,6 +2105,13 @@ export const ninjaApi = {
     return authFetch(`/ninjarmm/devices/${deviceId}/details`);
   },
 
+  // Refresh device details (fetch from NinjaRMM and save locally)
+  refreshDeviceDetails: async (deviceId: string): Promise<{ success: boolean; data: NinjaDevice }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}/refresh`, {
+      method: 'POST',
+    });
+  },
+
   // Get alerts
   getAlerts: async (options?: {
     deviceId?: string;
@@ -1770,6 +2146,334 @@ export const ninjaApi = {
   },
 };
 
+// Feature Packages API
+export interface UserFeatures {
+  core: boolean;
+  timeTracking: boolean;
+  support: boolean;
+  business: boolean;
+  tickets: boolean;
+  devices: boolean;
+  alerts: boolean;
+  billing: boolean;
+  dashboardAdvanced: boolean;
+  packages: Array<{
+    name: string;
+    enabled: boolean;
+    enabledAt: string;
+    expiresAt: string | null;
+  }>;
+}
+
+export interface AvailablePackage {
+  name: string;
+  label: string;
+  description: string;
+  features: string[];
+  enabled: boolean;
+}
+
+export const featuresApi = {
+  // Get current user's features
+  getFeatures: async (): Promise<{ success: boolean; data: UserFeatures }> => {
+    return authFetch('/features');
+  },
+
+  // Get available packages
+  getAvailable: async (): Promise<{ success: boolean; data: AvailablePackage[] }> => {
+    return authFetch('/features/available');
+  },
+
+  // Enable a package
+  enablePackage: async (packageName: string, expiresAt?: string): Promise<{ success: boolean }> => {
+    return authFetch(`/features/${packageName}/enable`, {
+      method: 'POST',
+      body: JSON.stringify({ expiresAt }),
+    });
+  },
+
+  // Disable a package
+  disablePackage: async (packageName: string): Promise<{ success: boolean }> => {
+    return authFetch(`/features/${packageName}/disable`, {
+      method: 'POST',
+    });
+  },
+};
+
+// Maintenance Announcements API
+export type MaintenanceType = 'patch' | 'reboot' | 'security_update' | 'firmware' | 'general';
+export type MaintenanceStatus = 'draft' | 'scheduled' | 'sent' | 'in_progress' | 'completed' | 'cancelled';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'no_response';
+
+export interface MaintenanceAnnouncement {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  maintenance_type: MaintenanceType;
+  affected_systems: string | null;
+  scheduled_start: string;
+  scheduled_end: string | null;
+  status: MaintenanceStatus;
+  require_approval: boolean;
+  approval_deadline: string | null;
+  auto_proceed_on_no_response: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Computed fields
+  customer_count?: number;
+  approved_count?: number;
+  rejected_count?: number;
+  pending_count?: number;
+}
+
+export interface MaintenanceAnnouncementCustomer {
+  id: string;
+  announcement_id: string;
+  customer_id: string;
+  customer_name: string;
+  customer_email: string | null;
+  approval_token: string;
+  status: ApprovalStatus;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
+  notification_sent_at: string | null;
+  reminder_sent_at: string | null;
+  created_at: string;
+}
+
+export interface MaintenanceAnnouncementDevice {
+  id: string;
+  announcement_id: string;
+  device_id: string;
+  system_name: string;
+  display_name: string | null;
+  node_class: string;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'skipped' | 'failed';
+  started_at: string | null;
+  completed_at: string | null;
+  notes: string | null;
+}
+
+export interface MaintenanceActivityLog {
+  id: string;
+  announcement_id: string;
+  action: string;
+  actor_type: 'admin' | 'customer' | 'system';
+  actor_id: string | null;
+  actor_name: string | null;
+  details: any;
+  created_at: string;
+  announcement_title?: string;
+}
+
+export interface MaintenanceTemplate {
+  id: string;
+  user_id: string;
+  name: string;
+  title: string;
+  description: string | null;
+  maintenance_type: MaintenanceType;
+  affected_systems: string | null;
+  estimated_duration_minutes: number | null;
+  require_approval: boolean;
+  auto_proceed_on_no_response: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaintenanceDashboard {
+  upcoming: MaintenanceAnnouncement[];
+  pendingApprovals: number;
+  recentActivity: MaintenanceActivityLog[];
+  statistics: {
+    completed_count: number;
+    scheduled_count: number;
+    in_progress_count: number;
+  };
+}
+
+export interface MaintenanceApprovalDetails {
+  customerName: string;
+  companyName: string;
+  title: string;
+  description: string | null;
+  maintenanceType: MaintenanceType;
+  affectedSystems: string | null;
+  scheduledStart: string;
+  scheduledEnd: string | null;
+  approvalDeadline: string | null;
+  requireApproval: boolean;
+  status: ApprovalStatus;
+  alreadyResponded?: boolean;
+  respondedAt?: string;
+  rejectionReason?: string | null;
+}
+
+export const maintenanceApi = {
+  // Get dashboard data
+  getDashboard: async (): Promise<MaintenanceDashboard> => {
+    return authFetch('/maintenance/dashboard');
+  },
+
+  // List announcements
+  getAnnouncements: async (options?: {
+    status?: MaintenanceStatus;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ announcements: MaintenanceAnnouncement[] }> => {
+    const params = new URLSearchParams();
+    if (options?.status) params.append('status', options.status);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    const queryString = params.toString();
+    return authFetch(`/maintenance/announcements${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get single announcement with details
+  getAnnouncement: async (id: string): Promise<{
+    announcement: MaintenanceAnnouncement;
+    customers: MaintenanceAnnouncementCustomer[];
+    devices: MaintenanceAnnouncementDevice[];
+    activityLog: MaintenanceActivityLog[];
+  }> => {
+    return authFetch(`/maintenance/announcements/${id}`);
+  },
+
+  // Create announcement
+  createAnnouncement: async (data: {
+    title: string;
+    description?: string;
+    maintenanceType: MaintenanceType;
+    affectedSystems?: string;
+    scheduledStart: string;
+    scheduledEnd?: string;
+    requireApproval?: boolean;
+    approvalDeadline?: string;
+    autoProceedOnNoResponse?: boolean;
+    notes?: string;
+    customerIds?: string[];
+    deviceIds?: string[];
+  }): Promise<{ success: boolean; announcementId: string; message: string }> => {
+    return authFetch('/maintenance/announcements', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update announcement
+  updateAnnouncement: async (id: string, data: Partial<{
+    title: string;
+    description: string;
+    maintenanceType: MaintenanceType;
+    affectedSystems: string;
+    scheduledStart: string;
+    scheduledEnd: string;
+    requireApproval: boolean;
+    approvalDeadline: string;
+    autoProceedOnNoResponse: boolean;
+    notes: string;
+    customerIds: string[];
+    deviceIds: string[];
+  }>): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/maintenance/announcements/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete announcement
+  deleteAnnouncement: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/maintenance/announcements/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Send notifications to customers
+  sendNotifications: async (id: string, customerIds: string[]): Promise<{
+    success: boolean;
+    sentCount: number;
+    failedCount: number;
+    message: string;
+  }> => {
+    return authFetch(`/maintenance/announcements/${id}/send`, {
+      method: 'POST',
+      body: JSON.stringify({ customerIds }),
+    });
+  },
+
+  // Send reminders to pending customers
+  sendReminders: async (id: string): Promise<{
+    success: boolean;
+    sentCount: number;
+    message: string;
+  }> => {
+    return authFetch(`/maintenance/announcements/${id}/remind`, {
+      method: 'POST',
+    });
+  },
+
+  // Update announcement status
+  updateStatus: async (id: string, status: MaintenanceStatus): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/maintenance/announcements/${id}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  // Get templates
+  getTemplates: async (): Promise<{ templates: MaintenanceTemplate[] }> => {
+    return authFetch('/maintenance/templates');
+  },
+
+  // Create template
+  createTemplate: async (data: {
+    name: string;
+    title: string;
+    description?: string;
+    maintenanceType: MaintenanceType;
+    affectedSystems?: string;
+    estimatedDurationMinutes?: number;
+    requireApproval?: boolean;
+    autoProceedOnNoResponse?: boolean;
+  }): Promise<{ success: boolean; templateId: string; message: string }> => {
+    return authFetch('/maintenance/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete template
+  deleteTemplate: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/maintenance/templates/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // PUBLIC: Get approval details (no auth required)
+  getApprovalDetails: async (token: string): Promise<MaintenanceApprovalDetails> => {
+    const response = await fetch(`${API_BASE_URL}/maintenance/approve/${token}`);
+    return handleResponse(response);
+  },
+
+  // PUBLIC: Submit approval/rejection (no auth required)
+  submitApproval: async (token: string, data: {
+    action: 'approve' | 'reject';
+    reason?: string;
+    approverName?: string;
+  }): Promise<{ success: boolean; message: string; status: ApprovalStatus }> => {
+    const response = await fetch(`${API_BASE_URL}/maintenance/approve/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -1781,4 +2485,5 @@ export default {
   teams: teamsApi,
   tickets: ticketsApi,
   customerPortal: customerPortalApi,
+  features: featuresApi,
 };

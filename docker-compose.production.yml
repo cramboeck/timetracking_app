@@ -59,6 +59,10 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # CORS
       CORS_ORIGINS: ${CORS_ORIGINS}
+      # Security
+      SECURITY_LOG_PATH: /app/logs/security.log
+      SECURITY_ALERT_EMAIL: ${SECURITY_ALERT_EMAIL:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
     volumes:
       - backend_logs:/app/logs
       - backend_uploads:/app/uploads
@@ -150,39 +154,33 @@ services:
 volumes:
   # Datenbank-Daten
   postgres_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /var/lib/ramboflow/postgres
+    external: true
+    name: timetracking_app_postgres_data
 
   # Backend-Logs
   backend_logs:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /var/lib/ramboflow/logs
+    external: true
+    name: timetracking_app_backend_logs
 
   # Backend-Uploads (ticket attachments, etc.)
   backend_uploads:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /var/lib/ramboflow/uploads
+    external: true
+    name: timetracking_app_backend_uploads
 
   # Certbot Challenge-Dateien
   certbot_data:
-    driver: local
+    external: true
+    name: timetracking_app_certbot_data
 
   # SSL-Zertifikate
   letsencrypt:
-    driver: local
+    external: true
+    name: timetracking_app_letsencrypt
 
   # Certbot Logs
   certbot_logs:
-    driver: local
+    external: true
+    name: timetracking_app_certbot_logs
 
 # =============================================================================
 # Networks
