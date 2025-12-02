@@ -50,7 +50,7 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
          FROM organization_invitations oi
          JOIN organizations o ON o.id = oi.organization_id
          WHERE oi.invitation_code = $1
-         AND oi.used_at IS NULL
+         AND oi.accepted_at IS NULL
          AND oi.expires_at > NOW()`,
         [inviteCode]
       );
@@ -104,7 +104,7 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
 
       // Mark invitation as used
       await client.query(
-        `UPDATE organization_invitations SET used_at = NOW(), used_by_user_id = $1 WHERE id = $2`,
+        `UPDATE organization_invitations SET accepted_at = NOW(), accepted_by = $1 WHERE id = $2`,
         [userId, invitation.id]
       );
 
