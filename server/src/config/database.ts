@@ -1343,6 +1343,16 @@ export async function initializeDatabase() {
         ) THEN
           ALTER TABLE report_approvals ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
         END IF;
+
+        -- Add organization_id to ticket_sequences
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_sequences' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE ticket_sequences ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+          -- Create new unique constraint on organization_id
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_ticket_sequences_org ON ticket_sequences(organization_id) WHERE organization_id IS NOT NULL;
+        END IF;
       END $$;
     `);
 
@@ -1406,6 +1416,7 @@ export async function initializeDatabase() {
           UPDATE customer_portal_users SET organization_id = new_org_id WHERE owner_user_id = user_rec.id AND organization_id IS NULL;
           UPDATE feature_packages SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
           UPDATE report_approvals SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE ticket_sequences SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
 
           RAISE NOTICE 'Created organization % for user %', new_org_id, user_rec.username;
         END LOOP;

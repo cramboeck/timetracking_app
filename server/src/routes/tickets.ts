@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { query, getClient } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
+import { attachOrganization, OrganizationRequest } from '../middleware/organization';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { emailService } from '../services/emailService';
 import { sendTicketNotification } from '../services/pushNotifications';
@@ -13,26 +14,26 @@ const router = express.Router();
 const PORTAL_URL = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
 
 // Helper function to generate ticket number
-async function generateTicketNumber(userId: string): Promise<string> {
+async function generateTicketNumber(organizationId: string): Promise<string> {
   const client = await getClient();
   try {
     await client.query('BEGIN');
 
-    // Get or create sequence for user
+    // Get or create sequence for organization
     const result = await client.query(
-      `INSERT INTO ticket_sequences (user_id, last_number)
+      `INSERT INTO ticket_sequences (organization_id, last_number)
        VALUES ($1, 0)
-       ON CONFLICT (user_id) DO UPDATE SET last_number = ticket_sequences.last_number + 1
+       ON CONFLICT (organization_id) DO UPDATE SET last_number = ticket_sequences.last_number + 1
        RETURNING last_number`,
-      [userId]
+      [organizationId]
     );
 
     // If it was an insert, we need to increment
     let number = result.rows[0].last_number;
     if (number === 0) {
       const updateResult = await client.query(
-        'UPDATE ticket_sequences SET last_number = 1 WHERE user_id = $1 RETURNING last_number',
-        [userId]
+        'UPDATE ticket_sequences SET last_number = 1 WHERE organization_id = $1 RETURNING last_number',
+        [organizationId]
       );
       number = updateResult.rows[0].last_number;
     }
@@ -100,22 +101,23 @@ function transformComment(row: any) {
 // TICKET ROUTES
 // ============================================================================
 
-// GET /api/tickets - Get all tickets for user
-router.get('/', authenticateToken, async (req, res) => {
+// GET /api/tickets - Get all tickets for organization
+router.get('/', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { status, customerId, priority } = req.query;
 
-    console.log(`📋 Fetching tickets for user_id: ${userId}`);
+    console.log(`📋 Fetching tickets for organization_id: ${organizationId}`);
 
     let queryText = `
       SELECT t.*, c.name as customer_name, p.name as project_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
-      WHERE t.user_id = $1
+      WHERE t.organization_id = $1
     `;
-    const params: any[] = [userId];
+    const params: any[] = [organizationId];
     let paramIndex = 2;
 
     if (status) {
@@ -139,7 +141,7 @@ router.get('/', authenticateToken, async (req, res) => {
     queryText += ' ORDER BY t.created_at DESC';
 
     const result = await query(queryText, params);
-    console.log(`📋 Found ${result.rows.length} tickets for user_id: ${userId}`);
+    console.log(`📋 Found ${result.rows.length} tickets for organization_id: ${organizationId}`);
     res.json({ success: true, data: result.rows.map(transformTicket) });
   } catch (error) {
     console.error('Error fetching tickets:', error);
@@ -148,9 +150,10 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // GET /api/tickets/stats - Get ticket statistics
-router.get('/stats', authenticateToken, async (req, res) => {
+router.get('/stats', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
 
     const result = await query(`
       SELECT
@@ -163,8 +166,8 @@ router.get('/stats', authenticateToken, async (req, res) => {
         COUNT(*) FILTER (WHERE priority = 'high' AND status NOT IN ('resolved', 'closed')) as high_priority_count,
         COUNT(*) as total_count
       FROM tickets
-      WHERE user_id = $1
-    `, [userId]);
+      WHERE organization_id = $1
+    `, [organizationId]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -174,9 +177,10 @@ router.get('/stats', authenticateToken, async (req, res) => {
 });
 
 // GET /api/tickets/dashboard - Get comprehensive dashboard data
-router.get('/dashboard', authenticateToken, async (req, res) => {
+router.get('/dashboard', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
 
     // Basic counts by status
     const statusCounts = await query(`
@@ -189,8 +193,8 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed', 'archived')) as active_total,
         COUNT(*) as total
       FROM tickets
-      WHERE user_id = $1 AND status != 'archived'
-    `, [userId]);
+      WHERE organization_id = $1 AND status != 'archived'
+    `, [organizationId]);
 
     // Priority distribution (only active tickets)
     const priorityCounts = await query(`
@@ -200,8 +204,8 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         COUNT(*) FILTER (WHERE priority = 'normal') as normal,
         COUNT(*) FILTER (WHERE priority = 'low') as low
       FROM tickets
-      WHERE user_id = $1 AND status NOT IN ('resolved', 'closed', 'archived')
-    `, [userId]);
+      WHERE organization_id = $1 AND status NOT IN ('resolved', 'closed', 'archived')
+    `, [organizationId]);
 
     // SLA statistics
     const slaStats = await query(`
@@ -215,8 +219,8 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         COUNT(*) FILTER (WHERE first_response_due_at IS NOT NULL) as with_response_sla,
         COUNT(*) FILTER (WHERE resolution_due_at IS NOT NULL) as with_resolution_sla
       FROM tickets
-      WHERE user_id = $1 AND status != 'archived'
-    `, [userId]);
+      WHERE organization_id = $1 AND status != 'archived'
+    `, [organizationId]);
 
     // Tickets requiring attention (SLA at risk - due within 2 hours)
     const urgentTickets = await query(`
@@ -235,7 +239,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
              END as resolution_minutes_remaining
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
-      WHERE t.user_id = $1
+      WHERE t.organization_id = $1
         AND t.status NOT IN ('resolved', 'closed', 'archived')
         AND (
           (t.first_response_at IS NULL AND t.first_response_due_at IS NOT NULL AND t.first_response_due_at <= NOW() + INTERVAL '2 hours')
@@ -247,7 +251,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
           COALESCE(t.resolution_due_at, '9999-12-31'::timestamp)
         )
       LIMIT 10
-    `, [userId]);
+    `, [organizationId]);
 
     // Recent activity
     const recentActivity = await query(`
@@ -259,10 +263,10 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       JOIN tickets t ON ta.ticket_id = t.id
       LEFT JOIN users u ON ta.user_id = u.id
       LEFT JOIN customer_contacts cc ON ta.customer_contact_id = cc.id
-      WHERE t.user_id = $1
+      WHERE t.organization_id = $1
       ORDER BY ta.created_at DESC
       LIMIT 15
-    `, [userId]);
+    `, [organizationId]);
 
     // Tickets created this week vs last week
     const weeklyComparison = await query(`
@@ -271,8 +275,8 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         COUNT(*) FILTER (WHERE created_at >= DATE_TRUNC('week', NOW()) - INTERVAL '1 week' AND created_at < DATE_TRUNC('week', NOW())) as last_week,
         COUNT(*) FILTER (WHERE status IN ('resolved', 'closed') AND updated_at >= DATE_TRUNC('week', NOW())) as resolved_this_week
       FROM tickets
-      WHERE user_id = $1
-    `, [userId]);
+      WHERE organization_id = $1
+    `, [organizationId]);
 
     // Average response time (in minutes) for resolved tickets this month
     const avgTimes = await query(`
@@ -280,22 +284,22 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         ROUND(AVG(EXTRACT(EPOCH FROM (first_response_at - created_at)) / 60)) as avg_first_response_minutes,
         ROUND(AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60)) as avg_resolution_minutes
       FROM tickets
-      WHERE user_id = $1
+      WHERE organization_id = $1
         AND first_response_at IS NOT NULL
         AND resolved_at IS NOT NULL
         AND created_at >= DATE_TRUNC('month', NOW())
-    `, [userId]);
+    `, [organizationId]);
 
     // Top customers by ticket count (active tickets)
     const topCustomers = await query(`
       SELECT c.id, c.name, c.color, COUNT(t.id) as ticket_count
       FROM tickets t
       JOIN customers c ON t.customer_id = c.id
-      WHERE t.user_id = $1 AND t.status NOT IN ('resolved', 'closed', 'archived')
+      WHERE t.organization_id = $1 AND t.status NOT IN ('resolved', 'closed', 'archived')
       GROUP BY c.id, c.name, c.color
       ORDER BY ticket_count DESC
       LIMIT 5
-    `, [userId]);
+    `, [organizationId]);
 
     // Calculate SLA compliance percentage
     const sla = slaStats.rows[0];
@@ -364,9 +368,10 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
 });
 
 // GET /api/tickets/:id - Get single ticket with comments
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
     // Get ticket
@@ -375,8 +380,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
-      WHERE t.id = $1 AND t.user_id = $2
-    `, [id, userId]);
+      WHERE t.id = $1 AND t.organization_id = $2
+    `, [id, organizationId]);
 
     if (ticketResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
@@ -435,9 +440,11 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // POST /api/tickets - Create new ticket
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { customerId, projectId, title, description, priority = 'normal' } = req.body;
 
     if (!customerId || !title) {
@@ -445,16 +452,16 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     const id = crypto.randomUUID();
-    const ticketNumber = await generateTicketNumber(userId);
+    const ticketNumber = await generateTicketNumber(organizationId);
 
     const result = await query(`
-      INSERT INTO tickets (id, ticket_number, user_id, customer_id, project_id, title, description, priority, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open')
+      INSERT INTO tickets (id, ticket_number, user_id, organization_id, customer_id, project_id, title, description, priority, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'open')
       RETURNING *
-    `, [id, ticketNumber, userId, customerId, projectId || null, title, description || '', priority]);
+    `, [id, ticketNumber, userId, organizationId, customerId, projectId || null, title, description || '', priority]);
 
     // Apply SLA if available
-    const slaDeadlines = await calculateSlaDeadlines(userId, priority);
+    const slaDeadlines = await calculateSlaDeadlines(organizationId, priority);
     if (slaDeadlines) {
       await query(`
         UPDATE tickets SET
@@ -492,16 +499,18 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/tickets/:id - Update ticket
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
     const { customerId, projectId, title, description, status, priority, assignedToUserId, solution, resolutionType } = req.body;
 
     // Get current ticket values for activity logging
     const currentTicket = await query(
-      'SELECT status, priority, title, description, assigned_to_user_id FROM tickets WHERE id = $1 AND user_id = $2',
-      [id, userId]
+      'SELECT status, priority, title, description, assigned_to_user_id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [id, organizationId]
     );
 
     if (currentTicket.rows.length === 0) {
@@ -579,11 +588,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
       paramIndex++;
     }
 
-    params.push(id, userId);
+    params.push(id, organizationId);
 
     const result = await query(`
       UPDATE tickets SET ${updates.join(', ')}
-      WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1}
+      WHERE id = $${paramIndex} AND organization_id = $${paramIndex + 1}
       RETURNING *
     `, params);
 
@@ -687,15 +696,17 @@ router.put('/:id', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/tickets/:id - Delete ticket
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
     // Get ticket info for audit log before deleting
     const ticketInfo = await query(
-      'SELECT ticket_number, title FROM tickets WHERE id = $1 AND user_id = $2',
-      [id, userId]
+      'SELECT ticket_number, title FROM tickets WHERE id = $1 AND organization_id = $2',
+      [id, organizationId]
     );
 
     if (ticketInfo.rows.length === 0) {
@@ -721,9 +732,11 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 // POST /api/tickets/:id/merge - Merge source tickets into target ticket
-router.post('/:id/merge', authenticateToken, async (req, res) => {
+router.post('/:id/merge', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id: targetId } = req.params;
     const { sourceTicketIds } = req.body;
 
@@ -731,10 +744,10 @@ router.post('/:id/merge', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'sourceTicketIds array is required' });
     }
 
-    // Verify target ticket belongs to user
+    // Verify target ticket belongs to organization
     const targetCheck = await query(
-      'SELECT id, ticket_number, title, customer_id FROM tickets WHERE id = $1 AND user_id = $2',
-      [targetId, userId]
+      'SELECT id, ticket_number, title, customer_id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [targetId, organizationId]
     );
 
     if (targetCheck.rows.length === 0) {
@@ -750,8 +763,8 @@ router.post('/:id/merge', authenticateToken, async (req, res) => {
     }
 
     const sourceCheck = await query(
-      `SELECT id, ticket_number, title, customer_id FROM tickets WHERE id = ANY($1) AND user_id = $2`,
-      [filteredSourceIds, userId]
+      `SELECT id, ticket_number, title, customer_id FROM tickets WHERE id = ANY($1) AND organization_id = $2`,
+      [filteredSourceIds, organizationId]
     );
 
     if (sourceCheck.rows.length !== filteredSourceIds.length) {
@@ -894,9 +907,11 @@ router.post('/:id/merge', authenticateToken, async (req, res) => {
 // ============================================================================
 
 // POST /api/tickets/:id/comments - Add comment to ticket
-router.post('/:id/comments', authenticateToken, async (req, res) => {
+router.post('/:id/comments', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id: ticketId } = req.params;
     const { content, isInternal = false } = req.body;
 
@@ -904,10 +919,10 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Content is required' });
     }
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
@@ -1000,15 +1015,16 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
 // ============================================================================
 
 // GET /api/tickets/:ticketId/attachments - Get all attachments for a ticket
-router.get('/:ticketId/attachments', authenticateToken, async (req, res) => {
+router.get('/:ticketId/attachments', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { ticketId } = req.params;
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
@@ -1051,9 +1067,11 @@ router.get('/:ticketId/attachments', authenticateToken, async (req, res) => {
 });
 
 // POST /api/tickets/:ticketId/attachments - Upload attachments
-router.post('/:ticketId/attachments', authenticateToken, upload.array('files', 10), async (req, res) => {
+router.post('/:ticketId/attachments', authenticateToken, attachOrganization, upload.array('files', 10), async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { ticketId } = req.params;
     const files = req.files as Express.Multer.File[];
 
@@ -1061,10 +1079,10 @@ router.post('/:ticketId/attachments', authenticateToken, upload.array('files', 1
       return res.status(400).json({ success: false, error: 'No files uploaded' });
     }
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
@@ -1116,15 +1134,17 @@ router.post('/:ticketId/attachments', authenticateToken, upload.array('files', 1
 });
 
 // DELETE /api/tickets/:ticketId/attachments/:attachmentId - Delete attachment
-router.delete('/:ticketId/attachments/:attachmentId', authenticateToken, async (req, res) => {
+router.delete('/:ticketId/attachments/:attachmentId', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { ticketId, attachmentId } = req.params;
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
@@ -1168,53 +1188,57 @@ router.delete('/:ticketId/attachments/:attachmentId', authenticateToken, async (
 // ============================================================================
 
 // GET /api/tickets/debug - Debug endpoint to check ticket data
-router.get('/debug/check', authenticateToken, async (req, res) => {
+router.get('/debug/check', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
 
-    console.log(`🔍 Debug check for user_id: ${userId}`);
+    console.log(`🔍 Debug check for organization_id: ${organizationId}`);
 
     // Get user info
     const userResult = await query('SELECT id, username FROM users WHERE id = $1', [userId]);
     const user = userResult.rows[0];
 
-    // Get all customers for this user
-    const customersResult = await query('SELECT id, name, user_id FROM customers WHERE user_id = $1', [userId]);
+    // Get all customers for this organization
+    const customersResult = await query('SELECT id, name, organization_id FROM customers WHERE organization_id = $1', [organizationId]);
 
-    // Get all tickets (without user filter) to see what's there
+    // Get all tickets (without organization filter) to see what's there
     const allTicketsResult = await query(`
-      SELECT t.id, t.ticket_number, t.user_id, t.customer_id, t.title, c.name as customer_name
+      SELECT t.id, t.ticket_number, t.user_id, t.organization_id, t.customer_id, t.title, c.name as customer_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       ORDER BY t.created_at DESC
       LIMIT 20
     `);
 
-    // Get tickets for this user
-    const userTicketsResult = await query(`
-      SELECT t.id, t.ticket_number, t.user_id, t.customer_id, t.title
+    // Get tickets for this organization
+    const orgTicketsResult = await query(`
+      SELECT t.id, t.ticket_number, t.user_id, t.organization_id, t.customer_id, t.title
       FROM tickets t
-      WHERE t.user_id = $1
+      WHERE t.organization_id = $1
       ORDER BY t.created_at DESC
-    `, [userId]);
+    `, [organizationId]);
 
     res.json({
       success: true,
       debug: {
         currentUser: user,
+        currentOrganization: organizationId,
         customersCount: customersResult.rows.length,
-        customers: customersResult.rows.map(c => ({ id: c.id, name: c.name, userId: c.user_id })),
+        customers: customersResult.rows.map(c => ({ id: c.id, name: c.name, organizationId: c.organization_id })),
         allTicketsCount: allTicketsResult.rowCount,
         allTickets: allTicketsResult.rows.map(t => ({
           id: t.id,
           ticketNumber: t.ticket_number,
           userId: t.user_id,
+          organizationId: t.organization_id,
           customerId: t.customer_id,
           customerName: t.customer_name,
           title: t.title,
-          matchesCurrentUser: t.user_id === userId
+          matchesCurrentOrg: t.organization_id === organizationId
         })),
-        userTicketsCount: userTicketsResult.rowCount,
+        orgTicketsCount: orgTicketsResult.rowCount,
       }
     });
   } catch (error) {
@@ -1228,15 +1252,16 @@ router.get('/debug/check', authenticateToken, async (req, res) => {
 // ============================================================================
 
 // GET /api/tickets/contacts/:customerId - Get contacts for a customer
-router.get('/contacts/:customerId', authenticateToken, async (req, res) => {
+router.get('/contacts/:customerId', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { customerId } = req.params;
 
-    // Verify customer belongs to user
+    // Verify customer belongs to organization
     const customerCheck = await query(
-      'SELECT id FROM customers WHERE id = $1 AND user_id = $2',
-      [customerId, userId]
+      'SELECT id FROM customers WHERE id = $1 AND organization_id = $2',
+      [customerId, organizationId]
     );
 
     if (customerCheck.rows.length === 0) {
@@ -1258,19 +1283,20 @@ router.get('/contacts/:customerId', authenticateToken, async (req, res) => {
 });
 
 // POST /api/tickets/contacts - Create customer contact
-router.post('/contacts', authenticateToken, async (req, res) => {
+router.post('/contacts', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { customerId, name, email, canCreateTickets = true, canViewAllTickets = false } = req.body;
 
     if (!customerId || !name || !email) {
       return res.status(400).json({ success: false, error: 'Customer ID, name and email are required' });
     }
 
-    // Verify customer belongs to user
+    // Verify customer belongs to organization
     const customerCheck = await query(
-      'SELECT id FROM customers WHERE id = $1 AND user_id = $2',
-      [customerId, userId]
+      'SELECT id FROM customers WHERE id = $1 AND organization_id = $2',
+      [customerId, organizationId]
     );
 
     if (customerCheck.rows.length === 0) {
@@ -1306,17 +1332,18 @@ router.post('/contacts', authenticateToken, async (req, res) => {
 // CANNED RESPONSES (Textbausteine) ROUTES
 // ============================================================================
 
-// GET /api/tickets/canned-responses - Get all canned responses for user
-router.get('/canned-responses/list', authenticateToken, async (req, res) => {
+// GET /api/tickets/canned-responses - Get all canned responses for organization
+router.get('/canned-responses/list', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { category } = req.query;
 
     let queryText = `
       SELECT * FROM canned_responses
-      WHERE user_id = $1
+      WHERE organization_id = $1
     `;
-    const params: any[] = [userId];
+    const params: any[] = [organizationId];
 
     if (category) {
       queryText += ' AND category = $2';
@@ -1334,9 +1361,11 @@ router.get('/canned-responses/list', authenticateToken, async (req, res) => {
 });
 
 // POST /api/tickets/canned-responses - Create canned response
-router.post('/canned-responses', authenticateToken, async (req, res) => {
+router.post('/canned-responses', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { title, content, shortcut, category } = req.body;
 
     if (!title || !content) {
@@ -1346,10 +1375,10 @@ router.post('/canned-responses', authenticateToken, async (req, res) => {
     const id = crypto.randomUUID();
 
     const result = await query(`
-      INSERT INTO canned_responses (id, user_id, title, content, shortcut, category)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO canned_responses (id, user_id, organization_id, title, content, shortcut, category)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [id, userId, title, content, shortcut || null, category || null]);
+    `, [id, userId, organizationId, title, content, shortcut || null, category || null]);
 
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -1359,9 +1388,10 @@ router.post('/canned-responses', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/tickets/canned-responses/:id - Update canned response
-router.put('/canned-responses/:id', authenticateToken, async (req, res) => {
+router.put('/canned-responses/:id', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
     const { title, content, shortcut, category } = req.body;
 
@@ -1372,9 +1402,9 @@ router.put('/canned-responses/:id', authenticateToken, async (req, res) => {
           shortcut = $3,
           category = $4,
           updated_at = NOW()
-      WHERE id = $5 AND user_id = $6
+      WHERE id = $5 AND organization_id = $6
       RETURNING *
-    `, [title, content, shortcut || null, category || null, id, userId]);
+    `, [title, content, shortcut || null, category || null, id, organizationId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Canned response not found' });
@@ -1388,14 +1418,15 @@ router.put('/canned-responses/:id', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/tickets/canned-responses/:id - Delete canned response
-router.delete('/canned-responses/:id', authenticateToken, async (req, res) => {
+router.delete('/canned-responses/:id', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
     const result = await query(
-      'DELETE FROM canned_responses WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+      'DELETE FROM canned_responses WHERE id = $1 AND organization_id = $2 RETURNING id',
+      [id, organizationId]
     );
 
     if (result.rows.length === 0) {
@@ -1410,17 +1441,18 @@ router.delete('/canned-responses/:id', authenticateToken, async (req, res) => {
 });
 
 // POST /api/tickets/canned-responses/:id/use - Increment usage count
-router.post('/canned-responses/:id/use', authenticateToken, async (req, res) => {
+router.post('/canned-responses/:id/use', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
     const result = await query(`
       UPDATE canned_responses
       SET usage_count = usage_count + 1
-      WHERE id = $1 AND user_id = $2
+      WHERE id = $1 AND organization_id = $2
       RETURNING *
-    `, [id, userId]);
+    `, [id, organizationId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Canned response not found' });
@@ -1434,12 +1466,14 @@ router.post('/canned-responses/:id/use', authenticateToken, async (req, res) => 
 });
 
 // POST /api/tickets/canned-responses/seed-defaults - Create default canned responses
-router.post('/canned-responses/seed-defaults', authenticateToken, async (req, res) => {
+router.post('/canned-responses/seed-defaults', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
 
-    // Check if user already has canned responses
-    const existing = await query('SELECT COUNT(*) as count FROM canned_responses WHERE user_id = $1', [userId]);
+    // Check if organization already has canned responses
+    const existing = await query('SELECT COUNT(*) as count FROM canned_responses WHERE organization_id = $1', [organizationId]);
     if (parseInt(existing.rows[0].count) > 0) {
       return res.json({ success: true, message: 'Vorlagen bereits vorhanden', seeded: false });
     }
@@ -1632,9 +1666,9 @@ Mit freundlichen Grüßen`,
     for (const response of defaultResponses) {
       const id = crypto.randomUUID();
       await query(`
-        INSERT INTO canned_responses (id, user_id, title, content, shortcut, category)
-        VALUES ($1, $2, $3, $4, $5, $6)
-      `, [id, userId, response.title, response.content, response.shortcut, response.category]);
+        INSERT INTO canned_responses (id, user_id, organization_id, title, content, shortcut, category)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [id, userId, organizationId, response.title, response.content, response.shortcut, response.category]);
     }
 
     res.json({ success: true, message: `${defaultResponses.length} Standard-Vorlagen erstellt`, seeded: true, count: defaultResponses.length });
@@ -1648,19 +1682,20 @@ Mit freundlichen Grüßen`,
 // TICKET TAGS ROUTES
 // ============================================================================
 
-// GET /api/tickets/tags/list - Get all tags for user
-router.get('/tags/list', authenticateToken, async (req, res) => {
+// GET /api/tickets/tags/list - Get all tags for organization
+router.get('/tags/list', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
 
     const result = await query(`
       SELECT t.*, COUNT(tta.ticket_id) as ticket_count
       FROM ticket_tags t
       LEFT JOIN ticket_tag_assignments tta ON t.id = tta.tag_id
-      WHERE t.user_id = $1
+      WHERE t.organization_id = $1
       GROUP BY t.id
       ORDER BY t.name ASC
-    `, [userId]);
+    `, [organizationId]);
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
@@ -1670,9 +1705,11 @@ router.get('/tags/list', authenticateToken, async (req, res) => {
 });
 
 // POST /api/tickets/tags - Create tag
-router.post('/tags', authenticateToken, async (req, res) => {
+router.post('/tags', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { name, color = '#6b7280' } = req.body;
 
     if (!name) {
@@ -1682,10 +1719,10 @@ router.post('/tags', authenticateToken, async (req, res) => {
     const id = crypto.randomUUID();
 
     const result = await query(`
-      INSERT INTO ticket_tags (id, user_id, name, color)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO ticket_tags (id, user_id, organization_id, name, color)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
-    `, [id, userId, name.trim(), color]);
+    `, [id, userId, organizationId, name.trim(), color]);
 
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error: any) {
@@ -1698,9 +1735,10 @@ router.post('/tags', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/tickets/tags/:id - Update tag
-router.put('/tags/:id', authenticateToken, async (req, res) => {
+router.put('/tags/:id', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
     const { name, color } = req.body;
 
@@ -1708,9 +1746,9 @@ router.put('/tags/:id', authenticateToken, async (req, res) => {
       UPDATE ticket_tags
       SET name = COALESCE($1, name),
           color = COALESCE($2, color)
-      WHERE id = $3 AND user_id = $4
+      WHERE id = $3 AND organization_id = $4
       RETURNING *
-    `, [name?.trim(), color, id, userId]);
+    `, [name?.trim(), color, id, organizationId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Tag not found' });
@@ -1727,14 +1765,15 @@ router.put('/tags/:id', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/tickets/tags/:id - Delete tag
-router.delete('/tags/:id', authenticateToken, async (req, res) => {
+router.delete('/tags/:id', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
     const result = await query(
-      'DELETE FROM ticket_tags WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+      'DELETE FROM ticket_tags WHERE id = $1 AND organization_id = $2 RETURNING id',
+      [id, organizationId]
     );
 
     if (result.rows.length === 0) {
@@ -1749,15 +1788,16 @@ router.delete('/tags/:id', authenticateToken, async (req, res) => {
 });
 
 // GET /api/tickets/:ticketId/tags - Get tags for a ticket
-router.get('/:ticketId/tags', authenticateToken, async (req, res) => {
+router.get('/:ticketId/tags', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { ticketId } = req.params;
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
@@ -1780,25 +1820,27 @@ router.get('/:ticketId/tags', authenticateToken, async (req, res) => {
 });
 
 // POST /api/tickets/:ticketId/tags/:tagId - Add tag to ticket
-router.post('/:ticketId/tags/:tagId', authenticateToken, async (req, res) => {
+router.post('/:ticketId/tags/:tagId', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { ticketId, tagId } = req.params;
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
 
-    // Verify tag belongs to user
+    // Verify tag belongs to organization
     const tagCheck = await query(
-      'SELECT id FROM ticket_tags WHERE id = $1 AND user_id = $2',
-      [tagId, userId]
+      'SELECT id FROM ticket_tags WHERE id = $1 AND organization_id = $2',
+      [tagId, organizationId]
     );
 
     if (tagCheck.rows.length === 0) {
@@ -1844,15 +1886,17 @@ router.post('/:ticketId/tags/:tagId', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/tickets/:ticketId/tags/:tagId - Remove tag from ticket
-router.delete('/:ticketId/tags/:tagId', authenticateToken, async (req, res) => {
+router.delete('/:ticketId/tags/:tagId', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { ticketId, tagId } = req.params;
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
@@ -1923,16 +1967,17 @@ export async function logTicketActivity(
 }
 
 // GET /api/tickets/:ticketId/activities - Get activity timeline for a ticket
-router.get('/:ticketId/activities', authenticateToken, async (req, res) => {
+router.get('/:ticketId/activities', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { ticketId } = req.params;
     const { limit = 50, offset = 0 } = req.query;
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
@@ -1979,9 +2024,10 @@ router.get('/:ticketId/activities', authenticateToken, async (req, res) => {
 // ============================================================================
 
 // GET /api/tickets/search - Search tickets by keyword
-router.get('/search/query', authenticateToken, async (req, res) => {
+router.get('/search/query', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { q, status, priority, customerId, limit = 50 } = req.query;
 
     if (!q || String(q).trim().length < 2) {
@@ -1995,7 +2041,7 @@ router.get('/search/query', authenticateToken, async (req, res) => {
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
-      WHERE t.user_id = $1
+      WHERE t.organization_id = $1
         AND (
           LOWER(t.title) LIKE $2
           OR LOWER(t.description) LIKE $2
@@ -2003,7 +2049,7 @@ router.get('/search/query', authenticateToken, async (req, res) => {
           OR LOWER(c.name) LIKE $2
         )
     `;
-    const params: any[] = [userId, searchTerm];
+    const params: any[] = [organizationId, searchTerm];
     let paramIndex = 3;
 
     if (status) {
@@ -2036,16 +2082,16 @@ router.get('/search/query', authenticateToken, async (req, res) => {
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
       INNER JOIN ticket_comments tc ON t.id = tc.ticket_id
-      WHERE t.user_id = $1
+      WHERE t.organization_id = $1
         AND LOWER(tc.content) LIKE $2
-        AND t.id NOT IN (SELECT id FROM tickets WHERE user_id = $1 AND (
+        AND t.id NOT IN (SELECT id FROM tickets WHERE organization_id = $1 AND (
           LOWER(title) LIKE $2
           OR LOWER(description) LIKE $2
           OR LOWER(ticket_number) LIKE $2
         ))
       ORDER BY t.updated_at DESC
       LIMIT $3
-    `, [userId, searchTerm, Number(limit)]);
+    `, [organizationId, searchTerm, Number(limit)]);
 
     // Combine results
     const allTickets = [...result.rows, ...commentSearchResult.rows];
@@ -2058,11 +2104,11 @@ router.get('/search/query', authenticateToken, async (req, res) => {
       LEFT JOIN projects p ON t.project_id = p.id
       INNER JOIN ticket_tag_assignments tta ON t.id = tta.ticket_id
       INNER JOIN ticket_tags tt ON tta.tag_id = tt.id
-      WHERE t.user_id = $1
+      WHERE t.organization_id = $1
         AND LOWER(tt.name) LIKE $2
       ORDER BY t.updated_at DESC
       LIMIT $3
-    `, [userId, searchTerm, Number(limit)]);
+    `, [organizationId, searchTerm, Number(limit)]);
 
     // Add tag results if not already in list
     const existingIds = new Set(allTickets.map(t => t.id));
@@ -2101,14 +2147,15 @@ function transformSlaPolicy(row: any) {
   };
 }
 
-// GET /api/tickets/sla/policies - Get all SLA policies for user
-router.get('/sla/policies', authenticateToken, async (req, res) => {
+// GET /api/tickets/sla/policies - Get all SLA policies for organization
+router.get('/sla/policies', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
 
     const result = await query(`
       SELECT * FROM sla_policies
-      WHERE user_id = $1
+      WHERE organization_id = $1
       ORDER BY
         CASE priority
           WHEN 'critical' THEN 1
@@ -2117,7 +2164,7 @@ router.get('/sla/policies', authenticateToken, async (req, res) => {
           WHEN 'low' THEN 4
           WHEN 'all' THEN 5
         END
-    `, [userId]);
+    `, [organizationId]);
 
     res.json({ success: true, data: result.rows.map(transformSlaPolicy) });
   } catch (error) {
@@ -2127,9 +2174,11 @@ router.get('/sla/policies', authenticateToken, async (req, res) => {
 });
 
 // POST /api/tickets/sla/policies - Create SLA policy
-router.post('/sla/policies', authenticateToken, async (req, res) => {
+router.post('/sla/policies', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const {
       name,
       description,
@@ -2152,16 +2201,16 @@ router.post('/sla/policies', authenticateToken, async (req, res) => {
     // If this is set as default, unset other defaults for this priority
     if (isDefault) {
       await query(
-        'UPDATE sla_policies SET is_default = FALSE WHERE user_id = $1 AND (priority = $2 OR priority = \'all\')',
-        [userId, priority]
+        'UPDATE sla_policies SET is_default = FALSE WHERE organization_id = $1 AND (priority = $2 OR priority = \'all\')',
+        [organizationId, priority]
       );
     }
 
     const result = await query(`
-      INSERT INTO sla_policies (id, user_id, name, description, priority, first_response_minutes, resolution_minutes, business_hours_only, is_default)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO sla_policies (id, user_id, organization_id, name, description, priority, first_response_minutes, resolution_minutes, business_hours_only, is_default)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
-    `, [id, userId, name, description || null, priority, firstResponseMinutes, resolutionMinutes, businessHoursOnly, isDefault]);
+    `, [id, userId, organizationId, name, description || null, priority, firstResponseMinutes, resolutionMinutes, businessHoursOnly, isDefault]);
 
     // Audit log
     await auditLog.log({
@@ -2178,9 +2227,11 @@ router.post('/sla/policies', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/tickets/sla/policies/:id - Update SLA policy
-router.put('/sla/policies/:id', authenticateToken, async (req, res) => {
+router.put('/sla/policies/:id', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
     const {
       name,
@@ -2198,8 +2249,8 @@ router.put('/sla/policies/:id', authenticateToken, async (req, res) => {
       const currentPolicy = await query('SELECT priority FROM sla_policies WHERE id = $1', [id]);
       const policyPriority = priority || currentPolicy.rows[0]?.priority;
       await query(
-        'UPDATE sla_policies SET is_default = FALSE WHERE user_id = $1 AND (priority = $2 OR priority = \'all\') AND id != $3',
-        [userId, policyPriority, id]
+        'UPDATE sla_policies SET is_default = FALSE WHERE organization_id = $1 AND (priority = $2 OR priority = \'all\') AND id != $3',
+        [organizationId, policyPriority, id]
       );
     }
 
@@ -2214,9 +2265,9 @@ router.put('/sla/policies/:id', authenticateToken, async (req, res) => {
         is_active = COALESCE($7, is_active),
         is_default = COALESCE($8, is_default),
         updated_at = NOW()
-      WHERE id = $9 AND user_id = $10
+      WHERE id = $9 AND organization_id = $10
       RETURNING *
-    `, [name, description, priority, firstResponseMinutes, resolutionMinutes, businessHoursOnly, isActive, isDefault, id, userId]);
+    `, [name, description, priority, firstResponseMinutes, resolutionMinutes, businessHoursOnly, isActive, isDefault, id, organizationId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'SLA policy not found' });
@@ -2237,15 +2288,17 @@ router.put('/sla/policies/:id', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/tickets/sla/policies/:id - Delete SLA policy
-router.delete('/sla/policies/:id', authenticateToken, async (req, res) => {
+router.delete('/sla/policies/:id', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
     // Get policy info for audit log before deleting
     const policyInfo = await query(
-      'SELECT name FROM sla_policies WHERE id = $1 AND user_id = $2',
-      [id, userId]
+      'SELECT name FROM sla_policies WHERE id = $1 AND organization_id = $2',
+      [id, organizationId]
     );
 
     if (policyInfo.rows.length === 0) {
@@ -2271,17 +2324,17 @@ router.delete('/sla/policies/:id', authenticateToken, async (req, res) => {
 });
 
 // Helper function to calculate SLA deadlines
-async function calculateSlaDeadlines(userId: string, priority: string, createdAt: Date = new Date()) {
+async function calculateSlaDeadlines(organizationId: string, priority: string, createdAt: Date = new Date()) {
   // Find applicable SLA policy
   const policyResult = await query(`
     SELECT * FROM sla_policies
-    WHERE user_id = $1 AND is_active = TRUE
+    WHERE organization_id = $1 AND is_active = TRUE
       AND (priority = $2 OR priority = 'all')
     ORDER BY
       CASE WHEN priority = $2 THEN 0 ELSE 1 END,
       is_default DESC
     LIMIT 1
-  `, [userId, priority]);
+  `, [organizationId, priority]);
 
   if (policyResult.rows.length === 0) {
     return null;
@@ -2299,15 +2352,17 @@ async function calculateSlaDeadlines(userId: string, priority: string, createdAt
 }
 
 // POST /api/tickets/sla/apply/:ticketId - Apply SLA to existing ticket
-router.post('/sla/apply/:ticketId', authenticateToken, async (req, res) => {
+router.post('/sla/apply/:ticketId', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { ticketId } = req.params;
 
     // Get ticket
     const ticketResult = await query(
-      'SELECT * FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT * FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketResult.rows.length === 0) {
@@ -2315,7 +2370,7 @@ router.post('/sla/apply/:ticketId', authenticateToken, async (req, res) => {
     }
 
     const ticket = ticketResult.rows[0];
-    const deadlines = await calculateSlaDeadlines(userId, ticket.priority, new Date(ticket.created_at));
+    const deadlines = await calculateSlaDeadlines(organizationId, ticket.priority, new Date(ticket.created_at));
 
     if (!deadlines) {
       return res.status(400).json({ success: false, error: 'No SLA policy found for this priority' });
@@ -2366,13 +2421,14 @@ function transformTask(row: any) {
 }
 
 // GET /api/tickets/tasks/all - Get all tasks across all tickets (for task overview)
-router.get('/tasks/all', authenticateToken, async (req, res) => {
+router.get('/tasks/all', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { status, customerId, dueDate } = req.query;
 
-    let whereConditions = ['t.user_id = $1'];
-    const params: any[] = [userId];
+    let whereConditions = ['t.organization_id = $1'];
+    const params: any[] = [organizationId];
     let paramIndex = 2;
 
     // Filter by completion status
@@ -2440,15 +2496,16 @@ router.get('/tasks/all', authenticateToken, async (req, res) => {
 });
 
 // GET /api/tickets/:id/tasks - Get all tasks for a ticket
-router.get('/:id/tasks', authenticateToken, async (req, res) => {
+router.get('/:id/tasks', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id: ticketId } = req.params;
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
@@ -2468,9 +2525,11 @@ router.get('/:id/tasks', authenticateToken, async (req, res) => {
 });
 
 // POST /api/tickets/:id/tasks - Create a new task
-router.post('/:id/tasks', authenticateToken, async (req, res) => {
+router.post('/:id/tasks', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id: ticketId } = req.params;
     const { title, visibleToCustomer = false } = req.body;
 
@@ -2478,10 +2537,10 @@ router.post('/:id/tasks', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Title is required' });
     }
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
@@ -2523,16 +2582,18 @@ router.post('/:id/tasks', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/tickets/:ticketId/tasks/:taskId - Update a task
-router.put('/:ticketId/tasks/:taskId', authenticateToken, async (req, res) => {
+router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { ticketId, taskId } = req.params;
     const { title, completed, visibleToCustomer } = req.body;
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
@@ -2629,9 +2690,10 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/tickets/:ticketId/tasks/reorder - Reorder tasks
-router.put('/:ticketId/tasks/reorder', authenticateToken, async (req, res) => {
+router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { ticketId } = req.params;
     const { taskIds } = req.body; // Array of task IDs in new order
 
@@ -2639,10 +2701,10 @@ router.put('/:ticketId/tasks/reorder', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'taskIds array is required' });
     }
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {
@@ -2671,15 +2733,17 @@ router.put('/:ticketId/tasks/reorder', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/tickets/:ticketId/tasks/:taskId - Delete a task
-router.delete('/:ticketId/tasks/:taskId', authenticateToken, async (req, res) => {
+router.delete('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { ticketId, taskId } = req.params;
 
-    // Verify ticket belongs to user
+    // Verify ticket belongs to organization
     const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
-      [ticketId, userId]
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
     );
 
     if (ticketCheck.rows.length === 0) {

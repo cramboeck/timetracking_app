@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { attachOrganization, OrganizationRequest } from '../middleware/organization';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
@@ -25,12 +26,13 @@ const updateProjectSchema = z.object({
   isActive: z.boolean().optional()
 });
 
-// GET /api/projects - Get all projects for current user
-router.get('/', authenticateToken, async (req: AuthRequest, res) => {
+// GET /api/projects - Get all projects for current organization
+router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
 
-    const result = await pool.query('SELECT * FROM projects WHERE user_id = $1 ORDER BY name', [userId]);
+    const result = await pool.query('SELECT * FROM projects WHERE organization_id = $1 ORDER BY name', [organizationId]);
     const projects = transformRows(result.rows);
 
     res.json({
@@ -44,24 +46,26 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // POST /api/projects - Create new project
-router.post('/', authenticateToken, validate(createProjectSchema), async (req: AuthRequest, res) => {
+router.post('/', authenticateToken, attachOrganization, validate(createProjectSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { customerId, name, rateType, hourlyRate, isActive } = req.body;
 
-    // Verify customer belongs to user
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [customerId, userId]);
+    // Verify customer belongs to organization
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Customer not found or does not belong to you' });
+      return res.status(400).json({ error: 'Customer not found or does not belong to your organization' });
     }
 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO projects (id, user_id, customer_id, name, rate_type, hourly_rate, is_active, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [id, userId, customerId, name, rateType, hourlyRate, isActive, createdAt]
+      `INSERT INTO projects (id, user_id, organization_id, customer_id, name, rate_type, hourly_rate, is_active, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [id, userId, organizationId, customerId, name, rateType, hourlyRate, isActive, createdAt]
     );
 
     const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1', [id]);
@@ -70,7 +74,7 @@ router.post('/', authenticateToken, validate(createProjectSchema), async (req: A
     auditLog.log({
       userId,
       action: 'project.create',
-      details: JSON.stringify({ name, customerId }),
+      details: JSON.stringify({ name, customerId, organizationId }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
     });
@@ -86,23 +90,25 @@ router.post('/', authenticateToken, validate(createProjectSchema), async (req: A
 });
 
 // PUT /api/projects/:id - Update project
-router.put('/:id', authenticateToken, validate(updateProjectSchema), async (req: AuthRequest, res) => {
+router.put('/:id', authenticateToken, attachOrganization, validate(updateProjectSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
     const updates = req.body;
 
-    // Verify project belongs to user
-    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND user_id = $2', [id, userId]);
+    // Verify project belongs to organization
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     if (projectResult.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Verify customer belongs to user (if updating customerId)
+    // Verify customer belongs to organization (if updating customerId)
     if (updates.customerId) {
-      const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [updates.customerId, userId]);
+      const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [updates.customerId, organizationId]);
       if (customerResult.rows.length === 0) {
-        return res.status(400).json({ error: 'Customer not found or does not belong to you' });
+        return res.status(400).json({ error: 'Customer not found or does not belong to your organization' });
       }
     }
 
@@ -162,13 +168,15 @@ router.put('/:id', authenticateToken, validate(updateProjectSchema), async (req:
 });
 
 // DELETE /api/projects/:id - Delete project
-router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
+router.delete('/:id', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
-    // Verify project belongs to user
-    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND user_id = $2', [id, userId]);
+    // Verify project belongs to organization
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     if (projectResult.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
