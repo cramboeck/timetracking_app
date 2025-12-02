@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { sendTicketNotification } from '../services/pushNotifications';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
-import UAParser from 'ua-parser-js';
+import { UAParser } from 'ua-parser-js';
 
 // MFA Constants
 const TRUST_DURATION_DAYS = 30;
