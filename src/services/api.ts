@@ -2474,6 +2474,140 @@ export const maintenanceApi = {
   },
 };
 
+// ============================================
+// Organizations API (Multi-Tenant)
+// ============================================
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  owner_user_id: string;
+  settings: Record<string, any>;
+  logo: string | null;
+  created_at: string;
+  updated_at: string;
+  member_count?: number;
+  user_role?: string;
+}
+
+export interface OrganizationMember {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  role: 'owner' | 'admin' | 'member' | 'viewer';
+  joined_at: string;
+  username: string;
+  email: string;
+  display_name: string | null;
+  last_login: string | null;
+}
+
+export interface OrganizationInvitation {
+  id: string;
+  organization_id: string;
+  email: string;
+  role: 'admin' | 'member' | 'viewer';
+  invitation_code: string;
+  invited_by: string;
+  invited_by_name?: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export const organizationsApi = {
+  // Get user's organizations
+  getAll: async (): Promise<{ success: boolean; data: Organization[] }> => {
+    return authFetch('/organizations');
+  },
+
+  // Get current/active organization
+  getCurrent: async (): Promise<{ success: boolean; data: Organization }> => {
+    return authFetch('/organizations/current');
+  },
+
+  // Get organization by ID
+  getById: async (id: string): Promise<{ success: boolean; data: Organization & { userRole: string } }> => {
+    return authFetch(`/organizations/${id}`);
+  },
+
+  // Create organization
+  create: async (data: { name: string; settings?: Record<string, any> }): Promise<{ success: boolean; data: Organization }> => {
+    return authFetch('/organizations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update organization
+  update: async (id: string, data: { name?: string; settings?: Record<string, any>; logo?: string }): Promise<{ success: boolean; data: Organization }> => {
+    return authFetch(`/organizations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Get members
+  getMembers: async (orgId: string): Promise<{ success: boolean; data: OrganizationMember[] }> => {
+    return authFetch(`/organizations/${orgId}/members`);
+  },
+
+  // Update member role
+  updateMemberRole: async (orgId: string, memberId: string, role: 'admin' | 'member' | 'viewer'): Promise<{ success: boolean; data: OrganizationMember }> => {
+    return authFetch(`/organizations/${orgId}/members/${memberId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    });
+  },
+
+  // Remove member
+  removeMember: async (orgId: string, memberId: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/organizations/${orgId}/members/${memberId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get invitations
+  getInvitations: async (orgId: string): Promise<{ success: boolean; data: OrganizationInvitation[] }> => {
+    return authFetch(`/organizations/${orgId}/invitations`);
+  },
+
+  // Create invitation
+  createInvitation: async (orgId: string, email: string, role: 'admin' | 'member' | 'viewer' = 'member'): Promise<{ success: boolean; data: OrganizationInvitation; invitationLink: string }> => {
+    return authFetch(`/organizations/${orgId}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    });
+  },
+
+  // Cancel invitation
+  cancelInvitation: async (orgId: string, invitationId: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/organizations/${orgId}/invitations/${invitationId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get invitation info (public - no auth needed)
+  getInvitationInfo: async (code: string): Promise<{ success: boolean; data: { organizationName: string; logo: string | null; role: string; invitedBy: string; expiresAt: string } }> => {
+    const response = await fetch(`${API_BASE_URL}/organizations/invitation/${code}`);
+    return handleResponse(response);
+  },
+
+  // Accept invitation (join organization)
+  acceptInvitation: async (code: string): Promise<{ success: boolean; message: string; organizationId: string }> => {
+    return authFetch(`/organizations/join/${code}`, {
+      method: 'POST',
+    });
+  },
+
+  // Leave organization
+  leave: async (orgId: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/organizations/${orgId}/leave`, {
+      method: 'POST',
+    });
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -2486,4 +2620,5 @@ export default {
   tickets: ticketsApi,
   customerPortal: customerPortalApi,
   features: featuresApi,
+  organizations: organizationsApi,
 };
