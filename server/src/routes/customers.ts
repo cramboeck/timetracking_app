@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
-import { attachOrganization, OrganizationRequest, getUserOrganizationId } from '../middleware/organization';
+import { attachOrganization, OrganizationRequest, getUserOrganizationId, requireOrgRole } from '../middleware/organization';
 import { auditLog } from '../services/auditLog';
 import { emailService } from '../services/emailService';
 import { z } from 'zod';
@@ -55,8 +55,8 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
   }
 });
 
-// POST /api/customers - Create new customer
-router.post('/', authenticateToken, attachOrganization, validate(createCustomerSchema), async (req: AuthRequest, res) => {
+// POST /api/customers - Create new customer (requires member role)
+router.post('/', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createCustomerSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
@@ -93,8 +93,8 @@ router.post('/', authenticateToken, attachOrganization, validate(createCustomerS
   }
 });
 
-// PUT /api/customers/:id - Update customer
-router.put('/:id', authenticateToken, attachOrganization, validate(updateCustomerSchema), async (req: AuthRequest, res) => {
+// PUT /api/customers/:id - Update customer (requires member role)
+router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateCustomerSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
@@ -179,8 +179,8 @@ router.put('/:id', authenticateToken, attachOrganization, validate(updateCustome
   }
 });
 
-// DELETE /api/customers/:id - Delete customer
-router.delete('/:id', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+// DELETE /api/customers/:id - Delete customer (requires admin role)
+router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
@@ -296,8 +296,8 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
   }
 });
 
-// POST /api/customers/:customerId/contacts - Create new contact
-router.post('/:customerId/contacts', authenticateToken, attachOrganization, validate(createContactSchema), async (req: AuthRequest, res) => {
+// POST /api/customers/:customerId/contacts - Create new contact (requires member role)
+router.post('/:customerId/contacts', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createContactSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
@@ -364,8 +364,8 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, vali
   }
 });
 
-// PUT /api/customers/:customerId/contacts/:contactId - Update contact
-router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganization, validate(updateContactSchema), async (req: AuthRequest, res) => {
+// PUT /api/customers/:customerId/contacts/:contactId - Update contact (requires member role)
+router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateContactSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
@@ -477,8 +477,8 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
   }
 });
 
-// DELETE /api/customers/:customerId/contacts/:contactId - Delete contact
-router.delete('/:customerId/contacts/:contactId', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+// DELETE /api/customers/:customerId/contacts/:contactId - Delete contact (requires admin role)
+router.delete('/:customerId/contacts/:contactId', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
@@ -517,8 +517,8 @@ router.delete('/:customerId/contacts/:contactId', authenticateToken, attachOrgan
   }
 });
 
-// POST /api/customers/:customerId/contacts/:contactId/send-invite - Send activation invite
-router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+// POST /api/customers/:customerId/contacts/:contactId/send-invite - Send activation invite (requires member role)
+router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;

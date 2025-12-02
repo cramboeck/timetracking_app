@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
-import { attachOrganization, OrganizationRequest } from '../middleware/organization';
+import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
@@ -45,8 +45,8 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
   }
 });
 
-// POST /api/projects - Create new project
-router.post('/', authenticateToken, attachOrganization, validate(createProjectSchema), async (req: AuthRequest, res) => {
+// POST /api/projects - Create new project (requires member role)
+router.post('/', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createProjectSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
@@ -89,8 +89,8 @@ router.post('/', authenticateToken, attachOrganization, validate(createProjectSc
   }
 });
 
-// PUT /api/projects/:id - Update project
-router.put('/:id', authenticateToken, attachOrganization, validate(updateProjectSchema), async (req: AuthRequest, res) => {
+// PUT /api/projects/:id - Update project (requires member role)
+router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateProjectSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
@@ -167,8 +167,8 @@ router.put('/:id', authenticateToken, attachOrganization, validate(updateProject
   }
 });
 
-// DELETE /api/projects/:id - Delete project
-router.delete('/:id', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+// DELETE /api/projects/:id - Delete project (requires admin role)
+router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;

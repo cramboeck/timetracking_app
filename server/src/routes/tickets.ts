@@ -2,7 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { query, getClient } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
-import { attachOrganization, OrganizationRequest } from '../middleware/organization';
+import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { emailService } from '../services/emailService';
 import { sendTicketNotification } from '../services/pushNotifications';
@@ -439,8 +439,8 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
   }
 });
 
-// POST /api/tickets - Create new ticket
-router.post('/', authenticateToken, attachOrganization, async (req, res) => {
+// POST /api/tickets - Create new ticket (requires member role)
+router.post('/', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -498,8 +498,8 @@ router.post('/', authenticateToken, attachOrganization, async (req, res) => {
   }
 });
 
-// PUT /api/tickets/:id - Update ticket
-router.put('/:id', authenticateToken, attachOrganization, async (req, res) => {
+// PUT /api/tickets/:id - Update ticket (requires member role)
+router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -695,8 +695,8 @@ router.put('/:id', authenticateToken, attachOrganization, async (req, res) => {
   }
 });
 
-// DELETE /api/tickets/:id - Delete ticket
-router.delete('/:id', authenticateToken, attachOrganization, async (req, res) => {
+// DELETE /api/tickets/:id - Delete ticket (requires admin role)
+router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -731,8 +731,8 @@ router.delete('/:id', authenticateToken, attachOrganization, async (req, res) =>
   }
 });
 
-// POST /api/tickets/:id/merge - Merge source tickets into target ticket
-router.post('/:id/merge', authenticateToken, attachOrganization, async (req, res) => {
+// POST /api/tickets/:id/merge - Merge source tickets into target ticket (requires admin role)
+router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -906,8 +906,8 @@ router.post('/:id/merge', authenticateToken, attachOrganization, async (req, res
 // TICKET COMMENT ROUTES
 // ============================================================================
 
-// POST /api/tickets/:id/comments - Add comment to ticket
-router.post('/:id/comments', authenticateToken, attachOrganization, async (req, res) => {
+// POST /api/tickets/:id/comments - Add comment to ticket (requires member role)
+router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -1066,8 +1066,8 @@ router.get('/:ticketId/attachments', authenticateToken, attachOrganization, asyn
   }
 });
 
-// POST /api/tickets/:ticketId/attachments - Upload attachments
-router.post('/:ticketId/attachments', authenticateToken, attachOrganization, upload.array('files', 10), async (req, res) => {
+// POST /api/tickets/:ticketId/attachments - Upload attachments (requires member role)
+router.post('/:ticketId/attachments', authenticateToken, attachOrganization, requireOrgRole('member'), upload.array('files', 10), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -1133,8 +1133,8 @@ router.post('/:ticketId/attachments', authenticateToken, attachOrganization, upl
   }
 });
 
-// DELETE /api/tickets/:ticketId/attachments/:attachmentId - Delete attachment
-router.delete('/:ticketId/attachments/:attachmentId', authenticateToken, attachOrganization, async (req, res) => {
+// DELETE /api/tickets/:ticketId/attachments/:attachmentId - Delete attachment (requires admin role)
+router.delete('/:ticketId/attachments/:attachmentId', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2173,8 +2173,8 @@ router.get('/sla/policies', authenticateToken, attachOrganization, async (req, r
   }
 });
 
-// POST /api/tickets/sla/policies - Create SLA policy
-router.post('/sla/policies', authenticateToken, attachOrganization, async (req, res) => {
+// POST /api/tickets/sla/policies - Create SLA policy (requires admin role)
+router.post('/sla/policies', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2226,8 +2226,8 @@ router.post('/sla/policies', authenticateToken, attachOrganization, async (req, 
   }
 });
 
-// PUT /api/tickets/sla/policies/:id - Update SLA policy
-router.put('/sla/policies/:id', authenticateToken, attachOrganization, async (req, res) => {
+// PUT /api/tickets/sla/policies/:id - Update SLA policy (requires admin role)
+router.put('/sla/policies/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2287,8 +2287,8 @@ router.put('/sla/policies/:id', authenticateToken, attachOrganization, async (re
   }
 });
 
-// DELETE /api/tickets/sla/policies/:id - Delete SLA policy
-router.delete('/sla/policies/:id', authenticateToken, attachOrganization, async (req, res) => {
+// DELETE /api/tickets/sla/policies/:id - Delete SLA policy (requires admin role)
+router.delete('/sla/policies/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2524,8 +2524,8 @@ router.get('/:id/tasks', authenticateToken, attachOrganization, async (req, res)
   }
 });
 
-// POST /api/tickets/:id/tasks - Create a new task
-router.post('/:id/tasks', authenticateToken, attachOrganization, async (req, res) => {
+// POST /api/tickets/:id/tasks - Create a new task (requires member role)
+router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2581,8 +2581,8 @@ router.post('/:id/tasks', authenticateToken, attachOrganization, async (req, res
   }
 });
 
-// PUT /api/tickets/:ticketId/tasks/:taskId - Update a task
-router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, async (req, res) => {
+// PUT /api/tickets/:ticketId/tasks/:taskId - Update a task (requires member role)
+router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2689,8 +2689,8 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, as
   }
 });
 
-// PUT /api/tickets/:ticketId/tasks/reorder - Reorder tasks
-router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, async (req, res) => {
+// PUT /api/tickets/:ticketId/tasks/reorder - Reorder tasks (requires member role)
+router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -2732,8 +2732,8 @@ router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, as
   }
 });
 
-// DELETE /api/tickets/:ticketId/tasks/:taskId - Delete a task
-router.delete('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, async (req, res) => {
+// DELETE /api/tickets/:ticketId/tasks/:taskId - Delete a task (requires member role)
+router.delete('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;

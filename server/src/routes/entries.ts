@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
-import { attachOrganization, OrganizationRequest } from '../middleware/organization';
+import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
@@ -76,8 +76,8 @@ router.get('/:id', authenticateToken, attachOrganization, async (req: AuthReques
   }
 });
 
-// POST /api/entries - Create new entry
-router.post('/', authenticateToken, attachOrganization, validate(createEntrySchema), async (req: AuthRequest, res) => {
+// POST /api/entries - Create new entry (requires member role)
+router.post('/', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createEntrySchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
@@ -169,8 +169,8 @@ router.post('/', authenticateToken, attachOrganization, validate(createEntrySche
   }
 });
 
-// PUT /api/entries/:id - Update entry
-router.put('/:id', authenticateToken, attachOrganization, validate(updateEntrySchema), async (req: AuthRequest, res) => {
+// PUT /api/entries/:id - Update entry (requires member role)
+router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateEntrySchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
@@ -291,8 +291,8 @@ router.put('/:id', authenticateToken, attachOrganization, validate(updateEntrySc
   }
 });
 
-// DELETE /api/entries/:id - Delete entry
-router.delete('/:id', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+// DELETE /api/entries/:id - Delete entry (requires member role)
+router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;

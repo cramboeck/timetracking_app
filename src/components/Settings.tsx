@@ -163,6 +163,12 @@ export const Settings = ({
     name: string;
   }>({ isOpen: false, type: null, id: '', name: '' });
 
+  // Role-based permission helpers
+  const userRole = currentOrganization?.user_role;
+  const canEdit = userRole !== 'viewer'; // owner, admin, member can edit
+  const canDelete = userRole === 'owner' || userRole === 'admin'; // only owner/admin can delete
+  const canInvite = userRole === 'owner' || userRole === 'admin'; // only owner/admin can invite
+
   const openCustomerModal = (customer?: Customer) => {
     if (customer) {
       setEditingCustomer(customer);
@@ -676,30 +682,15 @@ export const Settings = ({
     }
   }, [currentUser]);
 
-  // Load organization data
+  // Load organization data on mount (needed for role-based UI)
   useEffect(() => {
-    if (currentUser && activeTab === 'team') {
+    if (currentUser) {
       const loadOrganizationData = async () => {
         try {
           // Load current organization
           const orgResponse = await organizationsApi.getCurrent();
           if (orgResponse.success && orgResponse.data) {
             setCurrentOrganization(orgResponse.data);
-
-            // Load members
-            const membersResponse = await organizationsApi.getMembers(orgResponse.data.id);
-            if (membersResponse.success) {
-              setOrganizationMembers(membersResponse.data);
-            }
-
-            // Load invitations (for owners/admins)
-            const userRole = orgResponse.data.user_role;
-            if (userRole === 'owner' || userRole === 'admin') {
-              const invitationsResponse = await organizationsApi.getInvitations(orgResponse.data.id);
-              if (invitationsResponse.success) {
-                setOrganizationInvitations(invitationsResponse.data);
-              }
-            }
           }
         } catch (error) {
           console.error('Error loading organization data:', error);
@@ -707,7 +698,34 @@ export const Settings = ({
       };
       loadOrganizationData();
     }
-  }, [currentUser, activeTab]);
+  }, [currentUser]);
+
+  // Load team data when team tab is active
+  useEffect(() => {
+    if (currentUser && activeTab === 'team' && currentOrganization) {
+      const loadTeamData = async () => {
+        try {
+          // Load members
+          const membersResponse = await organizationsApi.getMembers(currentOrganization.id);
+          if (membersResponse.success) {
+            setOrganizationMembers(membersResponse.data);
+          }
+
+          // Load invitations (for owners/admins)
+          const userRole = currentOrganization.user_role;
+          if (userRole === 'owner' || userRole === 'admin') {
+            const invitationsResponse = await organizationsApi.getInvitations(currentOrganization.id);
+            if (invitationsResponse.success) {
+              setOrganizationInvitations(invitationsResponse.data);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading team data:', error);
+        }
+      };
+      loadTeamData();
+    }
+  }, [currentUser, activeTab, currentOrganization]);
 
   const handleCreateInvitation = async () => {
     if (!currentOrganization || !newInvitationEmail.trim()) {
@@ -1432,24 +1450,31 @@ export const Settings = ({
           <div className="w-full">
             <div>
                 <div className="flex justify-between items-center mb-6">
-                  <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleImportClick}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      title="CSV importieren"
-                    >
-                      <FileDown size={20} />
-                      Importieren
-                    </button>
-                    <button
-                      onClick={() => openCustomerModal()}
-                      className="flex items-center gap-2 px-4 py-2 btn-accent"
-                    >
-                      <Plus size={20} />
-                      Kunde hinzufügen
-                    </button>
+                  <div className="flex items-center gap-3">
+                    <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
+                    {userRole === 'viewer' && (
+                      <span className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded">Nur Ansicht</span>
+                    )}
                   </div>
+                  {canEdit && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleImportClick}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        title="CSV importieren"
+                      >
+                        <FileDown size={20} />
+                        Importieren
+                      </button>
+                      <button
+                        onClick={() => openCustomerModal()}
+                        className="flex items-center gap-2 px-4 py-2 btn-accent"
+                      >
+                        <Plus size={20} />
+                        Kunde hinzufügen
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Hidden file input for CSV import */}
@@ -1605,20 +1630,24 @@ export const Settings = ({
                                 <UserCog size={18} />
                               </button>
                             )}
-                            <button
-                              onClick={() => openCustomerModal(customer)}
-                              className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
-                              title="Bearbeiten"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCustomer(customer)}
-                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                              title="Löschen"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => openCustomerModal(customer)}
+                                className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                                title="Bearbeiten"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDeleteCustomer(customer)}
+                                className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="Löschen"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1634,15 +1663,22 @@ export const Settings = ({
           <div className="max-w-4xl mx-auto">
             <div>
                 <div className="flex justify-between items-center mb-6">
-                  <p className="text-gray-600 dark:text-dark-400">{projects.length} Projekt(e)</p>
-                  <button
-                    onClick={() => openProjectModal()}
-                    disabled={customers.length === 0}
-                    className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Plus size={20} />
-                    Projekt hinzufügen
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <p className="text-gray-600 dark:text-dark-400">{projects.length} Projekt(e)</p>
+                    {userRole === 'viewer' && (
+                      <span className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded">Nur Ansicht</span>
+                    )}
+                  </div>
+                  {canEdit && (
+                    <button
+                      onClick={() => openProjectModal()}
+                      disabled={customers.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Plus size={20} />
+                      Projekt hinzufügen
+                    </button>
+                  )}
                 </div>
 
                 {customers.length === 0 ? (
@@ -1682,18 +1718,22 @@ export const Settings = ({
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => openProjectModal(project)}
-                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                          >
-                            <Edit2 size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteProject(project)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => openProjectModal(project)}
+                              className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDeleteProject(project)}
+                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1710,24 +1750,31 @@ export const Settings = ({
           <div className="max-w-4xl mx-auto">
             <div>
                 <div className="flex justify-between items-center mb-6">
-                  <p className="text-gray-600 dark:text-dark-400">{activities.length} Tätigkeit(en)</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setTemplateModalOpen(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      title="Aus Vorlage wählen"
-                    >
-                      <ListChecks size={20} />
-                      Aus Vorlage
-                    </button>
-                    <button
-                      onClick={() => openActivityModal()}
-                      className="flex items-center gap-2 px-4 py-2 btn-accent"
-                    >
-                      <Plus size={20} />
-                      Neu erstellen
-                    </button>
+                  <div className="flex items-center gap-3">
+                    <p className="text-gray-600 dark:text-dark-400">{activities.length} Tätigkeit(en)</p>
+                    {userRole === 'viewer' && (
+                      <span className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded">Nur Ansicht</span>
+                    )}
                   </div>
+                  {canEdit && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setTemplateModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        title="Aus Vorlage wählen"
+                      >
+                        <ListChecks size={20} />
+                        Aus Vorlage
+                      </button>
+                      <button
+                        onClick={() => openActivityModal()}
+                        className="flex items-center gap-2 px-4 py-2 btn-accent"
+                      >
+                        <Plus size={20} />
+                        Neu erstellen
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {activities.length === 0 ? (
@@ -1751,20 +1798,24 @@ export const Settings = ({
                             )}
                           </div>
                           <div className="flex gap-2">
-                            <button
-                              onClick={() => openActivityModal(activity)}
-                              className="p-2 text-gray-600 dark:text-dark-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                              title="Bearbeiten"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteActivity(activity)}
-                              className="p-2 text-gray-600 dark:text-dark-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                              title="Löschen"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => openActivityModal(activity)}
+                                className="p-2 text-gray-600 dark:text-dark-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                title="Bearbeiten"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDeleteActivity(activity)}
+                                className="p-2 text-gray-600 dark:text-dark-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="Löschen"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
