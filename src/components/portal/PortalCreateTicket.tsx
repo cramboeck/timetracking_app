@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
 import { customerPortalApi, PortalTicket } from '../../services/api';
+import { MarkdownEditor } from '../MarkdownEditor';
 
 interface PortalCreateTicketProps {
   isOpen: boolean;
@@ -136,12 +137,11 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Beschreibung
             </label>
-            <textarea
+            <MarkdownEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={setDescription}
               placeholder="Beschreiben Sie Ihr Anliegen so detailliert wie möglich..."
               rows={5}
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </form>

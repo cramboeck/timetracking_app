@@ -5,6 +5,8 @@ import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment
 import { ConfirmDialog } from './ConfirmDialog';
 import { SlaStatus } from './SlaStatus';
 import { TicketMergeDialog } from './TicketMergeDialog';
+import { MarkdownEditor } from './MarkdownEditor';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 // Resolution type labels
 const resolutionTypeConfig: Record<TicketResolutionType, { label: string; description: string }> = {
@@ -933,19 +935,19 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Beschreibung
             </label>
-            <textarea
+            <MarkdownEditor
               value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
+              onChange={setEditDescription}
+              placeholder="Beschreibung hinzufügen..."
               rows={4}
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
             />
           </div>
         ) : ticket.description && (
           <div>
             <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Beschreibung</h2>
-            <p className="text-gray-900 dark:text-white whitespace-pre-wrap">
-              {ticket.description}
-            </p>
+            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <MarkdownRenderer content={ticket.description} />
+            </div>
           </div>
         )}
 
@@ -963,9 +965,9 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                 )}
               </h3>
             </div>
-            <p className="text-green-900 dark:text-green-100 whitespace-pre-wrap">
-              {ticket.solution}
-            </p>
+            <div className="text-green-900 dark:text-green-100">
+              <MarkdownRenderer content={ticket.solution} />
+            </div>
           </div>
         )}
 
@@ -1265,22 +1267,21 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                     </span>
                   )}
                 </div>
-                <p className="text-gray-900 dark:text-white whitespace-pre-wrap">
-                  {comment.content}
-                </p>
+                <div className="text-gray-900 dark:text-white">
+                  <MarkdownRenderer content={comment.content} />
+                </div>
               </div>
             ))}
 
             {/* Add Comment */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-              <textarea
+            <div className="space-y-2">
+              <MarkdownEditor
                 value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
+                onChange={setNewComment}
                 placeholder="Kommentar hinzufügen..."
                 rows={3}
-                className="w-full px-0 py-0 bg-transparent text-gray-900 dark:text-white resize-none focus:outline-none"
               />
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                     <input
