@@ -860,92 +860,135 @@ cmd_tickets() {
 # =============================================================================
 
 cmd_security() {
-    local FILTER="$2"
-
     print_header "Security Dashboard"
 
+    # === MFA ÜBERSICHT ===
     print_subheader "MFA Adoption"
     run_query_formatted "
         SELECT
             'App-Benutzer' as \"Typ\",
             COUNT(*) FILTER (WHERE mfa_enabled = true) as \"Mit MFA\",
-            COUNT(*) FILTER (WHERE mfa_enabled = false) as \"Ohne MFA\",
-            ROUND(100.0 * COUNT(*) FILTER (WHERE mfa_enabled = true) / NULLIF(COUNT(*), 0), 1) || '%' as \"Quote\"
+            COUNT(*) FILTER (WHERE mfa_enabled = false OR mfa_enabled IS NULL) as \"Ohne MFA\",
+            COUNT(*) as \"Gesamt\",
+            COALESCE(ROUND(100.0 * COUNT(*) FILTER (WHERE mfa_enabled = true) / NULLIF(COUNT(*), 0), 1), 0) || '%' as \"Quote\"
         FROM users
         UNION ALL
         SELECT
             'Portal-Kontakte' as \"Typ\",
             COUNT(*) FILTER (WHERE mfa_enabled = true) as \"Mit MFA\",
-            COUNT(*) FILTER (WHERE mfa_enabled = false) as \"Ohne MFA\",
-            ROUND(100.0 * COUNT(*) FILTER (WHERE mfa_enabled = true) / NULLIF(COUNT(*), 0), 1) || '%' as \"Quote\"
+            COUNT(*) FILTER (WHERE mfa_enabled = false OR mfa_enabled IS NULL) as \"Ohne MFA\",
+            COUNT(*) as \"Gesamt\",
+            COALESCE(ROUND(100.0 * COUNT(*) FILTER (WHERE mfa_enabled = true) / NULLIF(COUNT(*), 0), 1), 0) || '%' as \"Quote\"
         FROM customer_contacts
         WHERE portal_access = true;
     "
 
-    print_subheader "Aktive Trusted Devices"
+    # === TRUSTED DEVICES ===
+    print_subheader "Vertrauenswürdige Geräte"
     run_query_formatted "
         SELECT
-            'App' as \"Typ\",
-            COUNT(*) as \"Anzahl\"
+            'App-User' as \"Bereich\",
+            COUNT(*) FILTER (WHERE expires_at > NOW()) as \"Aktiv\",
+            COUNT(*) FILTER (WHERE expires_at <= NOW()) as \"Abgelaufen\",
+            COUNT(*) as \"Gesamt\"
         FROM trusted_devices
-        WHERE expires_at > NOW()
         UNION ALL
         SELECT
-            'Portal' as \"Typ\",
-            COUNT(*) as \"Anzahl\"
-        FROM portal_trusted_devices
-        WHERE expires_at > NOW();
+            'Portal-User' as \"Bereich\",
+            COUNT(*) FILTER (WHERE expires_at > NOW()) as \"Aktiv\",
+            COUNT(*) FILTER (WHERE expires_at <= NOW()) as \"Abgelaufen\",
+            COUNT(*) as \"Gesamt\"
+        FROM portal_trusted_devices;
     "
 
-    if [ "$FILTER" == "--failed-logins" ]; then
-        print_subheader "Fehlgeschlagene Logins (letzte 24h)"
+    # === LOGIN-AKTIVITÄT ===
+    print_subheader "Login-Aktivität (letzte 7 Tage)"
+    run_query_formatted "
+        SELECT
+            action as \"Aktion\",
+            COUNT(*) as \"Anzahl\",
+            COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as \"Heute\"
+        FROM mfa_audit_log
+        WHERE created_at > NOW() - INTERVAL '7 days'
+        GROUP BY action
+        ORDER BY COUNT(*) DESC;
+    "
+
+    # === LETZTE LOGINS ===
+    print_subheader "Letzte erfolgreiche Logins"
+    run_query_formatted "
+        SELECT
+            u.username as \"User\",
+            TO_CHAR(u.last_login, 'YYYY-MM-DD HH24:MI') as \"Letzter Login\",
+            CASE
+                WHEN u.last_login > NOW() - INTERVAL '1 day' THEN '🟢 Heute'
+                WHEN u.last_login > NOW() - INTERVAL '7 days' THEN '🟡 Diese Woche'
+                WHEN u.last_login > NOW() - INTERVAL '30 days' THEN '🟠 Dieser Monat'
+                ELSE '🔴 >30 Tage'
+            END as \"Status\"
+        FROM users u
+        ORDER BY u.last_login DESC NULLS LAST
+        LIMIT 10;
+    "
+
+    # === FEHLGESCHLAGENE LOGINS ===
+    print_subheader "Fehlgeschlagene Logins (letzte 24h)"
+    local FAILED_COUNT=$(run_query "
+        SELECT COUNT(*)
+        FROM mfa_audit_log
+        WHERE action IN ('login_failed', 'mfa_failed', 'rate_limited')
+          AND created_at > NOW() - INTERVAL '24 hours';
+    ")
+
+    if [ "$FAILED_COUNT" -gt 0 ] 2>/dev/null; then
+        print_warning "$FAILED_COUNT fehlgeschlagene Login-Versuche in den letzten 24h"
         run_query_formatted "
             SELECT
-                TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as \"Zeit\",
-                action as \"Aktion\",
-                ip_address as \"IP\",
-                LEFT(details, 40) as \"Details\"
+                TO_CHAR(created_at, 'HH24:MI') as \"Zeit\",
+                action as \"Typ\",
+                ip_address as \"IP-Adresse\",
+                LEFT(COALESCE(details::text, '-'), 50) as \"Details\"
             FROM mfa_audit_log
             WHERE action IN ('login_failed', 'mfa_failed', 'rate_limited')
               AND created_at > NOW() - INTERVAL '24 hours'
             ORDER BY created_at DESC
-            LIMIT 20;
+            LIMIT 10;
         "
+    else
+        print_success "Keine fehlgeschlagenen Logins in den letzten 24h"
     fi
 
-    if [ "$FILTER" == "--alerts" ]; then
-        print_subheader "Security Alerts"
-        run_query_formatted "
-            SELECT
-                TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as \"Zeit\",
-                alert_type as \"Typ\",
-                severity as \"Schwere\",
-                LEFT(message, 40) as \"Nachricht\",
-                resolved as \"Gelöst\"
-            FROM security_alerts
-            ORDER BY created_at DESC
-            LIMIT 20;
-        " 2>/dev/null || print_warning "Tabelle security_alerts existiert nicht"
+    # === RATE LIMITING ===
+    print_subheader "Rate Limiting Status"
+    local RATE_LIMITED=$(run_query "
+        SELECT COUNT(DISTINCT ip_address)
+        FROM mfa_audit_log
+        WHERE action = 'rate_limited'
+          AND created_at > NOW() - INTERVAL '1 hour';
+    ")
+
+    if [ "$RATE_LIMITED" -gt 0 ] 2>/dev/null; then
+        print_warning "$RATE_LIMITED IP-Adressen in der letzten Stunde rate-limited"
+    else
+        print_success "Keine aktiven Rate-Limits"
     fi
 
-    print_subheader "MFA Audit Log (letzte 10)"
+    # === AUDIT LOG ZUSAMMENFASSUNG ===
+    print_subheader "Letzte Security-Events"
     run_query_formatted "
         SELECT
-            TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as \"Zeit\",
-            action as \"Aktion\",
-            COALESCE(u.username, 'Portal-User') as \"User\",
-            ip_address as \"IP\"
+            TO_CHAR(mal.created_at, 'MM-DD HH24:MI') as \"Zeit\",
+            mal.action as \"Aktion\",
+            COALESCE(u.username, cc.name, 'System') as \"User\",
+            mal.ip_address as \"IP\"
         FROM mfa_audit_log mal
         LEFT JOIN users u ON mal.user_id = u.id
-        ORDER BY created_at DESC
-        LIMIT 10;
+        LEFT JOIN customer_contacts cc ON mal.contact_id = cc.id
+        ORDER BY mal.created_at DESC
+        LIMIT 15;
     "
 
     echo ""
-    print_info "Verwendung:"
-    echo "  $0 security                 - Übersicht"
-    echo "  $0 security --failed-logins - Fehlgeschlagene Logins"
-    echo "  $0 security --alerts        - Security Alerts"
 }
 
 # =============================================================================
@@ -1087,9 +1130,8 @@ cmd_help() {
     echo "  tickets --tasks                   Offene Aufgaben anzeigen"
     echo ""
     echo -e "${YELLOW}── Security ──${NC}"
-    echo "  security                          Security-Dashboard"
-    echo "  security --failed-logins          Fehlgeschlagene Logins"
-    echo "  security --alerts                 Security-Alerts"
+    echo "  security                          Vollständiges Security-Dashboard"
+    echo "                                    (MFA, Logins, Rate-Limits, Events)"
     echo ""
     echo -e "${YELLOW}── Backup & Restore ──${NC}"
     echo "  backup                            Backup erstellen"
