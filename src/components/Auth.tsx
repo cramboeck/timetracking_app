@@ -179,17 +179,24 @@ export const Auth = () => {
 
     setIsLoading(true);
 
+    // Check for pending invitation from localStorage (from /join/:code flow)
+    const pendingInvitation = localStorage.getItem('pending_invitation');
+    const effectiveInviteCode = pendingInvitation || registerInviteCode.trim() || undefined;
+
     const result = await register({
       username: registerUsername,
       email: registerEmail,
       password: registerPassword,
       accountType: registerAccountType,
       organizationName: registerOrganizationName.trim() || undefined,
-      inviteCode: registerInviteCode.trim() || undefined
+      inviteCode: effectiveInviteCode
     });
 
     if (!result.success) {
       setError(result.message || 'Registrierung fehlgeschlagen');
+    } else if (pendingInvitation) {
+      // Clear pending invitation after successful registration with it
+      localStorage.removeItem('pending_invitation');
     }
 
     setIsLoading(false);
