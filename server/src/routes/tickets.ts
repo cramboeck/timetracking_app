@@ -5,6 +5,7 @@ import { authenticateToken } from '../middleware/auth';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { emailService } from '../services/emailService';
 import { sendTicketNotification } from '../services/pushNotifications';
+import { auditLog } from '../services/auditLog';
 
 const router = express.Router();
 
@@ -467,6 +468,13 @@ router.post('/', authenticateToken, async (req, res) => {
     // Log activity
     await logTicketActivity(id, userId, null, 'created', null, null, { ticketNumber, title, priority });
 
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket.create',
+      details: JSON.stringify({ ticketId: id, ticketNumber, title, customerId, priority }),
+    });
+
     // Get with joined data
     const ticketResult = await query(`
       SELECT t.*, c.name as customer_name, p.name as project_name
@@ -592,6 +600,16 @@ router.put('/:id', authenticateToken, async (req, res) => {
       else if (oldValues.status === 'closed' || oldValues.status === 'resolved') actionType = 'reopened';
       await logTicketActivity(id, userId, null, actionType, oldValues.status, status);
 
+      // Audit log for status change
+      const auditAction = status === 'closed' ? 'ticket.close' :
+                          (oldValues.status === 'closed' || oldValues.status === 'resolved') ? 'ticket.reopen' :
+                          'ticket.status_change';
+      await auditLog.log({
+        userId,
+        action: auditAction,
+        details: JSON.stringify({ ticketId: id, oldStatus: oldValues.status, newStatus: status }),
+      });
+
       // Send email notification for status change (except archived)
       if (status !== 'archived') {
         const contactInfo = await query(`
@@ -618,6 +636,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
     if (priority !== undefined && priority !== oldValues.priority) {
       await logTicketActivity(id, userId, null, 'priority_changed', oldValues.priority, priority);
+      await auditLog.log({
+        userId,
+        action: 'ticket.priority_change',
+        details: JSON.stringify({ ticketId: id, oldPriority: oldValues.priority, newPriority: priority }),
+      });
     }
     if (title !== undefined && title !== oldValues.title) {
       await logTicketActivity(id, userId, null, 'title_changed', oldValues.title, title);
@@ -631,6 +654,20 @@ router.put('/:id', authenticateToken, async (req, res) => {
       } else {
         await logTicketActivity(id, userId, null, 'unassigned', oldValues.assigned_to_user_id, null);
       }
+      await auditLog.log({
+        userId,
+        action: 'ticket.assign',
+        details: JSON.stringify({ ticketId: id, oldAssignee: oldValues.assigned_to_user_id, newAssignee: assignedToUserId }),
+      });
+    }
+
+    // General update audit log (for other changes like title, description)
+    if (title !== undefined || description !== undefined) {
+      await auditLog.log({
+        userId,
+        action: 'ticket.update',
+        details: JSON.stringify({ ticketId: id, fieldsUpdated: { title: title !== undefined, description: description !== undefined } }),
+      });
     }
 
     // Get with joined data
@@ -655,14 +692,26 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     const userId = (req as any).user.id;
     const { id } = req.params;
 
-    const result = await query(
-      'DELETE FROM tickets WHERE id = $1 AND user_id = $2 RETURNING id',
+    // Get ticket info for audit log before deleting
+    const ticketInfo = await query(
+      'SELECT ticket_number, title FROM tickets WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
-    if (result.rows.length === 0) {
+    if (ticketInfo.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
+
+    const { ticket_number, title } = ticketInfo.rows[0];
+
+    await query('DELETE FROM tickets WHERE id = $1', [id]);
+
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket.delete',
+      details: JSON.stringify({ ticketId: id, ticketNumber: ticket_number, title }),
+    });
 
     res.json({ success: true, message: 'Ticket deleted' });
   } catch (error) {
@@ -807,6 +856,18 @@ router.post('/:id/merge', authenticateToken, async (req, res) => {
       merged_count: mergedCount
     });
 
+    // Audit log for merge
+    await auditLog.log({
+      userId,
+      action: 'ticket.merge',
+      details: JSON.stringify({
+        targetTicketId: targetId,
+        targetTicketNumber: targetTicket.ticket_number,
+        sourceTickets: sourceTickets.map((t: any) => ({ id: t.id, ticketNumber: t.ticket_number })),
+        mergedCount
+      }),
+    });
+
     // Return updated target ticket
     const ticketResult = await query(`
       SELECT t.*, c.name as customer_name, p.name as project_name
@@ -911,6 +972,13 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
       null,
       { commentId }
     );
+
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket_comment.create',
+      details: JSON.stringify({ ticketId, commentId, isInternal }),
+    });
 
     // Get comment with author info
     const result = await query(`
@@ -1033,6 +1101,13 @@ router.post('/:ticketId/attachments', authenticateToken, upload.array('files', 1
     // Log activity
     await logTicketActivity(ticketId, userId, null, 'attachment_added', null, null, { count: files.length });
 
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket_attachment.upload',
+      details: JSON.stringify({ ticketId, attachmentCount: files.length, filenames: files.map(f => f.originalname) }),
+    });
+
     res.status(201).json({ success: true, data: attachments });
   } catch (error) {
     console.error('Upload attachments error:', error);
@@ -1073,6 +1148,13 @@ router.delete('/:ticketId/attachments/:attachmentId', authenticateToken, async (
 
     // Delete from database
     await query('DELETE FROM ticket_attachments WHERE id = $1', [attachmentId]);
+
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket_attachment.delete',
+      details: JSON.stringify({ ticketId, attachmentId, filename: attachment.filename }),
+    });
 
     res.json({ success: true, message: 'Attachment deleted' });
   } catch (error) {
@@ -1736,6 +1818,13 @@ router.post('/:ticketId/tags/:tagId', authenticateToken, async (req, res) => {
     // Log activity
     if (tagName) {
       await logTicketActivity(ticketId, userId, null, 'tag_added', null, tagName, { tagId });
+
+      // Audit log
+      await auditLog.log({
+        userId,
+        action: 'ticket_tag.add',
+        details: JSON.stringify({ ticketId, tagId, tagName }),
+      });
     }
 
     // Return all tags for this ticket
@@ -1782,6 +1871,13 @@ router.delete('/:ticketId/tags/:tagId', authenticateToken, async (req, res) => {
     // Log activity
     if (tagName) {
       await logTicketActivity(ticketId, userId, null, 'tag_removed', tagName, null, { tagId });
+
+      // Audit log
+      await auditLog.log({
+        userId,
+        action: 'ticket_tag.remove',
+        details: JSON.stringify({ ticketId, tagId, tagName }),
+      });
     }
 
     // Return remaining tags for this ticket
@@ -2067,6 +2163,13 @@ router.post('/sla/policies', authenticateToken, async (req, res) => {
       RETURNING *
     `, [id, userId, name, description || null, priority, firstResponseMinutes, resolutionMinutes, businessHoursOnly, isDefault]);
 
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'sla_policy.create',
+      details: JSON.stringify({ policyId: id, name, priority, firstResponseMinutes, resolutionMinutes }),
+    });
+
     res.status(201).json({ success: true, data: transformSlaPolicy(result.rows[0]) });
   } catch (error) {
     console.error('Error creating SLA policy:', error);
@@ -2119,6 +2222,13 @@ router.put('/sla/policies/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'SLA policy not found' });
     }
 
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'sla_policy.update',
+      details: JSON.stringify({ policyId: id, updatedFields: { name, description, priority, firstResponseMinutes, resolutionMinutes, isActive, isDefault } }),
+    });
+
     res.json({ success: true, data: transformSlaPolicy(result.rows[0]) });
   } catch (error) {
     console.error('Error updating SLA policy:', error);
@@ -2132,14 +2242,26 @@ router.delete('/sla/policies/:id', authenticateToken, async (req, res) => {
     const userId = (req as any).user.id;
     const { id } = req.params;
 
-    const result = await query(
-      'DELETE FROM sla_policies WHERE id = $1 AND user_id = $2 RETURNING id',
+    // Get policy info for audit log before deleting
+    const policyInfo = await query(
+      'SELECT name FROM sla_policies WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
-    if (result.rows.length === 0) {
+    if (policyInfo.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'SLA policy not found' });
     }
+
+    const policyName = policyInfo.rows[0].name;
+
+    await query('DELETE FROM sla_policies WHERE id = $1', [id]);
+
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'sla_policy.delete',
+      details: JSON.stringify({ policyId: id, policyName }),
+    });
 
     res.json({ success: true, message: 'SLA policy deleted' });
   } catch (error) {
@@ -2207,6 +2329,13 @@ router.post('/sla/apply/:ticketId', authenticateToken, async (req, res) => {
         resolution_due_at = $3
       WHERE id = $4
     `, [deadlines.policyId, deadlines.firstResponseDueAt, deadlines.resolutionDueAt, ticketId]);
+
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'sla_policy.apply',
+      details: JSON.stringify({ ticketId, policyId: deadlines.policyId }),
+    });
 
     res.json({ success: true, data: deadlines });
   } catch (error) {
@@ -2379,6 +2508,13 @@ router.post('/:id/tasks', authenticateToken, async (req, res) => {
     // Log activity
     await logTicketActivity(ticketId, userId, null, 'task_added', null, title.trim(), { taskId });
 
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket_task.create',
+      details: JSON.stringify({ ticketId, taskId, title: title.trim() }),
+    });
+
     res.status(201).json({ success: true, data: transformTask(result.rows[0]) });
   } catch (error) {
     console.error('Error creating ticket task:', error);
@@ -2469,6 +2605,20 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, async (req, res) => {
         oldTask.title,
         { taskId }
       );
+
+      // Audit log for task completion
+      await auditLog.log({
+        userId,
+        action: completed ? 'ticket_task.complete' : 'ticket_task.update',
+        details: JSON.stringify({ ticketId, taskId, taskTitle: oldTask.title, completed }),
+      });
+    } else if (title !== undefined) {
+      // Audit log for other updates
+      await auditLog.log({
+        userId,
+        action: 'ticket_task.update',
+        details: JSON.stringify({ ticketId, taskId, oldTitle: oldTask.title, newTitle: title }),
+      });
     }
 
     res.json({ success: true, data: transformTask(result.rows[0]) });
@@ -2553,6 +2703,13 @@ router.delete('/:ticketId/tasks/:taskId', authenticateToken, async (req, res) =>
 
     // Log activity
     await logTicketActivity(ticketId, userId, null, 'task_deleted', null, taskInfo.rows[0].title, { taskId });
+
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket_task.delete',
+      details: JSON.stringify({ ticketId, taskId, taskTitle: taskInfo.rows[0].title }),
+    });
 
     res.json({ success: true });
   } catch (error) {
