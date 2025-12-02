@@ -75,7 +75,18 @@ run_query() {
 
 # Execute SQL query with formatted output
 run_query_formatted() {
+    docker exec "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" -c "$1" 2>&1
+}
+
+# Execute SQL query with formatted output (silent errors)
+run_query_silent() {
     docker exec "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" -c "$1" 2>/dev/null
+}
+
+# Check if table exists
+table_exists() {
+    local result=$(run_query "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '$1');")
+    [ "$result" = "t" ]
 }
 
 # =============================================================================
@@ -862,131 +873,97 @@ cmd_tickets() {
 cmd_security() {
     print_header "Security Dashboard"
 
+    # === BENUTZER-ÜBERSICHT ===
+    print_subheader "Benutzer-Status"
+    run_query_formatted "
+        SELECT
+            username as \"User\",
+            email as \"Email\",
+            CASE WHEN mfa_enabled THEN '✅' ELSE '❌' END as \"MFA\",
+            account_type as \"Typ\",
+            TO_CHAR(last_login, 'YYYY-MM-DD HH24:MI') as \"Letzter Login\"
+        FROM users
+        ORDER BY last_login DESC NULLS LAST;
+    "
+
     # === MFA ÜBERSICHT ===
     print_subheader "MFA Adoption"
     run_query_formatted "
         SELECT
             'App-Benutzer' as \"Typ\",
             COUNT(*) FILTER (WHERE mfa_enabled = true) as \"Mit MFA\",
-            COUNT(*) FILTER (WHERE mfa_enabled = false OR mfa_enabled IS NULL) as \"Ohne MFA\",
-            COUNT(*) as \"Gesamt\",
-            COALESCE(ROUND(100.0 * COUNT(*) FILTER (WHERE mfa_enabled = true) / NULLIF(COUNT(*), 0), 1), 0) || '%' as \"Quote\"
-        FROM users
-        UNION ALL
+            COUNT(*) FILTER (WHERE COALESCE(mfa_enabled, false) = false) as \"Ohne MFA\",
+            COUNT(*) as \"Gesamt\"
+        FROM users;
+    "
+
+    # Portal-Kontakte separat (falls Tabelle existiert)
+    run_query_silent "
         SELECT
             'Portal-Kontakte' as \"Typ\",
             COUNT(*) FILTER (WHERE mfa_enabled = true) as \"Mit MFA\",
-            COUNT(*) FILTER (WHERE mfa_enabled = false OR mfa_enabled IS NULL) as \"Ohne MFA\",
-            COUNT(*) as \"Gesamt\",
-            COALESCE(ROUND(100.0 * COUNT(*) FILTER (WHERE mfa_enabled = true) / NULLIF(COUNT(*), 0), 1), 0) || '%' as \"Quote\"
+            COUNT(*) FILTER (WHERE COALESCE(mfa_enabled, false) = false) as \"Ohne MFA\",
+            COUNT(*) as \"Gesamt\"
         FROM customer_contacts
         WHERE portal_access = true;
     "
 
     # === TRUSTED DEVICES ===
     print_subheader "Vertrauenswürdige Geräte"
-    run_query_formatted "
-        SELECT
-            'App-User' as \"Bereich\",
-            COUNT(*) FILTER (WHERE expires_at > NOW()) as \"Aktiv\",
-            COUNT(*) FILTER (WHERE expires_at <= NOW()) as \"Abgelaufen\",
-            COUNT(*) as \"Gesamt\"
-        FROM trusted_devices
-        UNION ALL
-        SELECT
-            'Portal-User' as \"Bereich\",
-            COUNT(*) FILTER (WHERE expires_at > NOW()) as \"Aktiv\",
-            COUNT(*) FILTER (WHERE expires_at <= NOW()) as \"Abgelaufen\",
-            COUNT(*) as \"Gesamt\"
-        FROM portal_trusted_devices;
-    "
-
-    # === LOGIN-AKTIVITÄT ===
-    print_subheader "Login-Aktivität (letzte 7 Tage)"
-    run_query_formatted "
-        SELECT
-            action as \"Aktion\",
-            COUNT(*) as \"Anzahl\",
-            COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as \"Heute\"
-        FROM mfa_audit_log
-        WHERE created_at > NOW() - INTERVAL '7 days'
-        GROUP BY action
-        ORDER BY COUNT(*) DESC;
-    "
-
-    # === LETZTE LOGINS ===
-    print_subheader "Letzte erfolgreiche Logins"
-    run_query_formatted "
-        SELECT
-            u.username as \"User\",
-            TO_CHAR(u.last_login, 'YYYY-MM-DD HH24:MI') as \"Letzter Login\",
-            CASE
-                WHEN u.last_login > NOW() - INTERVAL '1 day' THEN '🟢 Heute'
-                WHEN u.last_login > NOW() - INTERVAL '7 days' THEN '🟡 Diese Woche'
-                WHEN u.last_login > NOW() - INTERVAL '30 days' THEN '🟠 Dieser Monat'
-                ELSE '🔴 >30 Tage'
-            END as \"Status\"
-        FROM users u
-        ORDER BY u.last_login DESC NULLS LAST
-        LIMIT 10;
-    "
-
-    # === FEHLGESCHLAGENE LOGINS ===
-    print_subheader "Fehlgeschlagene Logins (letzte 24h)"
-    local FAILED_COUNT=$(run_query "
-        SELECT COUNT(*)
-        FROM mfa_audit_log
-        WHERE action IN ('login_failed', 'mfa_failed', 'rate_limited')
-          AND created_at > NOW() - INTERVAL '24 hours';
-    ")
-
-    if [ "$FAILED_COUNT" -gt 0 ] 2>/dev/null; then
-        print_warning "$FAILED_COUNT fehlgeschlagene Login-Versuche in den letzten 24h"
+    if table_exists "trusted_devices"; then
         run_query_formatted "
             SELECT
-                TO_CHAR(created_at, 'HH24:MI') as \"Zeit\",
-                action as \"Typ\",
-                ip_address as \"IP-Adresse\",
-                LEFT(COALESCE(details::text, '-'), 50) as \"Details\"
-            FROM mfa_audit_log
-            WHERE action IN ('login_failed', 'mfa_failed', 'rate_limited')
-              AND created_at > NOW() - INTERVAL '24 hours'
-            ORDER BY created_at DESC
-            LIMIT 10;
+                'App-User' as \"Bereich\",
+                COUNT(*) FILTER (WHERE expires_at > NOW()) as \"Aktiv\",
+                COUNT(*) FILTER (WHERE expires_at <= NOW()) as \"Abgelaufen\"
+            FROM trusted_devices;
         "
     else
-        print_success "Keine fehlgeschlagenen Logins in den letzten 24h"
+        print_warning "Tabelle trusted_devices nicht vorhanden"
     fi
 
-    # === RATE LIMITING ===
-    print_subheader "Rate Limiting Status"
-    local RATE_LIMITED=$(run_query "
-        SELECT COUNT(DISTINCT ip_address)
-        FROM mfa_audit_log
-        WHERE action = 'rate_limited'
-          AND created_at > NOW() - INTERVAL '1 hour';
-    ")
+    if table_exists "portal_trusted_devices"; then
+        run_query_silent "
+            SELECT
+                'Portal-User' as \"Bereich\",
+                COUNT(*) FILTER (WHERE expires_at > NOW()) as \"Aktiv\",
+                COUNT(*) FILTER (WHERE expires_at <= NOW()) as \"Abgelaufen\"
+            FROM portal_trusted_devices;
+        "
+    fi
 
-    if [ "$RATE_LIMITED" -gt 0 ] 2>/dev/null; then
-        print_warning "$RATE_LIMITED IP-Adressen in der letzten Stunde rate-limited"
+    # === LOGIN-AKTIVITÄT ===
+    print_subheader "Login-Aktivität"
+    if table_exists "mfa_audit_log"; then
+        run_query_formatted "
+            SELECT
+                action as \"Aktion\",
+                COUNT(*) as \"Gesamt (7 Tage)\",
+                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as \"Heute\"
+            FROM mfa_audit_log
+            WHERE created_at > NOW() - INTERVAL '7 days'
+            GROUP BY action
+            ORDER BY COUNT(*) DESC;
+        "
+
+        # Fehlgeschlagene Logins
+        local FAILED_COUNT=$(run_query "
+            SELECT COUNT(*)
+            FROM mfa_audit_log
+            WHERE action IN ('login_failed', 'mfa_failed', 'rate_limited')
+              AND created_at > NOW() - INTERVAL '24 hours';
+        ")
+
+        if [ -n "$FAILED_COUNT" ] && [ "$FAILED_COUNT" -gt 0 ] 2>/dev/null; then
+            echo ""
+            print_warning "$FAILED_COUNT fehlgeschlagene Login-Versuche in den letzten 24h"
+        else
+            echo ""
+            print_success "Keine fehlgeschlagenen Logins in den letzten 24h"
+        fi
     else
-        print_success "Keine aktiven Rate-Limits"
+        print_warning "Tabelle mfa_audit_log nicht vorhanden"
     fi
-
-    # === AUDIT LOG ZUSAMMENFASSUNG ===
-    print_subheader "Letzte Security-Events"
-    run_query_formatted "
-        SELECT
-            TO_CHAR(mal.created_at, 'MM-DD HH24:MI') as \"Zeit\",
-            mal.action as \"Aktion\",
-            COALESCE(u.username, cc.name, 'System') as \"User\",
-            mal.ip_address as \"IP\"
-        FROM mfa_audit_log mal
-        LEFT JOIN users u ON mal.user_id = u.id
-        LEFT JOIN customer_contacts cc ON mal.contact_id = cc.id
-        ORDER BY mal.created_at DESC
-        LIMIT 15;
-    "
 
     echo ""
 }
@@ -1086,6 +1063,187 @@ EOF
 }
 
 # =============================================================================
+# NEW: User Management (delete/deactivate)
+# =============================================================================
+
+cmd_user() {
+    local ACTION="$2"
+    local USER_EMAIL="$3"
+
+    if [ -z "$ACTION" ]; then
+        print_header "Benutzer-Verwaltung"
+
+        run_query_formatted "
+            SELECT
+                username as \"Username\",
+                email as \"Email\",
+                account_type as \"Typ\",
+                CASE WHEN mfa_enabled THEN '✅' ELSE '❌' END as \"MFA\",
+                TO_CHAR(created_at, 'YYYY-MM-DD') as \"Erstellt\",
+                TO_CHAR(last_login, 'YYYY-MM-DD HH24:MI') as \"Letzter Login\"
+            FROM users
+            ORDER BY created_at DESC;
+        "
+
+        echo ""
+        print_info "Verwendung:"
+        echo "  $0 user list                      Alle Benutzer anzeigen"
+        echo "  $0 user show <email>              Benutzer-Details"
+        echo "  $0 user delete <email>            Benutzer löschen"
+        return
+    fi
+
+    case "$ACTION" in
+        list)
+            print_header "Alle Benutzer"
+            run_query_formatted "
+                SELECT
+                    username as \"Username\",
+                    email as \"Email\",
+                    account_type as \"Typ\",
+                    CASE WHEN mfa_enabled THEN '✅' ELSE '❌' END as \"MFA\",
+                    TO_CHAR(created_at, 'YYYY-MM-DD') as \"Erstellt\",
+                    TO_CHAR(last_login, 'YYYY-MM-DD HH24:MI') as \"Letzter Login\"
+                FROM users
+                ORDER BY created_at DESC;
+            "
+            ;;
+
+        show)
+            if [ -z "$USER_EMAIL" ]; then
+                print_error "Bitte Email angeben: $0 user show <email>"
+                exit 1
+            fi
+
+            print_header "Benutzer-Details: $USER_EMAIL"
+
+            # User info
+            USER_EXISTS=$(run_query "SELECT COUNT(*) FROM users WHERE LOWER(email) = LOWER('$USER_EMAIL');")
+            if [ "$USER_EXISTS" -eq 0 ]; then
+                print_error "Benutzer nicht gefunden: $USER_EMAIL"
+                exit 1
+            fi
+
+            run_query_formatted "
+                SELECT
+                    username as \"Username\",
+                    email as \"Email\",
+                    account_type as \"Account-Typ\",
+                    organization_name as \"Organisation\",
+                    role as \"Rolle\",
+                    CASE WHEN mfa_enabled THEN 'Ja' ELSE 'Nein' END as \"MFA aktiv\",
+                    TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as \"Erstellt\",
+                    TO_CHAR(last_login, 'YYYY-MM-DD HH24:MI') as \"Letzter Login\"
+                FROM users
+                WHERE LOWER(email) = LOWER('$USER_EMAIL');
+            "
+
+            # Feature packages
+            print_subheader "Feature-Pakete"
+            run_query_formatted "
+                SELECT
+                    fp.package_name as \"Paket\",
+                    CASE WHEN fp.enabled THEN '✅' ELSE '❌' END as \"Aktiv\",
+                    TO_CHAR(fp.enabled_at, 'YYYY-MM-DD') as \"Aktiviert am\"
+                FROM feature_packages fp
+                JOIN users u ON fp.user_id = u.id
+                WHERE LOWER(u.email) = LOWER('$USER_EMAIL');
+            "
+
+            # Time entries count
+            print_subheader "Statistiken"
+            run_query_formatted "
+                SELECT
+                    (SELECT COUNT(*) FROM time_entries te JOIN users u ON te.user_id = u.id WHERE LOWER(u.email) = LOWER('$USER_EMAIL')) as \"Zeiteinträge\",
+                    (SELECT COUNT(*) FROM tickets t JOIN users u ON t.created_by = u.id WHERE LOWER(u.email) = LOWER('$USER_EMAIL')) as \"Tickets erstellt\",
+                    (SELECT COUNT(*) FROM customers c JOIN users u ON c.user_id = u.id WHERE LOWER(u.email) = LOWER('$USER_EMAIL')) as \"Kunden\",
+                    (SELECT COUNT(*) FROM projects p JOIN users u ON p.user_id = u.id WHERE LOWER(u.email) = LOWER('$USER_EMAIL')) as \"Projekte\";
+            "
+            ;;
+
+        delete)
+            if [ -z "$USER_EMAIL" ]; then
+                print_error "Bitte Email angeben: $0 user delete <email>"
+                exit 1
+            fi
+
+            print_header "Benutzer löschen: $USER_EMAIL"
+
+            # Check if user exists
+            USER_INFO=$(run_query "SELECT username || ' (' || email || ')' FROM users WHERE LOWER(email) = LOWER('$USER_EMAIL');")
+            if [ -z "$USER_INFO" ]; then
+                print_error "Benutzer nicht gefunden: $USER_EMAIL"
+                exit 1
+            fi
+
+            print_info "Gefunden: $USER_INFO"
+
+            # Show what will be deleted
+            echo ""
+            print_warning "Folgende Daten werden gelöscht:"
+
+            TIME_COUNT=$(run_query "SELECT COUNT(*) FROM time_entries te JOIN users u ON te.user_id = u.id WHERE LOWER(u.email) = LOWER('$USER_EMAIL');")
+            TICKET_COUNT=$(run_query "SELECT COUNT(*) FROM tickets t JOIN users u ON t.created_by = u.id WHERE LOWER(u.email) = LOWER('$USER_EMAIL');")
+            CUSTOMER_COUNT=$(run_query "SELECT COUNT(*) FROM customers c JOIN users u ON c.user_id = u.id WHERE LOWER(u.email) = LOWER('$USER_EMAIL');")
+            PROJECT_COUNT=$(run_query "SELECT COUNT(*) FROM projects p JOIN users u ON p.user_id = u.id WHERE LOWER(u.email) = LOWER('$USER_EMAIL');")
+
+            echo "  - $TIME_COUNT Zeiteinträge"
+            echo "  - $TICKET_COUNT Tickets"
+            echo "  - $CUSTOMER_COUNT Kunden"
+            echo "  - $PROJECT_COUNT Projekte"
+            echo ""
+
+            print_error "⚠️  DIESE AKTION KANN NICHT RÜCKGÄNGIG GEMACHT WERDEN!"
+            echo ""
+            read -p "Benutzer wirklich löschen? Tippe 'LÖSCHEN' zur Bestätigung: " CONFIRM
+
+            if [ "$CONFIRM" != "LÖSCHEN" ]; then
+                print_info "Abgebrochen."
+                exit 0
+            fi
+
+            # Get user ID first
+            USER_ID=$(run_query "SELECT id FROM users WHERE LOWER(email) = LOWER('$USER_EMAIL');")
+
+            # Delete in correct order (respecting foreign keys)
+            print_info "Lösche Daten..."
+
+            run_query "DELETE FROM time_entries WHERE user_id = '$USER_ID';"
+            run_query "DELETE FROM feature_packages WHERE user_id = '$USER_ID';"
+            run_query "DELETE FROM trusted_devices WHERE user_id = '$USER_ID';"
+
+            # Delete tickets and related data
+            run_query "DELETE FROM ticket_tasks WHERE ticket_id IN (SELECT id FROM tickets WHERE created_by = '$USER_ID');"
+            run_query "DELETE FROM ticket_comments WHERE ticket_id IN (SELECT id FROM tickets WHERE created_by = '$USER_ID');"
+            run_query "DELETE FROM ticket_attachments WHERE ticket_id IN (SELECT id FROM tickets WHERE created_by = '$USER_ID');"
+            run_query "DELETE FROM ticket_activities WHERE ticket_id IN (SELECT id FROM tickets WHERE created_by = '$USER_ID');"
+            run_query "DELETE FROM tickets WHERE created_by = '$USER_ID';"
+
+            # Delete projects
+            run_query "DELETE FROM projects WHERE user_id = '$USER_ID';"
+
+            # Delete customer contacts and customers
+            run_query "DELETE FROM customer_contacts WHERE customer_id IN (SELECT id FROM customers WHERE user_id = '$USER_ID');"
+            run_query "DELETE FROM customers WHERE user_id = '$USER_ID';"
+
+            # Finally delete user
+            run_query "DELETE FROM users WHERE id = '$USER_ID';"
+
+            print_success "Benutzer $USER_INFO wurde gelöscht."
+            ;;
+
+        *)
+            print_error "Unbekannte Aktion: $ACTION"
+            echo ""
+            echo "Verfügbare Aktionen:"
+            echo "  list                  Alle Benutzer anzeigen"
+            echo "  show <email>          Benutzer-Details"
+            echo "  delete <email>        Benutzer löschen"
+            ;;
+    esac
+}
+
+# =============================================================================
 # Help
 # =============================================================================
 
@@ -1104,6 +1262,9 @@ cmd_help() {
     echo "  query \"SQL\"                       SQL-Query ausführen"
     echo ""
     echo -e "${YELLOW}── Benutzerverwaltung ──${NC}"
+    echo "  user                              Benutzer-Übersicht"
+    echo "  user show <email>                 Benutzer-Details anzeigen"
+    echo "  user delete <email>               Benutzer und alle Daten löschen"
     echo "  reset-password <user> [pass]      App-Passwort zurücksetzen"
     echo "  portal-reset <email> [pass]       Portal-Passwort zurücksetzen"
     echo ""
@@ -1165,6 +1326,7 @@ fi
 case "$COMMAND" in
     psql)           cmd_psql ;;
     users)          cmd_users ;;
+    user)           cmd_user "$@" ;;
     stats)          cmd_stats ;;
     audit)          cmd_audit ;;
     reset-password) cmd_reset_password "$@" ;;
