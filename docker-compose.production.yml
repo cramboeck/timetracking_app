@@ -152,31 +152,35 @@ services:
 # Volumes (Persistente Daten)
 # =============================================================================
 volumes:
-  # Datenbank-Daten - external: true verhindert die "Volume doesn't match" Meldung
-  # Volume einmalig erstellen mit: docker volume create timetracking_app_postgres_data
-  # Oder bind mount nutzen: docker volume create --driver local --opt type=none --opt device=/var/lib/ramboflow/postgres --opt o=bind timetracking_app_postgres_data
+  # Datenbank-Daten
   postgres_data:
     external: true
+    name: timetracking_app_postgres_data
 
   # Backend-Logs
   backend_logs:
     external: true
+    name: timetracking_app_backend_logs
 
   # Backend-Uploads (ticket attachments, etc.)
   backend_uploads:
     external: true
+    name: timetracking_app_backend_uploads
 
   # Certbot Challenge-Dateien
   certbot_data:
     external: true
+    name: timetracking_app_certbot_data
 
   # SSL-Zertifikate
   letsencrypt:
     external: true
+    name: timetracking_app_letsencrypt
 
   # Certbot Logs
   certbot_logs:
     external: true
+    name: timetracking_app_certbot_logs
 
 # =============================================================================
 # Networks
