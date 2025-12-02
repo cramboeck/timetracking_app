@@ -1425,6 +1425,119 @@ export async function initializeDatabase() {
 
     console.log('✅ Multi-tenant organization migration completed');
 
+    // ============================================
+    // Add assigned_to to ticket_tasks (migration)
+    // ============================================
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_tasks' AND column_name = 'assigned_to'
+        ) THEN
+          ALTER TABLE ticket_tasks ADD COLUMN assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_tasks' AND column_name = 'due_date'
+        ) THEN
+          ALTER TABLE ticket_tasks ADD COLUMN due_date TIMESTAMP;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_tasks' AND column_name = 'description'
+        ) THEN
+          ALTER TABLE ticket_tasks ADD COLUMN description TEXT;
+        END IF;
+      END $$;
+    `);
+    console.log('✅ Ticket tasks extended with assigned_to, due_date, description');
+
+    // ============================================
+    // Lead Management System
+    // ============================================
+
+    // Lead status tracking
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS leads (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+
+        -- Basic info
+        name TEXT NOT NULL,
+        company TEXT,
+        email TEXT,
+        phone TEXT,
+        website TEXT,
+
+        -- Lead qualification
+        status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost')),
+        source TEXT CHECK(source IN ('website', 'referral', 'cold_call', 'email', 'event', 'social_media', 'advertising', 'other')),
+        priority TEXT DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'hot')),
+
+        -- Value
+        estimated_value DECIMAL(12, 2),
+        probability INTEGER CHECK(probability >= 0 AND probability <= 100),
+
+        -- Assignment
+        assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+
+        -- Dates
+        expected_close_date DATE,
+        last_contact_date TIMESTAMP,
+        next_follow_up DATE,
+
+        -- Additional info
+        description TEXT,
+        notes TEXT,
+        tags TEXT[],
+        custom_fields JSONB DEFAULT '{}',
+
+        -- Timestamps
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        converted_at TIMESTAMP,
+        lost_reason TEXT
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_leads_org ON leads(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(organization_id, status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_to)');
+    console.log('✅ Leads table created');
+
+    // Lead activities/interactions
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lead_activities (
+        id TEXT PRIMARY KEY,
+        lead_id TEXT NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+
+        activity_type TEXT NOT NULL CHECK(activity_type IN ('call', 'email', 'meeting', 'note', 'task', 'status_change', 'demo', 'proposal_sent')),
+        title TEXT NOT NULL,
+        description TEXT,
+
+        -- For scheduled activities
+        scheduled_at TIMESTAMP,
+        completed_at TIMESTAMP,
+        is_completed BOOLEAN DEFAULT false,
+
+        -- Metadata
+        outcome TEXT,
+        duration_minutes INTEGER,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_lead_activities_lead ON lead_activities(lead_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_lead_activities_user ON lead_activities(user_id)');
+    console.log('✅ Lead activities table created');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

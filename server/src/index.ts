@@ -28,6 +28,7 @@ import featuresRoutes from './routes/features';
 import maintenanceRoutes from './routes/maintenance';
 import mfaRoutes from './routes/mfa';
 import organizationsRoutes from './routes/organizations';
+import leadsRoutes from './routes/leads';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -98,6 +99,7 @@ app.use('/api/features', featuresRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/mfa', mfaRoutes);
 app.use('/api/organizations', organizationsRoutes);
+app.use('/api/leads', leadsRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';

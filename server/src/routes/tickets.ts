@@ -2512,12 +2512,23 @@ router.get('/:id/tasks', authenticateToken, attachOrganization, async (req, res)
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
 
-    const result = await query(
-      'SELECT * FROM ticket_tasks WHERE ticket_id = $1 ORDER BY sort_order ASC, created_at ASC',
-      [ticketId]
-    );
+    const result = await query(`
+      SELECT tt.*, u.username as assigned_to_name
+      FROM ticket_tasks tt
+      LEFT JOIN users u ON tt.assigned_to = u.id
+      WHERE tt.ticket_id = $1
+      ORDER BY tt.sort_order ASC, tt.created_at ASC
+    `, [ticketId]);
 
-    res.json({ success: true, data: result.rows.map(transformTask) });
+    const tasks = result.rows.map(row => {
+      const task = transformTask(row);
+      if (row.assigned_to_name) {
+        task.assignedToName = row.assigned_to_name;
+      }
+      return task;
+    });
+
+    res.json({ success: true, data: tasks });
   } catch (error) {
     console.error('Error fetching ticket tasks:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch tasks' });
@@ -2531,7 +2542,7 @@ router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole(
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { id: ticketId } = req.params;
-    const { title, visibleToCustomer = false } = req.body;
+    const { title, visibleToCustomer = false, assignedTo, dueDate, description } = req.body;
 
     if (!title?.trim()) {
       return res.status(400).json({ success: false, error: 'Title is required' });
@@ -2556,25 +2567,34 @@ router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole(
 
     const taskId = crypto.randomUUID();
     const result = await query(`
-      INSERT INTO ticket_tasks (id, ticket_id, title, visible_to_customer, sort_order)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO ticket_tasks (id, ticket_id, title, visible_to_customer, sort_order, assigned_to, due_date, description)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
-    `, [taskId, ticketId, title.trim(), visibleToCustomer, sortOrder]);
+    `, [taskId, ticketId, title.trim(), visibleToCustomer, sortOrder, assignedTo || null, dueDate || null, description || null]);
 
     // Update ticket's updated_at
     await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
 
     // Log activity
-    await logTicketActivity(ticketId, userId, null, 'task_added', null, title.trim(), { taskId });
+    await logTicketActivity(ticketId, userId, null, 'task_added', null, title.trim(), { taskId, assignedTo });
 
     // Audit log
     await auditLog.log({
       userId,
       action: 'ticket_task.create',
-      details: JSON.stringify({ ticketId, taskId, title: title.trim() }),
+      details: JSON.stringify({ ticketId, taskId, title: title.trim(), assignedTo }),
     });
 
-    res.status(201).json({ success: true, data: transformTask(result.rows[0]) });
+    // Get assigned user name if assigned
+    let taskData = transformTask(result.rows[0]);
+    if (assignedTo) {
+      const userResult = await query('SELECT username FROM users WHERE id = $1', [assignedTo]);
+      if (userResult.rows.length > 0) {
+        taskData.assignedToName = userResult.rows[0].username;
+      }
+    }
+
+    res.status(201).json({ success: true, data: taskData });
   } catch (error) {
     console.error('Error creating ticket task:', error);
     res.status(500).json({ success: false, error: 'Failed to create task' });
@@ -2588,7 +2608,7 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, re
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { ticketId, taskId } = req.params;
-    const { title, completed, visibleToCustomer } = req.body;
+    const { title, completed, visibleToCustomer, assignedTo, dueDate, description } = req.body;
 
     // Verify ticket belongs to organization
     const ticketCheck = await query(
@@ -2639,6 +2659,21 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, re
       params.push(visibleToCustomer);
       paramIndex++;
     }
+    if (assignedTo !== undefined) {
+      updates.push(`assigned_to = $${paramIndex}`);
+      params.push(assignedTo || null);
+      paramIndex++;
+    }
+    if (dueDate !== undefined) {
+      updates.push(`due_date = $${paramIndex}`);
+      params.push(dueDate || null);
+      paramIndex++;
+    }
+    if (description !== undefined) {
+      updates.push(`description = $${paramIndex}`);
+      params.push(description || null);
+      paramIndex++;
+    }
 
     if (updates.length === 0) {
       return res.status(400).json({ success: false, error: 'No updates provided' });
@@ -2673,6 +2708,23 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, re
         action: completed ? 'ticket_task.complete' : 'ticket_task.update',
         details: JSON.stringify({ ticketId, taskId, taskTitle: oldTask.title, completed }),
       });
+    } else if (assignedTo !== undefined && assignedTo !== oldTask.assigned_to) {
+      // Log assignment change
+      await logTicketActivity(
+        ticketId,
+        userId,
+        null,
+        'task_assigned',
+        null,
+        oldTask.title,
+        { taskId, assignedTo }
+      );
+
+      await auditLog.log({
+        userId,
+        action: 'ticket_task.assign',
+        details: JSON.stringify({ ticketId, taskId, assignedTo }),
+      });
     } else if (title !== undefined) {
       // Audit log for other updates
       await auditLog.log({
@@ -2682,7 +2734,16 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, re
       });
     }
 
-    res.json({ success: true, data: transformTask(result.rows[0]) });
+    // Get assigned user name if assigned
+    let taskData = transformTask(result.rows[0]);
+    if (result.rows[0].assigned_to) {
+      const userResult = await query('SELECT username FROM users WHERE id = $1', [result.rows[0].assigned_to]);
+      if (userResult.rows.length > 0) {
+        taskData.assignedToName = userResult.rows[0].username;
+      }
+    }
+
+    res.json({ success: true, data: taskData });
   } catch (error) {
     console.error('Error updating ticket task:', error);
     res.status(500).json({ success: false, error: 'Failed to update task' });
