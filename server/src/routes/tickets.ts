@@ -64,6 +64,9 @@ function transformTicket(row: any) {
     updatedAt: row.updated_at?.toISOString(),
     resolvedAt: row.resolved_at?.toISOString(),
     closedAt: row.closed_at?.toISOString(),
+    // Solution fields
+    solution: row.solution,
+    resolutionType: row.resolution_type,
     // SLA fields
     slaPolicyId: row.sla_policy_id,
     firstResponseDueAt: row.first_response_due_at?.toISOString(),
@@ -485,7 +488,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const { id } = req.params;
-    const { customerId, projectId, title, description, status, priority, assignedToUserId } = req.body;
+    const { customerId, projectId, title, description, status, priority, assignedToUserId, solution, resolutionType } = req.body;
 
     // Get current ticket values for activity logging
     const currentTicket = await query(
@@ -498,6 +501,17 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
 
     const oldValues = currentTicket.rows[0];
+
+    // Require solution and resolutionType when closing a ticket
+    if (status === 'closed' && oldValues.status !== 'closed') {
+      if (!solution || !resolutionType) {
+        return res.status(400).json({
+          success: false,
+          error: 'Lösung und Lösungstyp sind beim Schließen eines Tickets erforderlich',
+          requiresSolution: true
+        });
+      }
+    }
 
     // Build dynamic update query
     const updates: string[] = ['updated_at = NOW()'];
@@ -522,6 +536,16 @@ router.put('/:id', authenticateToken, async (req, res) => {
     if (description !== undefined) {
       updates.push(`description = $${paramIndex}`);
       params.push(description);
+      paramIndex++;
+    }
+    if (solution !== undefined) {
+      updates.push(`solution = $${paramIndex}`);
+      params.push(solution);
+      paramIndex++;
+    }
+    if (resolutionType !== undefined) {
+      updates.push(`resolution_type = $${paramIndex}`);
+      params.push(resolutionType);
       paramIndex++;
     }
     if (status !== undefined) {
@@ -2193,5 +2217,274 @@ router.post('/sla/apply/:ticketId', authenticateToken, async (req, res) => {
 
 // Export the calculateSlaDeadlines function for use in ticket creation
 export { calculateSlaDeadlines };
+
+// ============================================================================
+// TICKET TASKS ROUTES
+// ============================================================================
+
+// Helper function to transform task
+function transformTask(row: any) {
+  return {
+    id: row.id,
+    ticketId: row.ticket_id,
+    title: row.title,
+    completed: row.completed,
+    sortOrder: row.sort_order,
+    visibleToCustomer: row.visible_to_customer,
+    createdAt: row.created_at?.toISOString(),
+    completedAt: row.completed_at?.toISOString(),
+  };
+}
+
+// GET /api/tickets/:id/tasks - Get all tasks for a ticket
+router.get('/:id/tasks', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { id: ticketId } = req.params;
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    const result = await query(
+      'SELECT * FROM ticket_tasks WHERE ticket_id = $1 ORDER BY sort_order ASC, created_at ASC',
+      [ticketId]
+    );
+
+    res.json({ success: true, data: result.rows.map(transformTask) });
+  } catch (error) {
+    console.error('Error fetching ticket tasks:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch tasks' });
+  }
+});
+
+// POST /api/tickets/:id/tasks - Create a new task
+router.post('/:id/tasks', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { id: ticketId } = req.params;
+    const { title, visibleToCustomer = false } = req.body;
+
+    if (!title?.trim()) {
+      return res.status(400).json({ success: false, error: 'Title is required' });
+    }
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    // Get max sort_order
+    const maxOrderResult = await query(
+      'SELECT COALESCE(MAX(sort_order), -1) + 1 as next_order FROM ticket_tasks WHERE ticket_id = $1',
+      [ticketId]
+    );
+    const sortOrder = maxOrderResult.rows[0].next_order;
+
+    const taskId = crypto.randomUUID();
+    const result = await query(`
+      INSERT INTO ticket_tasks (id, ticket_id, title, visible_to_customer, sort_order)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [taskId, ticketId, title.trim(), visibleToCustomer, sortOrder]);
+
+    // Update ticket's updated_at
+    await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
+
+    // Log activity
+    await logTicketActivity(ticketId, userId, null, 'task_added', null, title.trim(), { taskId });
+
+    res.status(201).json({ success: true, data: transformTask(result.rows[0]) });
+  } catch (error) {
+    console.error('Error creating ticket task:', error);
+    res.status(500).json({ success: false, error: 'Failed to create task' });
+  }
+});
+
+// PUT /api/tickets/:ticketId/tasks/:taskId - Update a task
+router.put('/:ticketId/tasks/:taskId', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { ticketId, taskId } = req.params;
+    const { title, completed, visibleToCustomer } = req.body;
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    // Get current task state
+    const currentTask = await query(
+      'SELECT * FROM ticket_tasks WHERE id = $1 AND ticket_id = $2',
+      [taskId, ticketId]
+    );
+
+    if (currentTask.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+
+    const oldTask = currentTask.rows[0];
+
+    // Build update query
+    const updates: string[] = [];
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (title !== undefined) {
+      updates.push(`title = $${paramIndex}`);
+      params.push(title.trim());
+      paramIndex++;
+    }
+    if (completed !== undefined) {
+      updates.push(`completed = $${paramIndex}`);
+      params.push(completed);
+      paramIndex++;
+
+      // Set completed_at timestamp
+      if (completed && !oldTask.completed) {
+        updates.push('completed_at = NOW()');
+      } else if (!completed && oldTask.completed) {
+        updates.push('completed_at = NULL');
+      }
+    }
+    if (visibleToCustomer !== undefined) {
+      updates.push(`visible_to_customer = $${paramIndex}`);
+      params.push(visibleToCustomer);
+      paramIndex++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: 'No updates provided' });
+    }
+
+    params.push(taskId, ticketId);
+
+    const result = await query(`
+      UPDATE ticket_tasks SET ${updates.join(', ')}
+      WHERE id = $${paramIndex} AND ticket_id = $${paramIndex + 1}
+      RETURNING *
+    `, params);
+
+    // Update ticket's updated_at
+    await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
+
+    // Log activity for completion changes
+    if (completed !== undefined && completed !== oldTask.completed) {
+      await logTicketActivity(
+        ticketId,
+        userId,
+        null,
+        completed ? 'task_completed' : 'task_uncompleted',
+        null,
+        oldTask.title,
+        { taskId }
+      );
+    }
+
+    res.json({ success: true, data: transformTask(result.rows[0]) });
+  } catch (error) {
+    console.error('Error updating ticket task:', error);
+    res.status(500).json({ success: false, error: 'Failed to update task' });
+  }
+});
+
+// PUT /api/tickets/:ticketId/tasks/reorder - Reorder tasks
+router.put('/:ticketId/tasks/reorder', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { ticketId } = req.params;
+    const { taskIds } = req.body; // Array of task IDs in new order
+
+    if (!Array.isArray(taskIds)) {
+      return res.status(400).json({ success: false, error: 'taskIds array is required' });
+    }
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    // Update sort_order for each task
+    for (let i = 0; i < taskIds.length; i++) {
+      await query(
+        'UPDATE ticket_tasks SET sort_order = $1 WHERE id = $2 AND ticket_id = $3',
+        [i, taskIds[i], ticketId]
+      );
+    }
+
+    // Get updated tasks
+    const result = await query(
+      'SELECT * FROM ticket_tasks WHERE ticket_id = $1 ORDER BY sort_order ASC',
+      [ticketId]
+    );
+
+    res.json({ success: true, data: result.rows.map(transformTask) });
+  } catch (error) {
+    console.error('Error reordering ticket tasks:', error);
+    res.status(500).json({ success: false, error: 'Failed to reorder tasks' });
+  }
+});
+
+// DELETE /api/tickets/:ticketId/tasks/:taskId - Delete a task
+router.delete('/:ticketId/tasks/:taskId', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { ticketId, taskId } = req.params;
+
+    // Verify ticket belongs to user
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND user_id = $2',
+      [ticketId, userId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    // Get task info for logging
+    const taskInfo = await query(
+      'SELECT title FROM ticket_tasks WHERE id = $1 AND ticket_id = $2',
+      [taskId, ticketId]
+    );
+
+    if (taskInfo.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+
+    await query('DELETE FROM ticket_tasks WHERE id = $1 AND ticket_id = $2', [taskId, ticketId]);
+
+    // Update ticket's updated_at
+    await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
+
+    // Log activity
+    await logTicketActivity(ticketId, userId, null, 'task_deleted', null, taskInfo.rows[0].title, { taskId });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting ticket task:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete task' });
+  }
+});
 
 export default router;

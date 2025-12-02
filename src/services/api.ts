@@ -1,4 +1,4 @@
-import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation, Ticket, TicketComment, CustomerContact, TicketStatus, TicketPriority, SlaPolicy } from '../types';
+import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation, Ticket, TicketComment, CustomerContact, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, SlaPolicy } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -536,7 +536,9 @@ export const ticketsApi = {
     status: TicketStatus;
     priority: TicketPriority;
     assignedToUserId: string | null;
-  }>): Promise<{ success: boolean; data: Ticket }> => {
+    solution: string;
+    resolutionType: TicketResolutionType;
+  }>): Promise<{ success: boolean; data: Ticket; requiresSolution?: boolean }> => {
     return authFetch(`/tickets/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
@@ -790,6 +792,42 @@ export const ticketsApi = {
 
   deleteAttachment: async (ticketId: string, attachmentId: string): Promise<{ success: boolean }> => {
     return authFetch(`/tickets/${ticketId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Tasks
+  getTasks: async (ticketId: string): Promise<{ success: boolean; data: TicketTask[] }> => {
+    return authFetch(`/tickets/${ticketId}/tasks`);
+  },
+
+  createTask: async (ticketId: string, data: { title: string; visibleToCustomer?: boolean }): Promise<{ success: boolean; data: TicketTask }> => {
+    return authFetch(`/tickets/${ticketId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateTask: async (ticketId: string, taskId: string, updates: {
+    title?: string;
+    completed?: boolean;
+    visibleToCustomer?: boolean;
+  }): Promise<{ success: boolean; data: TicketTask }> => {
+    return authFetch(`/tickets/${ticketId}/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  reorderTasks: async (ticketId: string, taskIds: string[]): Promise<{ success: boolean; data: TicketTask[] }> => {
+    return authFetch(`/tickets/${ticketId}/tasks/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ taskIds }),
+    });
+  },
+
+  deleteTask: async (ticketId: string, taskId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/tickets/${ticketId}/tasks/${taskId}`, {
       method: 'DELETE',
     });
   },

@@ -1116,6 +1116,49 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_security_alerts_created ON security_alerts(created_at)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_security_alerts_type ON security_alerts(alert_type)');
 
+    // ============================================
+    // Ticket Solution and Resolution Type
+    // ============================================
+
+    // Migration: Add solution and resolution_type columns to tickets
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'solution'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN solution TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'resolution_type'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN resolution_type TEXT CHECK(resolution_type IN ('solved', 'not_reproducible', 'duplicate', 'wont_fix', 'resolved_itself', 'workaround'));
+        END IF;
+      END $$;
+    `);
+
+    // ============================================
+    // Ticket Tasks Table
+    // ============================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_tasks (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        completed BOOLEAN DEFAULT false,
+        sort_order INTEGER DEFAULT 0,
+        visible_to_customer BOOLEAN DEFAULT false,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        completed_at TIMESTAMP
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tasks_ticket ON ticket_tasks(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tasks_order ON ticket_tasks(ticket_id, sort_order)');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

@@ -160,6 +160,7 @@ export interface TimeEntry {
 
 export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'closed' | 'archived';
 export type TicketPriority = 'low' | 'normal' | 'high' | 'critical';
+export type TicketResolutionType = 'solved' | 'not_reproducible' | 'duplicate' | 'wont_fix' | 'resolved_itself' | 'workaround';
 
 export interface Ticket {
   id: string;
@@ -177,6 +178,9 @@ export interface Ticket {
   updatedAt: string;
   resolvedAt?: string;
   closedAt?: string;
+  // Solution fields
+  solution?: string;
+  resolutionType?: TicketResolutionType;
   // SLA fields
   slaPolicyId?: string;
   firstResponseDueAt?: string;
@@ -184,6 +188,17 @@ export interface Ticket {
   firstResponseAt?: string;
   slaFirstResponseBreached?: boolean;
   slaResolutionBreached?: boolean;
+}
+
+export interface TicketTask {
+  id: string;
+  ticketId: string;
+  title: string;
+  completed: boolean;
+  sortOrder: number;
+  visibleToCustomer: boolean;
+  createdAt: string;
+  completedAt?: string;
 }
 
 // SLA Policy
