@@ -261,27 +261,116 @@ EOF
 
 # Function: Create backup
 cmd_backup() {
+    local OPTION="$2"
+
     print_header "Datenbank Backup erstellen"
 
     BACKUP_DIR="./backups"
     mkdir -p "$BACKUP_DIR"
 
+    # Show tables that will be backed up
+    print_subheader "Tabellen in der Datenbank"
+    TABLE_COUNT=$(run_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';")
+    print_info "Gefundene Tabellen: $TABLE_COUNT"
+
+    run_query_formatted "
+        SELECT
+            table_name as \"Tabelle\",
+            pg_size_pretty(pg_total_relation_size(quote_ident(table_name))) as \"Größe\"
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_type = 'BASE TABLE'
+        ORDER BY pg_total_relation_size(quote_ident(table_name)) DESC;
+    "
+
+    echo ""
     TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
     BACKUP_FILE="$BACKUP_DIR/backup_${TIMESTAMP}.sql"
 
     print_info "Erstelle Backup: $BACKUP_FILE"
+    print_info "Methode: pg_dump (vollständige Datenbanksicherung)"
 
-    docker exec "$CONTAINER_NAME" pg_dump -U "$DB_USER" -d "$DB_NAME" > "$BACKUP_FILE"
+    # Create backup with clean option for easier restore
+    if ! docker exec "$CONTAINER_NAME" pg_dump -U "$DB_USER" -d "$DB_NAME" --clean --if-exists > "$BACKUP_FILE" 2>/dev/null; then
+        print_error "Fehler beim Erstellen des Backups!"
+        rm -f "$BACKUP_FILE"
+        exit 1
+    fi
+
+    # Verify backup file is not empty
+    if [ ! -s "$BACKUP_FILE" ]; then
+        print_error "Backup-Datei ist leer!"
+        rm -f "$BACKUP_FILE"
+        exit 1
+    fi
 
     print_info "Komprimiere Backup..."
     gzip "$BACKUP_FILE"
 
     BACKUP_SIZE=$(du -h "${BACKUP_FILE}.gz" | cut -f1)
-    print_success "Backup erstellt: ${BACKUP_FILE}.gz (${BACKUP_SIZE})"
+
+    # Count statements in backup for verification
+    LINE_COUNT=$(zcat "${BACKUP_FILE}.gz" | wc -l)
+
+    echo ""
+    print_success "Backup erfolgreich erstellt!"
+    echo ""
+    echo "  Datei:    ${BACKUP_FILE}.gz"
+    echo "  Größe:    ${BACKUP_SIZE}"
+    echo "  Zeilen:   ${LINE_COUNT}"
+    echo "  Tabellen: ${TABLE_COUNT}"
+
+    # Verify backup content if requested
+    if [ "$OPTION" == "--verify" ]; then
+        print_subheader "Backup-Verifizierung"
+
+        # Extract and count CREATE TABLE statements
+        TABLES_IN_BACKUP=$(zcat "${BACKUP_FILE}.gz" | grep -c "^CREATE TABLE" || echo "0")
+        print_info "CREATE TABLE Statements: $TABLES_IN_BACKUP"
+
+        # List all tables in backup
+        echo ""
+        echo "Tabellen im Backup:"
+        zcat "${BACKUP_FILE}.gz" | grep "^CREATE TABLE" | sed 's/CREATE TABLE.*\.\(.*\) (.*/  - \1/' | sed 's/CREATE TABLE \(.*\) (.*/  - \1/'
+
+        # Check for important tables
+        echo ""
+        print_info "Wichtige Tabellen-Check:"
+        for table in users customers projects time_entries tickets ticket_tasks customer_contacts feature_packages; do
+            if zcat "${BACKUP_FILE}.gz" | grep -q "CREATE TABLE.*${table}"; then
+                echo "  ✅ $table"
+            else
+                echo "  ❌ $table (nicht gefunden!)"
+            fi
+        done
+    fi
+
+    # Cleanup old backups if requested
+    if [ "$OPTION" == "--rotate" ]; then
+        print_subheader "Backup-Rotation"
+        KEEP_COUNT=5
+        BACKUP_COUNT=$(ls -1 "$BACKUP_DIR"/*.sql.gz 2>/dev/null | wc -l)
+
+        if [ "$BACKUP_COUNT" -gt "$KEEP_COUNT" ]; then
+            DELETE_COUNT=$((BACKUP_COUNT - KEEP_COUNT))
+            print_info "Lösche $DELETE_COUNT alte Backups (behalte letzte $KEEP_COUNT)..."
+            ls -1t "$BACKUP_DIR"/*.sql.gz | tail -n "$DELETE_COUNT" | xargs rm -f
+            print_success "Alte Backups gelöscht."
+        else
+            print_info "Keine alten Backups zum Löschen ($BACKUP_COUNT vorhanden, behalte $KEEP_COUNT)"
+        fi
+    fi
 
     echo ""
     print_info "Verfügbare Backups:"
-    ls -lh "$BACKUP_DIR"/*.sql.gz 2>/dev/null || print_warning "Keine weiteren Backups gefunden"
+    ls -lht "$BACKUP_DIR"/*.sql.gz 2>/dev/null | head -10 || print_warning "Keine Backups gefunden"
+
+    echo ""
+    print_info "Verwendung:"
+    echo "  $0 backup                   Backup erstellen"
+    echo "  $0 backup --rotate          Backup + alte löschen (behält 5)"
+    echo "  $0 backup --verify          Backup + Inhalt prüfen"
+    echo "  $0 restore <datei>          Backup wiederherstellen"
 }
 
 # Function: Restore backup
@@ -294,7 +383,11 @@ cmd_restore() {
         echo "Verwendung: $0 restore <backup-datei>"
         echo ""
         print_info "Verfügbare Backups:"
-        ls -lh ./backups/*.sql.gz 2>/dev/null || print_warning "Keine Backups gefunden"
+        if ls ./backups/*.sql.gz 1>/dev/null 2>&1; then
+            ls -lht ./backups/*.sql.gz | head -10
+        else
+            print_warning "Keine Backups gefunden"
+        fi
         exit 1
     fi
 
@@ -305,24 +398,91 @@ cmd_restore() {
         exit 1
     fi
 
-    print_warning "ACHTUNG: Dies wird die aktuelle Datenbank überschreiben!"
-    read -p "Fortfahren? (ja/nein): " CONFIRM
+    # Show backup info
+    print_subheader "Backup-Informationen"
+    BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+    BACKUP_DATE=$(stat -c %y "$BACKUP_FILE" 2>/dev/null || stat -f %Sm "$BACKUP_FILE" 2>/dev/null)
+    echo "  Datei:  $BACKUP_FILE"
+    echo "  Größe:  $BACKUP_SIZE"
+    echo "  Datum:  $BACKUP_DATE"
 
-    if [ "$CONFIRM" != "ja" ]; then
+    # If gzipped, show content preview
+    if [[ "$BACKUP_FILE" == *.gz ]]; then
+        LINE_COUNT=$(zcat "$BACKUP_FILE" | wc -l)
+        TABLE_COUNT=$(zcat "$BACKUP_FILE" | grep -c "^CREATE TABLE" || echo "0")
+        echo "  Zeilen: $LINE_COUNT"
+        echo "  CREATE TABLE Statements: $TABLE_COUNT"
+    fi
+
+    # Show current database state
+    print_subheader "Aktuelle Datenbank (wird überschrieben)"
+    CURRENT_TABLES=$(run_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';")
+    CURRENT_USERS=$(run_query "SELECT COUNT(*) FROM users;")
+    CURRENT_ENTRIES=$(run_query "SELECT COUNT(*) FROM time_entries;" 2>/dev/null || echo "0")
+
+    echo "  Tabellen:     $CURRENT_TABLES"
+    echo "  Benutzer:     $CURRENT_USERS"
+    echo "  Zeiteinträge: $CURRENT_ENTRIES"
+
+    echo ""
+    print_error "⚠️  WARNUNG: Alle aktuellen Daten werden überschrieben!"
+    print_warning "Es wird empfohlen, vorher ein Backup zu erstellen: $0 backup"
+    echo ""
+    read -p "Vor Restore ein Backup erstellen? (ja/nein): " CREATE_BACKUP
+
+    if [ "$CREATE_BACKUP" == "ja" ]; then
+        print_info "Erstelle Sicherheits-Backup..."
+        SAFETY_BACKUP="./backups/pre_restore_$(date +%Y%m%d_%H%M%S).sql"
+        docker exec "$CONTAINER_NAME" pg_dump -U "$DB_USER" -d "$DB_NAME" --clean --if-exists > "$SAFETY_BACKUP"
+        gzip "$SAFETY_BACKUP"
+        print_success "Sicherheits-Backup erstellt: ${SAFETY_BACKUP}.gz"
+        echo ""
+    fi
+
+    read -p "Datenbank wirklich wiederherstellen? Tippe 'RESTORE' zur Bestätigung: " CONFIRM
+
+    if [ "$CONFIRM" != "RESTORE" ]; then
         print_info "Abgebrochen."
         exit 0
     fi
 
+    # Prepare backup file
+    TEMP_FILE=""
     if [[ "$BACKUP_FILE" == *.gz ]]; then
         print_info "Entpacke Backup..."
-        gunzip -k "$BACKUP_FILE"
-        BACKUP_FILE="${BACKUP_FILE%.gz}"
+        TEMP_FILE="/tmp/restore_$(date +%s).sql"
+        gunzip -c "$BACKUP_FILE" > "$TEMP_FILE"
+        RESTORE_FILE="$TEMP_FILE"
+    else
+        RESTORE_FILE="$BACKUP_FILE"
     fi
 
     print_info "Stelle Datenbank wieder her..."
-    docker exec -i "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" < "$BACKUP_FILE"
+    echo ""
 
-    print_success "Datenbank erfolgreich wiederhergestellt!"
+    # Restore with error output
+    if docker exec -i "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" < "$RESTORE_FILE" 2>&1 | grep -i "error" | head -5; then
+        print_warning "Es gab einige Fehler/Warnungen beim Restore (siehe oben)"
+    fi
+
+    # Cleanup temp file
+    if [ -n "$TEMP_FILE" ] && [ -f "$TEMP_FILE" ]; then
+        rm -f "$TEMP_FILE"
+    fi
+
+    # Verify restore
+    print_subheader "Verifizierung nach Restore"
+    NEW_TABLES=$(run_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';")
+    NEW_USERS=$(run_query "SELECT COUNT(*) FROM users;")
+    NEW_ENTRIES=$(run_query "SELECT COUNT(*) FROM time_entries;" 2>/dev/null || echo "0")
+
+    echo "  Tabellen:     $NEW_TABLES"
+    echo "  Benutzer:     $NEW_USERS"
+    echo "  Zeiteinträge: $NEW_ENTRIES"
+
+    echo ""
+    print_success "Datenbank-Restore abgeschlossen!"
+    print_warning "Bitte Backend-Container neu starten: docker restart ramboflow-backend"
 }
 
 # Function: Execute custom query
@@ -1295,8 +1455,11 @@ cmd_help() {
     echo "                                    (MFA, Logins, Rate-Limits, Events)"
     echo ""
     echo -e "${YELLOW}── Backup & Restore ──${NC}"
-    echo "  backup                            Backup erstellen"
+    echo "  backup                            Vollständiges Datenbank-Backup"
+    echo "  backup --verify                   Backup + Inhalt verifizieren"
+    echo "  backup --rotate                   Backup + alte löschen (behält 5)"
     echo "  restore <file>                    Backup wiederherstellen"
+    echo "                                    (mit Sicherheits-Backup Option)"
     echo ""
     echo -e "${YELLOW}── Sonstiges ──${NC}"
     echo "  tunnel                            SSH-Tunnel Anleitung"
