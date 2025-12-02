@@ -65,13 +65,16 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
+    // Generate unique customer number
+    const customerNumber = `C-${Date.now().toString(36).toUpperCase()}${crypto.randomUUID().substring(0, 4).toUpperCase()}`;
+
     // Create user
     const userId = crypto.randomUUID();
     await client.query(
       `INSERT INTO users (id, username, email, password_hash, account_type, organization_name,
        team_id, team_role, mfa_enabled, accent_color, gray_tone, time_rounding_interval,
-       created_at, last_login)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+       created_at, last_login, customer_number)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [
         userId,
         username,
@@ -86,7 +89,8 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
         'medium', // grayTone
         15, // timeRoundingInterval
         new Date().toISOString(),
-        new Date().toISOString()
+        new Date().toISOString(),
+        customerNumber
       ]
     );
 
