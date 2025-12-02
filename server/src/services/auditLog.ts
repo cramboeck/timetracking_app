@@ -60,6 +60,17 @@ export type AuditAction =
   | 'sla_policy.update'
   | 'sla_policy.delete'
   | 'sla_policy.apply'
+  // Organization actions
+  | 'organization.create'
+  | 'organization.update'
+  | 'organization.delete'
+  | 'organization.member_add'
+  | 'organization.member_remove'
+  | 'organization.member_role_change'
+  | 'organization.invitation_create'
+  | 'organization.invitation_accept'
+  | 'organization.invitation_cancel'
+  | 'organization.leave'
   // Settings & system actions
   | 'settings.update'
   | 'ninjarmm.auto_sync'

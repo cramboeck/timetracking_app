@@ -1159,6 +1159,261 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tasks_ticket ON ticket_tasks(ticket_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tasks_order ON ticket_tasks(ticket_id, sort_order)');
 
+    // ============================================
+    // Multi-Tenant Organizations System
+    // ============================================
+
+    // Organizations table - each organization can have multiple users
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS organizations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT UNIQUE,
+        owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        settings JSONB DEFAULT '{}',
+        logo TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Organization members - links users to organizations with roles
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS organization_members (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('owner', 'admin', 'member', 'viewer')),
+        invited_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        joined_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(organization_id, user_id)
+      )
+    `);
+
+    // Organization invitations
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS organization_invitations (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        email TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('admin', 'member', 'viewer')),
+        invitation_code TEXT UNIQUE NOT NULL,
+        invited_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMP NOT NULL,
+        accepted_at TIMESTAMP,
+        accepted_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Create indexes for organizations
+    await client.query('CREATE INDEX IF NOT EXISTS idx_organizations_owner ON organizations(owner_user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_organizations_slug ON organizations(slug)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_org_members_org ON organization_members(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_org_members_user ON organization_members(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_org_invitations_org ON organization_invitations(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_org_invitations_code ON organization_invitations(invitation_code)');
+
+    // Migration: Add organization_id to all relevant tables
+    // This is done as nullable first, then populated via migration
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Add organization_id to customers
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+          CREATE INDEX IF NOT EXISTS idx_customers_org ON customers(organization_id);
+        END IF;
+
+        -- Add organization_id to projects
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'projects' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE projects ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+          CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id);
+        END IF;
+
+        -- Add organization_id to activities
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'activities' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE activities ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+          CREATE INDEX IF NOT EXISTS idx_activities_org ON activities(organization_id);
+        END IF;
+
+        -- Add organization_id to time_entries
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+          CREATE INDEX IF NOT EXISTS idx_time_entries_org ON time_entries(organization_id);
+        END IF;
+
+        -- Add organization_id to tickets
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+          CREATE INDEX IF NOT EXISTS idx_tickets_org ON tickets(organization_id);
+        END IF;
+
+        -- Add organization_id to company_info
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'company_info' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE company_info ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        END IF;
+
+        -- Add organization_id to ninjarmm_config
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_config' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE ninjarmm_config ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        END IF;
+
+        -- Add organization_id to ninjarmm_organizations
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_organizations' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE ninjarmm_organizations ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        END IF;
+
+        -- Add organization_id to ninjarmm_devices
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_devices' AND column_name = 'org_id'
+        ) THEN
+          ALTER TABLE ninjarmm_devices ADD COLUMN org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        END IF;
+
+        -- Add organization_id to maintenance_announcements
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'maintenance_announcements' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE maintenance_announcements ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        END IF;
+
+        -- Add organization_id to maintenance_templates
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'maintenance_templates' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE maintenance_templates ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        END IF;
+
+        -- Add organization_id to customer_portal_roles
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_roles' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE customer_portal_roles ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        END IF;
+
+        -- Add organization_id to customer_portal_users
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        END IF;
+
+        -- Add organization_id to feature_packages
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'feature_packages' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE feature_packages ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        END IF;
+
+        -- Add organization_id to report_approvals
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'report_approvals' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE report_approvals ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+
+    // ============================================
+    // Data Migration: Create organizations for existing users
+    // Each existing user gets their own organization (no data loss)
+    // ============================================
+
+    await client.query(`
+      DO $$
+      DECLARE
+        user_rec RECORD;
+        new_org_id TEXT;
+        org_slug TEXT;
+      BEGIN
+        -- For each user who doesn't have an organization yet
+        FOR user_rec IN
+          SELECT u.id, u.username, u.organization_name, u.display_name
+          FROM users u
+          WHERE NOT EXISTS (
+            SELECT 1 FROM organization_members om WHERE om.user_id = u.id
+          )
+        LOOP
+          -- Generate organization ID
+          new_org_id := gen_random_uuid()::TEXT;
+
+          -- Generate slug from username (lowercase, replace spaces)
+          org_slug := LOWER(REGEXP_REPLACE(user_rec.username, '[^a-zA-Z0-9]', '-', 'g'));
+
+          -- Ensure slug is unique by appending random chars if needed
+          WHILE EXISTS (SELECT 1 FROM organizations WHERE slug = org_slug) LOOP
+            org_slug := org_slug || '-' || SUBSTRING(gen_random_uuid()::TEXT, 1, 4);
+          END LOOP;
+
+          -- Create organization for user
+          INSERT INTO organizations (id, name, slug, owner_user_id)
+          VALUES (
+            new_org_id,
+            COALESCE(user_rec.organization_name, user_rec.display_name, user_rec.username),
+            org_slug,
+            user_rec.id
+          );
+
+          -- Add user as owner of their organization
+          INSERT INTO organization_members (id, organization_id, user_id, role)
+          VALUES (gen_random_uuid()::TEXT, new_org_id, user_rec.id, 'owner');
+
+          -- Migrate existing data to the new organization
+          UPDATE customers SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE projects SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE activities SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE time_entries SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE tickets SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE company_info SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE ninjarmm_config SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE ninjarmm_organizations SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE ninjarmm_devices SET org_id = new_org_id WHERE user_id = user_rec.id AND org_id IS NULL;
+          UPDATE maintenance_announcements SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE maintenance_templates SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE customer_portal_roles SET organization_id = new_org_id WHERE owner_user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE customer_portal_users SET organization_id = new_org_id WHERE owner_user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE feature_packages SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE report_approvals SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+
+          RAISE NOTICE 'Created organization % for user %', new_org_id, user_rec.username;
+        END LOOP;
+      END $$;
+    `);
+
+    console.log('✅ Multi-tenant organization migration completed');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {
