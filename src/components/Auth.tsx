@@ -1,11 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Clock, Mail, Lock, User, Shield, Building2, Users, Ticket } from 'lucide-react';
+import { Clock, Mail, Lock, User, Shield, Building2, Users, Ticket, UserPlus, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AccountType } from '../types';
 import { ForgotPassword } from './ForgotPassword';
 import { ResetPassword } from './ResetPassword';
+import { organizationsApi } from '../services/api';
 
-type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
+type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'join-organization';
+
+interface InvitationInfo {
+  organizationName: string;
+  logo: string | null;
+  role: string;
+  invitedBy: string;
+  expiresAt: string;
+}
 
 export const Auth = () => {
   const { login, verifyMfa, register } = useAuth();
@@ -21,18 +30,51 @@ export const Auth = () => {
   const [mfaLockedUntil, setMfaLockedUntil] = useState<Date | undefined>();
   const [trustDevice, setTrustDevice] = useState(false);
 
-  // Check URL for reset token
+  // Invitation state
+  const [invitationCode, setInvitationCode] = useState<string | null>(null);
+  const [invitationInfo, setInvitationInfo] = useState<InvitationInfo | null>(null);
+  const [invitationError, setInvitationError] = useState<string | null>(null);
+  const [invitationLoading, setInvitationLoading] = useState(false);
+
+  // Check URL for reset token or invitation code
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
+    const pathname = window.location.pathname;
 
+    // Check for password reset token
     if (token) {
       setResetToken(token);
       setAuthView('reset-password');
-      // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    // Check for invitation link (/join/:code)
+    const joinMatch = pathname.match(/^\/join\/([a-zA-Z0-9]+)$/);
+    if (joinMatch) {
+      const code = joinMatch[1];
+      setInvitationCode(code);
+      setAuthView('join-organization');
+      loadInvitationInfo(code);
     }
   }, []);
+
+  // Load invitation info from API
+  const loadInvitationInfo = async (code: string) => {
+    setInvitationLoading(true);
+    setInvitationError(null);
+    try {
+      const response = await organizationsApi.getInvitationInfo(code);
+      if (response.success) {
+        setInvitationInfo(response.data);
+      }
+    } catch (err: any) {
+      setInvitationError(err.message || 'Einladung nicht gefunden oder abgelaufen');
+    } finally {
+      setInvitationLoading(false);
+    }
+  };
 
   // Login form
   const [loginUsername, setLoginUsername] = useState('');
@@ -173,6 +215,149 @@ export const Auth = () => {
           setResetToken(null);
         }}
       />
+    );
+  }
+
+  // Show JoinOrganization view
+  if (authView === 'join-organization' && invitationCode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-accent-primary/10 mb-4">
+              <UserPlus size={32} className="text-accent-primary" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Team beitreten
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Du wurdest eingeladen, einem Team beizutreten
+            </p>
+          </div>
+
+          {/* Invitation Card */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+            {invitationLoading && (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary mx-auto mb-4"></div>
+                <p className="text-gray-600 dark:text-gray-400">Einladung wird geladen...</p>
+              </div>
+            )}
+
+            {invitationError && (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                  <XCircle size={32} className="text-red-600 dark:text-red-400" />
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Einladung ungültig
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  {invitationError}
+                </p>
+                <button
+                  onClick={() => {
+                    window.history.replaceState({}, '', '/');
+                    setAuthView('login');
+                    setInvitationCode(null);
+                  }}
+                  className="px-6 py-2 btn-accent"
+                >
+                  Zur Anmeldung
+                </button>
+              </div>
+            )}
+
+            {invitationInfo && (
+              <div>
+                {/* Organization Info */}
+                <div className="text-center mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+                  {invitationInfo.logo ? (
+                    <img src={invitationInfo.logo} alt="" className="w-20 h-20 rounded-xl mx-auto mb-4 object-contain" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-xl bg-accent-primary/10 flex items-center justify-center mx-auto mb-4">
+                      <Building2 size={36} className="text-accent-primary" />
+                    </div>
+                  )}
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                    {invitationInfo.organizationName}
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Eingeladen von {invitationInfo.invitedBy}
+                  </p>
+                </div>
+
+                {/* Role Info */}
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-6">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Deine Rolle:</span>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      invitationInfo.role === 'admin'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                        : invitationInfo.role === 'viewer'
+                        ? 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                        : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                    }`}>
+                      {invitationInfo.role === 'admin' ? 'Admin' : invitationInfo.role === 'viewer' ? 'Viewer' : 'Mitglied'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Gültig bis {new Date(invitationInfo.expiresAt).toLocaleDateString('de-DE', {
+                      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+
+                {/* Action */}
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                    Melde dich an oder erstelle einen Account, um der Organisation beizutreten.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => {
+                        // Store invitation code for after login
+                        localStorage.setItem('pending_invitation', invitationCode);
+                        window.history.replaceState({}, '', '/');
+                        setAuthView('login');
+                      }}
+                      className="py-3 px-4 bg-accent-primary text-white rounded-lg font-medium hover:bg-accent-darker transition-colors"
+                    >
+                      Anmelden
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Store invitation code for after register
+                        localStorage.setItem('pending_invitation', invitationCode);
+                        window.history.replaceState({}, '', '/');
+                        setAuthView('register');
+                      }}
+                      className="py-3 px-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Registrieren
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Back Link */}
+          <div className="text-center mt-6">
+            <button
+              onClick={() => {
+                window.history.replaceState({}, '', '/');
+                setAuthView('login');
+                setInvitationCode(null);
+              }}
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-accent-primary transition-colors"
+            >
+              Zurück zur normalen Anmeldung
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 

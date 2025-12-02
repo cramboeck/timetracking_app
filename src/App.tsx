@@ -23,7 +23,7 @@ import { useAuth } from './contexts/AuthContext';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
 import { haptics } from './utils/haptics';
 import { notificationService } from './utils/notifications';
-import { projectsApi, customersApi, activitiesApi, entriesApi } from './services/api';
+import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi } from './services/api';
 
 function App() {
   const { currentUser, isAuthenticated, isLoading } = useAuth();
@@ -92,6 +92,36 @@ function App() {
 
     loadData();
   }, [currentUser]);
+
+  // Handle pending organization invitation after login
+  useEffect(() => {
+    const handlePendingInvitation = async () => {
+      if (!currentUser || !isAuthenticated) return;
+
+      const pendingInvitation = localStorage.getItem('pending_invitation');
+      if (!pendingInvitation) return;
+
+      console.log('📨 [INVITATION] Found pending invitation, accepting...');
+
+      try {
+        const response = await organizationsApi.acceptInvitation(pendingInvitation);
+        if (response.success) {
+          console.log('✅ [INVITATION] Successfully joined organization:', response.message);
+          alert(`Erfolgreich beigetreten: ${response.message}`);
+          // Reload the page to refresh data with new organization context
+          window.location.reload();
+        }
+      } catch (error: any) {
+        console.error('❌ [INVITATION] Failed to accept invitation:', error);
+        alert(`Fehler beim Beitreten: ${error.message || 'Unbekannter Fehler'}`);
+      } finally {
+        // Always remove the pending invitation
+        localStorage.removeItem('pending_invitation');
+      }
+    };
+
+    handlePendingInvitation();
+  }, [currentUser, isAuthenticated]);
 
   // Show welcome modal for new users
   useEffect(() => {
