@@ -1499,7 +1499,7 @@ case "$COMMAND" in
     mfa)            cmd_mfa "$@" ;;
     tickets)        cmd_tickets "$@" ;;
     security)       cmd_security "$@" ;;
-    backup)         cmd_backup ;;
+    backup)         cmd_backup "$@" ;;
     restore)        cmd_restore "$@" ;;
     query)          cmd_query "$@" ;;
     tunnel)         cmd_tunnel ;;
