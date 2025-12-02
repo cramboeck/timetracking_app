@@ -877,10 +877,7 @@ export const Settings = ({
       category: 'Geschäftlich',
       items: [
         { id: 'company', label: 'Firma & Branding', icon: Building, desc: 'Logo & Kontaktdaten' },
-        ...(currentUser?.accountType === 'business' || currentUser?.accountType === 'team'
-          ? [{ id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }]
-          : []
-        )
+        { id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }
         // Billing moved to Finanzen in main navigation
       ]
     },
