@@ -2236,6 +2236,80 @@ function transformTask(row: any) {
   };
 }
 
+// GET /api/tickets/tasks/all - Get all tasks across all tickets (for task overview)
+router.get('/tasks/all', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { status, customerId, dueDate } = req.query;
+
+    let whereConditions = ['t.user_id = $1'];
+    const params: any[] = [userId];
+    let paramIndex = 2;
+
+    // Filter by completion status
+    if (status === 'open') {
+      whereConditions.push('tt.completed = false');
+    } else if (status === 'completed') {
+      whereConditions.push('tt.completed = true');
+    }
+
+    // Filter by customer
+    if (customerId) {
+      whereConditions.push(`t.customer_id = $${paramIndex}`);
+      params.push(customerId);
+      paramIndex++;
+    }
+
+    // Filter by ticket status (exclude archived by default)
+    whereConditions.push("t.status != 'archived'");
+
+    const result = await query(`
+      SELECT
+        tt.*,
+        t.ticket_number,
+        t.title as ticket_title,
+        t.status as ticket_status,
+        t.priority as ticket_priority,
+        t.customer_id,
+        c.name as customer_name
+      FROM ticket_tasks tt
+      JOIN tickets t ON tt.ticket_id = t.id
+      LEFT JOIN customers c ON t.customer_id = c.id
+      WHERE ${whereConditions.join(' AND ')}
+      ORDER BY
+        tt.completed ASC,
+        t.priority = 'critical' DESC,
+        t.priority = 'high' DESC,
+        t.priority = 'normal' DESC,
+        tt.sort_order ASC,
+        tt.created_at ASC
+    `, params);
+
+    const tasks = result.rows.map(row => ({
+      id: row.id,
+      ticketId: row.ticket_id,
+      title: row.title,
+      completed: row.completed,
+      sortOrder: row.sort_order,
+      visibleToCustomer: row.visible_to_customer,
+      createdAt: row.created_at?.toISOString(),
+      completedAt: row.completed_at?.toISOString(),
+      // Ticket info
+      ticketNumber: row.ticket_number,
+      ticketTitle: row.ticket_title,
+      ticketStatus: row.ticket_status,
+      ticketPriority: row.ticket_priority,
+      customerId: row.customer_id,
+      customerName: row.customer_name,
+    }));
+
+    res.json({ success: true, data: tasks });
+  } catch (error) {
+    console.error('Error fetching all tasks:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch tasks' });
+  }
+});
+
 // GET /api/tickets/:id/tasks - Get all tasks for a ticket
 router.get('/:id/tasks', authenticateToken, async (req, res) => {
   try {

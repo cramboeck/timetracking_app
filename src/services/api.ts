@@ -1,4 +1,4 @@
-import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation, Ticket, TicketComment, CustomerContact, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, SlaPolicy } from '../types';
+import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation, Ticket, TicketComment, CustomerContact, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, TicketTaskWithInfo, SlaPolicy } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -830,6 +830,19 @@ export const ticketsApi = {
     return authFetch(`/tickets/${ticketId}/tasks/${taskId}`, {
       method: 'DELETE',
     });
+  },
+
+  // Get all tasks across all tickets (for task overview)
+  getAllTasks: async (filters?: { status?: 'open' | 'completed' | 'all'; customerId?: string }): Promise<{ success: boolean; data: TicketTaskWithInfo[] }> => {
+    const params = new URLSearchParams();
+    if (filters?.status && filters.status !== 'all') {
+      params.append('status', filters.status);
+    }
+    if (filters?.customerId) {
+      params.append('customerId', filters.customerId);
+    }
+    const queryString = params.toString();
+    return authFetch(`/tickets/tasks/all${queryString ? `?${queryString}` : ''}`);
   },
 };
 

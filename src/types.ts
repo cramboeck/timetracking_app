@@ -201,6 +201,16 @@ export interface TicketTask {
   completedAt?: string;
 }
 
+// Extended task with ticket info for overview
+export interface TicketTaskWithInfo extends TicketTask {
+  ticketNumber: string;
+  ticketTitle: string;
+  ticketStatus: TicketStatus;
+  ticketPriority: TicketPriority;
+  customerId: string;
+  customerName?: string;
+}
+
 // SLA Policy
 export type SlaPriority = 'low' | 'normal' | 'high' | 'critical' | 'all';
 
