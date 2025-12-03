@@ -1078,40 +1078,31 @@ export const NinjaRMMSettings = () => {
                   {/* Webhook Secret */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
-                      Webhook Secret {webhookConfig?.hasSecret && <span className="text-green-500">(konfiguriert)</span>}
+                      Sicherheit {webhookConfig?.hasSecret && <span className="text-green-500">(Secret aktiv)</span>}
                     </label>
-                    <div className="flex gap-2">
-                      {webhookConfig?.webhookSecret ? (
-                        <div className="relative flex-1">
-                          <input
-                            type={showWebhookSecret ? 'text' : 'password'}
-                            readOnly
-                            value={webhookConfig.webhookSecret}
-                            className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-dark-200 rounded-lg bg-gray-50 dark:bg-dark-50 text-gray-900 dark:text-white font-mono text-sm"
-                          />
-                          <button
-                            onClick={() => setShowWebhookSecret(!showWebhookSecret)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
-                          >
-                            {showWebhookSecret ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
+                    <div className="flex items-center gap-3">
+                      {webhookConfig?.hasSecret ? (
+                        <div className="flex-1 flex items-center gap-2 px-3 py-2 border border-green-300 dark:border-green-700 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 text-sm">
+                          <CheckCircle size={16} />
+                          <span>Secret ist in der URL enthalten - nur wer die URL kennt, kann Webhooks senden</span>
                         </div>
                       ) : (
-                        <div className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-gray-50 dark:bg-dark-50 text-gray-500 dark:text-dark-400 text-sm">
-                          {webhookConfig?.hasSecret ? '••••••••••••••••' : 'Noch kein Secret generiert'}
+                        <div className="flex-1 flex items-center gap-2 px-3 py-2 border border-yellow-300 dark:border-yellow-700 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-sm">
+                          <AlertTriangle size={16} />
+                          <span>Kein Secret - jeder mit der URL kann Webhooks senden</span>
                         </div>
                       )}
                       <button
                         onClick={handleGenerateWebhookSecret}
                         disabled={generatingSecret}
-                        className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors whitespace-nowrap"
                       >
                         <Key size={16} className={generatingSecret ? 'animate-spin' : ''} />
-                        {generatingSecret ? 'Generiere...' : webhookConfig?.hasSecret ? 'Neues Secret' : 'Generieren'}
+                        {generatingSecret ? 'Generiere...' : webhookConfig?.hasSecret ? 'Neues Secret' : 'Secret generieren'}
                       </button>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
-                      Kopiere das Secret und füge es in NinjaRMM als X-Webhook-Secret Header ein
+                      Nach dem Generieren wird das Secret automatisch an die URL angehängt. Kopiere dann die neue URL nach NinjaRMM.
                     </p>
                   </div>
                 </div>
@@ -1289,13 +1280,17 @@ export const NinjaRMMSettings = () => {
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
                 <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2">NinjaRMM Webhook einrichten</h3>
                 <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800 dark:text-blue-300">
-                  <li>Kopiere die Webhook URL oben</li>
-                  <li>Gehe in NinjaRMM zu Administration &gt; Policies &gt; Notifications</li>
-                  <li>Erstelle eine neue Webhook-Notification und füge die URL ein</li>
-                  <li>Aktiviere "X-Webhook-Secret" Header und füge das generierte Secret ein</li>
-                  <li>Wähle die gewünschten Alert-Trigger (z.B. Device Offline, Disk Space, etc.)</li>
-                  <li>Speichere und teste den Webhook</li>
+                  <li><strong>Secret generieren</strong> (oben) - das Secret wird automatisch in die URL eingebettet</li>
+                  <li><strong>URL kopieren</strong> - die vollständige URL inkl. Secret</li>
+                  <li>In NinjaRMM: <strong>Administration → Benachrichtigungen → Kanäle</strong></li>
+                  <li>Klicke auf <strong>"Hinzufügen"</strong> und wähle <strong>"Webhook"</strong></li>
+                  <li>Gib einen Namen ein und füge die <strong>Webhook-URL</strong> ein</li>
+                  <li>Speichere den Webhook</li>
+                  <li>Weise den Webhook in deinen <strong>Policies</strong> den gewünschten Conditions zu</li>
                 </ol>
+                <p className="text-xs text-blue-700 dark:text-blue-400 mt-3">
+                  <strong>Tipp:</strong> Aktiviere bei den Conditions auch "Notify on Reset", damit Tickets automatisch geschlossen werden, wenn der Alert sich auflöst.
+                </p>
               </div>
             </>
           )}

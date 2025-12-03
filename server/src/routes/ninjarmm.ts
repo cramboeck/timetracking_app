@@ -999,6 +999,7 @@ router.get('/webhook-config', authenticateToken, requireNinjaFeature, async (req
           webhookUrl: `${process.env.BACKEND_URL || ''}/api/ninjarmm/webhook/${userId}`,
           webhookEnabled: false,
           webhookSecret: null,
+          hasSecret: false,
           autoCreateTickets: false,
           minSeverity: 'MAJOR',
           autoResolveTickets: true,
@@ -1007,12 +1008,18 @@ router.get('/webhook-config', authenticateToken, requireNinjaFeature, async (req
     }
 
     const config = result.rows[0];
+    // Build webhook URL with secret as query parameter (since NinjaRMM doesn't support custom headers)
+    let webhookUrl = `${process.env.BACKEND_URL || ''}/api/ninjarmm/webhook/${userId}`;
+    if (config.webhook_secret) {
+      webhookUrl += `?secret=${encodeURIComponent(config.webhook_secret)}`;
+    }
+
     res.json({
       success: true,
       data: {
-        webhookUrl: `${process.env.BACKEND_URL || ''}/api/ninjarmm/webhook/${userId}`,
+        webhookUrl,
         webhookEnabled: config.webhook_enabled || false,
-        webhookSecret: config.webhook_secret ? '••••••••' : null,
+        webhookSecret: null, // Don't expose secret in response, it's in the URL
         hasSecret: !!config.webhook_secret,
         autoCreateTickets: config.webhook_auto_create_tickets || false,
         minSeverity: config.webhook_min_severity || 'MAJOR',
