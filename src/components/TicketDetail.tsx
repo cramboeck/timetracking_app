@@ -514,15 +514,24 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
 
     const customer = customers.find(c => c.id === ticket.customerId);
     const now = new Date();
+    const createdDate = ticket.createdAt ? new Date(ticket.createdAt) : null;
 
     const variables: Record<string, string> = {
+      // Customer variables
       '{{customer_name}}': customer?.name || 'Kunde',
+      '{{customer_email}}': customer?.email || '',
+      // Ticket variables
       '{{ticket_number}}': ticket.ticketNumber || '',
       '{{ticket_title}}': ticket.title || '',
-      '{{current_date}}': now.toLocaleDateString('de-DE'),
-      '{{current_time}}': now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      '{{ticket_description}}': ticket.description || '',
       '{{status}}': statusConfig[ticket.status]?.label || ticket.status,
       '{{priority}}': priorityConfig[ticket.priority]?.label || ticket.priority,
+      '{{created_date}}': createdDate ? createdDate.toLocaleDateString('de-DE') : '',
+      '{{created_time}}': createdDate ? createdDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '',
+      // Current date/time
+      '{{current_date}}': now.toLocaleDateString('de-DE'),
+      '{{current_time}}': now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      '{{current_datetime}}': now.toLocaleString('de-DE'),
     };
 
     let processed = content;

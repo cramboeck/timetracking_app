@@ -486,21 +486,46 @@ export const TicketSettings = () => {
               <span className="ml-auto text-xs">{showVariableInfo ? '▲' : '▼'}</span>
             </button>
             {showVariableInfo && (
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{customer_name}}'}</div>
-                <div className="text-gray-600 dark:text-gray-400">Name des Kunden</div>
-                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{ticket_number}}'}</div>
-                <div className="text-gray-600 dark:text-gray-400">Ticketnummer (z.B. TKT-000001)</div>
-                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{ticket_title}}'}</div>
-                <div className="text-gray-600 dark:text-gray-400">Titel des Tickets</div>
-                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{status}}'}</div>
-                <div className="text-gray-600 dark:text-gray-400">Aktueller Status</div>
-                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{priority}}'}</div>
-                <div className="text-gray-600 dark:text-gray-400">Priorität</div>
-                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{current_date}}'}</div>
-                <div className="text-gray-600 dark:text-gray-400">Heutiges Datum</div>
-                <div className="font-mono text-blue-600 dark:text-blue-400">{'{{current_time}}'}</div>
-                <div className="text-gray-600 dark:text-gray-400">Aktuelle Uhrzeit</div>
+              <div className="mt-3 space-y-3 text-sm">
+                <div>
+                  <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">Kunden-Variablen:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{customer_name}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">Name des Kunden</div>
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{customer_email}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">E-Mail des Kunden</div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">Ticket-Variablen:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{ticket_number}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">Ticketnummer (z.B. T00001)</div>
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{ticket_title}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">Titel des Tickets</div>
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{ticket_description}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">Beschreibung des Tickets</div>
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{status}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">Aktueller Status</div>
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{priority}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">Priorität</div>
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{created_date}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">Erstellungsdatum</div>
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{created_time}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">Erstellungszeit</div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">Datum/Zeit:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{current_date}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">Heutiges Datum</div>
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{current_time}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">Aktuelle Uhrzeit</div>
+                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{current_datetime}}'}</div>
+                    <div className="text-gray-600 dark:text-gray-400">Aktuelles Datum und Uhrzeit</div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
