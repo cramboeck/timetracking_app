@@ -67,6 +67,12 @@ export type AuditAction =
   | 'lead.delete'
   | 'lead.convert'
   | 'lead.activity_add'
+  // Task actions (Unified Task Hub)
+  | 'task.create'
+  | 'task.update'
+  | 'task.delete'
+  | 'task.complete'
+  | 'task.assign'
   // Organization actions
   | 'organization.create'
   | 'organization.update'
