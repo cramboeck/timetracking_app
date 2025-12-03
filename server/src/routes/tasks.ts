@@ -275,8 +275,10 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
       created_at DESC
     `;
 
+    console.log('📋 [TASKS] Query params:', { organizationId, userId, view, params });
     const result = await pool.query(finalQuery, params);
     const tasks = result.rows.map(transformTask);
+    console.log('📋 [TASKS] Found', tasks.length, 'tasks');
 
     res.json({ success: true, data: tasks });
   } catch (error) {

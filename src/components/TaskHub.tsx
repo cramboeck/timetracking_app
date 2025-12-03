@@ -64,16 +64,21 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
   const loadTasks = useCallback(async () => {
     setLoading(true);
     try {
+      console.log('📋 [TASKS] Loading tasks with filters:', { ...filters, view, includeCompleted: showCompleted });
       const response = await tasksApi.getAll({
         ...filters,
         view,
         includeCompleted: showCompleted,
       });
+      console.log('📋 [TASKS] Response:', response);
       if (response.success) {
-        setTasks(response.data);
+        console.log('📋 [TASKS] Loaded', response.data?.length || 0, 'tasks');
+        setTasks(response.data || []);
+      } else {
+        console.error('📋 [TASKS] API returned success=false');
       }
     } catch (err) {
-      console.error('Failed to load tasks:', err);
+      console.error('📋 [TASKS] Failed to load tasks:', err);
     } finally {
       setLoading(false);
     }
