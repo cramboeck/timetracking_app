@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl } from '../services/api';
+import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl, organizationsApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SlaStatus } from './SlaStatus';
 import { TicketMergeDialog } from './TicketMergeDialog';
@@ -73,6 +73,9 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   // Merge
   const [showMergeDialog, setShowMergeDialog] = useState(false);
 
+  // User role for permission checks
+  const [userRole, setUserRole] = useState<string | null>(null);
+
   // Tags
   const [ticketTags, setTicketTags] = useState<TicketTag[]>([]);
   const [allTags, setAllTags] = useState<TicketTag[]>([]);
@@ -116,7 +119,21 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     loadAttachments();
     loadCannedResponses();
     loadTasks();
+    loadUserRole();
   }, [ticketId]);
+
+  // Load user role for permission checks
+  const loadUserRole = async () => {
+    try {
+      const response = await organizationsApi.getCurrent();
+      if (response.data) {
+        setUserRole(response.data.user_role);
+      }
+    } catch (err) {
+      // Non-critical, just hide merge button
+      console.error('Failed to load user role:', err);
+    }
+  };
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -712,13 +729,16 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
             </button>
           ) : (
             <>
-              <button
-                onClick={() => setShowMergeDialog(true)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                title="Tickets zusammenführen"
-              >
-                <Merge size={20} />
-              </button>
+              {/* Merge button - only for admins/owners */}
+              {(userRole === 'admin' || userRole === 'owner') && (
+                <button
+                  onClick={() => setShowMergeDialog(true)}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                  title="Tickets zusammenführen"
+                >
+                  <Merge size={20} />
+                </button>
+              )}
               <button
                 onClick={() => setShowArchiveConfirm(true)}
                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"

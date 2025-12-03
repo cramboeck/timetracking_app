@@ -42,12 +42,13 @@ export const TicketMergeDialog = ({
       setSearching(true);
       try {
         const response = await ticketsApi.search(searchQuery);
-        // Filter out the target ticket, already selected tickets, and tickets from different customers
+        // Filter out the target ticket, already selected tickets, closed/archived tickets, and tickets from different customers
         const filtered = response.data.filter(
           (ticket) =>
             ticket.id !== targetTicket.id &&
             !selectedTickets.some((s) => s.id === ticket.id) &&
             ticket.status !== 'archived' &&
+            ticket.status !== 'closed' &&
             ticket.customerId === targetTicket.customerId // Only same customer
         );
         setSearchResults(filtered);

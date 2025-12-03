@@ -733,6 +733,8 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
 
 // POST /api/tickets/:id/merge - Merge source tickets into target ticket (requires admin role)
 router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
+  const client = await getClient();
+
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -741,33 +743,48 @@ router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole(
     const { sourceTicketIds } = req.body;
 
     if (!sourceTicketIds || !Array.isArray(sourceTicketIds) || sourceTicketIds.length === 0) {
+      client.release();
       return res.status(400).json({ success: false, error: 'sourceTicketIds array is required' });
     }
 
-    // Verify target ticket belongs to organization
-    const targetCheck = await query(
-      'SELECT id, ticket_number, title, customer_id FROM tickets WHERE id = $1 AND organization_id = $2',
+    // Verify target ticket belongs to organization and is not closed/archived
+    const targetCheck = await client.query(
+      `SELECT id, ticket_number, title, customer_id, status
+       FROM tickets WHERE id = $1 AND organization_id = $2`,
       [targetId, organizationId]
     );
 
     if (targetCheck.rows.length === 0) {
+      client.release();
       return res.status(404).json({ success: false, error: 'Target ticket not found' });
     }
 
     const targetTicket = targetCheck.rows[0];
 
-    // Verify all source tickets belong to user and are different from target
+    // Don't allow merging into closed or archived tickets
+    if (targetTicket.status === 'closed' || targetTicket.status === 'archived') {
+      client.release();
+      return res.status(400).json({
+        success: false,
+        error: 'Kann nicht in geschlossene oder archivierte Tickets zusammenführen'
+      });
+    }
+
+    // Verify all source tickets belong to org and are different from target
     const filteredSourceIds = sourceTicketIds.filter((id: string) => id !== targetId);
     if (filteredSourceIds.length === 0) {
+      client.release();
       return res.status(400).json({ success: false, error: 'No valid source tickets to merge' });
     }
 
-    const sourceCheck = await query(
-      `SELECT id, ticket_number, title, customer_id FROM tickets WHERE id = ANY($1) AND organization_id = $2`,
+    const sourceCheck = await client.query(
+      `SELECT id, ticket_number, title, customer_id, status
+       FROM tickets WHERE id = ANY($1) AND organization_id = $2`,
       [filteredSourceIds, organizationId]
     );
 
     if (sourceCheck.rows.length !== filteredSourceIds.length) {
+      client.release();
       return res.status(404).json({ success: false, error: 'Some source tickets not found' });
     }
 
@@ -776,129 +793,162 @@ router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole(
     // Verify all tickets belong to the same customer
     const differentCustomer = sourceTickets.find(t => t.customer_id !== targetTicket.customer_id);
     if (differentCustomer) {
+      client.release();
       return res.status(400).json({
         success: false,
         error: 'Tickets von unterschiedlichen Kunden können nicht zusammengeführt werden'
       });
     }
-    const mergedCount = sourceTickets.length;
 
-    // Start transaction-like operations
-    for (const sourceTicket of sourceTickets) {
-      // Move comments from source to target (add merge note to each)
-      await query(`
-        UPDATE ticket_comments
-        SET ticket_id = $1,
-            content = content || E'\n\n---\n_[Zusammengeführt aus ' || $3 || ']_'
-        WHERE ticket_id = $2
-      `, [targetId, sourceTicket.id, sourceTicket.ticket_number]);
-
-      // Move attachments from source to target
-      await query(`
-        UPDATE ticket_attachments SET ticket_id = $1 WHERE ticket_id = $2
-      `, [targetId, sourceTicket.id]);
-
-      // Copy activities from source to target (with merge reference)
-      await query(`
-        INSERT INTO ticket_activities (id, ticket_id, user_id, customer_contact_id, action_type, old_value, new_value, metadata, created_at)
-        SELECT gen_random_uuid(), $1, user_id, customer_contact_id, action_type, old_value, new_value,
-               jsonb_set(COALESCE(metadata, '{}'::jsonb), '{merged_from}', to_jsonb($3::text)),
-               created_at
-        FROM ticket_activities WHERE ticket_id = $2
-      `, [targetId, sourceTicket.id, sourceTicket.ticket_number]);
-
-      // Move tags from source to target (if not already present)
-      await query(`
-        INSERT INTO ticket_tag_assignments (id, ticket_id, tag_id)
-        SELECT gen_random_uuid(), $1, tag_id
-        FROM ticket_tag_assignments
-        WHERE ticket_id = $2
-        AND tag_id NOT IN (SELECT tag_id FROM ticket_tag_assignments WHERE ticket_id = $1)
-      `, [targetId, sourceTicket.id]);
-
-      // Update time entries to point to target ticket
-      await query(`
-        UPDATE time_entries SET ticket_id = $1 WHERE ticket_id = $2
-      `, [targetId, sourceTicket.id]);
-
-      // Add merge reference comment to source ticket before closing
-      const mergeNoteId = crypto.randomUUID();
-      await query(`
-        INSERT INTO ticket_comments (id, ticket_id, user_id, content, is_internal, is_system)
-        VALUES ($1, $2, $3, $4, false, true)
-      `, [
-        mergeNoteId,
-        sourceTicket.id,
-        userId,
-        `Dieses Ticket wurde mit ${targetTicket.ticket_number} zusammengeführt.\n\nAlle Kommentare, Anhänge und Aktivitäten wurden übertragen.`
-      ]);
-
-      // Close source ticket with reference
-      await query(`
-        UPDATE tickets
-        SET status = 'closed',
-            closed_at = NOW(),
-            merged_into_id = $1,
-            updated_at = NOW()
-        WHERE id = $2
-      `, [targetId, sourceTicket.id]);
-
-      // Log merge activity on source ticket
-      await logTicketActivity(sourceTicket.id, userId, null, 'merged', null, targetTicket.ticket_number, {
-        merged_into: targetId,
-        merged_into_number: targetTicket.ticket_number
+    // Don't allow merging closed or archived source tickets
+    const invalidSource = sourceTickets.find(t => t.status === 'closed' || t.status === 'archived');
+    if (invalidSource) {
+      client.release();
+      return res.status(400).json({
+        success: false,
+        error: 'Geschlossene oder archivierte Tickets können nicht zusammengeführt werden'
       });
     }
 
-    // Add merge comment to target ticket
-    const summaryId = crypto.randomUUID();
-    const sourceNumbers = sourceTickets.map((t: any) => t.ticket_number).join(', ');
-    await query(`
-      INSERT INTO ticket_comments (id, ticket_id, user_id, content, is_internal, is_system)
-      VALUES ($1, $2, $3, $4, false, true)
-    `, [
-      summaryId,
-      targetId,
-      userId,
-      `${mergedCount} Ticket${mergedCount > 1 ? 's' : ''} zusammengeführt: ${sourceNumbers}\n\nAlle Kommentare, Anhänge und Aktivitäten wurden in dieses Ticket übertragen.`
-    ]);
+    const mergedCount = sourceTickets.length;
 
-    // Log merge activity on target ticket
-    await logTicketActivity(targetId, userId, null, 'tickets_merged', null, sourceNumbers, {
-      merged_tickets: sourceTickets.map((t: any) => ({ id: t.id, number: t.ticket_number, title: t.title })),
-      merged_count: mergedCount
-    });
+    // Start transaction for atomic merge operation
+    await client.query('BEGIN');
 
-    // Audit log for merge
-    await auditLog.log({
-      userId,
-      action: 'ticket.merge',
-      details: JSON.stringify({
-        targetTicketId: targetId,
-        targetTicketNumber: targetTicket.ticket_number,
-        sourceTickets: sourceTickets.map((t: any) => ({ id: t.id, ticketNumber: t.ticket_number })),
+    try {
+      for (const sourceTicket of sourceTickets) {
+        // Move comments from source to target (add merge note to each)
+        await client.query(`
+          UPDATE ticket_comments
+          SET ticket_id = $1,
+              content = content || E'\n\n---\n_[Zusammengeführt aus ' || $3 || ']_'
+          WHERE ticket_id = $2
+        `, [targetId, sourceTicket.id, sourceTicket.ticket_number]);
+
+        // Move attachments from source to target
+        await client.query(`
+          UPDATE ticket_attachments SET ticket_id = $1 WHERE ticket_id = $2
+        `, [targetId, sourceTicket.id]);
+
+        // Copy activities from source to target (with merge reference)
+        await client.query(`
+          INSERT INTO ticket_activities (id, ticket_id, user_id, customer_contact_id, action_type, old_value, new_value, metadata, created_at)
+          SELECT gen_random_uuid(), $1, user_id, customer_contact_id, action_type, old_value, new_value,
+                 jsonb_set(COALESCE(metadata, '{}'::jsonb), '{merged_from}', to_jsonb($3::text)),
+                 created_at
+          FROM ticket_activities WHERE ticket_id = $2
+        `, [targetId, sourceTicket.id, sourceTicket.ticket_number]);
+
+        // Move tags from source to target (if not already present)
+        await client.query(`
+          INSERT INTO ticket_tag_assignments (id, ticket_id, tag_id)
+          SELECT gen_random_uuid(), $1, tag_id
+          FROM ticket_tag_assignments
+          WHERE ticket_id = $2
+          AND tag_id NOT IN (SELECT tag_id FROM ticket_tag_assignments WHERE ticket_id = $1)
+        `, [targetId, sourceTicket.id]);
+
+        // Update time entries to point to target ticket
+        await client.query(`
+          UPDATE time_entries SET ticket_id = $1 WHERE ticket_id = $2
+        `, [targetId, sourceTicket.id]);
+
+        // Add merge reference comment to source ticket before closing
+        const mergeNoteId = crypto.randomUUID();
+        await client.query(`
+          INSERT INTO ticket_comments (id, ticket_id, user_id, content, is_internal, is_system)
+          VALUES ($1, $2, $3, $4, false, true)
+        `, [
+          mergeNoteId,
+          sourceTicket.id,
+          userId,
+          `Dieses Ticket wurde mit ${targetTicket.ticket_number} zusammengeführt.\n\nAlle Kommentare, Anhänge und Aktivitäten wurden übertragen.`
+        ]);
+
+        // Close source ticket with reference
+        await client.query(`
+          UPDATE tickets
+          SET status = 'closed',
+              closed_at = NOW(),
+              merged_into_id = $1,
+              updated_at = NOW()
+          WHERE id = $2
+        `, [targetId, sourceTicket.id]);
+
+        // Log merge activity on source ticket
+        const activityId1 = crypto.randomUUID();
+        await client.query(`
+          INSERT INTO ticket_activities (id, ticket_id, user_id, action_type, new_value, metadata)
+          VALUES ($1, $2, $3, 'merged', $4, $5)
+        `, [activityId1, sourceTicket.id, userId, targetTicket.ticket_number, JSON.stringify({
+          merged_into: targetId,
+          merged_into_number: targetTicket.ticket_number
+        })]);
+      }
+
+      // Add merge comment to target ticket
+      const summaryId = crypto.randomUUID();
+      const sourceNumbers = sourceTickets.map((t: any) => t.ticket_number).join(', ');
+      await client.query(`
+        INSERT INTO ticket_comments (id, ticket_id, user_id, content, is_internal, is_system)
+        VALUES ($1, $2, $3, $4, false, true)
+      `, [
+        summaryId,
+        targetId,
+        userId,
+        `${mergedCount} Ticket${mergedCount > 1 ? 's' : ''} zusammengeführt: ${sourceNumbers}\n\nAlle Kommentare, Anhänge und Aktivitäten wurden in dieses Ticket übertragen.`
+      ]);
+
+      // Log merge activity on target ticket
+      const activityId2 = crypto.randomUUID();
+      await client.query(`
+        INSERT INTO ticket_activities (id, ticket_id, user_id, action_type, new_value, metadata)
+        VALUES ($1, $2, $3, 'tickets_merged', $4, $5)
+      `, [activityId2, targetId, userId, sourceNumbers, JSON.stringify({
+        merged_tickets: sourceTickets.map((t: any) => ({ id: t.id, number: t.ticket_number, title: t.title })),
+        merged_count: mergedCount
+      })]);
+
+      // Commit transaction
+      await client.query('COMMIT');
+
+      // Audit log for merge (outside transaction)
+      await auditLog.log({
+        userId,
+        action: 'ticket.merge',
+        details: JSON.stringify({
+          targetTicketId: targetId,
+          targetTicketNumber: targetTicket.ticket_number,
+          sourceTickets: sourceTickets.map((t: any) => ({ id: t.id, ticketNumber: t.ticket_number })),
+          mergedCount
+        }),
+      });
+
+      // Return updated target ticket
+      const ticketResult = await query(`
+        SELECT t.*, c.name as customer_name, p.name as project_name
+        FROM tickets t
+        LEFT JOIN customers c ON t.customer_id = c.id
+        LEFT JOIN projects p ON t.project_id = p.id
+        WHERE t.id = $1
+      `, [targetId]);
+
+      res.json({
+        success: true,
+        message: `${mergedCount} Ticket${mergedCount > 1 ? 's' : ''} zusammengeführt`,
+        data: transformTicket(ticketResult.rows[0]),
         mergedCount
-      }),
-    });
-
-    // Return updated target ticket
-    const ticketResult = await query(`
-      SELECT t.*, c.name as customer_name, p.name as project_name
-      FROM tickets t
-      LEFT JOIN customers c ON t.customer_id = c.id
-      LEFT JOIN projects p ON t.project_id = p.id
-      WHERE t.id = $1
-    `, [targetId]);
-
-    res.json({
-      success: true,
-      message: `${mergedCount} Ticket${mergedCount > 1 ? 's' : ''} zusammengeführt`,
-      data: transformTicket(ticketResult.rows[0]),
-      mergedCount
-    });
+      });
+    } catch (txError) {
+      // Rollback transaction on error
+      await client.query('ROLLBACK');
+      throw txError;
+    }
   } catch (error) {
     console.error('Error merging tickets:', error);
     res.status(500).json({ success: false, error: 'Failed to merge tickets' });
+  } finally {
+    client.release();
   }
 });
 
