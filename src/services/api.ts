@@ -2155,6 +2155,76 @@ export const ninjaApi = {
   createTicketFromAlert: async (alertId: string): Promise<{ success: boolean; data: { ticketId: string } }> => {
     return authFetch(`/ninjarmm/alerts/${alertId}/create-ticket`, { method: 'POST' });
   },
+
+  // ============================================
+  // Webhook Configuration
+  // ============================================
+
+  // Get webhook configuration
+  getWebhookConfig: async (): Promise<{
+    success: boolean;
+    data: {
+      webhookUrl: string;
+      webhookEnabled: boolean;
+      webhookSecret: string | null;
+      hasSecret: boolean;
+      autoCreateTickets: boolean;
+      minSeverity: string;
+      autoResolveTickets: boolean;
+    };
+  }> => {
+    return authFetch('/ninjarmm/webhook-config');
+  },
+
+  // Update webhook configuration
+  updateWebhookConfig: async (config: {
+    webhookEnabled?: boolean;
+    webhookSecret?: string;
+    autoCreateTickets?: boolean;
+    minSeverity?: string;
+    autoResolveTickets?: boolean;
+  }): Promise<{ success: boolean; message: string }> => {
+    return authFetch('/ninjarmm/webhook-config', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  },
+
+  // Generate new webhook secret
+  generateWebhookSecret: async (): Promise<{
+    success: boolean;
+    data: { webhookSecret: string };
+    message: string;
+  }> => {
+    return authFetch('/ninjarmm/webhook-config/generate-secret', { method: 'POST' });
+  },
+
+  // Get webhook events log
+  getWebhookEvents: async (options?: {
+    limit?: number;
+    status?: string;
+  }): Promise<{
+    success: boolean;
+    data: Array<{
+      id: string;
+      event_type: string;
+      ninja_alert_id: string;
+      ninja_device_id: string;
+      severity: string;
+      status: string;
+      error_message: string | null;
+      alert_id: string | null;
+      ticket_id: string | null;
+      processing_time_ms: number;
+      created_at: string;
+    }>;
+  }> => {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.status) params.append('status', options.status);
+    const queryString = params.toString();
+    return authFetch(`/ninjarmm/webhook-events${queryString ? `?${queryString}` : ''}`);
+  },
 };
 
 // Feature Packages API

@@ -666,6 +666,64 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_device_id ON ninjarmm_alerts(device_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customers_ninjarmm_org ON customers(ninjarmm_organization_id)');
 
+    // Migration: Add webhook columns to ninjarmm_config
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_config' AND column_name = 'webhook_secret'
+        ) THEN
+          ALTER TABLE ninjarmm_config ADD COLUMN webhook_secret TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_config' AND column_name = 'webhook_enabled'
+        ) THEN
+          ALTER TABLE ninjarmm_config ADD COLUMN webhook_enabled BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_config' AND column_name = 'webhook_auto_create_tickets'
+        ) THEN
+          ALTER TABLE ninjarmm_config ADD COLUMN webhook_auto_create_tickets BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_config' AND column_name = 'webhook_min_severity'
+        ) THEN
+          ALTER TABLE ninjarmm_config ADD COLUMN webhook_min_severity TEXT DEFAULT 'MAJOR';
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_config' AND column_name = 'webhook_auto_resolve_tickets'
+        ) THEN
+          ALTER TABLE ninjarmm_config ADD COLUMN webhook_auto_resolve_tickets BOOLEAN DEFAULT TRUE;
+        END IF;
+      END $$;
+    `);
+
+    // NinjaRMM webhook events log
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_webhook_events (
+        id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        ninja_alert_id TEXT,
+        ninja_device_id TEXT,
+        severity TEXT,
+        status TEXT DEFAULT 'received' CHECK(status IN ('received', 'processed', 'failed', 'ignored')),
+        payload JSONB,
+        error_message TEXT,
+        alert_id TEXT REFERENCES ninjarmm_alerts(id) ON DELETE SET NULL,
+        ticket_id TEXT,
+        processing_time_ms INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_webhook_events_user ON ninjarmm_webhook_events(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_webhook_events_created ON ninjarmm_webhook_events(created_at DESC)');
+
     // ============================================
     // Feature Flags System
     // ============================================

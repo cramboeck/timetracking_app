@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Settings, Save, RefreshCw, Link2, Unlink, CheckCircle, XCircle,
   AlertTriangle, Server, Building, Clock, ExternalLink, Shield, Monitor,
-  Wifi, WifiOff, Bell, Ticket, X, Cpu, HardDrive, Globe, User, Search
+  Wifi, WifiOff, Bell, Ticket, X, Cpu, HardDrive, Globe, User, Search,
+  Webhook, Copy, Key, Eye, EyeOff, Zap
 } from 'lucide-react';
 import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert } from '../services/api';
 import { customersApi } from '../services/api';
@@ -33,7 +34,24 @@ export const NinjaRMMSettings = () => {
   const [testing, setTesting] = useState(false);
 
   // Active section
-  const [activeSection, setActiveSection] = useState<'config' | 'organizations' | 'devices' | 'alerts' | 'sync'>('config');
+  const [activeSection, setActiveSection] = useState<'config' | 'organizations' | 'devices' | 'alerts' | 'sync' | 'webhook'>('config');
+
+  // Webhook state
+  const [webhookConfig, setWebhookConfig] = useState<{
+    webhookUrl: string;
+    webhookEnabled: boolean;
+    webhookSecret: string | null;
+    hasSecret: boolean;
+    autoCreateTickets: boolean;
+    minSeverity: string;
+    autoResolveTickets: boolean;
+  } | null>(null);
+  const [webhookEvents, setWebhookEvents] = useState<any[]>([]);
+  const [loadingWebhook, setLoadingWebhook] = useState(false);
+  const [savingWebhook, setSavingWebhook] = useState(false);
+  const [generatingSecret, setGeneratingSecret] = useState(false);
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
+  const [webhookCopied, setWebhookCopied] = useState(false);
 
   // Modal state
   const [selectedDevice, setSelectedDevice] = useState<NinjaDevice | null>(null);
@@ -325,6 +343,88 @@ export const NinjaRMMSettings = () => {
     }
   };
 
+  // Webhook functions
+  const loadWebhookData = async () => {
+    try {
+      setLoadingWebhook(true);
+      const [configRes, eventsRes] = await Promise.all([
+        ninjaApi.getWebhookConfig(),
+        ninjaApi.getWebhookEvents({ limit: 50 }),
+      ]);
+      if (configRes.success) {
+        setWebhookConfig(configRes.data);
+      }
+      if (eventsRes.success) {
+        setWebhookEvents(eventsRes.data);
+      }
+    } catch (err: any) {
+      console.error('Fehler beim Laden der Webhook-Daten:', err);
+    } finally {
+      setLoadingWebhook(false);
+    }
+  };
+
+  const handleSaveWebhookConfig = async () => {
+    if (!webhookConfig) return;
+    try {
+      setSavingWebhook(true);
+      setError('');
+      setSuccess('');
+      const result = await ninjaApi.updateWebhookConfig({
+        webhookEnabled: webhookConfig.webhookEnabled,
+        autoCreateTickets: webhookConfig.autoCreateTickets,
+        minSeverity: webhookConfig.minSeverity,
+        autoResolveTickets: webhookConfig.autoResolveTickets,
+      });
+      if (result.success) {
+        setSuccess('Webhook-Einstellungen gespeichert');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Speichern der Webhook-Einstellungen');
+    } finally {
+      setSavingWebhook(false);
+    }
+  };
+
+  const handleGenerateWebhookSecret = async () => {
+    try {
+      setGeneratingSecret(true);
+      setError('');
+      const result = await ninjaApi.generateWebhookSecret();
+      if (result.success) {
+        setWebhookConfig(prev => prev ? {
+          ...prev,
+          webhookSecret: result.data.secret,
+          hasSecret: true,
+        } : null);
+        setShowWebhookSecret(true);
+        setSuccess('Neues Webhook-Secret generiert. Bitte kopieren und in NinjaRMM eintragen.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Generieren des Secrets');
+    } finally {
+      setGeneratingSecret(false);
+    }
+  };
+
+  const copyWebhookUrl = async () => {
+    if (!webhookConfig?.webhookUrl) return;
+    try {
+      await navigator.clipboard.writeText(webhookConfig.webhookUrl);
+      setWebhookCopied(true);
+      setTimeout(() => setWebhookCopied(false), 2000);
+    } catch (err) {
+      console.error('Kopieren fehlgeschlagen:', err);
+    }
+  };
+
+  // Load webhook data when switching to webhook section
+  useEffect(() => {
+    if (activeSection === 'webhook' && config?.isConnected) {
+      loadWebhookData();
+    }
+  }, [activeSection, config?.isConnected]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -370,6 +470,7 @@ export const NinjaRMMSettings = () => {
           { id: 'organizations', label: 'Organisationen', icon: Building },
           { id: 'devices', label: 'Geräte', icon: Monitor },
           { id: 'alerts', label: 'Alerts', icon: Bell, badge: alerts.filter(a => !a.resolved).length },
+          { id: 'webhook', label: 'Webhook', icon: Webhook },
           { id: 'sync', label: 'Synchronisation', icon: RefreshCw },
         ].map(tab => (
           <button
@@ -912,6 +1013,291 @@ export const NinjaRMMSettings = () => {
                 </table>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Webhook Section */}
+      {activeSection === 'webhook' && (
+        <div className="space-y-6">
+          {!config?.isConnected ? (
+            <div className="text-center py-12 text-gray-500 dark:text-dark-400">
+              <Webhook size={48} className="mx-auto mb-3 opacity-50" />
+              <p>Verbinde zuerst mit NinjaRMM um Webhooks zu konfigurieren</p>
+            </div>
+          ) : loadingWebhook ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="animate-spin text-gray-400" size={24} />
+            </div>
+          ) : (
+            <>
+              {/* Webhook URL & Secret */}
+              <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                    <Webhook className="text-purple-600 dark:text-purple-400" size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-white">Webhook-Endpunkt</h3>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">NinjaRMM sendet Alerts an diese URL</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Webhook URL */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                      Webhook URL
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={webhookConfig?.webhookUrl || ''}
+                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-gray-50 dark:bg-dark-50 text-gray-900 dark:text-white font-mono text-sm"
+                      />
+                      <button
+                        onClick={copyWebhookUrl}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
+                      >
+                        {webhookCopied ? (
+                          <>
+                            <CheckCircle size={16} className="text-green-500" />
+                            Kopiert!
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={16} />
+                            Kopieren
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Webhook Secret */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                      Webhook Secret {webhookConfig?.hasSecret && <span className="text-green-500">(konfiguriert)</span>}
+                    </label>
+                    <div className="flex gap-2">
+                      {webhookConfig?.webhookSecret ? (
+                        <div className="relative flex-1">
+                          <input
+                            type={showWebhookSecret ? 'text' : 'password'}
+                            readOnly
+                            value={webhookConfig.webhookSecret}
+                            className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-dark-200 rounded-lg bg-gray-50 dark:bg-dark-50 text-gray-900 dark:text-white font-mono text-sm"
+                          />
+                          <button
+                            onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                          >
+                            {showWebhookSecret ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-gray-50 dark:bg-dark-50 text-gray-500 dark:text-dark-400 text-sm">
+                          {webhookConfig?.hasSecret ? '••••••••••••••••' : 'Noch kein Secret generiert'}
+                        </div>
+                      )}
+                      <button
+                        onClick={handleGenerateWebhookSecret}
+                        disabled={generatingSecret}
+                        className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors"
+                      >
+                        <Key size={16} className={generatingSecret ? 'animate-spin' : ''} />
+                        {generatingSecret ? 'Generiere...' : webhookConfig?.hasSecret ? 'Neues Secret' : 'Generieren'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
+                      Kopiere das Secret und füge es in NinjaRMM als X-Webhook-Secret Header ein
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Webhook Settings */}
+              <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <Settings className="text-blue-600 dark:text-blue-400" size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-white">Webhook-Einstellungen</h3>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Automatische Ticket-Erstellung konfigurieren</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Enable Webhook */}
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={webhookConfig?.webhookEnabled || false}
+                      onChange={(e) => setWebhookConfig(prev => prev ? { ...prev, webhookEnabled: e.target.checked } : null)}
+                      className="w-5 h-5 text-accent-primary rounded border-gray-300 focus:ring-accent-primary"
+                    />
+                    <div>
+                      <span className="text-gray-700 dark:text-dark-300 font-medium">Webhook aktivieren</span>
+                      <p className="text-sm text-gray-500 dark:text-dark-400">Eingehende Webhook-Events verarbeiten</p>
+                    </div>
+                  </label>
+
+                  {/* Auto Create Tickets */}
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={webhookConfig?.autoCreateTickets || false}
+                      onChange={(e) => setWebhookConfig(prev => prev ? { ...prev, autoCreateTickets: e.target.checked } : null)}
+                      className="w-5 h-5 text-accent-primary rounded border-gray-300 focus:ring-accent-primary"
+                    />
+                    <div>
+                      <span className="text-gray-700 dark:text-dark-300 font-medium">Automatische Ticket-Erstellung</span>
+                      <p className="text-sm text-gray-500 dark:text-dark-400">Erstelle automatisch Tickets für eingehende Alerts</p>
+                    </div>
+                  </label>
+
+                  {/* Min Severity */}
+                  {webhookConfig?.autoCreateTickets && (
+                    <div className="ml-8">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                        Mindest-Schweregrad für Ticket-Erstellung
+                      </label>
+                      <select
+                        value={webhookConfig?.minSeverity || 'MAJOR'}
+                        onChange={(e) => setWebhookConfig(prev => prev ? { ...prev, minSeverity: e.target.value } : null)}
+                        className="px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                      >
+                        <option value="NONE">Alle Alerts</option>
+                        <option value="MINOR">MINOR und höher</option>
+                        <option value="MODERATE">MODERATE und höher</option>
+                        <option value="MAJOR">MAJOR und höher</option>
+                        <option value="CRITICAL">Nur CRITICAL</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Auto Resolve Tickets */}
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={webhookConfig?.autoResolveTickets || false}
+                      onChange={(e) => setWebhookConfig(prev => prev ? { ...prev, autoResolveTickets: e.target.checked } : null)}
+                      className="w-5 h-5 text-accent-primary rounded border-gray-300 focus:ring-accent-primary"
+                    />
+                    <div>
+                      <span className="text-gray-700 dark:text-dark-300 font-medium">Automatisches Ticket-Schließen</span>
+                      <p className="text-sm text-gray-500 dark:text-dark-400">Schließe Tickets automatisch wenn der Alert in NinjaRMM gelöst wird</p>
+                    </div>
+                  </label>
+
+                  {/* Save Button */}
+                  <div className="pt-4">
+                    <button
+                      onClick={handleSaveWebhookConfig}
+                      disabled={savingWebhook}
+                      className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+                    >
+                      <Save size={16} />
+                      {savingWebhook ? 'Speichern...' : 'Einstellungen speichern'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Webhook Events Log */}
+              <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 overflow-hidden">
+                <div className="p-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-white">Webhook-Events</h3>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Letzte eingehende Events</p>
+                  </div>
+                  <button
+                    onClick={loadWebhookData}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+                  >
+                    <RefreshCw size={14} />
+                    Aktualisieren
+                  </button>
+                </div>
+                {webhookEvents.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-dark-400">
+                    <Zap size={32} className="mx-auto mb-2 opacity-50" />
+                    <p>Noch keine Webhook-Events empfangen</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 dark:bg-dark-50 text-left text-sm text-gray-500 dark:text-dark-400">
+                        <tr>
+                          <th className="px-4 py-3 font-medium">Status</th>
+                          <th className="px-4 py-3 font-medium">Event-Typ</th>
+                          <th className="px-4 py-3 font-medium">Schweregrad</th>
+                          <th className="px-4 py-3 font-medium">Ticket</th>
+                          <th className="px-4 py-3 font-medium">Zeit</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
+                        {webhookEvents.map(event => (
+                          <tr key={event.id} className="hover:bg-gray-50 dark:hover:bg-dark-50">
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                event.status === 'processed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                                event.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                                event.status === 'ignored' ? 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300' :
+                                'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                              }`}>
+                                {event.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-900 dark:text-white">
+                              {event.eventType}
+                            </td>
+                            <td className="px-4 py-3">
+                              {event.severity && (
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  event.severity === 'CRITICAL' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                                  event.severity === 'MAJOR' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+                                  event.severity === 'MODERATE' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
+                                  'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                }`}>
+                                  {event.severity}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-gray-700 dark:text-dark-300">
+                              {event.ticketId ? (
+                                <span className="flex items-center gap-1 text-accent-primary">
+                                  <Ticket size={14} />
+                                  Erstellt
+                                </span>
+                              ) : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500 dark:text-dark-400 whitespace-nowrap">
+                              {new Date(event.createdAt).toLocaleString('de-DE')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Help */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
+                <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2">NinjaRMM Webhook einrichten</h3>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800 dark:text-blue-300">
+                  <li>Kopiere die Webhook URL oben</li>
+                  <li>Gehe in NinjaRMM zu Administration &gt; Policies &gt; Notifications</li>
+                  <li>Erstelle eine neue Webhook-Notification und füge die URL ein</li>
+                  <li>Aktiviere "X-Webhook-Secret" Header und füge das generierte Secret ein</li>
+                  <li>Wähle die gewünschten Alert-Trigger (z.B. Device Offline, Disk Space, etc.)</li>
+                  <li>Speichere und teste den Webhook</li>
+                </ol>
+              </div>
+            </>
           )}
         </div>
       )}
