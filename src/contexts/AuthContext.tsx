@@ -4,6 +4,7 @@ import { storage } from '../utils/storage';
 import { validatePassword, validateEmail, validateUsername } from '../utils/auth';
 import { accentColor } from '../utils/accentColor';
 import { grayTone } from '../utils/theme';
+import { darkMode } from '../utils/darkMode';
 import { authApi, userApi } from '../services/api';
 
 interface LoginResult {
@@ -30,6 +31,7 @@ interface AuthContextType {
   logout: () => void;
   updateAccentColor: (color: AccentColor) => void;
   updateGrayTone: (tone: GrayTone) => void;
+  updateDarkMode: (enabled: boolean) => void;
   updateTimeRoundingInterval: (interval: TimeRoundingInterval) => void;
   updateTimeFormat: (format: TimeFormat) => void;
 }
@@ -85,11 +87,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         const user = userResponse.data as User;
         setCurrentUser(user);
 
-        // Initialize theme
+        // Initialize theme from user preferences
         accentColor.set(user.accentColor);
         grayTone.set(user.grayTone);
+        darkMode.syncFromUser(user.darkMode);
         applyAccentColorToRoot(user.accentColor);
-        console.log('✅ [INIT] Theme initialized');
+        console.log('✅ [INIT] Theme initialized:', { accentColor: user.accentColor, grayTone: user.grayTone, darkMode: user.darkMode });
       } catch (error) {
         console.error('❌ [INIT] Failed to load user, clearing token:', error);
         // Token is invalid, clear it
@@ -140,8 +143,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Apply user's theme
       accentColor.set(user.accentColor);
       grayTone.set(user.grayTone);
+      darkMode.syncFromUser(user.darkMode);
       applyAccentColorToRoot(user.accentColor);
-      console.log('✅ [AUTH] Theme applied:', { accentColor: user.accentColor, grayTone: user.grayTone });
+      console.log('✅ [AUTH] Theme applied:', { accentColor: user.accentColor, grayTone: user.grayTone, darkMode: user.darkMode });
 
       console.log('🎉 [AUTH] Login complete!');
       return { success: true };
@@ -176,8 +180,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Apply user's theme
       accentColor.set(user.accentColor);
       grayTone.set(user.grayTone);
+      darkMode.syncFromUser(user.darkMode);
       applyAccentColorToRoot(user.accentColor);
-      console.log('✅ [AUTH] Theme applied:', { accentColor: user.accentColor, grayTone: user.grayTone });
+      console.log('✅ [AUTH] Theme applied:', { accentColor: user.accentColor, grayTone: user.grayTone, darkMode: user.darkMode });
 
       console.log('🎉 [AUTH] MFA verification complete!');
       return { success: true };
@@ -251,8 +256,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Apply default theme
       accentColor.set(user.accentColor);
       grayTone.set(user.grayTone);
+      darkMode.syncFromUser(user.darkMode);
       applyAccentColorToRoot(user.accentColor);
-      console.log('✅ [REGISTER] Theme applied:', { accentColor: user.accentColor, grayTone: user.grayTone });
+      console.log('✅ [REGISTER] Theme applied:', { accentColor: user.accentColor, grayTone: user.grayTone, darkMode: user.darkMode });
 
       console.log('🎉 [REGISTER] Registration complete!');
       return { success: true };
@@ -304,6 +310,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     grayTone.set(tone);
   };
 
+  const updateDarkMode = (enabled: boolean) => {
+    if (!currentUser) return;
+
+    // Update user in storage
+    storage.updateUser(currentUser.id, { darkMode: enabled });
+
+    // Update local state
+    const updatedUser = { ...currentUser, darkMode: enabled };
+    setCurrentUser(updatedUser);
+    storage.setCurrentUser(updatedUser);
+
+    // Update dark mode utility and apply to DOM
+    darkMode.set(enabled);
+  };
+
   const updateTimeRoundingInterval = (interval: TimeRoundingInterval) => {
     if (!currentUser) return;
 
@@ -338,6 +359,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     logout,
     updateAccentColor,
     updateGrayTone,
+    updateDarkMode,
     updateTimeRoundingInterval,
     updateTimeFormat
   };

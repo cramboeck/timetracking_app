@@ -127,6 +127,19 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add dark_mode column to users table
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'dark_mode'
+        ) THEN
+          ALTER TABLE users ADD COLUMN dark_mode BOOLEAN DEFAULT FALSE;
+        END IF;
+      END $$;
+    `);
+
     // Trusted devices table for "Remember this device" MFA feature
     await client.query(`
       CREATE TABLE IF NOT EXISTS trusted_devices (

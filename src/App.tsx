@@ -18,7 +18,6 @@ import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
-import { darkMode } from './utils/darkMode';
 import { useAuth } from './contexts/AuthContext';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
 import { haptics } from './utils/haptics';
@@ -26,7 +25,7 @@ import { notificationService } from './utils/notifications';
 import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi } from './services/api';
 
 function App() {
-  const { currentUser, isAuthenticated, isLoading } = useAuth();
+  const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
   const [currentArea, setCurrentArea] = useState<Area>('arbeiten');
   const [currentSubView, setCurrentSubView] = useState<SubView>('stopwatch');
   const [entries, setEntries] = useState<TimeEntry[]>([]);
@@ -35,7 +34,6 @@ function App() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
   const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string; ticketId?: string } | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
@@ -68,10 +66,6 @@ function App() {
         setCustomers(customersResponse.data || []);
         setActivities(activitiesResponse.data || []);
         setEntries(entriesResponse.data || []);
-
-        // Initialize dark mode
-        const isDark = darkMode.initialize();
-        setIsDarkMode(isDark);
 
         // Find any running entry
         const running = (entriesResponse.data || []).find(e => e.isRunning);
@@ -506,9 +500,8 @@ function App() {
 
   // Dark Mode handler
   const handleToggleDarkMode = () => {
-    const newMode = !isDarkMode;
-    setIsDarkMode(newMode);
-    darkMode.set(newMode);
+    const newMode = !(currentUser?.darkMode ?? false);
+    updateDarkMode(newMode);
   };
 
   // Get visible areas for swipe navigation
@@ -697,7 +690,7 @@ function App() {
             projects={projects}
             activities={activities}
             entries={entries}
-            darkMode={isDarkMode}
+            darkMode={currentUser?.darkMode ?? false}
             onToggleDarkMode={handleToggleDarkMode}
             onAddCustomer={handleAddCustomer}
             onUpdateCustomer={handleUpdateCustomer}

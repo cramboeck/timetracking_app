@@ -12,6 +12,7 @@ const router = Router();
 const updateSettingsSchema = z.object({
   accentColor: z.string().optional(),
   grayTone: z.string().optional(),
+  darkMode: z.boolean().optional(),
   timeRoundingInterval: z.number().int().min(1).optional(),
   organizationName: z.string().max(200).optional()
 });
@@ -23,7 +24,7 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res) => {
 
     const result = await pool.query(
       `SELECT id, username, email, account_type, organization_name, customer_number, display_name,
-              team_id, team_role, mfa_enabled, accent_color, gray_tone, time_rounding_interval,
+              team_id, team_role, mfa_enabled, accent_color, gray_tone, dark_mode, time_rounding_interval,
               time_format, has_ticket_access, created_at, last_login
        FROM users WHERE id = $1`,
       [userId]
@@ -63,6 +64,10 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
       fields.push(`gray_tone = $${paramCount++}`);
       values.push(updates.grayTone);
     }
+    if (updates.darkMode !== undefined) {
+      fields.push(`dark_mode = $${paramCount++}`);
+      values.push(updates.darkMode);
+    }
     if (updates.timeRoundingInterval !== undefined) {
       fields.push(`time_rounding_interval = $${paramCount++}`);
       values.push(updates.timeRoundingInterval);
@@ -82,7 +87,7 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
 
     const userResult = await pool.query(
       `SELECT id, username, email, account_type, organization_name, customer_number, display_name,
-              team_id, team_role, mfa_enabled, accent_color, gray_tone, time_rounding_interval,
+              team_id, team_role, mfa_enabled, accent_color, gray_tone, dark_mode, time_rounding_interval,
               time_format, has_ticket_access, created_at, last_login
        FROM users WHERE id = $1`,
       [userId]

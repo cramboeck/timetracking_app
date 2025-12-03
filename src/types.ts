@@ -99,6 +99,7 @@ export interface User {
   mfaSecret?: string; // For future TOTP implementation
   accentColor: AccentColor; // User's chosen accent color
   grayTone: GrayTone; // User's chosen gray tone intensity
+  darkMode: boolean; // User's dark mode preference
   timeRoundingInterval: TimeRoundingInterval; // Minimum time unit for rounding (default: 15)
   timeFormat: TimeFormat; // Time display format (12h/24h, default: 24h)
   hasTicketAccess: boolean; // Ticket system add-on (default: false)
