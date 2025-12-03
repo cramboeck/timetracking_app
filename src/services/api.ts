@@ -803,7 +803,13 @@ export const ticketsApi = {
     return authFetch(`/tickets/${ticketId}/tasks`);
   },
 
-  createTask: async (ticketId: string, data: { title: string; visibleToCustomer?: boolean }): Promise<{ success: boolean; data: TicketTask }> => {
+  createTask: async (ticketId: string, data: {
+    title: string;
+    visibleToCustomer?: boolean;
+    assignedTo?: string | null;
+    dueDate?: string | null;
+    description?: string | null;
+  }): Promise<{ success: boolean; data: TicketTask }> => {
     return authFetch(`/tickets/${ticketId}/tasks`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -814,6 +820,9 @@ export const ticketsApi = {
     title?: string;
     completed?: boolean;
     visibleToCustomer?: boolean;
+    assignedTo?: string | null;
+    dueDate?: string | null;
+    description?: string | null;
   }): Promise<{ success: boolean; data: TicketTask }> => {
     return authFetch(`/tickets/${ticketId}/tasks/${taskId}`, {
       method: 'PUT',

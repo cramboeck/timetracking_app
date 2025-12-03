@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb, Pencil, Check } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
 import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl, organizationsApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -112,6 +112,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const [newTaskVisible, setNewTaskVisible] = useState(false);
   const [addingTask, setAddingTask] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTaskTitle, setEditingTaskTitle] = useState('');
 
   useEffect(() => {
     loadTicket();
@@ -252,6 +254,32 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
     } catch (err) {
       console.error('Failed to update task visibility:', err);
+    }
+  };
+
+  const handleStartEditTask = (task: TicketTask) => {
+    setEditingTaskId(task.id);
+    setEditingTaskTitle(task.title);
+  };
+
+  const handleCancelEditTask = () => {
+    setEditingTaskId(null);
+    setEditingTaskTitle('');
+  };
+
+  const handleSaveEditTask = async (taskId: string) => {
+    if (!editingTaskTitle.trim()) {
+      handleCancelEditTask();
+      return;
+    }
+    try {
+      const response = await ticketsApi.updateTask(ticketId, taskId, {
+        title: editingTaskTitle.trim(),
+      });
+      setTasks(prev => prev.map(t => t.id === taskId ? response.data : t));
+      handleCancelEditTask();
+    } catch (err) {
+      console.error('Failed to update task:', err);
     }
   };
 
@@ -1037,15 +1065,61 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                   </button>
 
                   {/* Task Title */}
-                  <span
-                    className={`flex-1 text-sm ${
-                      task.completed
-                        ? 'text-gray-500 dark:text-gray-400 line-through'
-                        : 'text-gray-900 dark:text-white'
-                    }`}
-                  >
-                    {task.title}
-                  </span>
+                  {editingTaskId === task.id ? (
+                    <div className="flex-1 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editingTaskTitle}
+                        onChange={(e) => setEditingTaskTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleSaveEditTask(task.id);
+                          } else if (e.key === 'Escape') {
+                            handleCancelEditTask();
+                          }
+                        }}
+                        autoFocus
+                        className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      />
+                      <button
+                        onClick={() => handleSaveEditTask(task.id)}
+                        className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
+                        title="Speichern"
+                      >
+                        <Check size={16} />
+                      </button>
+                      <button
+                        onClick={handleCancelEditTask}
+                        className="p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                        title="Abbrechen"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span
+                      className={`flex-1 text-sm cursor-pointer hover:text-accent-primary ${
+                        task.completed
+                          ? 'text-gray-500 dark:text-gray-400 line-through'
+                          : 'text-gray-900 dark:text-white'
+                      }`}
+                      onDoubleClick={() => handleStartEditTask(task)}
+                      title="Doppelklicken zum Bearbeiten"
+                    >
+                      {task.title}
+                    </span>
+                  )}
+
+                  {/* Edit Button - only show when not editing */}
+                  {editingTaskId !== task.id && (
+                    <button
+                      onClick={() => handleStartEditTask(task)}
+                      className="p-1.5 text-gray-400 hover:text-accent-primary hover:bg-accent-primary/10 rounded opacity-0 group-hover:opacity-100 transition-all"
+                      title="Aufgabe bearbeiten"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                  )}
 
                   {/* Visibility Toggle */}
                   <button
