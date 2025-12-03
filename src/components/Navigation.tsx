@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Edit, List, Calendar, Settings, BarChart3, Ticket, Wallet, Star, MoreHorizontal } from 'lucide-react';
+import { Clock, Edit, List, Calendar, Settings, BarChart3, Ticket, Wallet, Star, MoreHorizontal, ListTodo } from 'lucide-react';
 import { ViewMode } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { sevdeskApi } from '../services/api';
@@ -32,6 +32,7 @@ export const Navigation = ({ currentView, onViewChange }: NavigationProps) => {
   const primaryNavItems: { view: ViewMode; icon: typeof Clock; label: string; premium?: boolean }[] = [
     { view: 'stopwatch', icon: Clock, label: 'Timer' },
     { view: 'list', icon: List, label: 'Liste' },
+    { view: 'tasks', icon: ListTodo, label: 'Aufgaben' },
     ...(hasTicketAccess ? [{ view: 'tickets' as ViewMode, icon: Ticket, label: 'Tickets' }] : []),
     { view: 'billing', icon: Wallet, label: 'Finanzen', premium: !billingEnabled },
   ];

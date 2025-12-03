@@ -3,7 +3,7 @@ import {
   Clock, List, Calendar,
   Ticket, Monitor, Bell, Wrench,
   BarChart3, Wallet, FileText,
-  Settings, Briefcase, HeadphonesIcon, TrendingUp
+  Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo
 } from 'lucide-react';
 import { useFeatures } from '../contexts/FeaturesContext';
 
@@ -11,7 +11,7 @@ import { useFeatures } from '../contexts/FeaturesContext';
 export type Area = 'arbeiten' | 'support' | 'business';
 export type SubView =
   // Arbeiten
-  | 'stopwatch' | 'list' | 'calendar' | 'manual'
+  | 'stopwatch' | 'list' | 'calendar' | 'manual' | 'tasks'
   // Support
   | 'tickets' | 'devices' | 'alerts' | 'maintenance'
   // Business
@@ -32,6 +32,7 @@ const areaConfig = {
     label: 'Arbeiten',
     subViews: [
       { view: 'stopwatch' as SubView, icon: Clock, label: 'Timer' },
+      { view: 'tasks' as SubView, icon: ListTodo, label: 'Aufgaben' },
       { view: 'list' as SubView, icon: List, label: 'Einträge' },
       { view: 'calendar' as SubView, icon: Calendar, label: 'Kalender' },
     ],

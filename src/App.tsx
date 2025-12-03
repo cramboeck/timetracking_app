@@ -11,6 +11,7 @@ import { Finanzen } from './components/Finanzen';
 import { DevicesView } from './components/DevicesView';
 import { AlertsView } from './components/AlertsView';
 import MaintenanceView from './components/MaintenanceView';
+import TaskHub from './components/TaskHub';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
@@ -633,6 +634,19 @@ function App() {
               } catch (error) {
                 console.error('Failed to create entry:', error);
               }
+            }}
+          />
+        )}
+        {currentSubView === 'tasks' && (
+          <TaskHub
+            runningTimerTaskId={null}
+            onTimerStart={(taskId) => {
+              console.log('Start timer for task:', taskId);
+              // Timer is handled inside TaskHub via API
+            }}
+            onTimerStop={(taskId) => {
+              console.log('Stop timer for task:', taskId);
+              // Timer is handled inside TaskHub via API
             }}
           />
         )}

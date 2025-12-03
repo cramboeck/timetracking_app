@@ -212,6 +212,161 @@ export interface TicketTaskWithInfo extends TicketTask {
   customerName?: string;
 }
 
+// ============================================================================
+// Unified Task Hub Types (Standalone Tasks)
+// ============================================================================
+
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type RecurrencePattern = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+
+export interface Task {
+  id: string;
+  organizationId: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+
+  // Optional linking
+  ticketId?: string;
+  projectId?: string;
+  customerId?: string;
+
+  // Assignment
+  assignedTo?: string;
+  assignedToName?: string;
+  assignedToDisplayName?: string;
+  createdBy: string;
+  createdByName?: string;
+
+  // Time management
+  dueDate?: string;
+  dueTime?: string;
+  reminderAt?: string;
+  estimatedMinutes?: number;
+
+  // Recurrence
+  isRecurring: boolean;
+  recurrencePattern?: RecurrencePattern;
+  recurrenceInterval?: number;
+  recurrenceDays?: string[];
+  recurrenceEndDate?: string;
+  parentTaskId?: string;
+
+  // Categorization
+  category?: string;
+  tags?: string[];
+  color?: string;
+
+  // Completion
+  completedAt?: string;
+  completedBy?: string;
+  completedByName?: string;
+
+  // Ordering
+  sortOrder: number;
+
+  // Timestamps
+  createdAt: string;
+  updatedAt: string;
+
+  // Computed/joined fields
+  customerName?: string;
+  projectName?: string;
+  ticketNumber?: string;
+  ticketTitle?: string;
+  checklistCount?: number;
+  checklistCompleted?: number;
+  totalTrackedTime?: number;
+}
+
+export interface TaskChecklistItem {
+  id: string;
+  taskId: string;
+  title: string;
+  completed: boolean;
+  sortOrder: number;
+  completedAt?: string;
+  createdAt: string;
+}
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  userId: string;
+  username?: string;
+  displayName?: string;
+  comment: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskActivityLog {
+  id: string;
+  taskId: string;
+  userId?: string;
+  username?: string;
+  action: string;
+  oldValue?: string;
+  newValue?: string;
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface TaskTemplate {
+  id: string;
+  organizationId: string;
+  name: string;
+  title: string;
+  description?: string;
+  priority: TaskPriority;
+  estimatedMinutes?: number;
+  category?: string;
+  tags?: string[];
+  checklistItems?: { title: string; completed?: boolean }[];
+  isActive: boolean;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskWithDetails extends Task {
+  checklistItems: TaskChecklistItem[];
+  comments: TaskComment[];
+  timeEntries: TimeEntry[];
+  activityLog: TaskActivityLog[];
+}
+
+export interface TaskDashboardData {
+  statusCounts: { status: string; count: number }[];
+  myTasks: {
+    my_pending: number;
+    my_in_progress: number;
+    my_overdue: number;
+    my_today: number;
+  };
+  overdueTasks: Task[];
+  todayTasks: Task[];
+  timeInsights: {
+    category: string;
+    task_count: number;
+    avg_completion_minutes: number;
+    avg_tracked_minutes: number;
+  }[];
+}
+
+export interface TaskFilters {
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  assignedTo?: string;
+  customerId?: string;
+  projectId?: string;
+  ticketId?: string;
+  view?: 'my' | 'all' | 'today' | 'week' | 'overdue';
+  includeCompleted?: boolean;
+}
+
 // SLA Policy
 export type SlaPriority = 'low' | 'normal' | 'high' | 'critical' | 'all';
 
@@ -271,4 +426,4 @@ export interface CustomerContact {
   createdAt: string;
 }
 
-export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'calendar' | 'dashboard' | 'settings' | 'tickets' | 'billing';
+export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'calendar' | 'dashboard' | 'settings' | 'tickets' | 'billing' | 'tasks';
