@@ -288,6 +288,18 @@ export const userApi = {
       method: 'DELETE',
     });
   },
+
+  // User preferences (stored in database)
+  getPreferences: async (): Promise<{ success: boolean; data: Record<string, unknown> }> => {
+    return authFetch('/user/preferences');
+  },
+
+  updatePreferences: async (preferences: Record<string, unknown>): Promise<{ success: boolean; data: Record<string, unknown> }> => {
+    return authFetch('/user/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(preferences),
+    });
+  },
 };
 
 // Time Entries API

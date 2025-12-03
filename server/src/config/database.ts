@@ -159,6 +159,19 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add preferences JSONB column to users table
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'preferences'
+        ) THEN
+          ALTER TABLE users ADD COLUMN preferences JSONB DEFAULT '{}';
+        END IF;
+      END $$;
+    `);
+
     // Trusted devices table for "Remember this device" MFA feature
     await client.query(`
       CREATE TABLE IF NOT EXISTS trusted_devices (

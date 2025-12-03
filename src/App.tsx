@@ -23,10 +23,11 @@ import { useAuth } from './contexts/AuthContext';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
 import { haptics } from './utils/haptics';
 import { notificationService } from './utils/notifications';
-import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi } from './services/api';
+import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, userApi } from './services/api';
 
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
+  // Use localStorage as initial fallback, will be overwritten by server preferences
   const [currentArea, setCurrentArea] = useState<Area>(() => {
     const saved = localStorage.getItem('currentArea');
     return (saved as Area) || 'arbeiten';
@@ -35,6 +36,7 @@ function App() {
     const saved = localStorage.getItem('currentSubView');
     return (saved as SubView) || 'stopwatch';
   });
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -46,15 +48,64 @@ function App() {
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   // Track entry IDs that are being created to prevent duplicates
   const pendingEntryIdsRef = useRef<Set<string>>(new Set());
+  // Track if we're currently saving preferences to avoid loops
+  const savingPreferencesRef = useRef(false);
 
-  // Save current view to localStorage when it changes
+  // Load preferences from database on mount
   useEffect(() => {
-    localStorage.setItem('currentArea', currentArea);
-  }, [currentArea]);
+    const loadPreferences = async () => {
+      if (!currentUser || !isAuthenticated) return;
 
+      try {
+        const response = await userApi.getPreferences();
+        if (response.success && response.data) {
+          const prefs = response.data;
+          if (prefs.currentArea) {
+            setCurrentArea(prefs.currentArea as Area);
+          }
+          if (prefs.currentSubView) {
+            setCurrentSubView(prefs.currentSubView as SubView);
+          }
+          console.log('✅ [PREFS] Loaded user preferences from database:', prefs);
+        }
+      } catch (error) {
+        console.log('📋 [PREFS] No saved preferences found, using defaults');
+      } finally {
+        setPreferencesLoaded(true);
+      }
+    };
+
+    loadPreferences();
+  }, [currentUser, isAuthenticated]);
+
+  // Save preferences to database when they change (debounced)
   useEffect(() => {
-    localStorage.setItem('currentSubView', currentSubView);
-  }, [currentSubView]);
+    // Don't save until initial preferences are loaded (to avoid overwriting server state)
+    if (!preferencesLoaded || !currentUser || !isAuthenticated) return;
+    // Prevent concurrent saves
+    if (savingPreferencesRef.current) return;
+
+    const savePreferences = async () => {
+      savingPreferencesRef.current = true;
+      try {
+        await userApi.updatePreferences({
+          currentArea,
+          currentSubView,
+        });
+        // Also save to localStorage as fallback
+        localStorage.setItem('currentArea', currentArea);
+        localStorage.setItem('currentSubView', currentSubView);
+      } catch (error) {
+        console.error('❌ [PREFS] Failed to save preferences:', error);
+      } finally {
+        savingPreferencesRef.current = false;
+      }
+    };
+
+    // Debounce saves
+    const timer = setTimeout(savePreferences, 500);
+    return () => clearTimeout(timer);
+  }, [currentArea, currentSubView, preferencesLoaded, currentUser, isAuthenticated]);
 
   // Load all data from API on mount
   useEffect(() => {
@@ -89,11 +140,7 @@ function App() {
           setRunningEntry(running);
         }
 
-        // If there are customers/projects, switch to stopwatch view
-        if (customersResponse.data.length > 0 && projectsResponse.data.length > 0) {
-          setCurrentSubView('stopwatch');
-        }
-
+        // Note: Don't auto-switch to stopwatch view - respect user's saved preference
         console.log('✅ [DATA] All data loaded successfully');
       } catch (error) {
         console.error('❌ [DATA] Error loading data:', error);
