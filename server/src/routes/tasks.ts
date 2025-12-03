@@ -294,15 +294,15 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req: Auth
 
     // Get counts by status (including ticket_tasks)
     const statusCounts = await pool.query(`
-      SELECT status, SUM(count) as count FROM (
-        SELECT status, COUNT(*) as count
+      SELECT status, SUM(count)::INTEGER as count FROM (
+        SELECT status, COUNT(*)::INTEGER as count
         FROM tasks
         WHERE organization_id = $1 AND status NOT IN ('cancelled')
         GROUP BY status
         UNION ALL
         SELECT
           CASE WHEN tt.completed THEN 'completed' ELSE 'pending' END as status,
-          COUNT(*) as count
+          COUNT(*)::INTEGER as count
         FROM ticket_tasks tt
         INNER JOIN tickets tk ON tt.ticket_id = tk.id
         WHERE tk.organization_id = $1 AND tk.status NOT IN ('archived', 'closed')
@@ -314,10 +314,10 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req: Auth
     // Get my tasks counts (including ticket_tasks)
     const myTasksCounts = await pool.query(`
       SELECT
-        COALESCE(standalone.my_pending, 0) + COALESCE(ticket.my_pending, 0) as my_pending,
-        COALESCE(standalone.my_in_progress, 0) as my_in_progress,
-        COALESCE(standalone.my_overdue, 0) + COALESCE(ticket.my_overdue, 0) as my_overdue,
-        COALESCE(standalone.my_today, 0) + COALESCE(ticket.my_today, 0) as my_today
+        (COALESCE(standalone.my_pending, 0) + COALESCE(ticket.my_pending, 0))::INTEGER as my_pending,
+        COALESCE(standalone.my_in_progress, 0)::INTEGER as my_in_progress,
+        (COALESCE(standalone.my_overdue, 0) + COALESCE(ticket.my_overdue, 0))::INTEGER as my_overdue,
+        (COALESCE(standalone.my_today, 0) + COALESCE(ticket.my_today, 0))::INTEGER as my_today
       FROM
         (SELECT
           COUNT(*) FILTER (WHERE status = 'pending') as my_pending,
