@@ -27,8 +27,14 @@ import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi 
 
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
-  const [currentArea, setCurrentArea] = useState<Area>('arbeiten');
-  const [currentSubView, setCurrentSubView] = useState<SubView>('stopwatch');
+  const [currentArea, setCurrentArea] = useState<Area>(() => {
+    const saved = localStorage.getItem('currentArea');
+    return (saved as Area) || 'arbeiten';
+  });
+  const [currentSubView, setCurrentSubView] = useState<SubView>(() => {
+    const saved = localStorage.getItem('currentSubView');
+    return (saved as SubView) || 'stopwatch';
+  });
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -40,6 +46,15 @@ function App() {
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   // Track entry IDs that are being created to prevent duplicates
   const pendingEntryIdsRef = useRef<Set<string>>(new Set());
+
+  // Save current view to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('currentArea', currentArea);
+  }, [currentArea]);
+
+  useEffect(() => {
+    localStorage.setItem('currentSubView', currentSubView);
+  }, [currentSubView]);
 
   // Load all data from API on mount
   useEffect(() => {
