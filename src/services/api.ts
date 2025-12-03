@@ -238,7 +238,9 @@ export const userApi = {
   updateSettings: async (settings: {
     accentColor?: string;
     grayTone?: string;
+    darkMode?: boolean;
     timeRoundingInterval?: number;
+    timeFormat?: string;
     organizationName?: string;
   }) => {
     return authFetch('/user/settings', {

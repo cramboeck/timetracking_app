@@ -14,6 +14,7 @@ const updateSettingsSchema = z.object({
   grayTone: z.string().optional(),
   darkMode: z.boolean().optional(),
   timeRoundingInterval: z.number().int().min(1).optional(),
+  timeFormat: z.string().optional(),
   organizationName: z.string().max(200).optional()
 });
 
@@ -71,6 +72,10 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
     if (updates.timeRoundingInterval !== undefined) {
       fields.push(`time_rounding_interval = $${paramCount++}`);
       values.push(updates.timeRoundingInterval);
+    }
+    if (updates.timeFormat !== undefined) {
+      fields.push(`time_format = $${paramCount++}`);
+      values.push(updates.timeFormat);
     }
     if (updates.organizationName !== undefined) {
       fields.push(`organization_name = $${paramCount++}`);

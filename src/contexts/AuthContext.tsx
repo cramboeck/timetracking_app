@@ -7,6 +7,16 @@ import { grayTone } from '../utils/theme';
 import { darkMode } from '../utils/darkMode';
 import { authApi, userApi } from '../services/api';
 
+// Helper to persist settings to backend
+const persistSettings = async (settings: Parameters<typeof userApi.updateSettings>[0]) => {
+  try {
+    await userApi.updateSettings(settings);
+  } catch (error) {
+    console.error('Failed to persist settings to backend:', error);
+    // Don't throw - we still want to update local state for immediate feedback
+  }
+};
+
 interface LoginResult {
   success: boolean;
   message?: string;
@@ -282,8 +292,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const updateAccentColor = (color: AccentColor) => {
     if (!currentUser) return;
 
-    // Update user in storage
-    storage.updateUser(currentUser.id, { accentColor: color });
+    // Persist to backend
+    persistSettings({ accentColor: color });
 
     // Update local state
     const updatedUser = { ...currentUser, accentColor: color };
@@ -298,8 +308,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const updateGrayTone = (tone: GrayTone) => {
     if (!currentUser) return;
 
-    // Update user in storage
-    storage.updateUser(currentUser.id, { grayTone: tone });
+    // Persist to backend
+    persistSettings({ grayTone: tone });
 
     // Update local state
     const updatedUser = { ...currentUser, grayTone: tone };
@@ -313,8 +323,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const updateDarkMode = (enabled: boolean) => {
     if (!currentUser) return;
 
-    // Update user in storage
-    storage.updateUser(currentUser.id, { darkMode: enabled });
+    // Persist to backend
+    persistSettings({ darkMode: enabled });
 
     // Update local state
     const updatedUser = { ...currentUser, darkMode: enabled };
@@ -328,8 +338,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const updateTimeRoundingInterval = (interval: TimeRoundingInterval) => {
     if (!currentUser) return;
 
-    // Update user in storage
-    storage.updateUser(currentUser.id, { timeRoundingInterval: interval });
+    // Persist to backend
+    persistSettings({ timeRoundingInterval: interval });
 
     // Update local state
     const updatedUser = { ...currentUser, timeRoundingInterval: interval };
@@ -340,8 +350,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const updateTimeFormat = (format: TimeFormat) => {
     if (!currentUser) return;
 
-    // Update user in storage
-    storage.updateUser(currentUser.id, { timeFormat: format });
+    // Persist to backend
+    persistSettings({ timeFormat: format });
 
     // Update local state
     const updatedUser = { ...currentUser, timeFormat: format };
