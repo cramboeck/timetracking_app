@@ -91,7 +91,10 @@ export type AuditAction =
   // MFA actions
   | 'mfa.device_trusted'
   | 'mfa.device_revoked'
-  | 'mfa.all_devices_revoked';
+  | 'mfa.all_devices_revoked'
+  // Admin maintenance actions
+  | 'maintenance.admin_delete'
+  | 'maintenance.admin_bulk_delete';
 
 export interface AuditLogEntry {
   id: string;

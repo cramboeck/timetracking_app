@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Calendar, Clock, Send, Plus, RefreshCw, CheckCircle, XCircle,
   AlertTriangle, Trash2, Edit, Eye, ChevronDown, ChevronUp,
-  Users, Monitor, Bell, Filter, MoreHorizontal, FileText
+  Users, Monitor, Bell, Filter, MoreHorizontal, FileText, Lock, ShieldAlert
 } from 'lucide-react';
 import {
   maintenanceApi,
@@ -448,6 +448,121 @@ function AnnouncementDialog({
   );
 }
 
+// Delete Confirmation Dialog with Password
+function DeleteConfirmationDialog({
+  announcement,
+  onConfirm,
+  onClose
+}: {
+  announcement: MaintenanceAnnouncement;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Check password - using a simple confirmation password
+    if (password !== 'DELETE' && password !== 'LÖSCHEN') {
+      setError('Bitte geben Sie "DELETE" oder "LÖSCHEN" ein, um das Löschen zu bestätigen');
+      return;
+    }
+
+    setDeleting(true);
+    setError('');
+    try {
+      await onConfirm();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Löschen');
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-3 text-red-600">
+            <ShieldAlert className="w-6 h-6" />
+            <h2 className="text-xl font-semibold">Wartung löschen</h2>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-red-800 dark:text-red-200 font-medium mb-2">
+              Sie sind dabei, folgende Wartungsankündigung zu löschen:
+            </p>
+            <p className="text-red-700 dark:text-red-300 text-sm">
+              <strong>"{announcement.title}"</strong>
+            </p>
+            <p className="text-red-600 dark:text-red-400 text-xs mt-2">
+              Status: {STATUS_LABELS[announcement.status]}
+              {announcement.customer_count !== undefined && ` • ${announcement.customer_count} Kunde(n)`}
+            </p>
+          </div>
+
+          {announcement.status !== 'draft' && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-amber-700 dark:text-amber-300 text-sm">
+                Diese Wartung wurde bereits geplant oder hat Benachrichtigungen versendet.
+                Das Löschen kann nicht rückgängig gemacht werden!
+              </p>
+            </div>
+          )}
+
+          {error && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Geben Sie <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">DELETE</span> ein, um das Löschen zu bestätigen:
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                value={password}
+                onChange={(e) => setPassword(e.target.value.toUpperCase())}
+                placeholder="DELETE"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={deleting}
+              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="submit"
+              disabled={deleting || password.length === 0}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Endgültig löschen
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // Announcement Detail View
 function AnnouncementDetail({
   announcementId,
@@ -802,6 +917,7 @@ export default function MaintenanceView() {
   const [selectedAnnouncementId, setSelectedAnnouncementId] = useState<string | null>(null);
   const [editingAnnouncement, setEditingAnnouncement] = useState<MaintenanceAnnouncement | null>(null);
   const [editingCustomerIds, setEditingCustomerIds] = useState<string[]>([]);
+  const [deletingAnnouncement, setDeletingAnnouncement] = useState<MaintenanceAnnouncement | null>(null);
   const [error, setError] = useState('');
 
   const loadData = useCallback(async () => {
@@ -849,14 +965,15 @@ export default function MaintenanceView() {
     setSelectedAnnouncementId(null); // Close detail view
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Wartungsankündigung wirklich löschen?')) return;
-    try {
-      await maintenanceApi.deleteAnnouncement(id);
-      await loadData();
-    } catch (err: any) {
-      setError(err.message);
-    }
+  const handleDelete = async (announcement: MaintenanceAnnouncement) => {
+    setDeletingAnnouncement(announcement);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingAnnouncement) return;
+    await maintenanceApi.deleteAnnouncement(deletingAnnouncement.id);
+    await loadData();
+    setDeletingAnnouncement(null);
   };
 
   if (loading) {
@@ -1060,15 +1177,13 @@ export default function MaintenanceView() {
                         <Edit className="w-5 h-5" />
                       </button>
                     )}
-                    {announcement.status === 'draft' && (
-                      <button
-                        onClick={() => handleDelete(announcement.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
-                        title="Löschen"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleDelete(announcement)}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
+                      title="Löschen"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1108,6 +1223,15 @@ export default function MaintenanceView() {
           onClose={() => setSelectedAnnouncementId(null)}
           onRefresh={loadData}
           onEdit={handleEdit}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deletingAnnouncement && (
+        <DeleteConfirmationDialog
+          announcement={deletingAnnouncement}
+          onConfirm={confirmDelete}
+          onClose={() => setDeletingAnnouncement(null)}
         />
       )}
     </div>
