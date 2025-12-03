@@ -1110,9 +1110,15 @@ router.post('/webhook-config/generate-secret', authenticateToken, requireNinjaFe
       [uuidv4(), userId, newSecret]
     );
 
+    // Return the new secret and the updated webhook URL
+    const webhookUrl = `${process.env.BACKEND_URL || ''}/api/ninjarmm/webhook/${userId}?secret=${encodeURIComponent(newSecret)}`;
+
     res.json({
       success: true,
-      data: { webhookSecret: newSecret },
+      data: {
+        secret: newSecret,
+        webhookUrl,
+      },
       message: 'Neues Webhook-Secret generiert'
     });
   } catch (error: any) {

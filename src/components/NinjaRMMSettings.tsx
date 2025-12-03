@@ -394,11 +394,10 @@ export const NinjaRMMSettings = () => {
       if (result.success) {
         setWebhookConfig(prev => prev ? {
           ...prev,
-          webhookSecret: result.data.secret,
+          webhookUrl: result.data.webhookUrl, // Update URL with new secret
           hasSecret: true,
         } : null);
-        setShowWebhookSecret(true);
-        setSuccess('Neues Webhook-Secret generiert. Bitte kopieren und in NinjaRMM eintragen.');
+        setSuccess('Neues Webhook-Secret generiert. Kopiere jetzt die aktualisierte URL!');
       }
     } catch (err: any) {
       setError(err.message || 'Fehler beim Generieren des Secrets');
