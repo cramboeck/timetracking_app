@@ -130,11 +130,13 @@ function formatDate(dateStr: string): string {
 function AnnouncementDialog({
   announcement,
   customers,
+  existingCustomerIds,
   onSave,
   onClose
 }: {
   announcement?: MaintenanceAnnouncement;
   customers: Customer[];
+  existingCustomerIds?: string[];
   onSave: (data: any) => Promise<void>;
   onClose: () => void;
 }) {
@@ -158,7 +160,7 @@ function AnnouncementDialog({
       : '',
     autoProceedOnNoResponse: announcement?.auto_proceed_on_no_response ?? false,
     notes: announcement?.notes || '',
-    customerIds: [] as string[],
+    customerIds: existingCustomerIds || [] as string[],
     createTicket: false
   });
   const [saving, setSaving] = useState(false);
@@ -450,11 +452,13 @@ function AnnouncementDialog({
 function AnnouncementDetail({
   announcementId,
   onClose,
-  onRefresh
+  onRefresh,
+  onEdit
 }: {
   announcementId: string;
   onClose: () => void;
   onRefresh: () => void;
+  onEdit: (announcement: MaintenanceAnnouncement, customerIds: string[]) => void;
 }) {
   const [data, setData] = useState<{
     announcement: MaintenanceAnnouncement;
@@ -732,6 +736,16 @@ function AnnouncementDetail({
         {/* Footer with actions */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-between">
           <div className="flex gap-2">
+            {/* Edit button - only for draft, scheduled, or sent status */}
+            {['draft', 'scheduled', 'sent'].includes(announcement.status) && (
+              <button
+                onClick={() => onEdit(announcement, customers.map(c => c.customer_id))}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
+              >
+                <Edit className="w-4 h-4" />
+                Bearbeiten
+              </button>
+            )}
             {announcement.status === 'draft' && (
               <button
                 onClick={() => handleUpdateStatus('scheduled')}
@@ -759,7 +773,7 @@ function AnnouncementDetail({
             {!['completed', 'cancelled'].includes(announcement.status) && (
               <button
                 onClick={() => handleUpdateStatus('cancelled')}
-                className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg"
+                className="px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
               >
                 Abbrechen
               </button>
@@ -767,7 +781,7 @@ function AnnouncementDetail({
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
           >
             Schließen
           </button>
@@ -786,6 +800,8 @@ export default function MaintenanceView() {
   const [statusFilter, setStatusFilter] = useState<MaintenanceStatus | ''>('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedAnnouncementId, setSelectedAnnouncementId] = useState<string | null>(null);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<MaintenanceAnnouncement | null>(null);
+  const [editingCustomerIds, setEditingCustomerIds] = useState<string[]>([]);
   const [error, setError] = useState('');
 
   const loadData = useCallback(async () => {
@@ -812,6 +828,20 @@ export default function MaintenanceView() {
   const handleCreate = async (data: any) => {
     await maintenanceApi.createAnnouncement(data);
     await loadData();
+  };
+
+  const handleUpdate = async (data: any) => {
+    if (!editingAnnouncement) return;
+    await maintenanceApi.updateAnnouncement(editingAnnouncement.id, data);
+    await loadData();
+    setEditingAnnouncement(null);
+    setEditingCustomerIds([]);
+  };
+
+  const handleEdit = (announcement: MaintenanceAnnouncement, customerIds: string[]) => {
+    setEditingAnnouncement(announcement);
+    setEditingCustomerIds(customerIds);
+    setSelectedAnnouncementId(null); // Close detail view
   };
 
   const handleDelete = async (id: string) => {
@@ -1002,15 +1032,32 @@ export default function MaintenanceView() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setSelectedAnnouncementId(announcement.id)}
-                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
                       title="Details"
                     >
                       <Eye className="w-5 h-5" />
                     </button>
+                    {['draft', 'scheduled', 'sent'].includes(announcement.status) && (
+                      <button
+                        onClick={async () => {
+                          // Load announcement details to get customer IDs
+                          try {
+                            const details = await maintenanceApi.getAnnouncement(announcement.id);
+                            handleEdit(announcement, details.customers.map(c => c.customer_id));
+                          } catch (err) {
+                            console.error('Failed to load announcement for editing:', err);
+                          }
+                        }}
+                        className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg"
+                        title="Bearbeiten"
+                      >
+                        <Edit className="w-5 h-5" />
+                      </button>
+                    )}
                     {announcement.status === 'draft' && (
                       <button
                         onClick={() => handleDelete(announcement.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
                         title="Löschen"
                       >
                         <Trash2 className="w-5 h-5" />
@@ -1028,8 +1075,23 @@ export default function MaintenanceView() {
       {showCreateDialog && (
         <AnnouncementDialog
           customers={customers}
+          existingCustomerIds={[]}
           onSave={handleCreate}
           onClose={() => setShowCreateDialog(false)}
+        />
+      )}
+
+      {/* Edit Dialog */}
+      {editingAnnouncement && (
+        <AnnouncementDialog
+          announcement={editingAnnouncement}
+          customers={customers}
+          existingCustomerIds={editingCustomerIds}
+          onSave={handleUpdate}
+          onClose={() => {
+            setEditingAnnouncement(null);
+            setEditingCustomerIds([]);
+          }}
         />
       )}
 
@@ -1039,6 +1101,7 @@ export default function MaintenanceView() {
           announcementId={selectedAnnouncementId}
           onClose={() => setSelectedAnnouncementId(null)}
           onRefresh={loadData}
+          onEdit={handleEdit}
         />
       )}
     </div>
