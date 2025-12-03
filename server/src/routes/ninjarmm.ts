@@ -709,7 +709,13 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
     );
 
     // Handle different event types
-    if (eventType === 'ALERT' || eventType === 'CONDITION_TRIGGERED' || eventType === 'alert') {
+    // NinjaRMM sends various CONDITION_* types for alerts
+    const isAlertEvent = eventType.startsWith('CONDITION_') && !eventType.includes('CLEARED') && !eventType.includes('RESET')
+      || eventType === 'ALERT' || eventType === 'alert';
+    const isResetEvent = eventType === 'ALERT_RESET' || eventType === 'CONDITION_CLEARED'
+      || eventType === 'reset' || eventType.includes('RESET');
+
+    if (isAlertEvent) {
       // New alert - create or update alert record
       await handleNewAlert(userId, config, {
         ninjaAlertId,
@@ -721,7 +727,7 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
         payload,
         webhookEventId,
       });
-    } else if (eventType === 'ALERT_RESET' || eventType === 'CONDITION_CLEARED' || eventType === 'reset') {
+    } else if (isResetEvent) {
       // Alert resolved - mark as resolved and optionally close ticket
       await handleAlertReset(userId, config, {
         ninjaAlertId,
@@ -1151,9 +1157,24 @@ router.get('/webhook-events', authenticateToken, requireNinjaFeature, async (req
       [...params, parseInt(limit as string)]
     );
 
+    // Map snake_case to camelCase for frontend
+    const events = result.rows.map(row => ({
+      id: row.id,
+      eventType: row.event_type,
+      ninjaAlertId: row.ninja_alert_id,
+      ninjaDeviceId: row.ninja_device_id,
+      severity: row.severity,
+      status: row.status,
+      errorMessage: row.error_message,
+      alertId: row.alert_id,
+      ticketId: row.ticket_id,
+      processingTimeMs: row.processing_time_ms,
+      createdAt: row.created_at,
+    }));
+
     res.json({
       success: true,
-      data: result.rows,
+      data: events,
     });
   } catch (error: any) {
     console.error('Get webhook events error:', error);
