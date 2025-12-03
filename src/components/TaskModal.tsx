@@ -79,8 +79,8 @@ export default function TaskModal({
     const loadData = async () => {
       try {
         const [customersRes, projectsRes] = await Promise.all([
-          customersApi.getCustomers(),
-          projectsApi.getProjects(),
+          customersApi.getAll(),
+          projectsApi.getAll(),
         ]);
         if (customersRes.success) setCustomers(customersRes.data);
         if (projectsRes.success) setProjects(projectsRes.data);
