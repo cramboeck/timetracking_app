@@ -140,6 +140,25 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Ensure dark_mode is never NULL (set existing NULLs to FALSE)
+    await client.query(`
+      UPDATE users SET dark_mode = FALSE WHERE dark_mode IS NULL;
+    `);
+
+    // Migration: Add NOT NULL constraint to dark_mode
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'dark_mode' AND is_nullable = 'YES'
+        ) THEN
+          ALTER TABLE users ALTER COLUMN dark_mode SET NOT NULL;
+          ALTER TABLE users ALTER COLUMN dark_mode SET DEFAULT FALSE;
+        END IF;
+      END $$;
+    `);
+
     // Trusted devices table for "Remember this device" MFA feature
     await client.query(`
       CREATE TABLE IF NOT EXISTS trusted_devices (

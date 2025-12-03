@@ -4,10 +4,14 @@ export const darkMode = {
   get: (): boolean => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored !== null) {
-        return stored === 'true';
+      // Only accept explicit 'true' string, anything else is false
+      if (stored === 'true') {
+        return true;
       }
-      // Check system preference as fallback
+      if (stored === 'false') {
+        return false;
+      }
+      // No valid preference stored, check system preference as fallback
       return window.matchMedia('(prefers-color-scheme: dark)').matches;
     } catch {
       return false;
@@ -40,7 +44,8 @@ export const darkMode = {
   },
 
   // Sync dark mode from user preferences (when logged in)
-  syncFromUser: (userDarkMode: boolean): void => {
-    darkMode.set(userDarkMode);
+  // Ensures null/undefined is treated as false
+  syncFromUser: (userDarkMode: boolean | null | undefined): void => {
+    darkMode.set(userDarkMode === true);
   }
 };
