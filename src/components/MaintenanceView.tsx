@@ -832,10 +832,15 @@ export default function MaintenanceView() {
 
   const handleUpdate = async (data: any) => {
     if (!editingAnnouncement) return;
-    await maintenanceApi.updateAnnouncement(editingAnnouncement.id, data);
-    await loadData();
-    setEditingAnnouncement(null);
-    setEditingCustomerIds([]);
+    try {
+      await maintenanceApi.updateAnnouncement(editingAnnouncement.id, data);
+      await loadData();
+      setEditingAnnouncement(null);
+      setEditingCustomerIds([]);
+    } catch (err: any) {
+      console.error('Update failed:', err);
+      throw new Error(err.message || 'Fehler beim Aktualisieren der Wartungsankündigung');
+    }
   };
 
   const handleEdit = (announcement: MaintenanceAnnouncement, customerIds: string[]) => {
@@ -1044,8 +1049,9 @@ export default function MaintenanceView() {
                           try {
                             const details = await maintenanceApi.getAnnouncement(announcement.id);
                             handleEdit(announcement, details.customers.map(c => c.customer_id));
-                          } catch (err) {
+                          } catch (err: any) {
                             console.error('Failed to load announcement for editing:', err);
+                            setError(err.message || 'Fehler beim Laden der Ankündigung');
                           }
                         }}
                         className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg"

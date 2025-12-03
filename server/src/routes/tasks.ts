@@ -50,7 +50,7 @@ function transformTask(row: any) {
   return task;
 }
 
-// GET /api/tasks - Get all tasks for organization with filters
+// GET /api/tasks - Get all tasks for organization with filters (includes ticket_tasks)
 router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
@@ -65,20 +65,51 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
       ticketId,
       view, // 'my', 'all', 'today', 'week', 'overdue'
       includeCompleted,
+      source, // 'all', 'standalone', 'ticket' - filter by task source
     } = req.query;
 
-    let query = `
-      SELECT t.*,
-             u.username as assigned_to_name,
-             u.display_name as assigned_to_display_name,
-             cb.username as created_by_name,
-             c.name as customer_name,
-             p.name as project_name,
-             tk.ticket_number,
-             tk.title as ticket_title,
-             (SELECT COUNT(*) FROM task_checklist_items WHERE task_id = t.id) as checklist_count,
-             (SELECT COUNT(*) FROM task_checklist_items WHERE task_id = t.id AND completed = true) as checklist_completed,
-             (SELECT COALESCE(SUM(duration), 0) FROM time_entries WHERE task_id = t.id) as total_tracked_time
+    // Build the combined query for standalone tasks AND ticket tasks
+    let standaloneQuery = `
+      SELECT
+        t.id,
+        t.organization_id,
+        t.title,
+        t.description,
+        t.status,
+        t.priority,
+        t.ticket_id,
+        t.project_id,
+        t.customer_id,
+        t.assigned_to,
+        t.created_by,
+        t.due_date,
+        t.due_time::TEXT as due_time,
+        t.reminder_at,
+        t.estimated_minutes,
+        t.is_recurring,
+        t.recurrence_pattern,
+        t.recurrence_interval,
+        t.recurrence_days,
+        t.recurrence_end_date,
+        t.category,
+        t.tags,
+        t.color,
+        t.completed_at,
+        t.completed_by,
+        t.sort_order,
+        t.created_at,
+        t.updated_at,
+        'standalone' as task_source,
+        u.username as assigned_to_name,
+        u.display_name as assigned_to_display_name,
+        cb.username as created_by_name,
+        c.name as customer_name,
+        p.name as project_name,
+        tk.ticket_number,
+        tk.title as ticket_title,
+        (SELECT COUNT(*) FROM task_checklist_items WHERE task_id = t.id) as checklist_count,
+        (SELECT COUNT(*) FROM task_checklist_items WHERE task_id = t.id AND completed = true) as checklist_completed,
+        (SELECT COALESCE(SUM(duration), 0) FROM time_entries WHERE task_id = t.id) as total_tracked_time
       FROM tasks t
       LEFT JOIN users u ON t.assigned_to = u.id
       LEFT JOIN users cb ON t.created_by = cb.id
@@ -87,59 +118,164 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
       LEFT JOIN tickets tk ON t.ticket_id = tk.id
       WHERE t.organization_id = $1
     `;
+
+    let ticketTaskQuery = `
+      SELECT
+        tt.id,
+        tk.organization_id,
+        tt.title,
+        tt.description,
+        CASE WHEN tt.completed THEN 'completed' ELSE 'pending' END as status,
+        CASE tk.priority
+          WHEN 'critical' THEN 'urgent'
+          WHEN 'high' THEN 'high'
+          WHEN 'low' THEN 'low'
+          ELSE 'normal'
+        END as priority,
+        tt.ticket_id,
+        NULL::TEXT as project_id,
+        tk.customer_id,
+        tt.assigned_to,
+        tk.user_id as created_by,
+        tt.due_date,
+        NULL::TEXT as due_time,
+        NULL::TIMESTAMP as reminder_at,
+        NULL::INTEGER as estimated_minutes,
+        false as is_recurring,
+        NULL::TEXT as recurrence_pattern,
+        NULL::INTEGER as recurrence_interval,
+        NULL::TEXT[] as recurrence_days,
+        NULL::DATE as recurrence_end_date,
+        'Ticket' as category,
+        NULL::TEXT[] as tags,
+        NULL::TEXT as color,
+        tt.completed_at,
+        NULL::TEXT as completed_by,
+        tt.sort_order,
+        tt.created_at,
+        tt.created_at as updated_at,
+        'ticket' as task_source,
+        u.username as assigned_to_name,
+        u.display_name as assigned_to_display_name,
+        cb.username as created_by_name,
+        c.name as customer_name,
+        NULL::TEXT as project_name,
+        tk.ticket_number,
+        tk.title as ticket_title,
+        0 as checklist_count,
+        0 as checklist_completed,
+        0 as total_tracked_time
+      FROM ticket_tasks tt
+      INNER JOIN tickets tk ON tt.ticket_id = tk.id
+      LEFT JOIN users u ON tt.assigned_to = u.id
+      LEFT JOIN users cb ON tk.user_id = cb.id
+      LEFT JOIN customers c ON tk.customer_id = c.id
+      WHERE tk.organization_id = $1
+        AND tk.status NOT IN ('archived', 'closed')
+    `;
+
     const params: any[] = [organizationId];
     let paramCount = 2;
 
+    // Apply filters to standalone query
+    let standaloneFilters = '';
+    let ticketTaskFilters = '';
+
     // View-based filters
     if (view === 'my') {
-      query += ` AND t.assigned_to = $${paramCount++}`;
+      standaloneFilters += ` AND t.assigned_to = $${paramCount}`;
+      ticketTaskFilters += ` AND tt.assigned_to = $${paramCount}`;
       params.push(userId);
+      paramCount++;
     } else if (view === 'today') {
-      query += ` AND DATE(t.due_date) = CURRENT_DATE`;
+      standaloneFilters += ` AND DATE(t.due_date) = CURRENT_DATE`;
+      ticketTaskFilters += ` AND DATE(tt.due_date) = CURRENT_DATE`;
     } else if (view === 'week') {
-      query += ` AND t.due_date >= CURRENT_DATE AND t.due_date < CURRENT_DATE + INTERVAL '7 days'`;
+      standaloneFilters += ` AND t.due_date >= CURRENT_DATE AND t.due_date < CURRENT_DATE + INTERVAL '7 days'`;
+      ticketTaskFilters += ` AND tt.due_date >= CURRENT_DATE AND tt.due_date < CURRENT_DATE + INTERVAL '7 days'`;
     } else if (view === 'overdue') {
-      query += ` AND t.due_date < CURRENT_DATE AND t.status NOT IN ('completed', 'cancelled')`;
+      standaloneFilters += ` AND t.due_date < CURRENT_DATE AND t.status NOT IN ('completed', 'cancelled')`;
+      ticketTaskFilters += ` AND tt.due_date < CURRENT_DATE AND tt.completed = false`;
     }
 
-    // Additional filters
+    // Status filter
     if (status) {
-      query += ` AND t.status = $${paramCount++}`;
+      standaloneFilters += ` AND t.status = $${paramCount}`;
+      if (status === 'completed') {
+        ticketTaskFilters += ` AND tt.completed = true`;
+      } else if (status === 'pending' || status === 'in_progress') {
+        ticketTaskFilters += ` AND tt.completed = false`;
+      }
       params.push(status);
+      paramCount++;
     } else if (includeCompleted !== 'true') {
-      query += ` AND t.status NOT IN ('completed', 'cancelled')`;
+      standaloneFilters += ` AND t.status NOT IN ('completed', 'cancelled')`;
+      ticketTaskFilters += ` AND tt.completed = false`;
     }
 
+    // Priority filter
     if (priority) {
-      query += ` AND t.priority = $${paramCount++}`;
+      standaloneFilters += ` AND t.priority = $${paramCount}`;
+      // Map priority for ticket tasks
+      let ticketPriority = priority;
+      if (priority === 'urgent') ticketPriority = 'critical';
+      ticketTaskFilters += ` AND tk.priority = '${ticketPriority}'`;
       params.push(priority);
-    }
-    if (assignedTo) {
-      query += ` AND t.assigned_to = $${paramCount++}`;
-      params.push(assignedTo);
-    }
-    if (customerId) {
-      query += ` AND t.customer_id = $${paramCount++}`;
-      params.push(customerId);
-    }
-    if (projectId) {
-      query += ` AND t.project_id = $${paramCount++}`;
-      params.push(projectId);
-    }
-    if (ticketId) {
-      query += ` AND t.ticket_id = $${paramCount++}`;
-      params.push(ticketId);
+      paramCount++;
     }
 
-    // Order by priority and due date
-    query += ` ORDER BY
-      CASE t.status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
-      CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
-      t.due_date ASC NULLS LAST,
-      t.created_at DESC
+    // AssignedTo filter
+    if (assignedTo) {
+      standaloneFilters += ` AND t.assigned_to = $${paramCount}`;
+      ticketTaskFilters += ` AND tt.assigned_to = $${paramCount}`;
+      params.push(assignedTo);
+      paramCount++;
+    }
+
+    // CustomerId filter
+    if (customerId) {
+      standaloneFilters += ` AND t.customer_id = $${paramCount}`;
+      ticketTaskFilters += ` AND tk.customer_id = $${paramCount}`;
+      params.push(customerId);
+      paramCount++;
+    }
+
+    // ProjectId filter (only for standalone)
+    if (projectId) {
+      standaloneFilters += ` AND t.project_id = $${paramCount}`;
+      ticketTaskFilters += ` AND false`; // Ticket tasks don't have projects
+      params.push(projectId);
+      paramCount++;
+    }
+
+    // TicketId filter
+    if (ticketId) {
+      standaloneFilters += ` AND t.ticket_id = $${paramCount}`;
+      ticketTaskFilters += ` AND tt.ticket_id = $${paramCount}`;
+      params.push(ticketId);
+      paramCount++;
+    }
+
+    // Build final query based on source filter
+    let finalQuery: string;
+    if (source === 'standalone') {
+      finalQuery = standaloneQuery + standaloneFilters;
+    } else if (source === 'ticket') {
+      finalQuery = ticketTaskQuery + ticketTaskFilters;
+    } else {
+      // Combine both with UNION ALL
+      finalQuery = `(${standaloneQuery + standaloneFilters}) UNION ALL (${ticketTaskQuery + ticketTaskFilters})`;
+    }
+
+    // Add ordering
+    finalQuery += ` ORDER BY
+      CASE status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
+      CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+      due_date ASC NULLS LAST,
+      created_at DESC
     `;
 
-    const result = await pool.query(query, params);
+    const result = await pool.query(finalQuery, params);
     const tasks = result.rows.map(transformTask);
 
     res.json({ success: true, data: tasks });
@@ -156,51 +292,108 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req: Auth
     const userId = req.userId!;
     const organizationId = orgReq.organization.id;
 
-    // Get counts by status
+    // Get counts by status (including ticket_tasks)
     const statusCounts = await pool.query(`
-      SELECT status, COUNT(*) as count
-      FROM tasks
-      WHERE organization_id = $1 AND status NOT IN ('cancelled')
+      SELECT status, SUM(count) as count FROM (
+        SELECT status, COUNT(*) as count
+        FROM tasks
+        WHERE organization_id = $1 AND status NOT IN ('cancelled')
+        GROUP BY status
+        UNION ALL
+        SELECT
+          CASE WHEN tt.completed THEN 'completed' ELSE 'pending' END as status,
+          COUNT(*) as count
+        FROM ticket_tasks tt
+        INNER JOIN tickets tk ON tt.ticket_id = tk.id
+        WHERE tk.organization_id = $1 AND tk.status NOT IN ('archived', 'closed')
+        GROUP BY CASE WHEN tt.completed THEN 'completed' ELSE 'pending' END
+      ) combined
       GROUP BY status
     `, [organizationId]);
 
-    // Get my tasks counts
+    // Get my tasks counts (including ticket_tasks)
     const myTasksCounts = await pool.query(`
       SELECT
-        COUNT(*) FILTER (WHERE status = 'pending') as my_pending,
-        COUNT(*) FILTER (WHERE status = 'in_progress') as my_in_progress,
-        COUNT(*) FILTER (WHERE due_date < CURRENT_DATE AND status NOT IN ('completed', 'cancelled')) as my_overdue,
-        COUNT(*) FILTER (WHERE DATE(due_date) = CURRENT_DATE AND status NOT IN ('completed', 'cancelled')) as my_today
-      FROM tasks
-      WHERE organization_id = $1 AND assigned_to = $2
+        COALESCE(standalone.my_pending, 0) + COALESCE(ticket.my_pending, 0) as my_pending,
+        COALESCE(standalone.my_in_progress, 0) as my_in_progress,
+        COALESCE(standalone.my_overdue, 0) + COALESCE(ticket.my_overdue, 0) as my_overdue,
+        COALESCE(standalone.my_today, 0) + COALESCE(ticket.my_today, 0) as my_today
+      FROM
+        (SELECT
+          COUNT(*) FILTER (WHERE status = 'pending') as my_pending,
+          COUNT(*) FILTER (WHERE status = 'in_progress') as my_in_progress,
+          COUNT(*) FILTER (WHERE due_date < CURRENT_DATE AND status NOT IN ('completed', 'cancelled')) as my_overdue,
+          COUNT(*) FILTER (WHERE DATE(due_date) = CURRENT_DATE AND status NOT IN ('completed', 'cancelled')) as my_today
+        FROM tasks
+        WHERE organization_id = $1 AND assigned_to = $2) standalone,
+        (SELECT
+          COUNT(*) FILTER (WHERE completed = false) as my_pending,
+          COUNT(*) FILTER (WHERE due_date < CURRENT_DATE AND completed = false) as my_overdue,
+          COUNT(*) FILTER (WHERE DATE(due_date) = CURRENT_DATE AND completed = false) as my_today
+        FROM ticket_tasks tt
+        INNER JOIN tickets tk ON tt.ticket_id = tk.id
+        WHERE tk.organization_id = $1
+          AND tt.assigned_to = $2
+          AND tk.status NOT IN ('archived', 'closed')) ticket
     `, [organizationId, userId]);
 
-    // Get overdue tasks
+    // Get overdue tasks (including ticket_tasks)
     const overdueTasks = await pool.query(`
-      SELECT t.id, t.title, t.due_date, t.priority,
-             c.name as customer_name
-      FROM tasks t
-      LEFT JOIN customers c ON t.customer_id = c.id
-      WHERE t.organization_id = $1
-        AND t.assigned_to = $2
-        AND t.due_date < CURRENT_DATE
-        AND t.status NOT IN ('completed', 'cancelled')
-      ORDER BY t.due_date ASC
+      SELECT * FROM (
+        SELECT t.id, t.title, t.due_date, t.priority, 'standalone' as task_source,
+               c.name as customer_name
+        FROM tasks t
+        LEFT JOIN customers c ON t.customer_id = c.id
+        WHERE t.organization_id = $1
+          AND t.assigned_to = $2
+          AND t.due_date < CURRENT_DATE
+          AND t.status NOT IN ('completed', 'cancelled')
+        UNION ALL
+        SELECT tt.id, tt.title, tt.due_date,
+               CASE tk.priority WHEN 'critical' THEN 'urgent' WHEN 'high' THEN 'high' WHEN 'low' THEN 'low' ELSE 'normal' END as priority,
+               'ticket' as task_source,
+               c.name as customer_name
+        FROM ticket_tasks tt
+        INNER JOIN tickets tk ON tt.ticket_id = tk.id
+        LEFT JOIN customers c ON tk.customer_id = c.id
+        WHERE tk.organization_id = $1
+          AND tt.assigned_to = $2
+          AND tt.due_date < CURRENT_DATE
+          AND tt.completed = false
+          AND tk.status NOT IN ('archived', 'closed')
+      ) combined
+      ORDER BY due_date ASC
       LIMIT 5
     `, [organizationId, userId]);
 
-    // Get today's tasks
+    // Get today's tasks (including ticket_tasks)
     const todayTasks = await pool.query(`
-      SELECT t.id, t.title, t.due_date, t.due_time, t.priority, t.status,
-             c.name as customer_name,
-             (SELECT COALESCE(SUM(duration), 0) FROM time_entries WHERE task_id = t.id) as total_tracked_time
-      FROM tasks t
-      LEFT JOIN customers c ON t.customer_id = c.id
-      WHERE t.organization_id = $1
-        AND t.assigned_to = $2
-        AND DATE(t.due_date) = CURRENT_DATE
-        AND t.status NOT IN ('cancelled')
-      ORDER BY t.due_time ASC NULLS LAST, t.priority DESC
+      SELECT * FROM (
+        SELECT t.id, t.title, t.due_date, t.due_time::TEXT, t.priority, t.status, 'standalone' as task_source,
+               c.name as customer_name,
+               (SELECT COALESCE(SUM(duration), 0) FROM time_entries WHERE task_id = t.id) as total_tracked_time
+        FROM tasks t
+        LEFT JOIN customers c ON t.customer_id = c.id
+        WHERE t.organization_id = $1
+          AND t.assigned_to = $2
+          AND DATE(t.due_date) = CURRENT_DATE
+          AND t.status NOT IN ('cancelled')
+        UNION ALL
+        SELECT tt.id, tt.title, tt.due_date, NULL::TEXT as due_time,
+               CASE tk.priority WHEN 'critical' THEN 'urgent' WHEN 'high' THEN 'high' WHEN 'low' THEN 'low' ELSE 'normal' END as priority,
+               CASE WHEN tt.completed THEN 'completed' ELSE 'pending' END as status,
+               'ticket' as task_source,
+               c.name as customer_name,
+               0 as total_tracked_time
+        FROM ticket_tasks tt
+        INNER JOIN tickets tk ON tt.ticket_id = tk.id
+        LEFT JOIN customers c ON tk.customer_id = c.id
+        WHERE tk.organization_id = $1
+          AND tt.assigned_to = $2
+          AND DATE(tt.due_date) = CURRENT_DATE
+          AND tk.status NOT IN ('archived', 'closed')
+      ) combined
+      ORDER BY due_time ASC NULLS LAST, priority DESC
     `, [organizationId, userId]);
 
     // Get time tracking insights
