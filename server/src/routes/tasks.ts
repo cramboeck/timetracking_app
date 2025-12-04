@@ -689,14 +689,94 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const { id } = req.params;
     const updates = req.body;
 
-    // Verify task belongs to organization
+    // First check if task exists in standalone tasks table
     const existingTask = await pool.query(
       'SELECT * FROM tasks WHERE id = $1 AND organization_id = $2',
       [id, organizationId]
     );
 
+    // If not found in tasks, check ticket_tasks table
     if (existingTask.rows.length === 0) {
-      return res.status(404).json({ error: 'Task not found' });
+      const ticketTask = await pool.query(`
+        SELECT tt.*, tk.organization_id
+        FROM ticket_tasks tt
+        INNER JOIN tickets tk ON tt.ticket_id = tk.id
+        WHERE tt.id = $1 AND tk.organization_id = $2
+      `, [id, organizationId]);
+
+      if (ticketTask.rows.length === 0) {
+        return res.status(404).json({ error: 'Task not found' });
+      }
+
+      // Handle ticket_task update (limited fields)
+      const ttUpdates: string[] = [];
+      const ttValues: any[] = [];
+      let ttParamCount = 1;
+
+      if (updates.title !== undefined) {
+        ttUpdates.push(`title = $${ttParamCount++}`);
+        ttValues.push(updates.title);
+      }
+      if (updates.description !== undefined) {
+        ttUpdates.push(`description = $${ttParamCount++}`);
+        ttValues.push(updates.description);
+      }
+      if (updates.status !== undefined) {
+        const completed = updates.status === 'completed';
+        ttUpdates.push(`completed = $${ttParamCount++}`);
+        ttValues.push(completed);
+        if (completed) {
+          ttUpdates.push(`completed_at = $${ttParamCount++}`);
+          ttValues.push(new Date().toISOString());
+        } else {
+          ttUpdates.push(`completed_at = $${ttParamCount++}`);
+          ttValues.push(null);
+        }
+      }
+      if (updates.dueDate !== undefined) {
+        ttUpdates.push(`due_date = $${ttParamCount++}`);
+        ttValues.push(updates.dueDate);
+      }
+      if (updates.assignedTo !== undefined) {
+        ttUpdates.push(`assigned_to = $${ttParamCount++}`);
+        ttValues.push(updates.assignedTo);
+      }
+
+      if (ttUpdates.length === 0) {
+        return res.status(400).json({ error: 'No fields to update' });
+      }
+
+      ttValues.push(id);
+      await pool.query(
+        `UPDATE ticket_tasks SET ${ttUpdates.join(', ')} WHERE id = $${ttParamCount}`,
+        ttValues
+      );
+
+      // Return updated ticket_task in task format
+      const updatedTT = await pool.query(`
+        SELECT
+          tt.id,
+          tk.organization_id,
+          tt.title,
+          tt.description,
+          CASE WHEN tt.completed THEN 'completed' ELSE 'pending' END as status,
+          CASE tk.priority WHEN 'critical' THEN 'urgent' WHEN 'high' THEN 'high' WHEN 'low' THEN 'low' ELSE 'normal' END as priority,
+          tt.ticket_id,
+          tk.customer_id,
+          tt.assigned_to,
+          tt.due_date,
+          tt.completed_at,
+          tt.created_at,
+          'ticket' as task_source,
+          c.name as customer_name,
+          tk.ticket_number
+        FROM ticket_tasks tt
+        INNER JOIN tickets tk ON tt.ticket_id = tk.id
+        LEFT JOIN customers c ON tk.customer_id = c.id
+        WHERE tt.id = $1
+      `, [id]);
+
+      return res.json({ success: true, data: transformTask(updatedTT.rows[0]) });
     }
 
     const oldTask = existingTask.rows[0];
