@@ -1537,10 +1537,10 @@ export async function initializeDatabase() {
         -- Drop the partial unique index if it exists
         DROP INDEX IF EXISTS idx_ticket_sequences_org;
 
-        -- Check if we need to migrate the table structure
-        IF NOT EXISTS (
-          SELECT 1 FROM pg_constraint
-          WHERE conname = 'ticket_sequences_organization_id_key'
+        -- Check if old table structure exists (has user_id column)
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_sequences' AND column_name = 'user_id'
         ) THEN
           -- Create a new table with correct structure
           CREATE TABLE IF NOT EXISTS ticket_sequences_new (
@@ -1560,8 +1560,7 @@ export async function initializeDatabase() {
           DROP TABLE ticket_sequences;
           ALTER TABLE ticket_sequences_new RENAME TO ticket_sequences;
 
-          -- Add alias constraint name for compatibility
-          ALTER TABLE ticket_sequences ADD CONSTRAINT ticket_sequences_organization_id_key UNIQUE (organization_id);
+          RAISE NOTICE 'ticket_sequences table migrated to organization-based';
         END IF;
       END $$;
     `);
