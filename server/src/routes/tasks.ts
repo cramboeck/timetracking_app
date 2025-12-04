@@ -281,9 +281,10 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     console.log('📋 [TASKS] Found', tasks.length, 'tasks');
 
     res.json({ success: true, data: tasks });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get tasks error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error details:', error.message, error.code, error.detail);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
