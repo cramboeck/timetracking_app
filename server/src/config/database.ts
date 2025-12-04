@@ -1537,6 +1537,9 @@ export async function initializeDatabase() {
         -- Drop the partial unique index if it exists (doesn't work with ON CONFLICT)
         DROP INDEX IF EXISTS idx_ticket_sequences_org;
 
+        -- Make user_id nullable since we now use organization_id
+        ALTER TABLE ticket_sequences ALTER COLUMN user_id DROP NOT NULL;
+
         -- Create a proper UNIQUE constraint on organization_id
         IF NOT EXISTS (
           SELECT 1 FROM pg_constraint
