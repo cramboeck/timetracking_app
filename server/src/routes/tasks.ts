@@ -260,20 +260,33 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     let finalQuery: string;
     if (source === 'standalone') {
       finalQuery = standaloneQuery + standaloneFilters;
+      // Add ordering directly for single source
+      finalQuery += ` ORDER BY
+        CASE status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
+        CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+        due_date ASC NULLS LAST,
+        created_at DESC
+      `;
     } else if (source === 'ticket') {
       finalQuery = ticketTaskQuery + ticketTaskFilters;
+      // Add ordering directly for single source
+      finalQuery += ` ORDER BY
+        CASE status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
+        CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+        due_date ASC NULLS LAST,
+        created_at DESC
+      `;
     } else {
-      // Combine both with UNION ALL
-      finalQuery = `(${standaloneQuery + standaloneFilters}) UNION ALL (${ticketTaskQuery + ticketTaskFilters})`;
+      // Combine both with UNION ALL - wrap in subquery for ORDER BY with expressions
+      finalQuery = `SELECT * FROM (
+        (${standaloneQuery + standaloneFilters}) UNION ALL (${ticketTaskQuery + ticketTaskFilters})
+      ) AS combined_tasks ORDER BY
+        CASE status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
+        CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+        due_date ASC NULLS LAST,
+        created_at DESC
+      `;
     }
-
-    // Add ordering
-    finalQuery += ` ORDER BY
-      CASE status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
-      CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
-      due_date ASC NULLS LAST,
-      created_at DESC
-    `;
 
     console.log('📋 [TASKS] Query params:', { organizationId, userId, view, params });
     const result = await pool.query(finalQuery, params);
