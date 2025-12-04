@@ -1529,6 +1529,32 @@ export async function initializeDatabase() {
     console.log('✅ Multi-tenant organization migration completed');
 
     // ============================================
+    // Fix ticket_sequences unique constraint for ON CONFLICT
+    // ============================================
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Drop the partial unique index if it exists (doesn't work with ON CONFLICT)
+        DROP INDEX IF EXISTS idx_ticket_sequences_org;
+
+        -- Create a proper UNIQUE constraint on organization_id
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'ticket_sequences_organization_id_key'
+        ) THEN
+          -- First, delete any duplicates keeping only the highest last_number per organization
+          DELETE FROM ticket_sequences a USING ticket_sequences b
+          WHERE a.organization_id = b.organization_id
+            AND a.last_number < b.last_number;
+
+          -- Now add the unique constraint
+          ALTER TABLE ticket_sequences ADD CONSTRAINT ticket_sequences_organization_id_key UNIQUE (organization_id);
+        END IF;
+      END $$;
+    `);
+    console.log('✅ Ticket sequences unique constraint fixed');
+
+    // ============================================
     // Add assigned_to to ticket_tasks (migration)
     // ============================================
     await client.query(`
