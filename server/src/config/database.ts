@@ -1529,33 +1529,43 @@ export async function initializeDatabase() {
     console.log('✅ Multi-tenant organization migration completed');
 
     // ============================================
-    // Fix ticket_sequences unique constraint for ON CONFLICT
+    // Fix ticket_sequences - migrate from user_id to organization_id based
     // ============================================
     await client.query(`
       DO $$
       BEGIN
-        -- Drop the partial unique index if it exists (doesn't work with ON CONFLICT)
+        -- Drop the partial unique index if it exists
         DROP INDEX IF EXISTS idx_ticket_sequences_org;
 
-        -- Make user_id nullable since we now use organization_id
-        ALTER TABLE ticket_sequences ALTER COLUMN user_id DROP NOT NULL;
-
-        -- Create a proper UNIQUE constraint on organization_id
+        -- Check if we need to migrate the table structure
         IF NOT EXISTS (
           SELECT 1 FROM pg_constraint
           WHERE conname = 'ticket_sequences_organization_id_key'
         ) THEN
-          -- First, delete any duplicates keeping only the highest last_number per organization
-          DELETE FROM ticket_sequences a USING ticket_sequences b
-          WHERE a.organization_id = b.organization_id
-            AND a.last_number < b.last_number;
+          -- Create a new table with correct structure
+          CREATE TABLE IF NOT EXISTS ticket_sequences_new (
+            organization_id TEXT PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+            last_number INTEGER NOT NULL DEFAULT 0
+          );
 
-          -- Now add the unique constraint
+          -- Migrate data: get the max last_number per organization
+          INSERT INTO ticket_sequences_new (organization_id, last_number)
+          SELECT organization_id, MAX(last_number)
+          FROM ticket_sequences
+          WHERE organization_id IS NOT NULL
+          GROUP BY organization_id
+          ON CONFLICT (organization_id) DO UPDATE SET last_number = GREATEST(ticket_sequences_new.last_number, EXCLUDED.last_number);
+
+          -- Drop old table and rename new one
+          DROP TABLE ticket_sequences;
+          ALTER TABLE ticket_sequences_new RENAME TO ticket_sequences;
+
+          -- Add alias constraint name for compatibility
           ALTER TABLE ticket_sequences ADD CONSTRAINT ticket_sequences_organization_id_key UNIQUE (organization_id);
         END IF;
       END $$;
     `);
-    console.log('✅ Ticket sequences unique constraint fixed');
+    console.log('✅ Ticket sequences migrated to organization-based');
 
     // ============================================
     // Add assigned_to to ticket_tasks (migration)
