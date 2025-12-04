@@ -388,43 +388,46 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
 
     const { title, description, priority } = validation.data;
 
-    // Get the customer's service provider user_id
+    // Get the customer's service provider user_id and organization_id
     const customerResult = await pool.query(
-      'SELECT user_id, name FROM customers WHERE id = $1',
+      `SELECT c.user_id, c.name, c.organization_id
+       FROM customers c
+       WHERE c.id = $1`,
       [req.customerId]
     );
     const userId = customerResult.rows[0]?.user_id;
     const customerName = customerResult.rows[0]?.name;
+    const organizationId = customerResult.rows[0]?.organization_id;
 
-    console.log(`🎫 Creating ticket for customer "${customerName}" (${req.customerId}), service provider user_id: ${userId}`);
+    console.log(`🎫 Creating ticket for customer "${customerName}" (${req.customerId}), organization_id: ${organizationId}`);
 
-    if (!userId) {
-      console.error(`❌ Customer ${req.customerId} not found or has no user_id`);
+    if (!userId || !organizationId) {
+      console.error(`❌ Customer ${req.customerId} not found or has no user_id/organization_id`);
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // Get or create ticket sequence
+    // Get or create ticket sequence for organization
     await pool.query(
-      'INSERT INTO ticket_sequences (user_id, last_number) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING',
-      [userId]
+      'INSERT INTO ticket_sequences (organization_id, last_number) VALUES ($1, 0) ON CONFLICT (organization_id) DO NOTHING',
+      [organizationId]
     );
 
     // Increment and get next ticket number
     const seqResult = await pool.query(
-      'UPDATE ticket_sequences SET last_number = last_number + 1 WHERE user_id = $1 RETURNING last_number',
-      [userId]
+      'UPDATE ticket_sequences SET last_number = last_number + 1 WHERE organization_id = $1 RETURNING last_number',
+      [organizationId]
     );
     const ticketNumber = `TKT-${String(seqResult.rows[0].last_number).padStart(6, '0')}`;
 
     // Create ticket
     const ticketId = crypto.randomUUID();
     await pool.query(
-      `INSERT INTO tickets (id, ticket_number, user_id, customer_id, created_by_contact_id, title, description, status, priority, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8, NOW(), NOW())`,
-      [ticketId, ticketNumber, userId, req.customerId, req.contactId, title, description || null, priority]
+      `INSERT INTO tickets (id, ticket_number, user_id, organization_id, customer_id, created_by_contact_id, title, description, status, priority, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', $9, NOW(), NOW())`,
+      [ticketId, ticketNumber, userId, organizationId, req.customerId, req.contactId, title, description || null, priority]
     );
 
-    console.log(`✅ Ticket ${ticketNumber} created with id=${ticketId}, user_id=${userId}, customer_id=${req.customerId}`);
+    console.log(`✅ Ticket ${ticketNumber} created with id=${ticketId}, organization_id=${organizationId}, customer_id=${req.customerId}`);
 
     // Get created ticket
     const ticketResult = await pool.query(
