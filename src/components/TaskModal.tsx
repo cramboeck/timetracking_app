@@ -91,6 +91,28 @@ export default function TaskModal({
     loadData();
   }, []);
 
+  // Load full task details (including checklist) when editing
+  useEffect(() => {
+    const loadTaskDetails = async () => {
+      if (task?.id) {
+        try {
+          const response = await tasksApi.get(task.id);
+          if (response.success && response.data?.checklistItems) {
+            setChecklistItems(
+              response.data.checklistItems.map((item: { title: string; completed?: boolean }) => ({
+                title: item.title,
+                completed: item.completed || false,
+              }))
+            );
+          }
+        } catch (err) {
+          console.error('Failed to load task details:', err);
+        }
+      }
+    };
+    loadTaskDetails();
+  }, [task?.id]);
+
   // Filter projects by customer
   useEffect(() => {
     if (customerId) {
