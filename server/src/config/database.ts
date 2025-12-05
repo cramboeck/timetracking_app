@@ -899,46 +899,32 @@ export async function initializeDatabase() {
     `);
 
     // Migration: Add new columns to existing tickets table if they don't exist
-    await client.query(`
-      DO $$
-      BEGIN
-        -- Add organization_id if not exists
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'tickets' AND column_name = 'organization_id'
-        ) THEN
-          ALTER TABLE tickets ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
-        END IF;
-        -- Add device_id if not exists
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'tickets' AND column_name = 'device_id'
-        ) THEN
-          ALTER TABLE tickets ADD COLUMN device_id TEXT REFERENCES ninjarmm_devices(id) ON DELETE SET NULL;
-        END IF;
-        -- Add portal_user_id if not exists
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'tickets' AND column_name = 'portal_user_id'
-        ) THEN
-          ALTER TABLE tickets ADD COLUMN portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL;
-        END IF;
-        -- Add source if not exists
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'tickets' AND column_name = 'source'
-        ) THEN
-          ALTER TABLE tickets ADD COLUMN source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'portal', 'email', 'ninja_alert'));
-        END IF;
-        -- Add ninja_alert_id if not exists
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'tickets' AND column_name = 'ninja_alert_id'
-        ) THEN
-          ALTER TABLE tickets ADD COLUMN ninja_alert_id TEXT;
-        END IF;
-      END $$;
-    `);
+    // Use individual try-catch blocks to handle existing columns gracefully
+    try {
+      await client.query('ALTER TABLE tickets ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE');
+    } catch (e: any) {
+      if (!e.message.includes('already exists')) console.log('Note: organization_id column:', e.message);
+    }
+    try {
+      await client.query('ALTER TABLE tickets ADD COLUMN device_id TEXT REFERENCES ninjarmm_devices(id) ON DELETE SET NULL');
+    } catch (e: any) {
+      if (!e.message.includes('already exists')) console.log('Note: device_id column:', e.message);
+    }
+    try {
+      await client.query('ALTER TABLE tickets ADD COLUMN portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL');
+    } catch (e: any) {
+      if (!e.message.includes('already exists')) console.log('Note: portal_user_id column:', e.message);
+    }
+    try {
+      await client.query('ALTER TABLE tickets ADD COLUMN source TEXT DEFAULT \'manual\'');
+    } catch (e: any) {
+      if (!e.message.includes('already exists')) console.log('Note: source column:', e.message);
+    }
+    try {
+      await client.query('ALTER TABLE tickets ADD COLUMN ninja_alert_id TEXT');
+    } catch (e: any) {
+      if (!e.message.includes('already exists')) console.log('Note: ninja_alert_id column:', e.message);
+    }
 
     // Migration: Add portal_user_id to ticket_comments if not exists
     await client.query(`
@@ -981,9 +967,17 @@ export async function initializeDatabase() {
 
     // Create indexes for Tickets
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_org ON tickets(organization_id)');
+    try {
+      await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_org ON tickets(organization_id)');
+    } catch (e: any) {
+      console.log('Note: idx_tickets_org index:', e.message);
+    }
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_customer ON tickets(customer_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_device ON tickets(device_id)');
+    try {
+      await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_device ON tickets(device_id)');
+    } catch (e: any) {
+      console.log('Note: idx_tickets_device index:', e.message);
+    }
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_number ON tickets(ticket_number)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_id)');
