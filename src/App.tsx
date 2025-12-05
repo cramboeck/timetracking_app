@@ -46,6 +46,7 @@ function App() {
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [initialTicketId, setInitialTicketId] = useState<string | null>(null);
   // Track entry IDs that are being created to prevent duplicates
   const pendingEntryIdsRef = useRef<Set<string>>(new Set());
   // Track if we're currently saving preferences to avoid loops
@@ -220,6 +221,23 @@ function App() {
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  // Handle deep link to ticket via ?ticket= URL parameter
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const ticketId = urlParams.get('ticket');
+
+    if (ticketId) {
+      console.log('📬 [DEEPLINK] Found ticket ID in URL:', ticketId);
+      setInitialTicketId(ticketId);
+      setCurrentArea('support');
+      setCurrentSubView('tickets');
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [isAuthenticated]);
 
   // When welcome modal closes, show notification request
   const handleWelcomeClose = () => {
@@ -741,6 +759,8 @@ function App() {
               setCurrentArea('arbeiten');
               setCurrentSubView('stopwatch');
             }}
+            initialTicketId={initialTicketId}
+            onTicketIdHandled={() => setInitialTicketId(null)}
           />
         )}
         {currentSubView === 'devices' && (

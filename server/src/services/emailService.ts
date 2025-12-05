@@ -933,6 +933,90 @@ RamboFlow - Professionelle Zeiterfassung
     });
   }
 
+  // Send notification to admin/service provider when customer creates a ticket
+  async sendNewTicketAdminNotification(data: {
+    to: string;
+    customerName: string;
+    contactName: string;
+    ticketNumber: string;
+    ticketTitle: string;
+    ticketDescription: string;
+    priority: string;
+    adminUrl: string;
+  }): Promise<boolean> {
+    const { to, customerName, contactName, ticketNumber, ticketTitle, ticketDescription, priority, adminUrl } = data;
+
+    const priorityLabels: Record<string, string> = {
+      low: 'Niedrig',
+      normal: 'Normal',
+      high: 'Hoch',
+      critical: 'Kritisch',
+    };
+    const priorityLabel = priorityLabels[priority] || priority;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Neues Ticket erstellt</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px 20px; text-align: center;">
+                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">🎫 Neues Ticket von Kunde</h1>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 30px;">
+                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Ein neues Ticket wurde erstellt:</p>
+
+                      <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                        <p style="margin: 0 0 10px 0;"><strong>Ticket:</strong> #${ticketNumber}</p>
+                        <p style="margin: 0 0 10px 0;"><strong>Kunde:</strong> ${customerName}</p>
+                        <p style="margin: 0 0 10px 0;"><strong>Erstellt von:</strong> ${contactName}</p>
+                        <p style="margin: 0 0 10px 0;"><strong>Priorität:</strong> ${priorityLabel}</p>
+                        <p style="margin: 0 0 10px 0;"><strong>Betreff:</strong> ${ticketTitle}</p>
+                        ${ticketDescription ? `<p style="margin: 0;"><strong>Beschreibung:</strong><br>${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}</p>` : ''}
+                      </div>
+
+                      <div style="text-align: center; margin: 30px 0;">
+                        <a href="${adminUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold;">
+                          Ticket öffnen
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+                      <p style="color: #6b7280; font-size: 12px; margin: 0;">
+                        Diese E-Mail wurde automatisch generiert.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `;
+
+    const text = `Neues Ticket von Kunde\n\nTicket: #${ticketNumber}\nKunde: ${customerName}\nErstellt von: ${contactName}\nPriorität: ${priorityLabel}\nBetreff: ${ticketTitle}\n${ticketDescription ? `\nBeschreibung: ${ticketDescription.substring(0, 500)}` : ''}\n\nTicket öffnen: ${adminUrl}`;
+
+    return await this.sendEmail({
+      to,
+      subject: `🎫 Neues Ticket #${ticketNumber} von ${customerName}: ${ticketTitle}`,
+      html,
+      text
+    });
+  }
+
   private getStatusLabel(status: string): string {
     const labels: Record<string, string> = {
       open: 'Offen',

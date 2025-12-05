@@ -471,6 +471,35 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
       console.error('Error preparing ticket created notification:', emailErr);
     }
 
+    // Send email notification to admin/service provider (async, non-blocking)
+    try {
+      const adminInfo = await pool.query(
+        'SELECT email, display_name, username FROM users WHERE id = $1',
+        [userId]
+      );
+      const contactInfo = await pool.query(
+        'SELECT name FROM customer_contacts WHERE id = $1',
+        [req.contactId]
+      );
+      if (adminInfo.rows.length > 0 && adminInfo.rows[0].email) {
+        const admin = adminInfo.rows[0];
+        const contactName = contactInfo.rows[0]?.name || 'Unbekannt';
+        const adminUrl = `${process.env.FRONTEND_URL || 'https://app.ramboeck.it'}/?ticket=${ticketId}`;
+        emailService.sendNewTicketAdminNotification({
+          to: admin.email,
+          customerName,
+          contactName,
+          ticketNumber,
+          ticketTitle: title,
+          ticketDescription: description || '',
+          priority,
+          adminUrl,
+        }).catch(err => console.error('Failed to send admin notification:', err));
+      }
+    } catch (emailErr) {
+      console.error('Error preparing admin notification:', emailErr);
+    }
+
     res.status(201).json({
       id: ticket.id,
       ticketNumber: ticket.ticket_number,

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { LayoutDashboard, List, Keyboard, Columns, CheckSquare } from 'lucide-react';
 import { Ticket, Customer, Project } from '../types';
 import { TicketList } from './TicketList';
@@ -16,10 +16,20 @@ interface TicketsProps {
   customers: Customer[];
   projects: Project[];
   onStartTimer: (ticket: Ticket) => void;
+  initialTicketId?: string | null;
+  onTicketIdHandled?: () => void;
 }
 
-export const Tickets = ({ customers, projects, onStartTimer }: TicketsProps) => {
-  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, onTicketIdHandled }: TicketsProps) => {
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(initialTicketId || null);
+
+  // Handle initial ticket ID from URL
+  useEffect(() => {
+    if (initialTicketId) {
+      setSelectedTicketId(initialTicketId);
+      onTicketIdHandled?.();
+    }
+  }, [initialTicketId, onTicketIdHandled]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
