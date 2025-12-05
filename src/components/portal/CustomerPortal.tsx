@@ -20,11 +20,33 @@ export const CustomerPortal = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [currentView, setCurrentView] = useState<PortalView>('tickets');
   const [portalSettings, setPortalSettings] = useState<PortalSettings | null>(null);
+  const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
 
   // Check for activation token in URL
   const urlParams = new URLSearchParams(window.location.search);
   const activationToken = urlParams.get('token');
   const isActivation = window.location.pathname.includes('/portal/activate');
+
+  // Check for deep link to ticket: /portal/tickets/{id}
+  useEffect(() => {
+    const path = window.location.pathname;
+    const ticketMatch = path.match(/\/portal\/tickets\/([a-f0-9-]+)/i);
+    if (ticketMatch) {
+      const ticketId = ticketMatch[1];
+      setPendingTicketId(ticketId);
+    }
+  }, []);
+
+  // Navigate to pending ticket after login
+  useEffect(() => {
+    if (contact && pendingTicketId) {
+      setSelectedTicketId(pendingTicketId);
+      setCurrentView('ticket-detail');
+      setPendingTicketId(null);
+      // Clean up URL
+      window.history.replaceState({}, '', '/portal');
+    }
+  }, [contact, pendingTicketId]);
 
   useEffect(() => {
     // Don't check session if on activation page
