@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, User, Lock, Eye, EyeOff, Check, Smartphone, Shield, Copy, Trash2, Monitor, AlertCircle, X, Key } from 'lucide-react';
+import { ArrowLeft, User, Lock, Eye, EyeOff, Check, Smartphone, Shield, Copy, Trash2, Monitor, AlertCircle, X, Key, Bell } from 'lucide-react';
 import { customerPortalApi, PortalContact, TrustedDevice } from '../../services/api';
 
 interface PortalProfileProps {
@@ -36,10 +36,54 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
   const [showTrustedDevices, setShowTrustedDevices] = useState(false);
   const mfaInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Notification Preferences State
+  const [notifyTicketCreated, setNotifyTicketCreated] = useState(true);
+  const [notifyTicketStatusChanged, setNotifyTicketStatusChanged] = useState(true);
+  const [notifyTicketReply, setNotifyTicketReply] = useState(true);
+  const [notifyLoading, setNotifyLoading] = useState(true);
+  const [notifySaving, setNotifySaving] = useState(false);
+  const [notifySuccess, setNotifySuccess] = useState(false);
+
   // Load MFA status
   useEffect(() => {
     loadMfaStatus();
   }, []);
+
+  // Load notification preferences
+  useEffect(() => {
+    loadNotificationPreferences();
+  }, []);
+
+  const loadNotificationPreferences = async () => {
+    try {
+      const prefs = await customerPortalApi.getNotificationPreferences();
+      setNotifyTicketCreated(prefs.notifyTicketCreated);
+      setNotifyTicketStatusChanged(prefs.notifyTicketStatusChanged);
+      setNotifyTicketReply(prefs.notifyTicketReply);
+    } catch (err) {
+      console.error('Failed to load notification preferences:', err);
+    } finally {
+      setNotifyLoading(false);
+    }
+  };
+
+  const handleSaveNotificationPreferences = async () => {
+    setNotifySaving(true);
+    setNotifySuccess(false);
+    try {
+      await customerPortalApi.updateNotificationPreferences({
+        notifyTicketCreated,
+        notifyTicketStatusChanged,
+        notifyTicketReply,
+      });
+      setNotifySuccess(true);
+      setTimeout(() => setNotifySuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to save notification preferences:', err);
+    } finally {
+      setNotifySaving(false);
+    }
+  };
 
   const loadMfaStatus = async () => {
     try {
@@ -485,6 +529,93 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                   2FA aktivieren
                 </>
               )}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Email Notification Preferences */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+            <Bell size={20} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              E-Mail-Benachrichtigungen
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Wählen Sie, welche Benachrichtigungen Sie erhalten möchten
+            </p>
+          </div>
+        </div>
+
+        {notifyLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {notifySuccess && (
+              <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex items-center gap-2">
+                <Check className="text-green-600 dark:text-green-400" size={18} />
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  Einstellungen gespeichert!
+                </p>
+              </div>
+            )}
+
+            <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Ticket erstellt</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Bestätigung wenn Sie ein neues Ticket erstellen
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={notifyTicketCreated}
+                onChange={(e) => setNotifyTicketCreated(e.target.checked)}
+                className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+              />
+            </label>
+
+            <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Status geändert</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Wenn sich der Status eines Tickets ändert
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={notifyTicketStatusChanged}
+                onChange={(e) => setNotifyTicketStatusChanged(e.target.checked)}
+                className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+              />
+            </label>
+
+            <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Neue Antwort</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Wenn eine neue Antwort zu Ihrem Ticket hinzugefügt wird
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={notifyTicketReply}
+                onChange={(e) => setNotifyTicketReply(e.target.checked)}
+                className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+              />
+            </label>
+
+            <button
+              onClick={handleSaveNotificationPreferences}
+              disabled={notifySaving}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl font-medium transition-colors"
+            >
+              {notifySaving ? 'Wird gespeichert...' : 'Einstellungen speichern'}
             </button>
           </div>
         )}

@@ -1547,6 +1547,26 @@ export const customerPortalApi = {
   removeAllTrustedDevices: async (): Promise<{ success: boolean; count: number }> => {
     return portalAuthFetch('/customer-portal/mfa/trusted-devices', { method: 'DELETE' });
   },
+
+  // Notification Preferences
+  getNotificationPreferences: async (): Promise<{
+    notifyTicketCreated: boolean;
+    notifyTicketStatusChanged: boolean;
+    notifyTicketReply: boolean;
+  }> => {
+    return portalAuthFetch('/customer-portal/notification-preferences');
+  },
+
+  updateNotificationPreferences: async (prefs: {
+    notifyTicketCreated?: boolean;
+    notifyTicketStatusChanged?: boolean;
+    notifyTicketReply?: boolean;
+  }): Promise<{ success: boolean; message: string }> => {
+    return portalAuthFetch('/customer-portal/notification-preferences', {
+      method: 'PUT',
+      body: JSON.stringify(prefs),
+    });
+  },
 };
 
 // Push Notifications API
