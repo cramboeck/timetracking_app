@@ -590,6 +590,12 @@ export const ticketsApi = {
     isPrimary?: boolean;
     canCreateTickets?: boolean;
     canViewAllTickets?: boolean;
+    canViewDevices?: boolean;
+    canViewInvoices?: boolean;
+    canViewQuotes?: boolean;
+    notifyTicketCreated?: boolean;
+    notifyTicketStatusChanged?: boolean;
+    notifyTicketReply?: boolean;
   }): Promise<{ success: boolean; data: CustomerContact }> => {
     return authFetch(`/customers/${customerId}/contacts`, {
       method: 'POST',
@@ -603,6 +609,12 @@ export const ticketsApi = {
     isPrimary?: boolean;
     canCreateTickets?: boolean;
     canViewAllTickets?: boolean;
+    canViewDevices?: boolean;
+    canViewInvoices?: boolean;
+    canViewQuotes?: boolean;
+    notifyTicketCreated?: boolean;
+    notifyTicketStatusChanged?: boolean;
+    notifyTicketReply?: boolean;
   }): Promise<{ success: boolean; data: CustomerContact }> => {
     return authFetch(`/customers/${customerId}/contacts/${contactId}`, {
       method: 'PUT',

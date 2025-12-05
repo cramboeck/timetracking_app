@@ -421,6 +421,9 @@ export interface CustomerContact {
   canViewDevices: boolean; // View NinjaRMM devices (Support feature)
   canViewInvoices: boolean; // View sevDesk invoices (Business feature)
   canViewQuotes: boolean; // View sevDesk quotes (Business feature)
+  notifyTicketCreated?: boolean; // Email on ticket created
+  notifyTicketStatusChanged?: boolean; // Email on status change
+  notifyTicketReply?: boolean; // Email on new reply
   isActivated?: boolean; // Computed: has set password
   lastLogin?: string;
   createdAt: string;
