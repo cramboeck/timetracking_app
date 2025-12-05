@@ -37,7 +37,8 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://timetracking:${DB_PASSWORD:-dev_password_change_in_production}@database:5432/timetracking
       JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_in_production}
-      FRONTEND_URL: http://localhost:8080
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+      BACKEND_URL: ${BACKEND_URL:-https://app.ramboeck.it}
       EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-true}
     ports:
       - "3001:3001"
