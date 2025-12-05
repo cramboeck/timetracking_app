@@ -996,6 +996,54 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_ticket ON ninjarmm_alerts(ticket_id)');
 
+    // ============================================
+    // Canned Responses (for quick ticket replies)
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS canned_responses (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        shortcut TEXT,
+        category TEXT,
+        usage_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_canned_responses_org ON canned_responses(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_canned_responses_user ON canned_responses(user_id)');
+
+    // ============================================
+    // Ticket Tags
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_tags (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        color TEXT DEFAULT '#3B82F6',
+        description TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tags_org ON ticket_tags(organization_id)');
+
+    // Ticket-Tag junction table (many-to-many)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_tag_assignments (
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        tag_id TEXT NOT NULL REFERENCES ticket_tags(id) ON DELETE CASCADE,
+        assigned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        assigned_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        PRIMARY KEY (ticket_id, tag_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_ticket ON ticket_tag_assignments(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_tag ON ticket_tag_assignments(tag_id)');
+
     // Feature subscriptions for add-on packages
     await client.query(`
       CREATE TABLE IF NOT EXISTS feature_packages (
