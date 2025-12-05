@@ -899,32 +899,47 @@ export async function initializeDatabase() {
     `);
 
     // Migration: Add new columns to existing tickets table if they don't exist
-    // Use individual try-catch blocks to handle existing columns gracefully
-    try {
-      await client.query('ALTER TABLE tickets ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE');
-    } catch (e: any) {
-      if (!e.message.includes('already exists')) console.log('Note: organization_id column:', e.message);
-    }
-    try {
-      await client.query('ALTER TABLE tickets ADD COLUMN device_id TEXT REFERENCES ninjarmm_devices(id) ON DELETE SET NULL');
-    } catch (e: any) {
-      if (!e.message.includes('already exists')) console.log('Note: device_id column:', e.message);
-    }
-    try {
-      await client.query('ALTER TABLE tickets ADD COLUMN portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL');
-    } catch (e: any) {
-      if (!e.message.includes('already exists')) console.log('Note: portal_user_id column:', e.message);
-    }
-    try {
-      await client.query('ALTER TABLE tickets ADD COLUMN source TEXT DEFAULT \'manual\'');
-    } catch (e: any) {
-      if (!e.message.includes('already exists')) console.log('Note: source column:', e.message);
-    }
-    try {
-      await client.query('ALTER TABLE tickets ADD COLUMN ninja_alert_id TEXT');
-    } catch (e: any) {
-      if (!e.message.includes('already exists')) console.log('Note: ninja_alert_id column:', e.message);
-    }
+    // Use DO $$ blocks with EXCEPTION handling to avoid transaction abort
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN device_id TEXT REFERENCES ninjarmm_devices(id) ON DELETE SET NULL;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN source TEXT DEFAULT 'manual';
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN ninja_alert_id TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+      END $$;
+    `);
 
     // Migration: Add portal_user_id to ticket_comments if not exists
     await client.query(`
@@ -967,17 +982,9 @@ export async function initializeDatabase() {
 
     // Create indexes for Tickets
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id)');
-    try {
-      await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_org ON tickets(organization_id)');
-    } catch (e: any) {
-      console.log('Note: idx_tickets_org index:', e.message);
-    }
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_org ON tickets(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_customer ON tickets(customer_id)');
-    try {
-      await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_device ON tickets(device_id)');
-    } catch (e: any) {
-      console.log('Note: idx_tickets_device index:', e.message);
-    }
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_device ON tickets(device_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_number ON tickets(ticket_number)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_id)');
