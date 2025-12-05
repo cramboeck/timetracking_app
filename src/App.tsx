@@ -11,6 +11,7 @@ import { Finanzen } from './components/Finanzen';
 import { DevicesView } from './components/DevicesView';
 import { AlertsView } from './components/AlertsView';
 import MaintenanceView from './components/MaintenanceView';
+import TaskHub from './components/TaskHub';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
@@ -18,29 +19,93 @@ import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
-import { darkMode } from './utils/darkMode';
 import { useAuth } from './contexts/AuthContext';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
 import { haptics } from './utils/haptics';
 import { notificationService } from './utils/notifications';
-import { projectsApi, customersApi, activitiesApi, entriesApi } from './services/api';
+import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, userApi } from './services/api';
 
 function App() {
-  const { currentUser, isAuthenticated, isLoading } = useAuth();
-  const [currentArea, setCurrentArea] = useState<Area>('arbeiten');
-  const [currentSubView, setCurrentSubView] = useState<SubView>('stopwatch');
+  const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
+  // Use localStorage as initial fallback, will be overwritten by server preferences
+  const [currentArea, setCurrentArea] = useState<Area>(() => {
+    const saved = localStorage.getItem('currentArea');
+    return (saved as Area) || 'arbeiten';
+  });
+  const [currentSubView, setCurrentSubView] = useState<SubView>(() => {
+    const saved = localStorage.getItem('currentSubView');
+    return (saved as SubView) || 'stopwatch';
+  });
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
   const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string; ticketId?: string } | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   // Track entry IDs that are being created to prevent duplicates
   const pendingEntryIdsRef = useRef<Set<string>>(new Set());
+  // Track if we're currently saving preferences to avoid loops
+  const savingPreferencesRef = useRef(false);
+
+  // Load preferences from database on mount
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (!currentUser || !isAuthenticated) return;
+
+      try {
+        const response = await userApi.getPreferences();
+        if (response.success && response.data) {
+          const prefs = response.data;
+          if (prefs.currentArea) {
+            setCurrentArea(prefs.currentArea as Area);
+          }
+          if (prefs.currentSubView) {
+            setCurrentSubView(prefs.currentSubView as SubView);
+          }
+          console.log('✅ [PREFS] Loaded user preferences from database:', prefs);
+        }
+      } catch (error) {
+        console.log('📋 [PREFS] No saved preferences found, using defaults');
+      } finally {
+        setPreferencesLoaded(true);
+      }
+    };
+
+    loadPreferences();
+  }, [currentUser, isAuthenticated]);
+
+  // Save preferences to database when they change (debounced)
+  useEffect(() => {
+    // Don't save until initial preferences are loaded (to avoid overwriting server state)
+    if (!preferencesLoaded || !currentUser || !isAuthenticated) return;
+    // Prevent concurrent saves
+    if (savingPreferencesRef.current) return;
+
+    const savePreferences = async () => {
+      savingPreferencesRef.current = true;
+      try {
+        await userApi.updatePreferences({
+          currentArea,
+          currentSubView,
+        });
+        // Also save to localStorage as fallback
+        localStorage.setItem('currentArea', currentArea);
+        localStorage.setItem('currentSubView', currentSubView);
+      } catch (error) {
+        console.error('❌ [PREFS] Failed to save preferences:', error);
+      } finally {
+        savingPreferencesRef.current = false;
+      }
+    };
+
+    // Debounce saves
+    const timer = setTimeout(savePreferences, 500);
+    return () => clearTimeout(timer);
+  }, [currentArea, currentSubView, preferencesLoaded, currentUser, isAuthenticated]);
 
   // Load all data from API on mount
   useEffect(() => {
@@ -69,21 +134,13 @@ function App() {
         setActivities(activitiesResponse.data || []);
         setEntries(entriesResponse.data || []);
 
-        // Initialize dark mode
-        const isDark = darkMode.initialize();
-        setIsDarkMode(isDark);
-
         // Find any running entry
         const running = (entriesResponse.data || []).find(e => e.isRunning);
         if (running) {
           setRunningEntry(running);
         }
 
-        // If there are customers/projects, switch to stopwatch view
-        if (customersResponse.data.length > 0 && projectsResponse.data.length > 0) {
-          setCurrentSubView('stopwatch');
-        }
-
+        // Note: Don't auto-switch to stopwatch view - respect user's saved preference
         console.log('✅ [DATA] All data loaded successfully');
       } catch (error) {
         console.error('❌ [DATA] Error loading data:', error);
@@ -92,6 +149,36 @@ function App() {
 
     loadData();
   }, [currentUser]);
+
+  // Handle pending organization invitation after login
+  useEffect(() => {
+    const handlePendingInvitation = async () => {
+      if (!currentUser || !isAuthenticated) return;
+
+      const pendingInvitation = localStorage.getItem('pending_invitation');
+      if (!pendingInvitation) return;
+
+      console.log('📨 [INVITATION] Found pending invitation, accepting...');
+
+      try {
+        const response = await organizationsApi.acceptInvitation(pendingInvitation);
+        if (response.success) {
+          console.log('✅ [INVITATION] Successfully joined organization:', response.message);
+          alert(`Erfolgreich beigetreten: ${response.message}`);
+          // Reload the page to refresh data with new organization context
+          window.location.reload();
+        }
+      } catch (error: any) {
+        console.error('❌ [INVITATION] Failed to accept invitation:', error);
+        alert(`Fehler beim Beitreten: ${error.message || 'Unbekannter Fehler'}`);
+      } finally {
+        // Always remove the pending invitation
+        localStorage.removeItem('pending_invitation');
+      }
+    };
+
+    handlePendingInvitation();
+  }, [currentUser, isAuthenticated]);
 
   // Show welcome modal for new users
   useEffect(() => {
@@ -476,9 +563,8 @@ function App() {
 
   // Dark Mode handler
   const handleToggleDarkMode = () => {
-    const newMode = !isDarkMode;
-    setIsDarkMode(newMode);
-    darkMode.set(newMode);
+    const newMode = !(currentUser?.darkMode ?? false);
+    updateDarkMode(newMode);
   };
 
   // Get visible areas for swipe navigation
@@ -613,6 +699,19 @@ function App() {
             }}
           />
         )}
+        {currentSubView === 'tasks' && (
+          <TaskHub
+            runningTimerTaskId={null}
+            onTimerStart={(taskId) => {
+              console.log('Start timer for task:', taskId);
+              // Timer is handled inside TaskHub via API
+            }}
+            onTimerStop={(taskId) => {
+              console.log('Stop timer for task:', taskId);
+              // Timer is handled inside TaskHub via API
+            }}
+          />
+        )}
         {currentSubView === 'dashboard' && (
           <Dashboard
             entries={entries}
@@ -667,7 +766,7 @@ function App() {
             projects={projects}
             activities={activities}
             entries={entries}
-            darkMode={isDarkMode}
+            darkMode={currentUser?.darkMode ?? false}
             onToggleDarkMode={handleToggleDarkMode}
             onAddCustomer={handleAddCustomer}
             onUpdateCustomer={handleUpdateCustomer}

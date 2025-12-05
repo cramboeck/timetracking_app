@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Calendar, Clock, Send, Plus, RefreshCw, CheckCircle, XCircle,
   AlertTriangle, Trash2, Edit, Eye, ChevronDown, ChevronUp,
-  Users, Monitor, Bell, Filter, MoreHorizontal, FileText
+  Users, Monitor, Bell, Filter, MoreHorizontal, FileText, Lock, ShieldAlert
 } from 'lucide-react';
 import {
   maintenanceApi,
@@ -130,11 +130,13 @@ function formatDate(dateStr: string): string {
 function AnnouncementDialog({
   announcement,
   customers,
+  existingCustomerIds,
   onSave,
   onClose
 }: {
   announcement?: MaintenanceAnnouncement;
   customers: Customer[];
+  existingCustomerIds?: string[];
   onSave: (data: any) => Promise<void>;
   onClose: () => void;
 }) {
@@ -158,7 +160,7 @@ function AnnouncementDialog({
       : '',
     autoProceedOnNoResponse: announcement?.auto_proceed_on_no_response ?? false,
     notes: announcement?.notes || '',
-    customerIds: [] as string[],
+    customerIds: existingCustomerIds || [] as string[],
     createTicket: false
   });
   const [saving, setSaving] = useState(false);
@@ -446,15 +448,132 @@ function AnnouncementDialog({
   );
 }
 
+// Delete Confirmation Dialog with Password
+function DeleteConfirmationDialog({
+  announcement,
+  onConfirm,
+  onClose
+}: {
+  announcement: MaintenanceAnnouncement;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Check password - using a simple confirmation password
+    if (password !== 'DELETE' && password !== 'LÖSCHEN') {
+      setError('Bitte geben Sie "DELETE" oder "LÖSCHEN" ein, um das Löschen zu bestätigen');
+      return;
+    }
+
+    setDeleting(true);
+    setError('');
+    try {
+      await onConfirm();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Löschen');
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-3 text-red-600">
+            <ShieldAlert className="w-6 h-6" />
+            <h2 className="text-xl font-semibold">Wartung löschen</h2>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-red-800 dark:text-red-200 font-medium mb-2">
+              Sie sind dabei, folgende Wartungsankündigung zu löschen:
+            </p>
+            <p className="text-red-700 dark:text-red-300 text-sm">
+              <strong>"{announcement.title}"</strong>
+            </p>
+            <p className="text-red-600 dark:text-red-400 text-xs mt-2">
+              Status: {STATUS_LABELS[announcement.status]}
+              {announcement.customer_count !== undefined && ` • ${announcement.customer_count} Kunde(n)`}
+            </p>
+          </div>
+
+          {announcement.status !== 'draft' && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-amber-700 dark:text-amber-300 text-sm">
+                Diese Wartung wurde bereits geplant oder hat Benachrichtigungen versendet.
+                Das Löschen kann nicht rückgängig gemacht werden!
+              </p>
+            </div>
+          )}
+
+          {error && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Geben Sie <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">DELETE</span> ein, um das Löschen zu bestätigen:
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                value={password}
+                onChange={(e) => setPassword(e.target.value.toUpperCase())}
+                placeholder="DELETE"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={deleting}
+              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="submit"
+              disabled={deleting || password.length === 0}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Endgültig löschen
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // Announcement Detail View
 function AnnouncementDetail({
   announcementId,
   onClose,
-  onRefresh
+  onRefresh,
+  onEdit
 }: {
   announcementId: string;
   onClose: () => void;
   onRefresh: () => void;
+  onEdit: (announcement: MaintenanceAnnouncement, customerIds: string[]) => void;
 }) {
   const [data, setData] = useState<{
     announcement: MaintenanceAnnouncement;
@@ -732,6 +851,16 @@ function AnnouncementDetail({
         {/* Footer with actions */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-between">
           <div className="flex gap-2">
+            {/* Edit button - only for draft, scheduled, or sent status */}
+            {['draft', 'scheduled', 'sent'].includes(announcement.status) && (
+              <button
+                onClick={() => onEdit(announcement, customers.map(c => c.customer_id))}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
+              >
+                <Edit className="w-4 h-4" />
+                Bearbeiten
+              </button>
+            )}
             {announcement.status === 'draft' && (
               <button
                 onClick={() => handleUpdateStatus('scheduled')}
@@ -759,7 +888,7 @@ function AnnouncementDetail({
             {!['completed', 'cancelled'].includes(announcement.status) && (
               <button
                 onClick={() => handleUpdateStatus('cancelled')}
-                className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg"
+                className="px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
               >
                 Abbrechen
               </button>
@@ -767,7 +896,7 @@ function AnnouncementDetail({
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
           >
             Schließen
           </button>
@@ -786,6 +915,9 @@ export default function MaintenanceView() {
   const [statusFilter, setStatusFilter] = useState<MaintenanceStatus | ''>('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedAnnouncementId, setSelectedAnnouncementId] = useState<string | null>(null);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<MaintenanceAnnouncement | null>(null);
+  const [editingCustomerIds, setEditingCustomerIds] = useState<string[]>([]);
+  const [deletingAnnouncement, setDeletingAnnouncement] = useState<MaintenanceAnnouncement | null>(null);
   const [error, setError] = useState('');
 
   const loadData = useCallback(async () => {
@@ -814,14 +946,34 @@ export default function MaintenanceView() {
     await loadData();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Wartungsankündigung wirklich löschen?')) return;
+  const handleUpdate = async (data: any) => {
+    if (!editingAnnouncement) return;
     try {
-      await maintenanceApi.deleteAnnouncement(id);
+      await maintenanceApi.updateAnnouncement(editingAnnouncement.id, data);
       await loadData();
+      setEditingAnnouncement(null);
+      setEditingCustomerIds([]);
     } catch (err: any) {
-      setError(err.message);
+      console.error('Update failed:', err);
+      throw new Error(err.message || 'Fehler beim Aktualisieren der Wartungsankündigung');
     }
+  };
+
+  const handleEdit = (announcement: MaintenanceAnnouncement, customerIds: string[]) => {
+    setEditingAnnouncement(announcement);
+    setEditingCustomerIds(customerIds);
+    setSelectedAnnouncementId(null); // Close detail view
+  };
+
+  const handleDelete = async (announcement: MaintenanceAnnouncement) => {
+    setDeletingAnnouncement(announcement);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingAnnouncement) return;
+    await maintenanceApi.deleteAnnouncement(deletingAnnouncement.id);
+    await loadData();
+    setDeletingAnnouncement(null);
   };
 
   if (loading) {
@@ -1002,20 +1154,36 @@ export default function MaintenanceView() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setSelectedAnnouncementId(announcement.id)}
-                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
                       title="Details"
                     >
                       <Eye className="w-5 h-5" />
                     </button>
-                    {announcement.status === 'draft' && (
+                    {['draft', 'scheduled', 'sent'].includes(announcement.status) && (
                       <button
-                        onClick={() => handleDelete(announcement.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                        title="Löschen"
+                        onClick={async () => {
+                          // Load announcement details to get customer IDs
+                          try {
+                            const details = await maintenanceApi.getAnnouncement(announcement.id);
+                            handleEdit(announcement, details.customers.map(c => c.customer_id));
+                          } catch (err: any) {
+                            console.error('Failed to load announcement for editing:', err);
+                            setError(err.message || 'Fehler beim Laden der Ankündigung');
+                          }
+                        }}
+                        className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg"
+                        title="Bearbeiten"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        <Edit className="w-5 h-5" />
                       </button>
                     )}
+                    <button
+                      onClick={() => handleDelete(announcement)}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
+                      title="Löschen"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1028,8 +1196,23 @@ export default function MaintenanceView() {
       {showCreateDialog && (
         <AnnouncementDialog
           customers={customers}
+          existingCustomerIds={[]}
           onSave={handleCreate}
           onClose={() => setShowCreateDialog(false)}
+        />
+      )}
+
+      {/* Edit Dialog */}
+      {editingAnnouncement && (
+        <AnnouncementDialog
+          announcement={editingAnnouncement}
+          customers={customers}
+          existingCustomerIds={editingCustomerIds}
+          onSave={handleUpdate}
+          onClose={() => {
+            setEditingAnnouncement(null);
+            setEditingCustomerIds([]);
+          }}
         />
       )}
 
@@ -1039,6 +1222,16 @@ export default function MaintenanceView() {
           announcementId={selectedAnnouncementId}
           onClose={() => setSelectedAnnouncementId(null)}
           onRefresh={loadData}
+          onEdit={handleEdit}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deletingAnnouncement && (
+        <DeleteConfirmationDialog
+          announcement={deletingAnnouncement}
+          onConfirm={confirmDelete}
+          onClose={() => setDeletingAnnouncement(null)}
         />
       )}
     </div>

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { pool } from '../config/database';
 import { emailService } from '../services/emailService';
 import { auditLog } from '../services/auditLog';
@@ -11,31 +12,69 @@ import { checkTrustedDevice } from './mfa';
 
 const router = Router();
 
+// Helper to generate slug from name
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[äÄ]/g, 'ae')
+    .replace(/[öÖ]/g, 'oe')
+    .replace(/[üÜ]/g, 'ue')
+    .replace(/[ß]/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 50);
+}
+
 router.post('/register', authLimiter, validate(registerSchema), async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const { username, email, password, accountType, organizationName, inviteCode } = req.body;
 
     // Check if user exists
-    const existingUsername = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    const existingUsername = await client.query('SELECT * FROM users WHERE username = $1', [username]);
     if (existingUsername.rows.length > 0) {
       return res.status(400).json({ error: 'Username already exists' });
     }
 
-    const existingEmail = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const existingEmail = await client.query('SELECT * FROM users WHERE email = $1', [email]);
     if (existingEmail.rows.length > 0) {
       return res.status(400).json({ error: 'Email already exists' });
     }
 
+    // Check for valid invitation code
+    let invitation = null;
+    if (inviteCode) {
+      const inviteResult = await client.query(
+        `SELECT oi.*, o.name as organization_name
+         FROM organization_invitations oi
+         JOIN organizations o ON o.id = oi.organization_id
+         WHERE oi.invitation_code = $1
+         AND oi.accepted_at IS NULL
+         AND oi.expires_at > NOW()`,
+        [inviteCode]
+      );
+
+      if (inviteResult.rows.length > 0) {
+        invitation = inviteResult.rows[0];
+      }
+    }
+
+    await client.query('BEGIN');
+
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
+    // Generate unique customer number
+    const customerNumber = `C-${Date.now().toString(36).toUpperCase()}${crypto.randomUUID().substring(0, 4).toUpperCase()}`;
+
     // Create user
     const userId = crypto.randomUUID();
-    await pool.query(
+    await client.query(
       `INSERT INTO users (id, username, email, password_hash, account_type, organization_name,
        team_id, team_role, mfa_enabled, accent_color, gray_tone, time_rounding_interval,
-       created_at, last_login)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+       created_at, last_login, customer_number)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [
         userId,
         username,
@@ -45,20 +84,83 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
         organizationName || null,
         null, // teamId
         null, // teamRole
-        false, // mfaEnabled (changed from 0 to false)
+        false, // mfaEnabled
         'blue', // accentColor
         'medium', // grayTone
         15, // timeRoundingInterval
         new Date().toISOString(),
-        new Date().toISOString()
+        new Date().toISOString(),
+        customerNumber
       ]
     );
+
+    let joinedOrganizationId = null;
+    let joinedOrganizationName = null;
+
+    if (invitation) {
+      // User is joining via invitation - add them to the existing organization
+      const memberId = crypto.randomUUID();
+      await client.query(
+        `INSERT INTO organization_members (id, organization_id, user_id, role)
+         VALUES ($1, $2, $3, $4)`,
+        [memberId, invitation.organization_id, userId, invitation.role]
+      );
+
+      // Mark invitation as used
+      await client.query(
+        `UPDATE organization_invitations SET accepted_at = NOW(), accepted_by = $1 WHERE id = $2`,
+        [userId, invitation.id]
+      );
+
+      joinedOrganizationId = invitation.organization_id;
+      joinedOrganizationName = invitation.organization_name;
+
+      console.log(`✅ User ${username} joined organization ${invitation.organization_name} via invitation`);
+    } else {
+      // No invitation - create a new organization for the user
+      const orgId = crypto.randomUUID();
+      const orgName = organizationName || username;
+      let orgSlug = generateSlug(orgName);
+
+      // Ensure slug is unique
+      const existingSlug = await client.query('SELECT 1 FROM organizations WHERE slug = $1', [orgSlug]);
+      if (existingSlug.rows.length > 0) {
+        orgSlug = `${orgSlug}-${crypto.randomUUID().substring(0, 4)}`;
+      }
+
+      await client.query(
+        `INSERT INTO organizations (id, name, slug, owner_user_id)
+         VALUES ($1, $2, $3, $4)`,
+        [orgId, orgName, orgSlug, userId]
+      );
+
+      // Add user as owner
+      const memberId = crypto.randomUUID();
+      await client.query(
+        `INSERT INTO organization_members (id, organization_id, user_id, role)
+         VALUES ($1, $2, $3, $4)`,
+        [memberId, orgId, userId, 'owner']
+      );
+
+      joinedOrganizationId = orgId;
+      joinedOrganizationName = orgName;
+
+      console.log(`✅ Created new organization "${orgName}" for user ${username}`);
+    }
+
+    await client.query('COMMIT');
 
     // Audit log
     auditLog.log({
       userId,
       action: 'user.register',
-      details: JSON.stringify({ username, email, accountType }),
+      details: JSON.stringify({
+        username,
+        email,
+        accountType,
+        joinedViaInvitation: !!invitation,
+        organizationId: joinedOrganizationId
+      }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
     });
@@ -75,17 +177,27 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
 
     res.json({
       success: true,
-      token,
-      user: {
-        id: userId,
-        username,
-        email,
-        accountType
+      data: {
+        token,
+        user: {
+          id: userId,
+          username,
+          email,
+          accountType
+        },
+        organization: {
+          id: joinedOrganizationId,
+          name: joinedOrganizationName,
+          joinedViaInvitation: !!invitation
+        }
       }
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Register error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 });
 

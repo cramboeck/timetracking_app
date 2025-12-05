@@ -390,4 +390,227 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
+// ============================================
+// MAINTENANCE MANAGEMENT
+// ============================================
+
+// GET /api/admin/maintenance - List all maintenance announcements
+router.get('/maintenance', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const status = req.query.status as string;
+    const userId = req.query.userId as string;
+    const offset = (page - 1) * limit;
+
+    let query = `
+      SELECT
+        a.*,
+        u.username as user_name,
+        u.email as user_email,
+        (SELECT COUNT(*) FROM maintenance_announcement_customers WHERE announcement_id = a.id) as customer_count,
+        (SELECT COUNT(*) FROM maintenance_announcement_customers WHERE announcement_id = a.id AND status = 'approved') as approved_count,
+        (SELECT COUNT(*) FROM maintenance_announcement_customers WHERE announcement_id = a.id AND notification_sent_at IS NOT NULL) as notified_count
+      FROM maintenance_announcements a
+      LEFT JOIN users u ON a.user_id = u.id
+      WHERE 1=1
+    `;
+
+    const params: any[] = [];
+    let paramCount = 0;
+
+    if (status) {
+      paramCount++;
+      query += ` AND a.status = $${paramCount}`;
+      params.push(status);
+    }
+
+    if (userId) {
+      paramCount++;
+      query += ` AND a.user_id = $${paramCount}`;
+      params.push(userId);
+    }
+
+    query += ` ORDER BY a.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
+
+    // Get total count
+    let countQuery = 'SELECT COUNT(*) as count FROM maintenance_announcements WHERE 1=1';
+    const countParams: any[] = [];
+    let countParamCount = 0;
+
+    if (status) {
+      countParamCount++;
+      countQuery += ` AND status = $${countParamCount}`;
+      countParams.push(status);
+    }
+
+    if (userId) {
+      countParamCount++;
+      countQuery += ` AND user_id = $${countParamCount}`;
+      countParams.push(userId);
+    }
+
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      announcements: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching maintenance announcements:', error);
+    res.status(500).json({ error: 'Failed to fetch maintenance announcements' });
+  }
+});
+
+// GET /api/admin/maintenance/stats - Get maintenance statistics
+router.get('/maintenance/stats', async (req, res) => {
+  try {
+    const stats = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'draft') as draft_count,
+        COUNT(*) FILTER (WHERE status = 'scheduled') as scheduled_count,
+        COUNT(*) FILTER (WHERE status = 'sent') as sent_count,
+        COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress_count,
+        COUNT(*) FILTER (WHERE status = 'completed') as completed_count,
+        COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled_count
+      FROM maintenance_announcements
+    `);
+
+    const customerStats = await pool.query(`
+      SELECT
+        COUNT(*) as total_notifications,
+        COUNT(*) FILTER (WHERE notification_sent_at IS NOT NULL) as sent_notifications,
+        COUNT(*) FILTER (WHERE status = 'approved') as approved_count,
+        COUNT(*) FILTER (WHERE status = 'rejected') as rejected_count,
+        COUNT(*) FILTER (WHERE status = 'pending' AND notification_sent_at IS NOT NULL) as pending_count
+      FROM maintenance_announcement_customers
+    `);
+
+    res.json({
+      announcements: stats.rows[0],
+      notifications: customerStats.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching maintenance stats:', error);
+    res.status(500).json({ error: 'Failed to fetch maintenance stats' });
+  }
+});
+
+// DELETE /api/admin/maintenance/:id - Delete maintenance announcement (admin)
+router.delete('/maintenance/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get announcement details before deleting
+    const announcementResult = await pool.query(
+      `SELECT a.*, u.username as user_name
+       FROM maintenance_announcements a
+       LEFT JOIN users u ON a.user_id = u.id
+       WHERE a.id = $1`,
+      [id]
+    );
+
+    if (announcementResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Announcement not found' });
+    }
+
+    const announcement = announcementResult.rows[0];
+
+    // Delete the announcement (cascades to customers and devices)
+    await pool.query('DELETE FROM maintenance_announcements WHERE id = $1', [id]);
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'maintenance.admin_delete',
+      details: JSON.stringify({
+        announcementId: id,
+        title: announcement.title,
+        status: announcement.status,
+        ownerId: announcement.user_id,
+        ownerName: announcement.user_name
+      }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, message: 'Wartungsankündigung gelöscht' });
+  } catch (error) {
+    console.error('Error deleting maintenance announcement:', error);
+    res.status(500).json({ error: 'Failed to delete maintenance announcement' });
+  }
+});
+
+// DELETE /api/admin/maintenance/bulk - Bulk delete maintenance announcements
+router.delete('/maintenance/bulk', async (req: AuthRequest, res) => {
+  try {
+    const { ids, status, olderThan } = req.body;
+
+    if (!ids && !status && !olderThan) {
+      return res.status(400).json({
+        error: 'Please provide ids, status, or olderThan filter'
+      });
+    }
+
+    let query = 'DELETE FROM maintenance_announcements WHERE 1=1';
+    const params: any[] = [];
+    let paramCount = 0;
+
+    if (ids && Array.isArray(ids) && ids.length > 0) {
+      paramCount++;
+      query += ` AND id = ANY($${paramCount})`;
+      params.push(ids);
+    }
+
+    if (status) {
+      paramCount++;
+      query += ` AND status = $${paramCount}`;
+      params.push(status);
+    }
+
+    if (olderThan) {
+      paramCount++;
+      query += ` AND created_at < $${paramCount}`;
+      params.push(new Date(olderThan).toISOString());
+    }
+
+    query += ' RETURNING id, title, status';
+
+    const result = await pool.query(query, params);
+    const deletedCount = result.rowCount || 0;
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'maintenance.admin_bulk_delete',
+      details: JSON.stringify({
+        deletedCount,
+        filters: { ids, status, olderThan },
+        deletedTitles: result.rows.map((r: any) => r.title)
+      }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      deletedCount,
+      message: `${deletedCount} Wartungsankündigung(en) gelöscht`
+    });
+  } catch (error) {
+    console.error('Error bulk deleting maintenance announcements:', error);
+    res.status(500).json({ error: 'Failed to delete maintenance announcements' });
+  }
+});
+
 export default router;

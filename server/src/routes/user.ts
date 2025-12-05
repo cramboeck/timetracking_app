@@ -12,9 +12,20 @@ const router = Router();
 const updateSettingsSchema = z.object({
   accentColor: z.string().optional(),
   grayTone: z.string().optional(),
+  darkMode: z.boolean().optional(),
   timeRoundingInterval: z.number().int().min(1).optional(),
+  timeFormat: z.string().optional(),
   organizationName: z.string().max(200).optional()
 });
+
+// Validation schema for user preferences
+const updatePreferencesSchema = z.object({
+  currentArea: z.string().optional(),
+  currentSubView: z.string().optional(),
+  sidebarCollapsed: z.boolean().optional(),
+  lastActiveCustomer: z.string().uuid().optional().nullable(),
+  lastActiveProject: z.string().uuid().optional().nullable()
+}).passthrough(); // Allow additional properties for flexibility
 
 // GET /api/user/me - Get current user profile
 router.get('/me', authenticateToken, async (req: AuthRequest, res) => {
@@ -23,8 +34,8 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res) => {
 
     const result = await pool.query(
       `SELECT id, username, email, account_type, organization_name, customer_number, display_name,
-              team_id, team_role, mfa_enabled, accent_color, gray_tone, time_rounding_interval,
-              time_format, has_ticket_access, created_at, last_login
+              team_id, team_role, mfa_enabled, accent_color, gray_tone, dark_mode, time_rounding_interval,
+              time_format, has_ticket_access, preferences, created_at, last_login
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -63,9 +74,17 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
       fields.push(`gray_tone = $${paramCount++}`);
       values.push(updates.grayTone);
     }
+    if (updates.darkMode !== undefined) {
+      fields.push(`dark_mode = $${paramCount++}`);
+      values.push(updates.darkMode);
+    }
     if (updates.timeRoundingInterval !== undefined) {
       fields.push(`time_rounding_interval = $${paramCount++}`);
       values.push(updates.timeRoundingInterval);
+    }
+    if (updates.timeFormat !== undefined) {
+      fields.push(`time_format = $${paramCount++}`);
+      values.push(updates.timeFormat);
     }
     if (updates.organizationName !== undefined) {
       fields.push(`organization_name = $${paramCount++}`);
@@ -82,7 +101,7 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
 
     const userResult = await pool.query(
       `SELECT id, username, email, account_type, organization_name, customer_number, display_name,
-              team_id, team_role, mfa_enabled, accent_color, gray_tone, time_rounding_interval,
+              team_id, team_role, mfa_enabled, accent_color, gray_tone, dark_mode, time_rounding_interval,
               time_format, has_ticket_access, created_at, last_login
        FROM users WHERE id = $1`,
       [userId]
@@ -103,6 +122,59 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
     });
   } catch (error) {
     console.error('Update settings error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/user/preferences - Get user preferences
+router.get('/preferences', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+
+    const result = await pool.query(
+      'SELECT preferences FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0].preferences || {}
+    });
+  } catch (error) {
+    console.error('Get preferences error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PATCH /api/user/preferences - Update user preferences (partial update)
+router.patch('/preferences', authenticateToken, validate(updatePreferencesSchema), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const updates = req.body;
+
+    // Merge with existing preferences
+    const result = await pool.query(
+      `UPDATE users
+       SET preferences = COALESCE(preferences, '{}'::jsonb) || $1::jsonb
+       WHERE id = $2
+       RETURNING preferences`,
+      [JSON.stringify(updates), userId]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0].preferences
+    });
+  } catch (error) {
+    console.error('Update preferences error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

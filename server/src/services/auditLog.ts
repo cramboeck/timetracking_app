@@ -49,6 +49,7 @@ export type AuditAction =
   | 'ticket_task.update'
   | 'ticket_task.delete'
   | 'ticket_task.complete'
+  | 'ticket_task.assign'
   // Ticket attachment actions
   | 'ticket_attachment.upload'
   | 'ticket_attachment.delete'
@@ -60,6 +61,18 @@ export type AuditAction =
   | 'sla_policy.update'
   | 'sla_policy.delete'
   | 'sla_policy.apply'
+  // Lead actions
+  | 'lead.create'
+  | 'lead.update'
+  | 'lead.delete'
+  | 'lead.convert'
+  | 'lead.activity_add'
+  // Task actions (Unified Task Hub)
+  | 'task.create'
+  | 'task.update'
+  | 'task.delete'
+  | 'task.complete'
+  | 'task.assign'
   // Organization actions
   | 'organization.create'
   | 'organization.update'
@@ -78,7 +91,10 @@ export type AuditAction =
   // MFA actions
   | 'mfa.device_trusted'
   | 'mfa.device_revoked'
-  | 'mfa.all_devices_revoked';
+  | 'mfa.all_devices_revoked'
+  // Admin maintenance actions
+  | 'maintenance.admin_delete'
+  | 'maintenance.admin_bulk_delete';
 
 export interface AuditLogEntry {
   id: string;

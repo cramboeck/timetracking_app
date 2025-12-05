@@ -9,9 +9,10 @@ import { AuthProvider } from './contexts/AuthContext.tsx'
 import { FeaturesProvider } from './contexts/FeaturesContext.tsx'
 import { accentColor } from './utils/accentColor.ts'
 import { grayTone } from './utils/theme.ts'
+import { darkMode } from './utils/darkMode.ts'
 import './index.css'
 
-// Initialize theme on app startup
+// Initialize theme on app startup (before React renders to prevent FOUC)
 const initializeTheme = () => {
   const color = accentColor.get();
   const tone = grayTone.get();
@@ -21,6 +22,9 @@ const initializeTheme = () => {
 
   // Apply gray tone class to root
   document.documentElement.classList.add(`tone-${tone}`);
+
+  // Initialize dark mode early to prevent flash
+  darkMode.initialize();
 };
 
 // Initialize before rendering

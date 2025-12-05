@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
@@ -32,12 +33,13 @@ const updateEntrySchema = z.object({
   isRunning: z.boolean().optional()
 });
 
-// GET /api/entries - Get all entries for current user
-router.get('/', authenticateToken, async (req: AuthRequest, res) => {
+// GET /api/entries - Get all entries for current organization
+router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
 
-    const result = await pool.query('SELECT * FROM time_entries WHERE user_id = $1', [userId]);
+    const result = await pool.query('SELECT * FROM time_entries WHERE organization_id = $1', [organizationId]);
     const entries = transformRows(result.rows);
 
     res.json({
@@ -51,12 +53,13 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // GET /api/entries/:id - Get single entry
-router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
+router.get('/:id', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
-    const result = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND user_id = $2', [id, userId]);
+    const result = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     const entry = transformRow(result.rows[0]);
 
     if (!entry) {
@@ -73,31 +76,33 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/entries - Create new entry
-router.post('/', authenticateToken, validate(createEntrySchema), async (req: AuthRequest, res) => {
+// POST /api/entries - Create new entry (requires member role)
+router.post('/', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createEntrySchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { startTime, endTime, duration, projectId, activityId, ticketId, description, isRunning } = req.body;
 
-    // Verify project belongs to user
-    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND user_id = $2', [projectId, userId]);
+    // Verify project belongs to organization
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2', [projectId, organizationId]);
     if (projectResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Project not found or does not belong to you' });
+      return res.status(400).json({ error: 'Project not found or does not belong to your organization' });
     }
 
-    // Verify activity belongs to user (if provided)
+    // Verify activity belongs to organization (if provided)
     if (activityId) {
-      const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND user_id = $2', [activityId, userId]);
+      const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND organization_id = $2', [activityId, organizationId]);
       if (activityResult.rows.length === 0) {
-        return res.status(400).json({ error: 'Activity not found or does not belong to you' });
+        return res.status(400).json({ error: 'Activity not found or does not belong to your organization' });
       }
     }
 
-    // Verify ticket belongs to user (if provided)
+    // Verify ticket belongs to organization (if provided)
     if (ticketId) {
-      const ticketResult = await pool.query('SELECT * FROM tickets WHERE id = $1 AND user_id = $2', [ticketId, userId]);
+      const ticketResult = await pool.query('SELECT * FROM tickets WHERE id = $1 AND organization_id = $2', [ticketId, organizationId]);
       if (ticketResult.rows.length === 0) {
-        return res.status(400).json({ error: 'Ticket not found or does not belong to you' });
+        return res.status(400).json({ error: 'Ticket not found or does not belong to your organization' });
       }
     }
 
@@ -105,11 +110,12 @@ router.post('/', authenticateToken, validate(createEntrySchema), async (req: Aut
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO time_entries (id, user_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         id,
         userId,
+        organizationId,
         projectId,
         activityId || null,
         ticketId || null,
@@ -163,32 +169,34 @@ router.post('/', authenticateToken, validate(createEntrySchema), async (req: Aut
   }
 });
 
-// PUT /api/entries/:id - Update entry
-router.put('/:id', authenticateToken, validate(updateEntrySchema), async (req: AuthRequest, res) => {
+// PUT /api/entries/:id - Update entry (requires member role)
+router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateEntrySchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
     const updates = req.body;
 
-    // Verify entry belongs to user
-    const entryResult = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND user_id = $2', [id, userId]);
+    // Verify entry belongs to organization
+    const entryResult = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     if (entryResult.rows.length === 0) {
       return res.status(404).json({ error: 'Entry not found' });
     }
 
-    // Verify project belongs to user (if updating projectId)
+    // Verify project belongs to organization (if updating projectId)
     if (updates.projectId) {
-      const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND user_id = $2', [updates.projectId, userId]);
+      const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2', [updates.projectId, organizationId]);
       if (projectResult.rows.length === 0) {
-        return res.status(400).json({ error: 'Project not found or does not belong to you' });
+        return res.status(400).json({ error: 'Project not found or does not belong to your organization' });
       }
     }
 
-    // Verify activity belongs to user (if updating activityId)
+    // Verify activity belongs to organization (if updating activityId)
     if (updates.activityId) {
-      const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND user_id = $2', [updates.activityId, userId]);
+      const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND organization_id = $2', [updates.activityId, organizationId]);
       if (activityResult.rows.length === 0) {
-        return res.status(400).json({ error: 'Activity not found or does not belong to you' });
+        return res.status(400).json({ error: 'Activity not found or does not belong to your organization' });
       }
     }
 
@@ -283,14 +291,16 @@ router.put('/:id', authenticateToken, validate(updateEntrySchema), async (req: A
   }
 });
 
-// DELETE /api/entries/:id - Delete entry
-router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
+// DELETE /api/entries/:id - Delete entry (requires member role)
+router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
-    // Verify entry belongs to user
-    const entryResult = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND user_id = $2', [id, userId]);
+    // Verify entry belongs to organization
+    const entryResult = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     if (entryResult.rows.length === 0) {
       return res.status(404).json({ error: 'Entry not found' });
     }

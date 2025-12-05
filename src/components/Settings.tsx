@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, Timer, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, TrendingUp, Calendar, Activity as ActivityIcon, UserCog, Ticket, Book, Server } from 'lucide-react';
-import { Customer, Project, Activity, GrayTone, TeamInvitation, User, TimeRoundingInterval } from '../types';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server } from 'lucide-react';
+import { Customer, Project, Activity, GrayTone, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CustomerContacts } from './CustomerContacts';
@@ -17,7 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
 import { notificationService } from '../utils/notifications';
-import { authApi, userApi, teamsApi, sevdeskApi } from '../services/api';
+import { authApi, userApi, sevdeskApi, organizationsApi, Organization, OrganizationMember, OrganizationInvitation } from '../services/api';
 import Papa from 'papaparse';
 import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 import { generateUUID } from '../utils/uuid';
@@ -145,10 +145,15 @@ export const Settings = ({
   const [activityFlatRate, setActivityFlatRate] = useState('');
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
 
-  // Team State
-  const [teamMembers, setTeamMembers] = useState<User[]>([]);
-  const [teamInvitations, setTeamInvitations] = useState<TeamInvitation[]>([]);
-  const [newInvitationRole, setNewInvitationRole] = useState<'admin' | 'member'>('member');
+  // Organization/Team State
+  const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
+  const [organizationMembers, setOrganizationMembers] = useState<OrganizationMember[]>([]);
+  const [organizationInvitations, setOrganizationInvitations] = useState<OrganizationInvitation[]>([]);
+  const [newInvitationEmail, setNewInvitationEmail] = useState('');
+  const [newInvitationRole, setNewInvitationRole] = useState<'admin' | 'member' | 'viewer'>('member');
+  const [invitationLink, setInvitationLink] = useState<string | null>(null);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   // Delete Confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -157,6 +162,12 @@ export const Settings = ({
     id: string;
     name: string;
   }>({ isOpen: false, type: null, id: '', name: '' });
+
+  // Role-based permission helpers
+  const userRole = currentOrganization?.user_role;
+  const canEdit = userRole !== 'viewer'; // owner, admin, member can edit
+  const canDelete = userRole === 'owner' || userRole === 'admin'; // only owner/admin can delete
+  const canInvite = userRole === 'owner' || userRole === 'admin'; // only owner/admin can invite
 
   const openCustomerModal = (customer?: Customer) => {
     if (customer) {
@@ -671,21 +682,42 @@ export const Settings = ({
     }
   }, [currentUser]);
 
-  // Load team data
+  // Load organization data on mount (needed for role-based UI)
   useEffect(() => {
-    if (currentUser && currentUser.teamId && (currentUser.accountType === 'business' || currentUser.accountType === 'team')) {
+    if (currentUser) {
+      const loadOrganizationData = async () => {
+        try {
+          // Load current organization
+          const orgResponse = await organizationsApi.getCurrent();
+          if (orgResponse.success && orgResponse.data) {
+            setCurrentOrganization(orgResponse.data);
+          }
+        } catch (error) {
+          console.error('Error loading organization data:', error);
+        }
+      };
+      loadOrganizationData();
+    }
+  }, [currentUser]);
+
+  // Load team data when team tab is active
+  useEffect(() => {
+    if (currentUser && activeTab === 'team' && currentOrganization) {
       const loadTeamData = async () => {
         try {
-          // Load team and members
-          const team = await teamsApi.getMyTeam();
-          if (team && team.members) {
-            setTeamMembers(team.members as any);
+          // Load members
+          const membersResponse = await organizationsApi.getMembers(currentOrganization.id);
+          if (membersResponse.success) {
+            setOrganizationMembers(membersResponse.data);
           }
 
-          // Load team invitations (only for owners/admins)
-          if ((currentUser.teamRole === 'owner' || currentUser.teamRole === 'admin') && currentUser.teamId) {
-            const invitations = await teamsApi.getInvitations(currentUser.teamId);
-            setTeamInvitations(invitations);
+          // Load invitations (for owners/admins)
+          const userRole = currentOrganization.user_role;
+          if (userRole === 'owner' || userRole === 'admin') {
+            const invitationsResponse = await organizationsApi.getInvitations(currentOrganization.id);
+            if (invitationsResponse.success) {
+              setOrganizationInvitations(invitationsResponse.data);
+            }
           }
         } catch (error) {
           console.error('Error loading team data:', error);
@@ -693,36 +725,83 @@ export const Settings = ({
       };
       loadTeamData();
     }
-  }, [currentUser, activeTab]);
+  }, [currentUser, activeTab, currentOrganization]);
 
   const handleCreateInvitation = async () => {
-    if (!currentUser || !currentUser.teamId) return;
+    if (!currentOrganization || !newInvitationEmail.trim()) {
+      setInviteError('Bitte gib eine E-Mail-Adresse ein');
+      return;
+    }
+
+    setInviteLoading(true);
+    setInviteError(null);
+    setInvitationLink(null);
 
     try {
-      const invitation = await teamsApi.createInvitation(
-        currentUser.teamId,
-        newInvitationRole,
-        7 * 24 // 7 days in hours
+      const response = await organizationsApi.createInvitation(
+        currentOrganization.id,
+        newInvitationEmail.trim(),
+        newInvitationRole
       );
-      setTeamInvitations([...teamInvitations, invitation]);
-    } catch (error) {
+      if (response.success) {
+        setOrganizationInvitations([...organizationInvitations, response.data]);
+        // Build full invitation link
+        const baseUrl = window.location.origin;
+        setInvitationLink(`${baseUrl}${response.invitationLink}`);
+        setNewInvitationEmail('');
+      }
+    } catch (error: any) {
       console.error('Error creating invitation:', error);
-      alert('Fehler beim Erstellen der Einladung');
+      setInviteError(error.message || 'Fehler beim Erstellen der Einladung');
+    } finally {
+      setInviteLoading(false);
     }
   };
 
-  const handleCopyInvitationCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    alert('Einladungscode kopiert!');
+  const handleCopyInvitationLink = (link: string) => {
+    navigator.clipboard.writeText(link);
+    alert('Einladungslink kopiert!');
   };
 
-  const handleDeleteInvitation = async (id: string) => {
+  const handleDeleteInvitation = async (invitationId: string) => {
+    if (!currentOrganization) return;
+
     try {
-      await teamsApi.deleteInvitation(id);
-      setTeamInvitations(teamInvitations.filter(inv => inv.id !== id));
+      await organizationsApi.cancelInvitation(currentOrganization.id, invitationId);
+      setOrganizationInvitations(organizationInvitations.filter(inv => inv.id !== invitationId));
     } catch (error) {
       console.error('Error deleting invitation:', error);
       alert('Fehler beim Löschen der Einladung');
+    }
+  };
+
+  const handleUpdateMemberRole = async (memberId: string, newRole: 'admin' | 'member' | 'viewer') => {
+    if (!currentOrganization) return;
+
+    try {
+      const response = await organizationsApi.updateMemberRole(currentOrganization.id, memberId, newRole);
+      if (response.success) {
+        setOrganizationMembers(organizationMembers.map(m =>
+          m.id === memberId ? { ...m, role: newRole } : m
+        ));
+      }
+    } catch (error) {
+      console.error('Error updating member role:', error);
+      alert('Fehler beim Ändern der Rolle');
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!currentOrganization) return;
+
+    if (!confirm('Möchtest du dieses Mitglied wirklich entfernen?')) return;
+
+    try {
+      await organizationsApi.removeMember(currentOrganization.id, memberId);
+      setOrganizationMembers(organizationMembers.filter(m => m.id !== memberId));
+    } catch (error) {
+      console.error('Error removing member:', error);
+      alert('Fehler beim Entfernen des Mitglieds');
     }
   };
 
@@ -816,10 +895,7 @@ export const Settings = ({
       category: 'Geschäftlich',
       items: [
         { id: 'company', label: 'Firma & Branding', icon: Building, desc: 'Logo & Kontaktdaten' },
-        ...(currentUser?.accountType === 'business' || currentUser?.accountType === 'team'
-          ? [{ id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }]
-          : []
-        )
+        { id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }
         // Billing moved to Finanzen in main navigation
       ]
     },
@@ -1374,24 +1450,31 @@ export const Settings = ({
           <div className="w-full">
             <div>
                 <div className="flex justify-between items-center mb-6">
-                  <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleImportClick}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      title="CSV importieren"
-                    >
-                      <FileDown size={20} />
-                      Importieren
-                    </button>
-                    <button
-                      onClick={() => openCustomerModal()}
-                      className="flex items-center gap-2 px-4 py-2 btn-accent"
-                    >
-                      <Plus size={20} />
-                      Kunde hinzufügen
-                    </button>
+                  <div className="flex items-center gap-3">
+                    <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
+                    {userRole === 'viewer' && (
+                      <span className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded">Nur Ansicht</span>
+                    )}
                   </div>
+                  {canEdit && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleImportClick}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        title="CSV importieren"
+                      >
+                        <FileDown size={20} />
+                        Importieren
+                      </button>
+                      <button
+                        onClick={() => openCustomerModal()}
+                        className="flex items-center gap-2 px-4 py-2 btn-accent"
+                      >
+                        <Plus size={20} />
+                        Kunde hinzufügen
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Hidden file input for CSV import */}
@@ -1547,20 +1630,24 @@ export const Settings = ({
                                 <UserCog size={18} />
                               </button>
                             )}
-                            <button
-                              onClick={() => openCustomerModal(customer)}
-                              className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
-                              title="Bearbeiten"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCustomer(customer)}
-                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                              title="Löschen"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => openCustomerModal(customer)}
+                                className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                                title="Bearbeiten"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDeleteCustomer(customer)}
+                                className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="Löschen"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1576,15 +1663,22 @@ export const Settings = ({
           <div className="max-w-4xl mx-auto">
             <div>
                 <div className="flex justify-between items-center mb-6">
-                  <p className="text-gray-600 dark:text-dark-400">{projects.length} Projekt(e)</p>
-                  <button
-                    onClick={() => openProjectModal()}
-                    disabled={customers.length === 0}
-                    className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Plus size={20} />
-                    Projekt hinzufügen
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <p className="text-gray-600 dark:text-dark-400">{projects.length} Projekt(e)</p>
+                    {userRole === 'viewer' && (
+                      <span className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded">Nur Ansicht</span>
+                    )}
+                  </div>
+                  {canEdit && (
+                    <button
+                      onClick={() => openProjectModal()}
+                      disabled={customers.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Plus size={20} />
+                      Projekt hinzufügen
+                    </button>
+                  )}
                 </div>
 
                 {customers.length === 0 ? (
@@ -1624,18 +1718,22 @@ export const Settings = ({
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => openProjectModal(project)}
-                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                          >
-                            <Edit2 size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteProject(project)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => openProjectModal(project)}
+                              className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDeleteProject(project)}
+                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1652,24 +1750,31 @@ export const Settings = ({
           <div className="max-w-4xl mx-auto">
             <div>
                 <div className="flex justify-between items-center mb-6">
-                  <p className="text-gray-600 dark:text-dark-400">{activities.length} Tätigkeit(en)</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setTemplateModalOpen(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      title="Aus Vorlage wählen"
-                    >
-                      <ListChecks size={20} />
-                      Aus Vorlage
-                    </button>
-                    <button
-                      onClick={() => openActivityModal()}
-                      className="flex items-center gap-2 px-4 py-2 btn-accent"
-                    >
-                      <Plus size={20} />
-                      Neu erstellen
-                    </button>
+                  <div className="flex items-center gap-3">
+                    <p className="text-gray-600 dark:text-dark-400">{activities.length} Tätigkeit(en)</p>
+                    {userRole === 'viewer' && (
+                      <span className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded">Nur Ansicht</span>
+                    )}
                   </div>
+                  {canEdit && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setTemplateModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        title="Aus Vorlage wählen"
+                      >
+                        <ListChecks size={20} />
+                        Aus Vorlage
+                      </button>
+                      <button
+                        onClick={() => openActivityModal()}
+                        className="flex items-center gap-2 px-4 py-2 btn-accent"
+                      >
+                        <Plus size={20} />
+                        Neu erstellen
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {activities.length === 0 ? (
@@ -1693,20 +1798,24 @@ export const Settings = ({
                             )}
                           </div>
                           <div className="flex gap-2">
-                            <button
-                              onClick={() => openActivityModal(activity)}
-                              className="p-2 text-gray-600 dark:text-dark-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                              title="Bearbeiten"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteActivity(activity)}
-                              className="p-2 text-gray-600 dark:text-dark-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                              title="Löschen"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => openActivityModal(activity)}
+                                className="p-2 text-gray-600 dark:text-dark-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                title="Bearbeiten"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDeleteActivity(activity)}
+                                className="p-2 text-gray-600 dark:text-dark-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="Löschen"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1994,6 +2103,21 @@ export const Settings = ({
 
         {activeTab === 'team' && (
           <div className="max-w-4xl mx-auto space-y-6">
+            {/* Organization Header */}
+            {currentOrganization && (
+              <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <Building size={24} className="text-accent-primary" />
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{currentOrganization.name}</h2>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">
+                      Deine Organisation • {organizationMembers.length} Mitglied(er)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Team Members */}
             <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
               <div className="flex items-center gap-3 mb-6">
@@ -2001,19 +2125,19 @@ export const Settings = ({
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Team-Mitglieder</h2>
                   <p className="text-sm text-gray-500 dark:text-dark-400">
-                    {teamMembers.length} Mitglied(er) im Team
+                    {organizationMembers.length} Mitglied(er) im Team
                   </p>
                 </div>
               </div>
 
               <div className="space-y-3">
-                {teamMembers.length === 0 ? (
+                {organizationMembers.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 dark:text-dark-400">
                     <Users2 size={48} className="mx-auto mb-4 opacity-50" />
                     <p>Keine Team-Mitglieder</p>
                   </div>
                 ) : (
-                  teamMembers.map(member => (
+                  organizationMembers.map(member => (
                     <div
                       key={member.id}
                       className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-50 rounded-lg"
@@ -2024,8 +2148,10 @@ export const Settings = ({
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900 dark:text-white">{member.username}</span>
-                            {member.id === currentUser?.id && (
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {member.display_name || member.username}
+                            </span>
+                            {member.user_id === currentUser?.id && (
                               <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">Du</span>
                             )}
                           </div>
@@ -2033,16 +2159,43 @@ export const Settings = ({
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {/* Role Badge */}
                         <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-                          member.teamRole === 'owner'
+                          member.role === 'owner'
                             ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
-                            : member.teamRole === 'admin'
+                            : member.role === 'admin'
                             ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                            : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
+                            : member.role === 'viewer'
+                            ? 'bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400'
+                            : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
                         }`}>
                           <Shield size={12} />
-                          {member.teamRole === 'owner' ? 'Owner' : member.teamRole === 'admin' ? 'Admin' : 'Mitglied'}
+                          {member.role === 'owner' ? 'Owner' : member.role === 'admin' ? 'Admin' : member.role === 'viewer' ? 'Viewer' : 'Mitglied'}
                         </span>
+
+                        {/* Actions for admins/owners (can't modify owner or self) */}
+                        {(currentOrganization?.user_role === 'owner' || currentOrganization?.user_role === 'admin') &&
+                         member.role !== 'owner' &&
+                         member.user_id !== currentUser?.id && (
+                          <div className="flex gap-1">
+                            <select
+                              value={member.role}
+                              onChange={(e) => handleUpdateMemberRole(member.id, e.target.value as 'admin' | 'member' | 'viewer')}
+                              className="text-xs px-2 py-1 border border-gray-300 dark:border-dark-200 rounded bg-white dark:bg-dark-100 text-gray-700 dark:text-gray-300"
+                            >
+                              <option value="admin">Admin</option>
+                              <option value="member">Mitglied</option>
+                              <option value="viewer">Viewer</option>
+                            </select>
+                            <button
+                              onClick={() => handleRemoveMember(member.id)}
+                              className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                              title="Mitglied entfernen"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))
@@ -2051,7 +2204,7 @@ export const Settings = ({
             </div>
 
             {/* Team Invitations (only for owners/admins) */}
-            {(currentUser?.teamRole === 'owner' || currentUser?.teamRole === 'admin') && (
+            {(currentOrganization?.user_role === 'owner' || currentOrganization?.user_role === 'admin') && (
               <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
@@ -2068,62 +2221,97 @@ export const Settings = ({
                 {/* Create New Invitation */}
                 <div className="mb-6 p-4 bg-gray-50 dark:bg-dark-50 rounded-lg">
                   <h3 className="font-medium text-gray-900 dark:text-white mb-3">Neue Einladung erstellen</h3>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="email"
+                      value={newInvitationEmail}
+                      onChange={(e) => setNewInvitationEmail(e.target.value)}
+                      placeholder="E-Mail-Adresse"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                    />
                     <select
                       value={newInvitationRole}
-                      onChange={(e) => setNewInvitationRole(e.target.value as 'admin' | 'member')}
+                      onChange={(e) => setNewInvitationRole(e.target.value as 'admin' | 'member' | 'viewer')}
                       className="px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     >
                       <option value="member">Mitglied</option>
                       <option value="admin">Admin</option>
+                      <option value="viewer">Viewer (nur lesen)</option>
                     </select>
                     <button
                       onClick={handleCreateInvitation}
-                      className="flex items-center gap-2 px-4 py-2 btn-accent"
+                      disabled={inviteLoading || !newInvitationEmail.trim()}
+                      className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50"
                     >
                       <Plus size={18} />
-                      Einladung erstellen
+                      {inviteLoading ? 'Erstelle...' : 'Einladung erstellen'}
                     </button>
                   </div>
+
+                  {inviteError && (
+                    <p className="mt-2 text-sm text-red-600 dark:text-red-400">{inviteError}</p>
+                  )}
+
+                  {invitationLink && (
+                    <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-sm text-green-700 dark:text-green-300 mb-2">
+                        Einladung erstellt! Teile diesen Link:
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 px-3 py-2 bg-white dark:bg-dark-100 border border-gray-300 dark:border-dark-200 rounded text-sm font-mono text-gray-900 dark:text-white overflow-x-auto">
+                          {invitationLink}
+                        </code>
+                        <button
+                          onClick={() => handleCopyInvitationLink(invitationLink)}
+                          className="p-2 text-accent-primary hover:bg-accent-light dark:hover:bg-accent-lighter/10 rounded-lg transition-colors"
+                          title="Link kopieren"
+                        >
+                          <Copy size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Active Invitations */}
                 <div className="space-y-3">
                   <h3 className="font-medium text-gray-900 dark:text-white text-sm">
-                    Aktive Einladungen ({teamInvitations.length})
+                    Aktive Einladungen ({organizationInvitations.length})
                   </h3>
-                  {teamInvitations.length === 0 ? (
+                  {organizationInvitations.length === 0 ? (
                     <p className="text-sm text-gray-500 dark:text-dark-400 text-center py-4">
                       Keine aktiven Einladungen
                     </p>
                   ) : (
-                    teamInvitations.map(invitation => (
+                    organizationInvitations.map(invitation => (
                       <div
                         key={invitation.id}
                         className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-50 rounded-lg"
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <code className="px-3 py-1 bg-white dark:bg-dark-100 border border-gray-300 dark:border-dark-200 rounded font-mono text-sm font-semibold text-gray-900 dark:text-white">
-                              {invitation.invitationCode}
-                            </code>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {invitation.email}
+                            </span>
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                               invitation.role === 'admin'
                                 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                                : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
+                                : invitation.role === 'viewer'
+                                ? 'bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400'
+                                : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
                             }`}>
-                              {invitation.role === 'admin' ? 'Admin' : 'Mitglied'}
+                              {invitation.role === 'admin' ? 'Admin' : invitation.role === 'viewer' ? 'Viewer' : 'Mitglied'}
                             </span>
                           </div>
                           <p className="text-xs text-gray-500 dark:text-dark-400">
-                            Gültig bis {new Date(invitation.expiresAt).toLocaleDateString('de-DE')}
+                            Gültig bis {new Date(invitation.expires_at).toLocaleDateString('de-DE')}
                           </p>
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => handleCopyInvitationCode(invitation.invitationCode)}
+                            onClick={() => handleCopyInvitationLink(`${window.location.origin}/join/${invitation.invitation_code}`)}
                             className="p-2 text-accent-primary hover:bg-accent-light dark:hover:bg-accent-lighter/10 rounded-lg transition-colors"
-                            title="Code kopieren"
+                            title="Link kopieren"
                           >
                             <Copy size={18} />
                           </button>

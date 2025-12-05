@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb, Pencil, Check } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl } from '../services/api';
+import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl, organizationsApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SlaStatus } from './SlaStatus';
 import { TicketMergeDialog } from './TicketMergeDialog';
+import { MarkdownEditor } from './MarkdownEditor';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 // Resolution type labels
 const resolutionTypeConfig: Record<TicketResolutionType, { label: string; description: string }> = {
@@ -71,6 +73,9 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   // Merge
   const [showMergeDialog, setShowMergeDialog] = useState(false);
 
+  // User role for permission checks
+  const [userRole, setUserRole] = useState<string | null>(null);
+
   // Tags
   const [ticketTags, setTicketTags] = useState<TicketTag[]>([]);
   const [allTags, setAllTags] = useState<TicketTag[]>([]);
@@ -107,6 +112,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const [newTaskVisible, setNewTaskVisible] = useState(false);
   const [addingTask, setAddingTask] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTaskTitle, setEditingTaskTitle] = useState('');
 
   useEffect(() => {
     loadTicket();
@@ -114,7 +121,21 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     loadAttachments();
     loadCannedResponses();
     loadTasks();
+    loadUserRole();
   }, [ticketId]);
+
+  // Load user role for permission checks
+  const loadUserRole = async () => {
+    try {
+      const response = await organizationsApi.getCurrent();
+      if (response.data) {
+        setUserRole(response.data.user_role);
+      }
+    } catch (err) {
+      // Non-critical, just hide merge button
+      console.error('Failed to load user role:', err);
+    }
+  };
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -233,6 +254,32 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
     } catch (err) {
       console.error('Failed to update task visibility:', err);
+    }
+  };
+
+  const handleStartEditTask = (task: TicketTask) => {
+    setEditingTaskId(task.id);
+    setEditingTaskTitle(task.title);
+  };
+
+  const handleCancelEditTask = () => {
+    setEditingTaskId(null);
+    setEditingTaskTitle('');
+  };
+
+  const handleSaveEditTask = async (taskId: string) => {
+    if (!editingTaskTitle.trim()) {
+      handleCancelEditTask();
+      return;
+    }
+    try {
+      const response = await ticketsApi.updateTask(ticketId, taskId, {
+        title: editingTaskTitle.trim(),
+      });
+      setTasks(prev => prev.map(t => t.id === taskId ? response.data : t));
+      handleCancelEditTask();
+    } catch (err) {
+      console.error('Failed to update task:', err);
     }
   };
 
@@ -467,15 +514,24 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
 
     const customer = customers.find(c => c.id === ticket.customerId);
     const now = new Date();
+    const createdDate = ticket.createdAt ? new Date(ticket.createdAt) : null;
 
     const variables: Record<string, string> = {
+      // Customer variables
       '{{customer_name}}': customer?.name || 'Kunde',
+      '{{customer_email}}': customer?.email || '',
+      // Ticket variables
       '{{ticket_number}}': ticket.ticketNumber || '',
       '{{ticket_title}}': ticket.title || '',
-      '{{current_date}}': now.toLocaleDateString('de-DE'),
-      '{{current_time}}': now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      '{{ticket_description}}': ticket.description || '',
       '{{status}}': statusConfig[ticket.status]?.label || ticket.status,
       '{{priority}}': priorityConfig[ticket.priority]?.label || ticket.priority,
+      '{{created_date}}': createdDate ? createdDate.toLocaleDateString('de-DE') : '',
+      '{{created_time}}': createdDate ? createdDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '',
+      // Current date/time
+      '{{current_date}}': now.toLocaleDateString('de-DE'),
+      '{{current_time}}': now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      '{{current_datetime}}': now.toLocaleString('de-DE'),
     };
 
     let processed = content;
@@ -710,13 +766,16 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
             </button>
           ) : (
             <>
-              <button
-                onClick={() => setShowMergeDialog(true)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                title="Tickets zusammenführen"
-              >
-                <Merge size={20} />
-              </button>
+              {/* Merge button - only for admins/owners */}
+              {(userRole === 'admin' || userRole === 'owner') && (
+                <button
+                  onClick={() => setShowMergeDialog(true)}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                  title="Tickets zusammenführen"
+                >
+                  <Merge size={20} />
+                </button>
+              )}
               <button
                 onClick={() => setShowArchiveConfirm(true)}
                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
@@ -933,19 +992,19 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Beschreibung
             </label>
-            <textarea
+            <MarkdownEditor
               value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
+              onChange={setEditDescription}
+              placeholder="Beschreibung hinzufügen..."
               rows={4}
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
             />
           </div>
         ) : ticket.description && (
           <div>
             <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Beschreibung</h2>
-            <p className="text-gray-900 dark:text-white whitespace-pre-wrap">
-              {ticket.description}
-            </p>
+            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <MarkdownRenderer content={ticket.description} />
+            </div>
           </div>
         )}
 
@@ -963,9 +1022,9 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                 )}
               </h3>
             </div>
-            <p className="text-green-900 dark:text-green-100 whitespace-pre-wrap">
-              {ticket.solution}
-            </p>
+            <div className="text-green-900 dark:text-green-100">
+              <MarkdownRenderer content={ticket.solution} />
+            </div>
           </div>
         )}
 
@@ -1015,15 +1074,61 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                   </button>
 
                   {/* Task Title */}
-                  <span
-                    className={`flex-1 text-sm ${
-                      task.completed
-                        ? 'text-gray-500 dark:text-gray-400 line-through'
-                        : 'text-gray-900 dark:text-white'
-                    }`}
-                  >
-                    {task.title}
-                  </span>
+                  {editingTaskId === task.id ? (
+                    <div className="flex-1 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editingTaskTitle}
+                        onChange={(e) => setEditingTaskTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleSaveEditTask(task.id);
+                          } else if (e.key === 'Escape') {
+                            handleCancelEditTask();
+                          }
+                        }}
+                        autoFocus
+                        className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      />
+                      <button
+                        onClick={() => handleSaveEditTask(task.id)}
+                        className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
+                        title="Speichern"
+                      >
+                        <Check size={16} />
+                      </button>
+                      <button
+                        onClick={handleCancelEditTask}
+                        className="p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                        title="Abbrechen"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span
+                      className={`flex-1 text-sm cursor-pointer hover:text-accent-primary ${
+                        task.completed
+                          ? 'text-gray-500 dark:text-gray-400 line-through'
+                          : 'text-gray-900 dark:text-white'
+                      }`}
+                      onDoubleClick={() => handleStartEditTask(task)}
+                      title="Doppelklicken zum Bearbeiten"
+                    >
+                      {task.title}
+                    </span>
+                  )}
+
+                  {/* Edit Button - only show when not editing */}
+                  {editingTaskId !== task.id && (
+                    <button
+                      onClick={() => handleStartEditTask(task)}
+                      className="p-1.5 text-gray-400 hover:text-accent-primary hover:bg-accent-primary/10 rounded opacity-0 group-hover:opacity-100 transition-all"
+                      title="Aufgabe bearbeiten"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                  )}
 
                   {/* Visibility Toggle */}
                   <button
@@ -1265,22 +1370,21 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                     </span>
                   )}
                 </div>
-                <p className="text-gray-900 dark:text-white whitespace-pre-wrap">
-                  {comment.content}
-                </p>
+                <div className="text-gray-900 dark:text-white">
+                  <MarkdownRenderer content={comment.content} />
+                </div>
               </div>
             ))}
 
             {/* Add Comment */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-              <textarea
+            <div className="space-y-2">
+              <MarkdownEditor
                 value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
+                onChange={setNewComment}
                 placeholder="Kommentar hinzufügen..."
                 rows={3}
-                className="w-full px-0 py-0 bg-transparent text-gray-900 dark:text-white resize-none focus:outline-none"
               />
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                     <input

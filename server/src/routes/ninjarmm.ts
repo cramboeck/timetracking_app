@@ -643,4 +643,543 @@ router.post('/alerts/:id/create-ticket', authenticateToken, requireNinjaFeature,
   }
 });
 
+// ============================================
+// Webhook Endpoints (Public - No Auth Required)
+// ============================================
+
+// POST /api/ninjarmm/webhook/:userId - Receive NinjaRMM webhook events
+// This endpoint is called by NinjaRMM when alerts are triggered/reset
+router.post('/webhook/:userId', async (req: any, res: Response) => {
+  const startTime = Date.now();
+  const { userId } = req.params;
+  const webhookSecret = req.headers['x-webhook-secret'] || req.query.secret;
+
+  let webhookEventId: string | null = null;
+
+  try {
+    // Validate user exists and get webhook config
+    const configResult = await query(
+      `SELECT nc.*, u.id as user_exists
+       FROM ninjarmm_config nc
+       JOIN users u ON nc.user_id = u.id
+       WHERE nc.user_id = $1`,
+      [userId]
+    );
+
+    if (configResult.rows.length === 0) {
+      console.warn(`Webhook received for unknown/unconfigured user: ${userId}`);
+      return res.status(404).json({ error: 'User not found or NinjaRMM not configured' });
+    }
+
+    const config = configResult.rows[0];
+
+    // Check if webhook is enabled
+    if (!config.webhook_enabled) {
+      console.warn(`Webhook received but not enabled for user: ${userId}`);
+      return res.status(403).json({ error: 'Webhook not enabled' });
+    }
+
+    // Validate webhook secret
+    if (config.webhook_secret && webhookSecret !== config.webhook_secret) {
+      console.warn(`Invalid webhook secret for user: ${userId}`);
+      return res.status(401).json({ error: 'Invalid webhook secret' });
+    }
+
+    // Parse the webhook payload
+    const payload = req.body;
+    console.log('📥 NinjaRMM Webhook received:', JSON.stringify(payload, null, 2));
+
+    // Extract alert information from NinjaRMM webhook payload
+    // NinjaRMM sends different event types: ALERT, ALERT_RESET, etc.
+    const eventType = payload.activityType || payload.eventType || payload.type || 'UNKNOWN';
+    const ninjaAlertId = payload.id?.toString() || payload.alertId?.toString() || payload.uid;
+    const ninjaDeviceId = payload.deviceId?.toString() || payload.device?.id?.toString();
+    const severity = payload.severity || payload.priority || 'INFO';
+    const message = payload.message || payload.subject || payload.description || '';
+    const deviceName = payload.deviceName || payload.device?.systemName || payload.device?.displayName || '';
+    const orgId = payload.organizationId?.toString() || payload.device?.organizationId?.toString();
+
+    // Log the webhook event
+    webhookEventId = uuidv4();
+    await query(
+      `INSERT INTO ninjarmm_webhook_events
+       (id, user_id, event_type, ninja_alert_id, ninja_device_id, severity, status, payload, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'received', $7, NOW())`,
+      [webhookEventId, userId, eventType, ninjaAlertId, ninjaDeviceId, severity, JSON.stringify(payload)]
+    );
+
+    // Handle different event types
+    // NinjaRMM sends various CONDITION_* types for alerts
+    const isAlertEvent = eventType.startsWith('CONDITION_') && !eventType.includes('CLEARED') && !eventType.includes('RESET')
+      || eventType === 'ALERT' || eventType === 'alert';
+    const isResetEvent = eventType === 'ALERT_RESET' || eventType === 'CONDITION_CLEARED'
+      || eventType === 'reset' || eventType.includes('RESET');
+
+    if (isAlertEvent) {
+      // New alert - create or update alert record
+      await handleNewAlert(userId, config, {
+        ninjaAlertId,
+        ninjaDeviceId,
+        severity,
+        message,
+        deviceName,
+        orgId,
+        payload,
+        webhookEventId,
+      });
+    } else if (isResetEvent) {
+      // Alert resolved - mark as resolved and optionally close ticket
+      await handleAlertReset(userId, config, {
+        ninjaAlertId,
+        ninjaDeviceId,
+        webhookEventId,
+      });
+    } else {
+      // Unknown event type - just log it
+      await query(
+        `UPDATE ninjarmm_webhook_events SET status = 'ignored', processing_time_ms = $1 WHERE id = $2`,
+        [Date.now() - startTime, webhookEventId]
+      );
+    }
+
+    res.json({ success: true, eventId: webhookEventId });
+  } catch (error: any) {
+    console.error('Webhook processing error:', error);
+
+    // Update webhook event with error
+    if (webhookEventId) {
+      await query(
+        `UPDATE ninjarmm_webhook_events
+         SET status = 'failed', error_message = $1, processing_time_ms = $2
+         WHERE id = $3`,
+        [error.message, Date.now() - startTime, webhookEventId]
+      ).catch(e => console.error('Failed to update webhook event:', e));
+    }
+
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
+// Helper function to handle new alert from webhook
+async function handleNewAlert(
+  userId: string,
+  config: any,
+  data: {
+    ninjaAlertId: string;
+    ninjaDeviceId: string;
+    severity: string;
+    message: string;
+    deviceName: string;
+    orgId: string;
+    payload: any;
+    webhookEventId: string;
+  }
+) {
+  const startTime = Date.now();
+  const { ninjaAlertId, ninjaDeviceId, severity, message, deviceName, orgId, payload, webhookEventId } = data;
+
+  // Find device in our database
+  let deviceId: string | null = null;
+  let customerId: string | null = null;
+
+  if (ninjaDeviceId) {
+    const deviceResult = await query(
+      `SELECT d.id, o.customer_id
+       FROM ninjarmm_devices d
+       LEFT JOIN ninjarmm_organizations o ON d.organization_id = o.id
+       WHERE d.user_id = $1 AND (d.ninja_device_id = $2 OR d.ninja_id::TEXT = $2)`,
+      [userId, ninjaDeviceId]
+    );
+    if (deviceResult.rows.length > 0) {
+      deviceId = deviceResult.rows[0].id;
+      customerId = deviceResult.rows[0].customer_id;
+    }
+  }
+
+  // Create or update alert record
+  const alertId = uuidv4();
+  const result = await query(
+    `INSERT INTO ninjarmm_alerts
+     (id, user_id, ninja_alert_id, ninja_uid, ninja_device_id, device_id, severity, priority, message, source_type, source_name, alert_data, activity_time, status, created_at, synced_at)
+     VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'new', NOW(), NOW())
+     ON CONFLICT (user_id, ninja_uid) WHERE ninja_uid IS NOT NULL
+     DO UPDATE SET
+       severity = EXCLUDED.severity,
+       priority = EXCLUDED.priority,
+       message = EXCLUDED.message,
+       alert_data = EXCLUDED.alert_data,
+       activity_time = EXCLUDED.activity_time,
+       status = CASE WHEN ninjarmm_alerts.status = 'resolved' THEN 'new' ELSE ninjarmm_alerts.status END,
+       resolved = FALSE,
+       resolved_at = NULL,
+       synced_at = NOW()
+     RETURNING id, (xmax = 0) as is_new`,
+    [
+      alertId,
+      userId,
+      ninjaAlertId,
+      ninjaDeviceId,
+      deviceId,
+      severity,
+      payload.priority || 'NORMAL',
+      message,
+      payload.sourceType || payload.activitySourceType || 'webhook',
+      payload.sourceName || payload.activitySourceName || deviceName,
+      JSON.stringify(payload),
+      payload.activityTime ? new Date(payload.activityTime) : new Date(),
+    ]
+  );
+
+  const finalAlertId = result.rows[0]?.id || alertId;
+  const isNew = result.rows[0]?.is_new;
+
+  // Check if we should auto-create a ticket
+  let ticketId: string | null = null;
+  if (config.webhook_auto_create_tickets && isNew) {
+    // Check severity threshold
+    const severityLevels: Record<string, number> = { 'CRITICAL': 4, 'MAJOR': 3, 'MODERATE': 2, 'MINOR': 1, 'INFO': 0 };
+    const alertSeverityLevel = severityLevels[severity.toUpperCase()] || 0;
+    const minSeverityLevel = severityLevels[config.webhook_min_severity?.toUpperCase()] || 0;
+
+    if (alertSeverityLevel >= minSeverityLevel) {
+      ticketId = await createTicketFromWebhook(userId, {
+        alertId: finalAlertId,
+        ninjaAlertId,
+        severity,
+        message,
+        deviceName,
+        deviceId,
+        customerId,
+        payload,
+      });
+
+      // Link ticket to alert
+      if (ticketId) {
+        await query(
+          `UPDATE ninjarmm_alerts SET ticket_id = $1, status = 'ticket_created' WHERE id = $2`,
+          [ticketId, finalAlertId]
+        );
+      }
+    }
+  }
+
+  // Update webhook event
+  await query(
+    `UPDATE ninjarmm_webhook_events
+     SET status = 'processed', alert_id = $1, ticket_id = $2, processing_time_ms = $3
+     WHERE id = $4`,
+    [finalAlertId, ticketId, Date.now() - startTime, webhookEventId]
+  );
+}
+
+// Helper function to handle alert reset from webhook
+async function handleAlertReset(
+  userId: string,
+  config: any,
+  data: {
+    ninjaAlertId: string;
+    ninjaDeviceId: string;
+    webhookEventId: string;
+  }
+) {
+  const startTime = Date.now();
+  const { ninjaAlertId, ninjaDeviceId, webhookEventId } = data;
+
+  // Find and update the alert
+  const alertResult = await query(
+    `UPDATE ninjarmm_alerts
+     SET resolved = TRUE, resolved_at = NOW(), status = 'resolved'
+     WHERE user_id = $1 AND (ninja_uid = $2 OR ninja_alert_id = $2)
+     RETURNING id, ticket_id`,
+    [userId, ninjaAlertId]
+  );
+
+  let ticketId: string | null = null;
+  if (alertResult.rows.length > 0) {
+    const alert = alertResult.rows[0];
+    ticketId = alert.ticket_id;
+
+    // Auto-resolve ticket if enabled
+    if (config.webhook_auto_resolve_tickets && ticketId) {
+      await query(
+        `UPDATE tickets
+         SET status = 'resolved', resolved_at = NOW(),
+             internal_notes = COALESCE(internal_notes, '') || E'\n\n[Auto-resolved via NinjaRMM webhook at ' || NOW() || ']'
+         WHERE id = $1 AND status NOT IN ('closed', 'resolved')`,
+        [ticketId]
+      );
+    }
+  }
+
+  // Update webhook event
+  await query(
+    `UPDATE ninjarmm_webhook_events
+     SET status = 'processed', alert_id = $1, ticket_id = $2, processing_time_ms = $3
+     WHERE id = $4`,
+    [alertResult.rows[0]?.id, ticketId, Date.now() - startTime, webhookEventId]
+  );
+}
+
+// Helper function to create ticket from webhook alert
+async function createTicketFromWebhook(
+  userId: string,
+  data: {
+    alertId: string;
+    ninjaAlertId: string;
+    severity: string;
+    message: string;
+    deviceName: string;
+    deviceId: string | null;
+    customerId: string | null;
+    payload: any;
+  }
+): Promise<string | null> {
+  try {
+    const { alertId, ninjaAlertId, severity, message, deviceName, deviceId, customerId, payload } = data;
+
+    // Get or create ticket sequence
+    await query(
+      'INSERT INTO ticket_sequences (user_id, last_number) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING',
+      [userId]
+    );
+
+    // Increment and get next ticket number
+    const seqResult = await query(
+      'UPDATE ticket_sequences SET last_number = last_number + 1 WHERE user_id = $1 RETURNING last_number',
+      [userId]
+    );
+    const ticketNumber = `TKT-${String(seqResult.rows[0].last_number).padStart(6, '0')}`;
+
+    // Determine priority based on severity
+    let priority = 'normal';
+    if (severity.toUpperCase() === 'CRITICAL') priority = 'urgent';
+    else if (severity.toUpperCase() === 'MAJOR') priority = 'high';
+    else if (severity.toUpperCase() === 'MINOR' || severity.toUpperCase() === 'INFO') priority = 'low';
+
+    // Create ticket
+    const ticketId = uuidv4();
+    await query(
+      `INSERT INTO tickets (
+        id, ticket_number, user_id, customer_id, device_id, title, description,
+        priority, status, source, ninja_alert_id, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+      [
+        ticketId,
+        ticketNumber,
+        userId,
+        customerId,
+        deviceId,
+        `[${severity}] ${message.substring(0, 100)}`,
+        `🚨 Alert von NinjaRMM (Webhook)\n\n**Gerät:** ${deviceName || 'Unbekannt'}\n**Severity:** ${severity}\n**Quelle:** ${payload.sourceName || payload.activitySourceName || 'N/A'}\n\n**Nachricht:**\n${message}\n\n---\n_Automatisch erstellt via Webhook_`,
+        priority,
+        'open',
+        'ninja_webhook',
+        ninjaAlertId,
+      ]
+    );
+
+    console.log(`📝 Auto-created ticket ${ticketNumber} from NinjaRMM webhook alert`);
+    return ticketId;
+  } catch (error) {
+    console.error('Failed to create ticket from webhook:', error);
+    return null;
+  }
+}
+
+// GET /api/ninjarmm/webhook-config - Get webhook configuration
+router.get('/webhook-config', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const result = await query(
+      `SELECT webhook_secret, webhook_enabled, webhook_auto_create_tickets,
+              webhook_min_severity, webhook_auto_resolve_tickets
+       FROM ninjarmm_config WHERE user_id = $1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          webhookUrl: `${process.env.BACKEND_URL || ''}/api/ninjarmm/webhook/${userId}`,
+          webhookEnabled: false,
+          webhookSecret: null,
+          hasSecret: false,
+          autoCreateTickets: false,
+          minSeverity: 'MAJOR',
+          autoResolveTickets: true,
+        },
+      });
+    }
+
+    const config = result.rows[0];
+    // Build webhook URL with secret as query parameter (since NinjaRMM doesn't support custom headers)
+    let webhookUrl = `${process.env.BACKEND_URL || ''}/api/ninjarmm/webhook/${userId}`;
+    if (config.webhook_secret) {
+      webhookUrl += `?secret=${encodeURIComponent(config.webhook_secret)}`;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        webhookUrl,
+        webhookEnabled: config.webhook_enabled || false,
+        webhookSecret: null, // Don't expose secret in response, it's in the URL
+        hasSecret: !!config.webhook_secret,
+        autoCreateTickets: config.webhook_auto_create_tickets || false,
+        minSeverity: config.webhook_min_severity || 'MAJOR',
+        autoResolveTickets: config.webhook_auto_resolve_tickets !== false,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get webhook config error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/ninjarmm/webhook-config - Update webhook configuration
+router.put('/webhook-config', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const {
+      webhookEnabled,
+      webhookSecret,
+      autoCreateTickets,
+      minSeverity,
+      autoResolveTickets
+    } = req.body;
+
+    // Ensure config exists
+    await query(
+      `INSERT INTO ninjarmm_config (id, user_id) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING`,
+      [uuidv4(), userId]
+    );
+
+    // Build update query
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (webhookEnabled !== undefined) {
+      updates.push(`webhook_enabled = $${paramIndex++}`);
+      values.push(webhookEnabled);
+    }
+    if (webhookSecret !== undefined) {
+      updates.push(`webhook_secret = $${paramIndex++}`);
+      values.push(webhookSecret || null);
+    }
+    if (autoCreateTickets !== undefined) {
+      updates.push(`webhook_auto_create_tickets = $${paramIndex++}`);
+      values.push(autoCreateTickets);
+    }
+    if (minSeverity !== undefined) {
+      updates.push(`webhook_min_severity = $${paramIndex++}`);
+      values.push(minSeverity);
+    }
+    if (autoResolveTickets !== undefined) {
+      updates.push(`webhook_auto_resolve_tickets = $${paramIndex++}`);
+      values.push(autoResolveTickets);
+    }
+
+    if (updates.length > 0) {
+      updates.push(`updated_at = NOW()`);
+      values.push(userId);
+
+      await query(
+        `UPDATE ninjarmm_config SET ${updates.join(', ')} WHERE user_id = $${paramIndex}`,
+        values
+      );
+    }
+
+    res.json({ success: true, message: 'Webhook-Konfiguration gespeichert' });
+  } catch (error: any) {
+    console.error('Update webhook config error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/webhook-config/generate-secret - Generate new webhook secret
+router.post('/webhook-config/generate-secret', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    // Generate a secure random secret
+    const crypto = require('crypto');
+    const newSecret = crypto.randomBytes(32).toString('hex');
+
+    // Ensure config exists and update secret
+    await query(
+      `INSERT INTO ninjarmm_config (id, user_id, webhook_secret, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET webhook_secret = $3, updated_at = NOW()`,
+      [uuidv4(), userId, newSecret]
+    );
+
+    // Return the new secret and the updated webhook URL
+    const webhookUrl = `${process.env.BACKEND_URL || ''}/api/ninjarmm/webhook/${userId}?secret=${encodeURIComponent(newSecret)}`;
+
+    res.json({
+      success: true,
+      data: {
+        secret: newSecret,
+        webhookUrl,
+      },
+      message: 'Neues Webhook-Secret generiert'
+    });
+  } catch (error: any) {
+    console.error('Generate webhook secret error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ninjarmm/webhook-events - Get webhook event logs
+router.get('/webhook-events', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { limit = 50, status } = req.query;
+
+    let whereClause = 'WHERE user_id = $1';
+    const params: any[] = [userId];
+
+    if (status) {
+      params.push(status);
+      whereClause += ` AND status = $${params.length}`;
+    }
+
+    const result = await query(
+      `SELECT id, event_type, ninja_alert_id, ninja_device_id, severity, status,
+              error_message, alert_id, ticket_id, processing_time_ms, created_at
+       FROM ninjarmm_webhook_events
+       ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $${params.length + 1}`,
+      [...params, parseInt(limit as string)]
+    );
+
+    // Map snake_case to camelCase for frontend
+    const events = result.rows.map(row => ({
+      id: row.id,
+      eventType: row.event_type,
+      ninjaAlertId: row.ninja_alert_id,
+      ninjaDeviceId: row.ninja_device_id,
+      severity: row.severity,
+      status: row.status,
+      errorMessage: row.error_message,
+      alertId: row.alert_id,
+      ticketId: row.ticket_id,
+      processingTimeMs: row.processing_time_ms,
+      createdAt: row.created_at,
+    }));
+
+    res.json({
+      success: true,
+      data: events,
+    });
+  } catch (error: any) {
+    console.error('Get webhook events error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

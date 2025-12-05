@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { attachOrganization, OrganizationRequest, getUserOrganizationId, requireOrgRole } from '../middleware/organization';
 import { auditLog } from '../services/auditLog';
 import { emailService } from '../services/emailService';
 import { z } from 'zod';
@@ -35,12 +36,13 @@ const updateCustomerSchema = z.object({
   ninjarmmOrganizationId: z.string().max(100).nullable().optional()
 });
 
-// GET /api/customers - Get all customers for current user
-router.get('/', authenticateToken, async (req: AuthRequest, res) => {
+// GET /api/customers - Get all customers for current organization
+router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
 
-    const result = await pool.query('SELECT * FROM customers WHERE user_id = $1 ORDER BY name', [userId]);
+    const result = await pool.query('SELECT * FROM customers WHERE organization_id = $1 ORDER BY name', [organizationId]);
     const customers = transformRows(result.rows);
 
     res.json({
@@ -53,19 +55,21 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/customers - Create new customer
-router.post('/', authenticateToken, validate(createCustomerSchema), async (req: AuthRequest, res) => {
+// POST /api/customers - Create new customer (requires member role)
+router.post('/', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createCustomerSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { name, color, customerNumber, contactPerson, email, address, reportTitle, hourlyRate, ninjarmmOrganizationId } = req.body;
 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO customers (id, user_id, name, color, customer_number, contact_person, email, address, report_title, hourly_rate, ninjarmm_organization_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [id, userId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, ninjarmmOrganizationId || null, createdAt]
+      `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, contact_person, email, address, report_title, hourly_rate, ninjarmm_organization_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, ninjarmmOrganizationId || null, createdAt]
     );
 
     const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
@@ -74,7 +78,7 @@ router.post('/', authenticateToken, validate(createCustomerSchema), async (req: 
     auditLog.log({
       userId,
       action: 'customer.create',
-      details: JSON.stringify({ name }),
+      details: JSON.stringify({ name, organizationId }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
     });
@@ -89,15 +93,17 @@ router.post('/', authenticateToken, validate(createCustomerSchema), async (req: 
   }
 });
 
-// PUT /api/customers/:id - Update customer
-router.put('/:id', authenticateToken, validate(updateCustomerSchema), async (req: AuthRequest, res) => {
+// PUT /api/customers/:id - Update customer (requires member role)
+router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateCustomerSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
     const updates = req.body;
 
-    // Verify customer belongs to user
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [id, userId]);
+    // Verify customer belongs to organization
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -173,14 +179,16 @@ router.put('/:id', authenticateToken, validate(updateCustomerSchema), async (req
   }
 });
 
-// DELETE /api/customers/:id - Delete customer
-router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
+// DELETE /api/customers/:id - Delete customer (requires admin role)
+router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
-    // Verify customer belongs to user
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [id, userId]);
+    // Verify customer belongs to organization
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -240,13 +248,14 @@ const updateContactSchema = z.object({
 });
 
 // GET /api/customers/:customerId/contacts - Get all contacts for a customer
-router.get('/:customerId/contacts', authenticateToken, async (req: AuthRequest, res) => {
+router.get('/:customerId/contacts', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { customerId } = req.params;
 
-    // Verify customer belongs to user
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [customerId, userId]);
+    // Verify customer belongs to organization
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -287,15 +296,17 @@ router.get('/:customerId/contacts', authenticateToken, async (req: AuthRequest, 
   }
 });
 
-// POST /api/customers/:customerId/contacts - Create new contact
-router.post('/:customerId/contacts', authenticateToken, validate(createContactSchema), async (req: AuthRequest, res) => {
+// POST /api/customers/:customerId/contacts - Create new contact (requires member role)
+router.post('/:customerId/contacts', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createContactSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { customerId } = req.params;
     const { name, email, isPrimary, canCreateTickets, canViewAllTickets, canViewDevices, canViewInvoices, canViewQuotes } = req.body;
 
-    // Verify customer belongs to user
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [customerId, userId]);
+    // Verify customer belongs to organization
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -353,15 +364,17 @@ router.post('/:customerId/contacts', authenticateToken, validate(createContactSc
   }
 });
 
-// PUT /api/customers/:customerId/contacts/:contactId - Update contact
-router.put('/:customerId/contacts/:contactId', authenticateToken, validate(updateContactSchema), async (req: AuthRequest, res) => {
+// PUT /api/customers/:customerId/contacts/:contactId - Update contact (requires member role)
+router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateContactSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { customerId, contactId } = req.params;
     const updates = req.body;
 
-    // Verify customer belongs to user
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [customerId, userId]);
+    // Verify customer belongs to organization
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -464,14 +477,16 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, validate(updat
   }
 });
 
-// DELETE /api/customers/:customerId/contacts/:contactId - Delete contact
-router.delete('/:customerId/contacts/:contactId', authenticateToken, async (req: AuthRequest, res) => {
+// DELETE /api/customers/:customerId/contacts/:contactId - Delete contact (requires admin role)
+router.delete('/:customerId/contacts/:contactId', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { customerId, contactId } = req.params;
 
-    // Verify customer belongs to user
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [customerId, userId]);
+    // Verify customer belongs to organization
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -502,14 +517,16 @@ router.delete('/:customerId/contacts/:contactId', authenticateToken, async (req:
   }
 });
 
-// POST /api/customers/:customerId/contacts/:contactId/send-invite - Send activation invite
-router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, async (req: AuthRequest, res) => {
+// POST /api/customers/:customerId/contacts/:contactId/send-invite - Send activation invite (requires member role)
+router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { customerId, contactId } = req.params;
 
-    // Verify customer belongs to user
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND user_id = $2', [customerId, userId]);
+    // Verify customer belongs to organization
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }

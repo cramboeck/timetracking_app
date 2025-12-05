@@ -1,4 +1,4 @@
-import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation, Ticket, TicketComment, CustomerContact, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, TicketTaskWithInfo, SlaPolicy } from '../types';
+import { TimeEntry, Project, Customer, Activity, CompanyInfo, Team, TeamInvitation, Ticket, TicketComment, CustomerContact, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, TicketTaskWithInfo, SlaPolicy, Task, TaskWithDetails, TaskChecklistItem, TaskComment, TaskDashboardData, TaskFilters, TaskStatus, TaskPriority, RecurrencePattern } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -238,7 +238,9 @@ export const userApi = {
   updateSettings: async (settings: {
     accentColor?: string;
     grayTone?: string;
+    darkMode?: boolean;
     timeRoundingInterval?: number;
+    timeFormat?: string;
     organizationName?: string;
   }) => {
     return authFetch('/user/settings', {
@@ -284,6 +286,18 @@ export const userApi = {
   deleteAccount: async () => {
     return authFetch('/user/account', {
       method: 'DELETE',
+    });
+  },
+
+  // User preferences (stored in database)
+  getPreferences: async (): Promise<{ success: boolean; data: Record<string, unknown> }> => {
+    return authFetch('/user/preferences');
+  },
+
+  updatePreferences: async (preferences: Record<string, unknown>): Promise<{ success: boolean; data: Record<string, unknown> }> => {
+    return authFetch('/user/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(preferences),
     });
   },
 };
@@ -801,7 +815,13 @@ export const ticketsApi = {
     return authFetch(`/tickets/${ticketId}/tasks`);
   },
 
-  createTask: async (ticketId: string, data: { title: string; visibleToCustomer?: boolean }): Promise<{ success: boolean; data: TicketTask }> => {
+  createTask: async (ticketId: string, data: {
+    title: string;
+    visibleToCustomer?: boolean;
+    assignedTo?: string | null;
+    dueDate?: string | null;
+    description?: string | null;
+  }): Promise<{ success: boolean; data: TicketTask }> => {
     return authFetch(`/tickets/${ticketId}/tasks`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -812,6 +832,9 @@ export const ticketsApi = {
     title?: string;
     completed?: boolean;
     visibleToCustomer?: boolean;
+    assignedTo?: string | null;
+    dueDate?: string | null;
+    description?: string | null;
   }): Promise<{ success: boolean; data: TicketTask }> => {
     return authFetch(`/tickets/${ticketId}/tasks/${taskId}`, {
       method: 'PUT',
@@ -2144,6 +2167,76 @@ export const ninjaApi = {
   createTicketFromAlert: async (alertId: string): Promise<{ success: boolean; data: { ticketId: string } }> => {
     return authFetch(`/ninjarmm/alerts/${alertId}/create-ticket`, { method: 'POST' });
   },
+
+  // ============================================
+  // Webhook Configuration
+  // ============================================
+
+  // Get webhook configuration
+  getWebhookConfig: async (): Promise<{
+    success: boolean;
+    data: {
+      webhookUrl: string;
+      webhookEnabled: boolean;
+      webhookSecret: string | null;
+      hasSecret: boolean;
+      autoCreateTickets: boolean;
+      minSeverity: string;
+      autoResolveTickets: boolean;
+    };
+  }> => {
+    return authFetch('/ninjarmm/webhook-config');
+  },
+
+  // Update webhook configuration
+  updateWebhookConfig: async (config: {
+    webhookEnabled?: boolean;
+    webhookSecret?: string;
+    autoCreateTickets?: boolean;
+    minSeverity?: string;
+    autoResolveTickets?: boolean;
+  }): Promise<{ success: boolean; message: string }> => {
+    return authFetch('/ninjarmm/webhook-config', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  },
+
+  // Generate new webhook secret
+  generateWebhookSecret: async (): Promise<{
+    success: boolean;
+    data: { webhookSecret: string };
+    message: string;
+  }> => {
+    return authFetch('/ninjarmm/webhook-config/generate-secret', { method: 'POST' });
+  },
+
+  // Get webhook events log
+  getWebhookEvents: async (options?: {
+    limit?: number;
+    status?: string;
+  }): Promise<{
+    success: boolean;
+    data: Array<{
+      id: string;
+      event_type: string;
+      ninja_alert_id: string;
+      ninja_device_id: string;
+      severity: string;
+      status: string;
+      error_message: string | null;
+      alert_id: string | null;
+      ticket_id: string | null;
+      processing_time_ms: number;
+      created_at: string;
+    }>;
+  }> => {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.status) params.append('status', options.status);
+    const queryString = params.toString();
+    return authFetch(`/ninjarmm/webhook-events${queryString ? `?${queryString}` : ''}`);
+  },
 };
 
 // Feature Packages API
@@ -2474,6 +2567,285 @@ export const maintenanceApi = {
   },
 };
 
+// ============================================
+// Organizations API (Multi-Tenant)
+// ============================================
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  owner_user_id: string;
+  settings: Record<string, any>;
+  logo: string | null;
+  created_at: string;
+  updated_at: string;
+  member_count?: number;
+  user_role?: string;
+}
+
+export interface OrganizationMember {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  role: 'owner' | 'admin' | 'member' | 'viewer';
+  joined_at: string;
+  username: string;
+  email: string;
+  display_name: string | null;
+  last_login: string | null;
+}
+
+export interface OrganizationInvitation {
+  id: string;
+  organization_id: string;
+  email: string;
+  role: 'admin' | 'member' | 'viewer';
+  invitation_code: string;
+  invited_by: string;
+  invited_by_name?: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export const organizationsApi = {
+  // Get user's organizations
+  getAll: async (): Promise<{ success: boolean; data: Organization[] }> => {
+    return authFetch('/organizations');
+  },
+
+  // Get current/active organization
+  getCurrent: async (): Promise<{ success: boolean; data: Organization }> => {
+    return authFetch('/organizations/current');
+  },
+
+  // Get organization by ID
+  getById: async (id: string): Promise<{ success: boolean; data: Organization & { userRole: string } }> => {
+    return authFetch(`/organizations/${id}`);
+  },
+
+  // Create organization
+  create: async (data: { name: string; settings?: Record<string, any> }): Promise<{ success: boolean; data: Organization }> => {
+    return authFetch('/organizations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update organization
+  update: async (id: string, data: { name?: string; settings?: Record<string, any>; logo?: string }): Promise<{ success: boolean; data: Organization }> => {
+    return authFetch(`/organizations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Get members
+  getMembers: async (orgId: string): Promise<{ success: boolean; data: OrganizationMember[] }> => {
+    return authFetch(`/organizations/${orgId}/members`);
+  },
+
+  // Update member role
+  updateMemberRole: async (orgId: string, memberId: string, role: 'admin' | 'member' | 'viewer'): Promise<{ success: boolean; data: OrganizationMember }> => {
+    return authFetch(`/organizations/${orgId}/members/${memberId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    });
+  },
+
+  // Remove member
+  removeMember: async (orgId: string, memberId: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/organizations/${orgId}/members/${memberId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get invitations
+  getInvitations: async (orgId: string): Promise<{ success: boolean; data: OrganizationInvitation[] }> => {
+    return authFetch(`/organizations/${orgId}/invitations`);
+  },
+
+  // Create invitation
+  createInvitation: async (orgId: string, email: string, role: 'admin' | 'member' | 'viewer' = 'member'): Promise<{ success: boolean; data: OrganizationInvitation; invitationLink: string }> => {
+    return authFetch(`/organizations/${orgId}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    });
+  },
+
+  // Cancel invitation
+  cancelInvitation: async (orgId: string, invitationId: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/organizations/${orgId}/invitations/${invitationId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get invitation info (public - no auth needed)
+  getInvitationInfo: async (code: string): Promise<{ success: boolean; data: { organizationName: string; logo: string | null; role: string; invitedBy: string; expiresAt: string } }> => {
+    const response = await fetch(`${API_BASE_URL}/organizations/invitation/${code}`);
+    return handleResponse(response);
+  },
+
+  // Accept invitation (join organization)
+  acceptInvitation: async (code: string): Promise<{ success: boolean; message: string; organizationId: string }> => {
+    return authFetch(`/organizations/join/${code}`, {
+      method: 'POST',
+    });
+  },
+
+  // Leave organization
+  leave: async (orgId: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/organizations/${orgId}/leave`, {
+      method: 'POST',
+    });
+  },
+};
+
+// ============================================
+// Unified Task Hub API (Standalone Tasks)
+// ============================================
+
+export interface CreateTaskInput {
+  title: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  ticketId?: string | null;
+  projectId?: string | null;
+  customerId?: string | null;
+  assignedTo?: string | null;
+  dueDate?: string | null;
+  dueTime?: string | null;
+  reminderAt?: string | null;
+  estimatedMinutes?: number | null;
+  isRecurring?: boolean;
+  recurrencePattern?: RecurrencePattern | null;
+  recurrenceInterval?: number;
+  recurrenceDays?: string[] | null;
+  recurrenceEndDate?: string | null;
+  category?: string | null;
+  tags?: string[] | null;
+  color?: string | null;
+  checklistItems?: { title: string; completed?: boolean }[];
+}
+
+export interface UpdateTaskInput extends Partial<CreateTaskInput> {
+  sortOrder?: number;
+}
+
+export interface SimilarTasksResponse {
+  suggestedMinutes: number | null;
+  similarTasks: Array<{
+    id: string;
+    title: string;
+    category: string | null;
+    estimatedMinutes: number | null;
+    actualMinutes: number | null;
+    trackedMinutes: number | null;
+  }>;
+  basedOnCount: number;
+}
+
+export const tasksApi = {
+  // Get all tasks with filters
+  getAll: async (filters?: TaskFilters): Promise<{ success: boolean; data: Task[] }> => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.priority) params.append('priority', filters.priority);
+    if (filters?.assignedTo) params.append('assignedTo', filters.assignedTo);
+    if (filters?.customerId) params.append('customerId', filters.customerId);
+    if (filters?.projectId) params.append('projectId', filters.projectId);
+    if (filters?.ticketId) params.append('ticketId', filters.ticketId);
+    if (filters?.view) params.append('view', filters.view);
+    if (filters?.includeCompleted) params.append('includeCompleted', 'true');
+    const queryString = params.toString();
+    return authFetch(`/tasks${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get task dashboard data
+  getDashboard: async (): Promise<{ success: boolean; data: TaskDashboardData }> => {
+    return authFetch('/tasks/dashboard');
+  },
+
+  // Get similar tasks for time estimation
+  getSimilarTasks: async (title: string, category?: string): Promise<{ success: boolean; data: SimilarTasksResponse }> => {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    const queryString = params.toString();
+    return authFetch(`/tasks/similar/${encodeURIComponent(title)}${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get single task with details
+  get: async (id: string): Promise<{ success: boolean; data: TaskWithDetails }> => {
+    return authFetch(`/tasks/${id}`);
+  },
+
+  // Create new task
+  create: async (data: CreateTaskInput): Promise<{ success: boolean; data: Task }> => {
+    return authFetch('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update task
+  update: async (id: string, data: UpdateTaskInput): Promise<{ success: boolean; data: Task }> => {
+    return authFetch(`/tasks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete task
+  delete: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/tasks/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Checklist items
+  addChecklistItem: async (taskId: string, title: string): Promise<{ success: boolean; data: TaskChecklistItem }> => {
+    return authFetch(`/tasks/${taskId}/checklist`, {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    });
+  },
+
+  updateChecklistItem: async (taskId: string, itemId: string, data: { title?: string; completed?: boolean }): Promise<{ success: boolean; data: TaskChecklistItem }> => {
+    return authFetch(`/tasks/${taskId}/checklist/${itemId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteChecklistItem: async (taskId: string, itemId: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/tasks/${taskId}/checklist/${itemId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Comments
+  addComment: async (taskId: string, comment: string): Promise<{ success: boolean; data: TaskComment }> => {
+    return authFetch(`/tasks/${taskId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ comment }),
+    });
+  },
+
+  // Timer operations
+  startTimer: async (taskId: string): Promise<{ success: boolean; data: any }> => {
+    return authFetch(`/tasks/${taskId}/start-timer`, {
+      method: 'POST',
+    });
+  },
+
+  stopTimer: async (taskId: string): Promise<{ success: boolean; data: any }> => {
+    return authFetch(`/tasks/${taskId}/stop-timer`, {
+      method: 'POST',
+    });
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -2486,4 +2858,6 @@ export default {
   tickets: ticketsApi,
   customerPortal: customerPortalApi,
   features: featuresApi,
+  organizations: organizationsApi,
+  tasks: tasksApi,
 };

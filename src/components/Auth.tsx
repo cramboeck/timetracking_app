@@ -1,11 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Clock, Mail, Lock, User, Shield, Building2, Users, Ticket } from 'lucide-react';
+import { Clock, Mail, Lock, User, Shield, Building2, Users, Ticket, UserPlus, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AccountType } from '../types';
 import { ForgotPassword } from './ForgotPassword';
 import { ResetPassword } from './ResetPassword';
+import { organizationsApi } from '../services/api';
 
-type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password';
+type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'join-organization';
+
+interface InvitationInfo {
+  organizationName: string;
+  logo: string | null;
+  role: string;
+  invitedBy: string;
+  expiresAt: string;
+}
 
 export const Auth = () => {
   const { login, verifyMfa, register } = useAuth();
@@ -21,18 +30,51 @@ export const Auth = () => {
   const [mfaLockedUntil, setMfaLockedUntil] = useState<Date | undefined>();
   const [trustDevice, setTrustDevice] = useState(false);
 
-  // Check URL for reset token
+  // Invitation state
+  const [invitationCode, setInvitationCode] = useState<string | null>(null);
+  const [invitationInfo, setInvitationInfo] = useState<InvitationInfo | null>(null);
+  const [invitationError, setInvitationError] = useState<string | null>(null);
+  const [invitationLoading, setInvitationLoading] = useState(false);
+
+  // Check URL for reset token or invitation code
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
+    const pathname = window.location.pathname;
 
+    // Check for password reset token
     if (token) {
       setResetToken(token);
       setAuthView('reset-password');
-      // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    // Check for invitation link (/join/:code)
+    const joinMatch = pathname.match(/^\/join\/([a-zA-Z0-9]+)$/);
+    if (joinMatch) {
+      const code = joinMatch[1];
+      setInvitationCode(code);
+      setAuthView('join-organization');
+      loadInvitationInfo(code);
     }
   }, []);
+
+  // Load invitation info from API
+  const loadInvitationInfo = async (code: string) => {
+    setInvitationLoading(true);
+    setInvitationError(null);
+    try {
+      const response = await organizationsApi.getInvitationInfo(code);
+      if (response.success) {
+        setInvitationInfo(response.data);
+      }
+    } catch (err: any) {
+      setInvitationError(err.message || 'Einladung nicht gefunden oder abgelaufen');
+    } finally {
+      setInvitationLoading(false);
+    }
+  };
 
   // Login form
   const [loginUsername, setLoginUsername] = useState('');
@@ -47,6 +89,10 @@ export const Auth = () => {
   const [registerAccountType, setRegisterAccountType] = useState<AccountType>('personal');
   const [registerOrganizationName, setRegisterOrganizationName] = useState('');
   const [registerInviteCode, setRegisterInviteCode] = useState('');
+
+  // Track if registering via invitation (to show simplified form)
+  const [registeringViaInvitation, setRegisteringViaInvitation] = useState(false);
+  const [invitationOrgName, setInvitationOrgName] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,24 +176,36 @@ export const Auth = () => {
       return;
     }
 
-    if ((registerAccountType === 'business' || registerAccountType === 'team') && !registerOrganizationName.trim()) {
+    // Only require organization name for business/team if NOT registering via invitation
+    if (!registeringViaInvitation && (registerAccountType === 'business' || registerAccountType === 'team') && !registerOrganizationName.trim()) {
       setError('Bitte gib einen Firmennamen/Team-Namen ein');
       return;
     }
 
     setIsLoading(true);
 
+    // Check for pending invitation from localStorage (from /join/:code flow)
+    const pendingInvitation = localStorage.getItem('pending_invitation');
+    const effectiveInviteCode = pendingInvitation || registerInviteCode.trim() || undefined;
+
     const result = await register({
       username: registerUsername,
       email: registerEmail,
       password: registerPassword,
-      accountType: registerAccountType,
-      organizationName: registerOrganizationName.trim() || undefined,
-      inviteCode: registerInviteCode.trim() || undefined
+      accountType: registeringViaInvitation ? 'personal' : registerAccountType, // Use personal when joining via invitation
+      organizationName: registeringViaInvitation ? undefined : (registerOrganizationName.trim() || undefined),
+      inviteCode: effectiveInviteCode
     });
 
     if (!result.success) {
       setError(result.message || 'Registrierung fehlgeschlagen');
+    } else {
+      // Clear invitation-related state after successful registration
+      if (pendingInvitation) {
+        localStorage.removeItem('pending_invitation');
+      }
+      setRegisteringViaInvitation(false);
+      setInvitationOrgName(null);
     }
 
     setIsLoading(false);
@@ -173,6 +231,151 @@ export const Auth = () => {
           setResetToken(null);
         }}
       />
+    );
+  }
+
+  // Show JoinOrganization view
+  if (authView === 'join-organization' && invitationCode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-accent-primary/10 mb-4">
+              <UserPlus size={32} className="text-accent-primary" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Team beitreten
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Du wurdest eingeladen, einem Team beizutreten
+            </p>
+          </div>
+
+          {/* Invitation Card */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+            {invitationLoading && (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary mx-auto mb-4"></div>
+                <p className="text-gray-600 dark:text-gray-400">Einladung wird geladen...</p>
+              </div>
+            )}
+
+            {invitationError && (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                  <XCircle size={32} className="text-red-600 dark:text-red-400" />
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Einladung ungültig
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  {invitationError}
+                </p>
+                <button
+                  onClick={() => {
+                    window.history.replaceState({}, '', '/');
+                    setAuthView('login');
+                    setInvitationCode(null);
+                  }}
+                  className="px-6 py-2 btn-accent"
+                >
+                  Zur Anmeldung
+                </button>
+              </div>
+            )}
+
+            {invitationInfo && (
+              <div>
+                {/* Organization Info */}
+                <div className="text-center mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+                  {invitationInfo.logo ? (
+                    <img src={invitationInfo.logo} alt="" className="w-20 h-20 rounded-xl mx-auto mb-4 object-contain" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-xl bg-accent-primary/10 flex items-center justify-center mx-auto mb-4">
+                      <Building2 size={36} className="text-accent-primary" />
+                    </div>
+                  )}
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                    {invitationInfo.organizationName}
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Eingeladen von {invitationInfo.invitedBy}
+                  </p>
+                </div>
+
+                {/* Role Info */}
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-6">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Deine Rolle:</span>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      invitationInfo.role === 'admin'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                        : invitationInfo.role === 'viewer'
+                        ? 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                        : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                    }`}>
+                      {invitationInfo.role === 'admin' ? 'Admin' : invitationInfo.role === 'viewer' ? 'Viewer' : 'Mitglied'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Gültig bis {new Date(invitationInfo.expiresAt).toLocaleDateString('de-DE', {
+                      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+
+                {/* Action */}
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                    Melde dich an oder erstelle einen Account, um der Organisation beizutreten.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => {
+                        // Store invitation code for after login
+                        localStorage.setItem('pending_invitation', invitationCode);
+                        window.history.replaceState({}, '', '/');
+                        setAuthView('login');
+                      }}
+                      className="py-3 px-4 bg-accent-primary text-white rounded-lg font-medium hover:bg-accent-darker transition-colors"
+                    >
+                      Anmelden
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Store invitation code and set registration via invitation mode
+                        localStorage.setItem('pending_invitation', invitationCode);
+                        setRegisteringViaInvitation(true);
+                        setInvitationOrgName(invitationInfo?.organizationName || null);
+                        window.history.replaceState({}, '', '/');
+                        setAuthView('register');
+                      }}
+                      className="py-3 px-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Registrieren
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Back Link */}
+          <div className="text-center mt-6">
+            <button
+              onClick={() => {
+                window.history.replaceState({}, '', '/');
+                setAuthView('login');
+                setInvitationCode(null);
+              }}
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-accent-primary transition-colors"
+            >
+              Zurück zur normalen Anmeldung
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -373,59 +576,78 @@ export const Auth = () => {
             ) : (
               /* Register Form */
               <form onSubmit={handleRegister} className="space-y-4">
-                {/* Account Type Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Account-Typ *
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRegisterAccountType('personal')}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                        registerAccountType === 'personal'
-                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
-                      }`}
-                    >
-                      <User size={24} className={registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-400'} />
-                      <span className={`text-xs font-medium ${registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
-                        Freelancer
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRegisterAccountType('business')}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                        registerAccountType === 'business'
-                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
-                      }`}
-                    >
-                      <Building2 size={24} className={registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-400'} />
-                      <span className={`text-xs font-medium ${registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
-                        Unternehmen
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRegisterAccountType('team')}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                        registerAccountType === 'team'
-                          ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
-                      }`}
-                    >
-                      <Users size={24} className={registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-400'} />
-                      <span className={`text-xs font-medium ${registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
-                        Team
-                      </span>
-                    </button>
+                {/* Invitation Banner - when registering via invitation */}
+                {registeringViaInvitation && invitationOrgName && (
+                  <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                      <UserPlus size={20} className="text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-green-800 dark:text-green-200">
+                        Du trittst bei: {invitationOrgName}
+                      </p>
+                      <p className="text-sm text-green-600 dark:text-green-400">
+                        Erstelle deinen Account um der Organisation beizutreten
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Organization Name - only for business/team */}
-                {(registerAccountType === 'business' || registerAccountType === 'team') && (
+                {/* Account Type Selection - only show when NOT registering via invitation */}
+                {!registeringViaInvitation && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Account-Typ *
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRegisterAccountType('personal')}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                          registerAccountType === 'personal'
+                            ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                        }`}
+                      >
+                        <User size={24} className={registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-400'} />
+                        <span className={`text-xs font-medium ${registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
+                          Freelancer
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegisterAccountType('business')}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                          registerAccountType === 'business'
+                            ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                        }`}
+                      >
+                        <Building2 size={24} className={registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-400'} />
+                        <span className={`text-xs font-medium ${registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
+                          Unternehmen
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegisterAccountType('team')}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                          registerAccountType === 'team'
+                            ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                        }`}
+                      >
+                        <Users size={24} className={registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-400'} />
+                        <span className={`text-xs font-medium ${registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
+                          Team
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Organization Name - only for business/team AND not registering via invitation */}
+                {!registeringViaInvitation && (registerAccountType === 'business' || registerAccountType === 'team') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       {registerAccountType === 'business' ? 'Firmenname' : 'Team-Name'} *
@@ -513,25 +735,27 @@ export const Auth = () => {
                   </div>
                 </div>
 
-                {/* Invite Code - Optional */}
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Ticket size={18} className="text-gray-500 dark:text-gray-400" />
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Einladungscode (optional)
-                    </label>
+                {/* Invite Code - Optional - only show when NOT registering via invitation */}
+                {!registeringViaInvitation && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Ticket size={18} className="text-gray-500 dark:text-gray-400" />
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Einladungscode (optional)
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      value={registerInviteCode}
+                      onChange={(e) => setRegisterInviteCode(e.target.value.toUpperCase())}
+                      placeholder="INVITE-XXXXXXXXX"
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      💡 Du hast einen Einladungscode? Gib ihn hier ein, um einem bestehenden Team beizutreten
+                    </p>
                   </div>
-                  <input
-                    type="text"
-                    value={registerInviteCode}
-                    onChange={(e) => setRegisterInviteCode(e.target.value.toUpperCase())}
-                    placeholder="INVITE-XXXXXXXXX"
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    💡 Du hast einen Einladungscode? Gib ihn hier ein, um einem bestehenden Team beizutreten
-                  </p>
-                </div>
+                )}
 
                 <button
                   type="submit"

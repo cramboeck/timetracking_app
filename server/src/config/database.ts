@@ -127,6 +127,51 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add dark_mode column to users table
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'dark_mode'
+        ) THEN
+          ALTER TABLE users ADD COLUMN dark_mode BOOLEAN DEFAULT FALSE;
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Ensure dark_mode is never NULL (set existing NULLs to FALSE)
+    await client.query(`
+      UPDATE users SET dark_mode = FALSE WHERE dark_mode IS NULL;
+    `);
+
+    // Migration: Add NOT NULL constraint to dark_mode
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'dark_mode' AND is_nullable = 'YES'
+        ) THEN
+          ALTER TABLE users ALTER COLUMN dark_mode SET NOT NULL;
+          ALTER TABLE users ALTER COLUMN dark_mode SET DEFAULT FALSE;
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Add preferences JSONB column to users table
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'preferences'
+        ) THEN
+          ALTER TABLE users ADD COLUMN preferences JSONB DEFAULT '{}';
+        END IF;
+      END $$;
+    `);
+
     // Trusted devices table for "Remember this device" MFA feature
     await client.query(`
       CREATE TABLE IF NOT EXISTS trusted_devices (
@@ -633,6 +678,64 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_user_id ON ninjarmm_alerts(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_device_id ON ninjarmm_alerts(device_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customers_ninjarmm_org ON customers(ninjarmm_organization_id)');
+
+    // Migration: Add webhook columns to ninjarmm_config
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_config' AND column_name = 'webhook_secret'
+        ) THEN
+          ALTER TABLE ninjarmm_config ADD COLUMN webhook_secret TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_config' AND column_name = 'webhook_enabled'
+        ) THEN
+          ALTER TABLE ninjarmm_config ADD COLUMN webhook_enabled BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_config' AND column_name = 'webhook_auto_create_tickets'
+        ) THEN
+          ALTER TABLE ninjarmm_config ADD COLUMN webhook_auto_create_tickets BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_config' AND column_name = 'webhook_min_severity'
+        ) THEN
+          ALTER TABLE ninjarmm_config ADD COLUMN webhook_min_severity TEXT DEFAULT 'MAJOR';
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ninjarmm_config' AND column_name = 'webhook_auto_resolve_tickets'
+        ) THEN
+          ALTER TABLE ninjarmm_config ADD COLUMN webhook_auto_resolve_tickets BOOLEAN DEFAULT TRUE;
+        END IF;
+      END $$;
+    `);
+
+    // NinjaRMM webhook events log
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_webhook_events (
+        id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        ninja_alert_id TEXT,
+        ninja_device_id TEXT,
+        severity TEXT,
+        status TEXT DEFAULT 'received' CHECK(status IN ('received', 'processed', 'failed', 'ignored')),
+        payload JSONB,
+        error_message TEXT,
+        alert_id TEXT REFERENCES ninjarmm_alerts(id) ON DELETE SET NULL,
+        ticket_id TEXT,
+        processing_time_ms INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_webhook_events_user ON ninjarmm_webhook_events(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_webhook_events_created ON ninjarmm_webhook_events(created_at DESC)');
 
     // ============================================
     // Feature Flags System
@@ -1343,6 +1446,16 @@ export async function initializeDatabase() {
         ) THEN
           ALTER TABLE report_approvals ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
         END IF;
+
+        -- Add organization_id to ticket_sequences
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_sequences' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE ticket_sequences ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+          -- Create new unique constraint on organization_id
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_ticket_sequences_org ON ticket_sequences(organization_id) WHERE organization_id IS NOT NULL;
+        END IF;
       END $$;
     `);
 
@@ -1406,6 +1519,7 @@ export async function initializeDatabase() {
           UPDATE customer_portal_users SET organization_id = new_org_id WHERE owner_user_id = user_rec.id AND organization_id IS NULL;
           UPDATE feature_packages SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
           UPDATE report_approvals SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          UPDATE ticket_sequences SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
 
           RAISE NOTICE 'Created organization % for user %', new_org_id, user_rec.username;
         END LOOP;
@@ -1413,6 +1527,307 @@ export async function initializeDatabase() {
     `);
 
     console.log('✅ Multi-tenant organization migration completed');
+
+    // ============================================
+    // Fix ticket_sequences - migrate from user_id to organization_id based
+    // ============================================
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Drop the partial unique index if it exists
+        DROP INDEX IF EXISTS idx_ticket_sequences_org;
+
+        -- Check if old table structure exists (has user_id column)
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_sequences' AND column_name = 'user_id'
+        ) THEN
+          -- Create a new table with correct structure
+          CREATE TABLE IF NOT EXISTS ticket_sequences_new (
+            organization_id TEXT PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+            last_number INTEGER NOT NULL DEFAULT 0
+          );
+
+          -- Migrate data: get the max last_number per organization
+          INSERT INTO ticket_sequences_new (organization_id, last_number)
+          SELECT organization_id, MAX(last_number)
+          FROM ticket_sequences
+          WHERE organization_id IS NOT NULL
+          GROUP BY organization_id
+          ON CONFLICT (organization_id) DO UPDATE SET last_number = GREATEST(ticket_sequences_new.last_number, EXCLUDED.last_number);
+
+          -- Drop old table and rename new one
+          DROP TABLE ticket_sequences;
+          ALTER TABLE ticket_sequences_new RENAME TO ticket_sequences;
+
+          RAISE NOTICE 'ticket_sequences table migrated to organization-based';
+        END IF;
+      END $$;
+    `);
+    console.log('✅ Ticket sequences migrated to organization-based');
+
+    // ============================================
+    // Add assigned_to to ticket_tasks (migration)
+    // ============================================
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_tasks' AND column_name = 'assigned_to'
+        ) THEN
+          ALTER TABLE ticket_tasks ADD COLUMN assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_tasks' AND column_name = 'due_date'
+        ) THEN
+          ALTER TABLE ticket_tasks ADD COLUMN due_date TIMESTAMP;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_tasks' AND column_name = 'description'
+        ) THEN
+          ALTER TABLE ticket_tasks ADD COLUMN description TEXT;
+        END IF;
+      END $$;
+    `);
+    console.log('✅ Ticket tasks extended with assigned_to, due_date, description');
+
+    // ============================================
+    // Lead Management System
+    // ============================================
+
+    // Lead status tracking
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS leads (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+
+        -- Basic info
+        name TEXT NOT NULL,
+        company TEXT,
+        email TEXT,
+        phone TEXT,
+        website TEXT,
+
+        -- Lead qualification
+        status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost')),
+        source TEXT CHECK(source IN ('website', 'referral', 'cold_call', 'email', 'event', 'social_media', 'advertising', 'other')),
+        priority TEXT DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'hot')),
+
+        -- Value
+        estimated_value DECIMAL(12, 2),
+        probability INTEGER CHECK(probability >= 0 AND probability <= 100),
+
+        -- Assignment
+        assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+
+        -- Dates
+        expected_close_date DATE,
+        last_contact_date TIMESTAMP,
+        next_follow_up DATE,
+
+        -- Additional info
+        description TEXT,
+        notes TEXT,
+        tags TEXT[],
+        custom_fields JSONB DEFAULT '{}',
+
+        -- Timestamps
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        converted_at TIMESTAMP,
+        lost_reason TEXT
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_leads_org ON leads(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(organization_id, status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_to)');
+    console.log('✅ Leads table created');
+
+    // Lead activities/interactions
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lead_activities (
+        id TEXT PRIMARY KEY,
+        lead_id TEXT NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+
+        activity_type TEXT NOT NULL CHECK(activity_type IN ('call', 'email', 'meeting', 'note', 'task', 'status_change', 'demo', 'proposal_sent')),
+        title TEXT NOT NULL,
+        description TEXT,
+
+        -- For scheduled activities
+        scheduled_at TIMESTAMP,
+        completed_at TIMESTAMP,
+        is_completed BOOLEAN DEFAULT false,
+
+        -- Metadata
+        outcome TEXT,
+        duration_minutes INTEGER,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_lead_activities_lead ON lead_activities(lead_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_lead_activities_user ON lead_activities(user_id)');
+    console.log('✅ Lead activities table created');
+
+    // ============================================
+    // Unified Task Hub - Standalone Tasks System
+    // ============================================
+
+    // Main tasks table - can exist independently or linked to tickets/projects
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+        -- Basic info
+        title TEXT NOT NULL,
+        description TEXT,
+
+        -- Status and priority
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'completed', 'cancelled')),
+        priority TEXT DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'urgent')),
+
+        -- Optional linking - tasks can be standalone or connected
+        ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+
+        -- Assignment
+        assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+        -- Time management
+        due_date TIMESTAMP,
+        due_time TIME,
+        reminder_at TIMESTAMP,
+        estimated_minutes INTEGER,
+
+        -- Recurrence (for recurring tasks)
+        is_recurring BOOLEAN DEFAULT false,
+        recurrence_pattern TEXT CHECK(recurrence_pattern IN ('daily', 'weekly', 'monthly', 'yearly', 'custom')),
+        recurrence_interval INTEGER DEFAULT 1,
+        recurrence_days TEXT[], -- For weekly: ['monday', 'wednesday', 'friday']
+        recurrence_end_date DATE,
+        parent_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+
+        -- Categorization
+        category TEXT,
+        tags TEXT[],
+        color TEXT,
+
+        -- Completion tracking
+        completed_at TIMESTAMP,
+        completed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+
+        -- Ordering
+        sort_order INTEGER DEFAULT 0,
+
+        -- Timestamps
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Task time entries - link time tracking directly to tasks
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'task_id'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Task checklist items (subtasks)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_checklist_items (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        completed BOOLEAN DEFAULT false,
+        sort_order INTEGER DEFAULT 0,
+        completed_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Task comments/notes
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_comments (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        comment TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Task activity log
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_activity_log (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        action TEXT NOT NULL,
+        old_value TEXT,
+        new_value TEXT,
+        details JSONB,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Task templates for quick task creation
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_templates (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        priority TEXT DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'urgent')),
+        estimated_minutes INTEGER,
+        category TEXT,
+        tags TEXT[],
+        checklist_items JSONB DEFAULT '[]',
+        is_active BOOLEAN DEFAULT true,
+        created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(organization_id, name)
+      )
+    `);
+
+    // Create indexes for tasks
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_org ON tasks(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(organization_id, status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_ticket ON tasks(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_customer ON tasks(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_task_checklist_task ON task_checklist_items(task_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_task_comments_task ON task_comments(task_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_task_activity_task ON task_activity_log(task_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_task_templates_org ON task_templates(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_task ON time_entries(task_id)');
+
+    console.log('✅ Unified Task Hub tables created');
 
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');

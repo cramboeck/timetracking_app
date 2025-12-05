@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { attachOrganization, OrganizationRequest } from '../middleware/organization';
 import { auditLog } from '../services/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
@@ -25,12 +26,13 @@ const updateActivitySchema = z.object({
   flatRate: z.number().min(0).optional()
 });
 
-// GET /api/activities - Get all activities for current user
-router.get('/', authenticateToken, async (req: AuthRequest, res) => {
+// GET /api/activities - Get all activities for current organization
+router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
 
-    const result = await pool.query('SELECT * FROM activities WHERE user_id = $1 ORDER BY name', [userId]);
+    const result = await pool.query('SELECT * FROM activities WHERE organization_id = $1 ORDER BY name', [organizationId]);
     const activities = transformRows(result.rows);
 
     res.json({
@@ -44,18 +46,20 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // POST /api/activities - Create new activity
-router.post('/', authenticateToken, validate(createActivitySchema), async (req: AuthRequest, res) => {
+router.post('/', authenticateToken, attachOrganization, validate(createActivitySchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { name, description, isBillable, pricingType, flatRate } = req.body;
 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO activities (id, user_id, name, description, is_billable, pricing_type, flat_rate, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [id, userId, name, description || null, isBillable, pricingType, flatRate || null, createdAt]
+      `INSERT INTO activities (id, user_id, organization_id, name, description, is_billable, pricing_type, flat_rate, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [id, userId, organizationId, name, description || null, isBillable, pricingType, flatRate || null, createdAt]
     );
 
     const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1', [id]);
@@ -64,7 +68,7 @@ router.post('/', authenticateToken, validate(createActivitySchema), async (req: 
     auditLog.log({
       userId,
       action: 'activity.create',
-      details: JSON.stringify({ name }),
+      details: JSON.stringify({ name, organizationId }),
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
     });
@@ -80,14 +84,16 @@ router.post('/', authenticateToken, validate(createActivitySchema), async (req: 
 });
 
 // PUT /api/activities/:id - Update activity
-router.put('/:id', authenticateToken, validate(updateActivitySchema), async (req: AuthRequest, res) => {
+router.put('/:id', authenticateToken, attachOrganization, validate(updateActivitySchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
     const updates = req.body;
 
-    // Verify activity belongs to user
-    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND user_id = $2', [id, userId]);
+    // Verify activity belongs to organization
+    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     if (activityResult.rows.length === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
@@ -107,7 +113,7 @@ router.put('/:id', authenticateToken, validate(updateActivitySchema), async (req
     }
     if (updates.isBillable !== undefined) {
       fields.push(`is_billable = $${paramCount++}`);
-      values.push(updates.isBillable); // PostgreSQL uses boolean
+      values.push(updates.isBillable);
     }
     if (updates.pricingType !== undefined) {
       fields.push(`pricing_type = $${paramCount++}`);
@@ -148,13 +154,15 @@ router.put('/:id', authenticateToken, validate(updateActivitySchema), async (req
 });
 
 // DELETE /api/activities/:id - Delete activity
-router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
+router.delete('/:id', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
-    // Verify activity belongs to user
-    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND user_id = $2', [id, userId]);
+    // Verify activity belongs to organization
+    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     if (activityResult.rows.length === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }

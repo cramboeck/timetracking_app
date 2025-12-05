@@ -5,6 +5,8 @@ import {
   Image, File, Archive
 } from 'lucide-react';
 import { customerPortalApi, PortalTicket, PortalComment, getApiBaseUrl } from '../../services/api';
+import { MarkdownEditor } from '../MarkdownEditor';
+import { MarkdownRenderer } from '../MarkdownRenderer';
 
 // Helper to convert relative file URLs to absolute URLs
 const getAbsoluteFileUrl = (fileUrl: string): string => {
@@ -370,9 +372,9 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
           <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
             Beschreibung
           </h3>
-          <p className="text-gray-900 dark:text-white whitespace-pre-wrap leading-relaxed">
-            {ticket.description}
-          </p>
+          <div className="text-gray-900 dark:text-white leading-relaxed">
+            <MarkdownRenderer content={ticket.description} />
+          </div>
         </div>
       )}
 
@@ -534,9 +536,9 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                     <span className="text-xs">•</span>
                     <span className="text-xs">{formatDate(comment.createdAt)}</span>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {comment.content}
-                  </p>
+                  <div className="text-sm leading-relaxed">
+                    <MarkdownRenderer content={comment.content} />
+                  </div>
                 </div>
               </div>
             ))
@@ -545,32 +547,27 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
 
         {/* Add Comment */}
         {canComment ? (
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <div className="flex gap-3">
-              <textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Nachricht schreiben..."
-                rows={2}
-                className="flex-1 px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                    handleAddComment();
-                  }
-                }}
-              />
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-3">
+            <MarkdownEditor
+              value={newComment}
+              onChange={setNewComment}
+              placeholder="Nachricht schreiben..."
+              rows={3}
+            />
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Markdown unterstützt • Strg+Enter zum Senden
+              </p>
               <button
                 onClick={handleAddComment}
                 disabled={!newComment.trim() || submittingComment}
-                className="self-end p-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl transition-colors"
                 title="Senden (Cmd+Enter)"
               >
-                <Send size={20} />
+                <Send size={16} />
+                Senden
               </button>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              Drücken Sie Cmd+Enter zum Senden
-            </p>
           </div>
         ) : (
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4 text-center">
