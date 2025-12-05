@@ -2237,7 +2237,7 @@ export const ninjaApi = {
   // Generate new webhook secret
   generateWebhookSecret: async (): Promise<{
     success: boolean;
-    data: { webhookSecret: string };
+    data: { secret: string; webhookUrl: string };
     message: string;
   }> => {
     return authFetch('/ninjarmm/webhook-config/generate-secret', { method: 'POST' });
