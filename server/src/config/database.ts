@@ -877,6 +877,7 @@ export async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS tickets (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
         customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
         device_id TEXT REFERENCES ninjarmm_devices(id) ON DELETE SET NULL,
         portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL,
@@ -901,6 +902,13 @@ export async function initializeDatabase() {
     await client.query(`
       DO $$
       BEGIN
+        -- Add organization_id if not exists
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        END IF;
         -- Add device_id if not exists
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
@@ -973,6 +981,7 @@ export async function initializeDatabase() {
 
     // Create indexes for Tickets
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_org ON tickets(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_customer ON tickets(customer_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_device ON tickets(device_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)');
