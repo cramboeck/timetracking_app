@@ -11,6 +11,7 @@ import { CustomerAuthRequest, authenticateCustomerToken } from '../middleware/cu
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { z } from 'zod';
 import { sendTicketNotification } from '../services/pushNotifications';
+import { emailService } from '../services/emailService';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import { UAParser } from 'ua-parser-js';
@@ -447,6 +448,28 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
       'push_on_new_ticket',
       `Neues Ticket von ${customerName}`
     ).catch(err => console.error('Failed to send push notification:', err));
+
+    // Send email confirmation to customer contact (async, non-blocking)
+    try {
+      const contactInfo = await pool.query(
+        'SELECT email, name, notify_ticket_created FROM customer_contacts WHERE id = $1',
+        [req.contactId]
+      );
+      if (contactInfo.rows.length > 0 && contactInfo.rows[0].email && contactInfo.rows[0].notify_ticket_created !== false) {
+        const contact = contactInfo.rows[0];
+        const portalUrl = `${process.env.FRONTEND_URL || 'https://app.ramboeck.it'}/portal/tickets/${ticketId}`;
+        emailService.sendTicketCreatedNotification({
+          to: contact.email,
+          customerName: contact.name || customerName,
+          ticketNumber,
+          ticketTitle: title,
+          ticketDescription: description || '',
+          portalUrl,
+        }).catch(err => console.error('Failed to send ticket created notification:', err));
+      }
+    } catch (emailErr) {
+      console.error('Error preparing ticket created notification:', emailErr);
+    }
 
     res.status(201).json({
       id: ticket.id,
@@ -888,6 +911,56 @@ router.post('/change-password', authenticateCustomerToken, async (req: CustomerA
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
     console.error('Change password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// NOTIFICATION PREFERENCES
+// ============================================================================
+
+// Get notification preferences
+router.get('/notification-preferences', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply
+       FROM customer_contacts WHERE id = $1`,
+      [req.contactId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const prefs = result.rows[0];
+    res.json({
+      notifyTicketCreated: prefs.notify_ticket_created ?? true,
+      notifyTicketStatusChanged: prefs.notify_ticket_status_changed ?? true,
+      notifyTicketReply: prefs.notify_ticket_reply ?? true,
+    });
+  } catch (error) {
+    console.error('Get notification preferences error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update notification preferences
+router.put('/notification-preferences', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply } = req.body;
+
+    await pool.query(
+      `UPDATE customer_contacts SET
+        notify_ticket_created = COALESCE($1, notify_ticket_created),
+        notify_ticket_status_changed = COALESCE($2, notify_ticket_status_changed),
+        notify_ticket_reply = COALESCE($3, notify_ticket_reply)
+       WHERE id = $4`,
+      [notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply, req.contactId]
+    );
+
+    res.json({ success: true, message: 'Notification preferences updated' });
+  } catch (error) {
+    console.error('Update notification preferences error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

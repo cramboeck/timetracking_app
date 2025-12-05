@@ -1181,6 +1181,32 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add email notification preferences to customer_contacts
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'notify_ticket_created'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN notify_ticket_created BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'notify_ticket_status_changed'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN notify_ticket_status_changed BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'notify_ticket_reply'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN notify_ticket_reply BOOLEAN DEFAULT true;
+        END IF;
+      END $$;
+    `);
+    console.log('✅ Customer contact notification preferences added');
+
     // Portal trusted devices table
     await client.query(`
       CREATE TABLE IF NOT EXISTS portal_trusted_devices (
