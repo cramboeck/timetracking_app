@@ -1222,7 +1222,8 @@ export const NinjaRMMSettings = () => {
                       <thead className="bg-gray-50 dark:bg-dark-50 text-left text-sm text-gray-500 dark:text-dark-400">
                         <tr>
                           <th className="px-4 py-3 font-medium">Status</th>
-                          <th className="px-4 py-3 font-medium">Event-Typ</th>
+                          <th className="px-4 py-3 font-medium">Event / Nachricht</th>
+                          <th className="px-4 py-3 font-medium">Gerät</th>
                           <th className="px-4 py-3 font-medium">Schweregrad</th>
                           <th className="px-4 py-3 font-medium">Ticket</th>
                           <th className="px-4 py-3 font-medium">Zeit</th>
@@ -1241,8 +1242,18 @@ export const NinjaRMMSettings = () => {
                                 {event.status}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-gray-900 dark:text-white">
-                              {event.eventType}
+                            <td className="px-4 py-3">
+                              <div className="text-gray-900 dark:text-white font-medium">
+                                {event.message || event.eventType}
+                              </div>
+                              {event.message && (
+                                <div className="text-xs text-gray-500 dark:text-dark-400">
+                                  {event.eventType}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700 dark:text-dark-300">
+                              {event.deviceName || '-'}
                             </td>
                             <td className="px-4 py-3">
                               {event.severity && (

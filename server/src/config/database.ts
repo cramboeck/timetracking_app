@@ -751,6 +751,15 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_webhook_events_user ON ninjarmm_webhook_events(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_webhook_events_created ON ninjarmm_webhook_events(created_at DESC)');
 
+    // Add message and device_name columns to webhook events for better display
+    await client.query(`
+      DO $$ BEGIN
+        ALTER TABLE ninjarmm_webhook_events ADD COLUMN IF NOT EXISTS message TEXT;
+        ALTER TABLE ninjarmm_webhook_events ADD COLUMN IF NOT EXISTS device_name TEXT;
+      EXCEPTION WHEN others THEN NULL;
+      END $$
+    `);
+
     // ============================================
     // Feature Flags System
     // ============================================

@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { query } from '../config/database';
 import * as ninjaService from '../services/ninjarmmService';
+import { sendPushNotification } from '../services/pushNotifications';
 
 const router = express.Router();
 
@@ -690,22 +691,57 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
     console.log('📥 NinjaRMM Webhook received:', JSON.stringify(payload, null, 2));
 
     // Extract alert information from NinjaRMM webhook payload
-    // NinjaRMM sends different event types: ALERT, ALERT_RESET, etc.
+    // NinjaRMM sends different event types with different structures:
+    // - CONDITION / CONDITION_TRIGGERED / CONDITION_CLEARED - monitoring conditions
+    // - ACTIONSET - automated actions/scripts
+    // - ALERT / ALERT_RESET - standard alerts
     const eventType = payload.activityType || payload.eventType || payload.type || 'UNKNOWN';
-    const ninjaAlertId = payload.id?.toString() || payload.alertId?.toString() || payload.uid;
-    const ninjaDeviceId = payload.deviceId?.toString() || payload.device?.id?.toString();
-    const severity = payload.severity || payload.priority || 'INFO';
-    const message = payload.message || payload.subject || payload.description || '';
-    const deviceName = payload.deviceName || payload.device?.systemName || payload.device?.displayName || '';
-    const orgId = payload.organizationId?.toString() || payload.device?.organizationId?.toString();
+    const ninjaAlertId = payload.id?.toString() || payload.alertId?.toString() || payload.uid || payload.activityId?.toString();
+    const ninjaDeviceId = payload.deviceId?.toString() || payload.device?.id?.toString() || payload.nodeId?.toString();
 
-    // Log the webhook event
+    // NinjaRMM severity mapping - they use different field names
+    let severity = payload.severity || payload.priority || 'INFO';
+    // Map NinjaRMM severity strings
+    if (payload.conditionSeverity) severity = payload.conditionSeverity;
+    if (payload.alertSeverity) severity = payload.alertSeverity;
+
+    // Extract message from various NinjaRMM payload formats
+    let message = '';
+    if (payload.message) message = payload.message;
+    else if (payload.subject) message = payload.subject;
+    else if (payload.description) message = payload.description;
+    else if (payload.conditionName) message = payload.conditionName;
+    else if (payload.name) message = payload.name;
+    else if (payload.activityDescription) message = payload.activityDescription;
+    else if (payload.statusText) message = payload.statusText;
+    else if (payload.data?.message) message = payload.data.message;
+    else if (payload.data?.name) message = payload.data.name;
+    // For CONDITION events, build a descriptive message
+    if (!message && eventType.includes('CONDITION')) {
+      message = payload.conditionDisplayName || payload.conditionName || payload.condition?.name || `Monitoring Condition ${eventType}`;
+    }
+    // For ACTIONSET events
+    if (!message && eventType === 'ACTIONSET') {
+      message = payload.actionsetName || payload.actionName || payload.scriptName || 'Script/Action ausgeführt';
+    }
+
+    // Extract device name from various fields
+    const deviceName = payload.deviceName
+      || payload.device?.systemName
+      || payload.device?.displayName
+      || payload.nodeName
+      || payload.systemName
+      || payload.displayName
+      || '';
+    const orgId = payload.organizationId?.toString() || payload.device?.organizationId?.toString() || payload.orgId?.toString();
+
+    // Log the webhook event with extracted message and device name
     webhookEventId = uuidv4();
     await query(
       `INSERT INTO ninjarmm_webhook_events
-       (id, user_id, event_type, ninja_alert_id, ninja_device_id, severity, status, payload, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'received', $7, NOW())`,
-      [webhookEventId, userId, eventType, ninjaAlertId, ninjaDeviceId, severity, JSON.stringify(payload)]
+       (id, user_id, event_type, ninja_alert_id, ninja_device_id, severity, message, device_name, status, payload, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'received', $9, NOW())`,
+      [webhookEventId, userId, eventType, ninjaAlertId, ninjaDeviceId, severity, message, deviceName, JSON.stringify(payload)]
     );
 
     // Handle different event types
@@ -870,6 +906,35 @@ async function handleNewAlert(
      WHERE id = $4`,
     [finalAlertId, ticketId, Date.now() - startTime, webhookEventId]
   );
+
+  // Send push notification for CRITICAL and MAJOR alerts
+  const upperSeverity = severity.toUpperCase();
+  if (isNew && (upperSeverity === 'CRITICAL' || upperSeverity === 'MAJOR')) {
+    try {
+      const title = upperSeverity === 'CRITICAL'
+        ? '🚨 KRITISCHER Alert!'
+        : '⚠️ Wichtiger Alert';
+
+      const body = deviceName
+        ? `${deviceName}: ${message.substring(0, 100)}`
+        : message.substring(0, 150);
+
+      // Get ticket URL if created
+      const ticketUrl = ticketId ? `/tickets/${ticketId}` : '/ninja';
+
+      await sendPushNotification(userId, {
+        title,
+        body,
+        icon: '/favicon.svg',
+        badge: '/favicon.svg',
+        tag: `ninja-alert-${finalAlertId}`,
+        data: { url: ticketUrl },
+      });
+      console.log(`📢 Push notification sent for ${upperSeverity} alert to user ${userId}`);
+    } catch (pushError) {
+      console.error('Failed to send push notification for alert:', pushError);
+    }
+  }
 }
 
 // Helper function to handle alert reset from webhook
@@ -1148,7 +1213,7 @@ router.get('/webhook-events', authenticateToken, requireNinjaFeature, async (req
     }
 
     const result = await query(
-      `SELECT id, event_type, ninja_alert_id, ninja_device_id, severity, status,
+      `SELECT id, event_type, ninja_alert_id, ninja_device_id, severity, message, device_name, status,
               error_message, alert_id, ticket_id, processing_time_ms, created_at
        FROM ninjarmm_webhook_events
        ${whereClause}
@@ -1164,6 +1229,8 @@ router.get('/webhook-events', authenticateToken, requireNinjaFeature, async (req
       ninjaAlertId: row.ninja_alert_id,
       ninjaDeviceId: row.ninja_device_id,
       severity: row.severity,
+      message: row.message,
+      deviceName: row.device_name,
       status: row.status,
       errorMessage: row.error_message,
       alertId: row.alert_id,
