@@ -2318,6 +2318,19 @@ export const ninjaApi = {
     const queryString = params.toString();
     return authFetch(`/ninjarmm/webhook-events${queryString ? `?${queryString}` : ''}`);
   },
+
+  // Get raw payload for a webhook event
+  getWebhookEventPayload: async (eventId: string): Promise<{
+    success: boolean;
+    data: {
+      id: string;
+      eventType: string;
+      payload: any;
+      createdAt: string;
+    };
+  }> => {
+    return authFetch(`/ninjarmm/webhook-events/${eventId}/payload`);
+  },
 };
 
 // Feature Packages API

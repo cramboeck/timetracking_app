@@ -52,6 +52,8 @@ export const NinjaRMMSettings = () => {
   const [generatingSecret, setGeneratingSecret] = useState(false);
   const [showWebhookSecret, setShowWebhookSecret] = useState(false);
   const [webhookCopied, setWebhookCopied] = useState(false);
+  const [selectedPayload, setSelectedPayload] = useState<{ id: string; eventType: string; payload: any; createdAt: string } | null>(null);
+  const [loadingPayload, setLoadingPayload] = useState(false);
 
   // Modal state
   const [selectedDevice, setSelectedDevice] = useState<NinjaDevice | null>(null);
@@ -361,6 +363,20 @@ export const NinjaRMMSettings = () => {
       console.error('Fehler beim Laden der Webhook-Daten:', err);
     } finally {
       setLoadingWebhook(false);
+    }
+  };
+
+  const loadWebhookPayload = async (eventId: string) => {
+    try {
+      setLoadingPayload(true);
+      const result = await ninjaApi.getWebhookEventPayload(eventId);
+      if (result.success) {
+        setSelectedPayload(result.data);
+      }
+    } catch (err: any) {
+      console.error('Fehler beim Laden des Payloads:', err);
+    } finally {
+      setLoadingPayload(false);
     }
   };
 
@@ -1227,6 +1243,7 @@ export const NinjaRMMSettings = () => {
                           <th className="px-4 py-3 font-medium">Schweregrad</th>
                           <th className="px-4 py-3 font-medium">Ticket</th>
                           <th className="px-4 py-3 font-medium">Zeit</th>
+                          <th className="px-4 py-3 font-medium">Aktion</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
@@ -1277,6 +1294,16 @@ export const NinjaRMMSettings = () => {
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-500 dark:text-dark-400 whitespace-nowrap">
                               {new Date(event.createdAt).toLocaleString('de-DE')}
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => loadWebhookPayload(event.id)}
+                                disabled={loadingPayload}
+                                className="px-2 py-1 text-xs bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300 rounded hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50"
+                                title="Raw Payload anzeigen"
+                              >
+                                {loadingPayload ? '...' : 'Payload'}
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -1715,6 +1742,43 @@ export const NinjaRMMSettings = () => {
               <button
                 onClick={() => setSelectedAlert(null)}
                 className="px-4 py-2 text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payload Modal */}
+      {selectedPayload && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Webhook Payload
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-dark-400">
+                  Event: {selectedPayload.eventType} - {new Date(selectedPayload.createdAt).toLocaleString('de-DE')}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedPayload(null)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg text-gray-500"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              <pre className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                {JSON.stringify(selectedPayload.payload, null, 2)}
+              </pre>
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-dark-200 flex justify-end">
+              <button
+                onClick={() => setSelectedPayload(null)}
+                className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
               >
                 Schließen
               </button>

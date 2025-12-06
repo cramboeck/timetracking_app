@@ -1249,4 +1249,48 @@ router.get('/webhook-events', authenticateToken, requireNinjaFeature, async (req
   }
 });
 
+// GET /api/ninjarmm/webhook-events/:id/payload - Get raw payload of a webhook event
+router.get('/webhook-events/:id/payload', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const result = await query(
+      `SELECT id, event_type, payload, created_at
+       FROM ninjarmm_webhook_events
+       WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Webhook event not found' });
+    }
+
+    const event = result.rows[0];
+
+    // Parse payload if it's a string
+    let payload = event.payload;
+    if (typeof payload === 'string') {
+      try {
+        payload = JSON.parse(payload);
+      } catch (e) {
+        // Keep as string if not valid JSON
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: event.id,
+        eventType: event.event_type,
+        payload,
+        createdAt: event.created_at,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get webhook payload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
