@@ -239,6 +239,32 @@ function App() {
     }
   }, [isAuthenticated]);
 
+  // Listen for navigation messages from Service Worker (push notification clicks)
+  useEffect(() => {
+    if (!isAuthenticated || !('serviceWorker' in navigator)) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      console.log('📬 [SW Message] Received:', event.data);
+
+      if (event.data?.type === 'NAVIGATE_TO') {
+        const url = event.data.url;
+        console.log('📬 [SW Message] Navigating to:', url);
+
+        // Handle ticket URLs: /tickets/{id}
+        if (url?.startsWith('/tickets/')) {
+          const ticketId = url.replace('/tickets/', '').split('?')[0];
+          console.log('📬 [SW Message] Opening ticket:', ticketId);
+          setInitialTicketId(ticketId);
+          setCurrentArea('support');
+          setCurrentSubView('tickets');
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, [isAuthenticated]);
+
   // When welcome modal closes, show notification request
   const handleWelcomeClose = () => {
     setShowWelcomeModal(false);
