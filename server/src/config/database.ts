@@ -900,28 +900,33 @@ export async function initializeDatabase() {
 
     // Migration: Add new columns to existing tickets table if they don't exist
     // Use DO $$ blocks with EXCEPTION handling to avoid transaction abort
+    // Note: Foreign keys are NOT added here because referenced tables might not exist yet
+    // The CREATE TABLE statement handles foreign keys for new installations
     await client.query(`
       DO $$
       BEGIN
-        ALTER TABLE tickets ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+        ALTER TABLE tickets ADD COLUMN organization_id TEXT;
       EXCEPTION
         WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
       END $$;
     `);
     await client.query(`
       DO $$
       BEGIN
-        ALTER TABLE tickets ADD COLUMN device_id TEXT REFERENCES ninjarmm_devices(id) ON DELETE SET NULL;
+        ALTER TABLE tickets ADD COLUMN device_id TEXT;
       EXCEPTION
         WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
       END $$;
     `);
     await client.query(`
       DO $$
       BEGIN
-        ALTER TABLE tickets ADD COLUMN portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL;
+        ALTER TABLE tickets ADD COLUMN portal_user_id TEXT;
       EXCEPTION
         WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
       END $$;
     `);
     await client.query(`
@@ -930,6 +935,7 @@ export async function initializeDatabase() {
         ALTER TABLE tickets ADD COLUMN source TEXT DEFAULT 'manual';
       EXCEPTION
         WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
       END $$;
     `);
     await client.query(`
@@ -938,6 +944,7 @@ export async function initializeDatabase() {
         ALTER TABLE tickets ADD COLUMN ninja_alert_id TEXT;
       EXCEPTION
         WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
       END $$;
     `);
 
