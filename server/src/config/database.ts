@@ -1338,6 +1338,53 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_portal_trusted_devices_token ON portal_trusted_devices(device_token)');
 
     // ============================================
+    // Portal Push Subscriptions Table
+    // ============================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS portal_push_subscriptions (
+        id TEXT PRIMARY KEY,
+        contact_id TEXT NOT NULL REFERENCES customer_contacts(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        device_name TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_used_at TIMESTAMP
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_push_subs_contact ON portal_push_subscriptions(contact_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_push_subs_endpoint ON portal_push_subscriptions(endpoint)');
+
+    // Migration: Add push notification preferences to customer_contacts
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'push_enabled'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN push_enabled BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'push_on_ticket_reply'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN push_on_ticket_reply BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'push_on_status_change'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN push_on_status_change BOOLEAN DEFAULT true;
+        END IF;
+      END $$;
+    `);
+
+    console.log('✅ Portal push subscriptions table created');
+
+    // ============================================
     // Security Alerts Table
     // ============================================
 

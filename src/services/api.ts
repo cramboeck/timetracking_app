@@ -1579,6 +1579,55 @@ export const customerPortalApi = {
       body: JSON.stringify(prefs),
     });
   },
+
+  // Push notification methods for portal
+  push: {
+    getVapidPublicKey: async (): Promise<{ success: boolean; publicKey: string; configured: boolean }> => {
+      const response = await fetch(`${API_BASE_URL}/customer-portal/push/vapid-public-key`);
+      return handleResponse(response);
+    },
+
+    subscribe: async (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }, deviceName?: string): Promise<{ success: boolean; id?: string }> => {
+      return portalAuthFetch('/customer-portal/push/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ subscription, deviceName }),
+      });
+    },
+
+    unsubscribe: async (endpoint: string): Promise<{ success: boolean }> => {
+      return portalAuthFetch('/customer-portal/push/unsubscribe', {
+        method: 'POST',
+        body: JSON.stringify({ endpoint }),
+      });
+    },
+
+    getSubscriptions: async (): Promise<{ success: boolean; data: Array<{ id: string; endpoint: string; device_name: string | null; created_at: string; last_used_at: string | null }> }> => {
+      return portalAuthFetch('/customer-portal/push/subscriptions');
+    },
+
+    deleteSubscription: async (id: string): Promise<{ success: boolean }> => {
+      return portalAuthFetch(`/customer-portal/push/subscriptions/${id}`, {
+        method: 'DELETE',
+      });
+    },
+
+    getPreferences: async (): Promise<{ success: boolean; data: { push_enabled: boolean; push_on_ticket_reply: boolean; push_on_status_change: boolean } }> => {
+      return portalAuthFetch('/customer-portal/push/preferences');
+    },
+
+    updatePreferences: async (prefs: { push_enabled?: boolean; push_on_ticket_reply?: boolean; push_on_status_change?: boolean }): Promise<{ success: boolean }> => {
+      return portalAuthFetch('/customer-portal/push/preferences', {
+        method: 'PUT',
+        body: JSON.stringify(prefs),
+      });
+    },
+
+    sendTest: async (): Promise<{ success: boolean; sent: number; failed: number }> => {
+      return portalAuthFetch('/customer-portal/push/test', {
+        method: 'POST',
+      });
+    },
+  },
 };
 
 // Push Notifications API

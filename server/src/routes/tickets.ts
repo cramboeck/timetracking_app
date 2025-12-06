@@ -5,7 +5,7 @@ import { authenticateToken } from '../middleware/auth';
 import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { emailService } from '../services/emailService';
-import { sendTicketNotification } from '../services/pushNotifications';
+import { sendTicketNotification, sendPortalTicketNotification } from '../services/pushNotifications';
 import { auditLog } from '../services/auditLog';
 
 const router = express.Router();
@@ -641,10 +641,10 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
         details: JSON.stringify({ ticketId: id, oldStatus: oldValues.status, newStatus: status }),
       });
 
-      // Send email notification for status change (except archived)
+      // Send email and push notification for status change (except archived)
       if (status !== 'archived') {
         const contactInfo = await query(`
-          SELECT t.title, t.ticket_number, cc.email, cc.name, cc.notify_ticket_status_changed
+          SELECT t.title, t.ticket_number, t.contact_id, cc.email, cc.name, cc.notify_ticket_status_changed
           FROM tickets t
           LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
           WHERE t.id = $1
@@ -662,6 +662,23 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
             newStatus: status,
             portalUrl: portalTicketUrl,
           }).catch(err => console.error('Failed to send status change notification:', err));
+
+          // Send push notification for status change
+          if (ticket.contact_id) {
+            const statusNames: Record<string, string> = {
+              'open': 'Offen',
+              'in_progress': 'In Bearbeitung',
+              'waiting': 'Wartend',
+              'resolved': 'Gelöst',
+              'closed': 'Geschlossen',
+            };
+            sendPortalTicketNotification(
+              ticket.contact_id,
+              { id, ticketNumber: ticket.ticket_number, title: ticket.title },
+              'push_on_status_change',
+              `Status geändert: ${statusNames[status] || status}`
+            ).catch(err => console.error('Failed to send portal status change push:', err));
+          }
         }
       }
     }
@@ -1020,7 +1037,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
       // Send email notification to customer (async, non-blocking)
       try {
         const ticketInfo = await query(`
-          SELECT t.title, t.ticket_number, cc.email as contact_email, cc.name as contact_name,
+          SELECT t.title, t.ticket_number, t.contact_id, cc.email as contact_email, cc.name as contact_name,
                  cc.notify_ticket_reply, COALESCE(u.display_name, u.username) as replier_name
           FROM tickets t
           LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
@@ -1040,6 +1057,16 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
             replierName: ticket.replier_name || 'Support',
             portalUrl: portalTicketUrl,
           }).catch(err => console.error('Failed to send ticket reply notification:', err));
+
+          // Send push notification to customer (async, non-blocking)
+          if (ticketInfo.rows[0].contact_id) {
+            sendPortalTicketNotification(
+              ticketInfo.rows[0].contact_id,
+              { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
+              'push_on_ticket_reply',
+              `Neue Antwort von ${ticket.replier_name || 'Support'}`
+            ).catch(err => console.error('Failed to send portal push notification:', err));
+          }
         }
       } catch (emailErr) {
         console.error('Error preparing ticket notification email:', emailErr);

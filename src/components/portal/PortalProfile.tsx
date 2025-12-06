@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, User, Lock, Eye, EyeOff, Check, Smartphone, Shield, Copy, Trash2, Monitor, AlertCircle, X, Key, Bell } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { ArrowLeft, User, Lock, Eye, EyeOff, Check, Smartphone, Shield, Copy, Trash2, Monitor, AlertCircle, X, Key, Bell, BellRing, Send } from 'lucide-react';
 import { customerPortalApi, PortalContact, TrustedDevice } from '../../services/api';
 
 interface PortalProfileProps {
@@ -44,6 +44,18 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
   const [notifySaving, setNotifySaving] = useState(false);
   const [notifySuccess, setNotifySuccess] = useState(false);
 
+  // Push Notification State
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushConfigured, setPushConfigured] = useState(false);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>('default');
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushSubscriptions, setPushSubscriptions] = useState<Array<{ id: string; endpoint: string; device_name: string | null; created_at: string; last_used_at: string | null }>>([]);
+  const [pushPrefs, setPushPrefs] = useState({ push_enabled: true, push_on_ticket_reply: true, push_on_status_change: true });
+  const [pushLoading, setPushLoading] = useState(true);
+  const [pushError, setPushError] = useState<string | null>(null);
+  const [pushTestSending, setPushTestSending] = useState(false);
+  const [vapidPublicKey, setVapidPublicKey] = useState<string | null>(null);
+
   // Load MFA status
   useEffect(() => {
     loadMfaStatus();
@@ -53,6 +65,174 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
   useEffect(() => {
     loadNotificationPreferences();
   }, []);
+
+  // Load push notification data
+  useEffect(() => {
+    loadPushData();
+  }, []);
+
+  const loadPushData = useCallback(async () => {
+    // Check browser support
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window;
+    setPushSupported(supported);
+
+    if (!supported) {
+      setPushLoading(false);
+      return;
+    }
+
+    // Get permission state
+    setPushPermission(Notification.permission);
+
+    try {
+      // Get VAPID key
+      const vapidRes = await customerPortalApi.push.getVapidPublicKey();
+      setVapidPublicKey(vapidRes.publicKey);
+      setPushConfigured(vapidRes.configured);
+
+      // Get subscriptions
+      const subsRes = await customerPortalApi.push.getSubscriptions();
+      setPushSubscriptions(subsRes.data);
+
+      // Check if current device is subscribed
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        const isSubscribed = subscription !== null && subsRes.data.some(s => s.endpoint === subscription.endpoint);
+        setPushSubscribed(isSubscribed);
+      }
+
+      // Get preferences
+      const prefsRes = await customerPortalApi.push.getPreferences();
+      setPushPrefs(prefsRes.data);
+    } catch (err) {
+      console.error('Failed to load push data:', err);
+      setPushError('Fehler beim Laden der Push-Einstellungen');
+    } finally {
+      setPushLoading(false);
+    }
+  }, []);
+
+  // Helper: Convert VAPID key to Uint8Array
+  const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  // Get device name
+  const getDeviceName = (): string => {
+    const ua = navigator.userAgent;
+    if (/iPhone/.test(ua)) return 'iPhone';
+    if (/iPad/.test(ua)) return 'iPad';
+    if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'Android Phone' : 'Android Tablet';
+    if (/Windows/.test(ua)) return 'Windows';
+    if (/Mac/.test(ua)) return 'Mac';
+    if (/Linux/.test(ua)) return 'Linux';
+    return 'Unbekanntes Gerät';
+  };
+
+  const handlePushSubscribe = async () => {
+    if (!vapidPublicKey || !pushSupported) return;
+
+    setPushError(null);
+    setPushLoading(true);
+
+    try {
+      // Request permission if needed
+      if (Notification.permission !== 'granted') {
+        const permission = await Notification.requestPermission();
+        setPushPermission(permission);
+        if (permission !== 'granted') {
+          setPushError('Benachrichtigungen wurden abgelehnt');
+          setPushLoading(false);
+          return;
+        }
+      }
+
+      // Get service worker registration
+      const registration = await navigator.serviceWorker.ready;
+
+      // Subscribe to push
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      });
+
+      const subJson = subscription.toJSON();
+      if (!subJson.endpoint || !subJson.keys) {
+        throw new Error('Ungültige Subscription');
+      }
+
+      // Send to server
+      await customerPortalApi.push.subscribe(
+        { endpoint: subJson.endpoint, keys: { p256dh: subJson.keys.p256dh!, auth: subJson.keys.auth! } },
+        getDeviceName()
+      );
+
+      // Reload data
+      await loadPushData();
+    } catch (err: any) {
+      console.error('Push subscribe error:', err);
+      setPushError(err.message || 'Fehler beim Aktivieren der Push-Benachrichtigungen');
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handlePushUnsubscribe = async () => {
+    setPushLoading(true);
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+
+      if (subscription) {
+        await subscription.unsubscribe();
+        await customerPortalApi.push.unsubscribe(subscription.endpoint);
+      }
+
+      await loadPushData();
+    } catch (err: any) {
+      console.error('Push unsubscribe error:', err);
+      setPushError(err.message || 'Fehler beim Deaktivieren');
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleDeletePushSubscription = async (id: string) => {
+    try {
+      await customerPortalApi.push.deleteSubscription(id);
+      await loadPushData();
+    } catch (err) {
+      console.error('Delete subscription error:', err);
+    }
+  };
+
+  const handleUpdatePushPrefs = async (updates: Partial<typeof pushPrefs>) => {
+    try {
+      await customerPortalApi.push.updatePreferences(updates);
+      setPushPrefs(prev => ({ ...prev, ...updates }));
+    } catch (err) {
+      console.error('Update push prefs error:', err);
+    }
+  };
+
+  const handleSendPushTest = async () => {
+    setPushTestSending(true);
+    try {
+      await customerPortalApi.push.sendTest();
+    } catch (err) {
+      console.error('Send test push error:', err);
+    } finally {
+      setPushTestSending(false);
+    }
+  };
 
   const loadNotificationPreferences = async () => {
     try {
@@ -617,6 +797,156 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
             >
               {notifySaving ? 'Wird gespeichert...' : 'Einstellungen speichern'}
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* Push Notifications */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+            <BellRing size={20} className="text-purple-600 dark:text-purple-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              Push-Benachrichtigungen
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Erhalten Sie sofortige Benachrichtigungen auf diesem Gerät
+            </p>
+          </div>
+        </div>
+
+        {pushLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : !pushSupported ? (
+          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
+            <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
+              <AlertCircle size={18} />
+              <p className="text-sm">
+                Push-Benachrichtigungen werden von diesem Browser nicht unterstützt.
+              </p>
+            </div>
+          </div>
+        ) : !pushConfigured ? (
+          <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Push-Benachrichtigungen sind derzeit nicht verfügbar.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {pushError && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-center gap-2">
+                <AlertCircle className="text-red-600 dark:text-red-400" size={18} />
+                <p className="text-sm text-red-700 dark:text-red-300">{pushError}</p>
+              </div>
+            )}
+
+            {pushPermission === 'denied' && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  Benachrichtigungen wurden blockiert. Bitte erlauben Sie Benachrichtigungen in den Browser-Einstellungen.
+                </p>
+              </div>
+            )}
+
+            {/* Subscribe/Unsubscribe Button */}
+            <div className="flex gap-3">
+              {pushSubscribed ? (
+                <>
+                  <button
+                    onClick={handlePushUnsubscribe}
+                    disabled={pushLoading}
+                    className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors"
+                  >
+                    Deaktivieren
+                  </button>
+                  <button
+                    onClick={handleSendPushTest}
+                    disabled={pushTestSending}
+                    className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                  >
+                    <Send size={16} />
+                    {pushTestSending ? 'Sende...' : 'Test'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handlePushSubscribe}
+                  disabled={pushLoading || pushPermission === 'denied'}
+                  className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <BellRing size={18} />
+                  Push-Benachrichtigungen aktivieren
+                </button>
+              )}
+            </div>
+
+            {/* Push Preferences */}
+            {pushSubscribed && (
+              <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Benachrichtigen bei:</p>
+
+                <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <span className="text-sm text-gray-900 dark:text-white">Neue Antworten</span>
+                  <input
+                    type="checkbox"
+                    checked={pushPrefs.push_on_ticket_reply}
+                    onChange={(e) => handleUpdatePushPrefs({ push_on_ticket_reply: e.target.checked })}
+                    className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <span className="text-sm text-gray-900 dark:text-white">Status-Änderungen</span>
+                  <input
+                    type="checkbox"
+                    checked={pushPrefs.push_on_status_change}
+                    onChange={(e) => handleUpdatePushPrefs({ push_on_status_change: e.target.checked })}
+                    className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500"
+                  />
+                </label>
+              </div>
+            )}
+
+            {/* Registered Devices */}
+            {pushSubscriptions.length > 0 && (
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Registrierte Geräte ({pushSubscriptions.length})
+                </p>
+                <div className="space-y-2">
+                  {pushSubscriptions.map((sub) => (
+                    <div
+                      key={sub.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Smartphone size={18} className="text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {sub.device_name || 'Unbekanntes Gerät'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Hinzugefügt: {new Date(sub.created_at).toLocaleDateString('de-DE')}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeletePushSubscription(sub.id)}
+                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="Entfernen"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

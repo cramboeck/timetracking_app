@@ -282,3 +282,103 @@ export async function sendTicketNotification(
 export function generateVapidKeys(): { publicKey: string; privateKey: string } {
   return webpush.generateVAPIDKeys();
 }
+
+// ============================================
+// Portal Push Notifications (for customer contacts)
+// ============================================
+
+interface PortalPushPreferences {
+  push_enabled: boolean;
+  push_on_ticket_reply: boolean;
+  push_on_status_change: boolean;
+}
+
+// Get portal contact's push preferences
+async function getPortalPushPreferences(contactId: string): Promise<PortalPushPreferences | null> {
+  const result = await query(
+    'SELECT push_enabled, push_on_ticket_reply, push_on_status_change FROM customer_contacts WHERE id = $1',
+    [contactId]
+  );
+  return result.rows[0] || null;
+}
+
+// Send push notification to a portal contact
+export async function sendPushToPortalContact(
+  contactId: string,
+  payload: PushPayload,
+  eventType?: 'push_on_ticket_reply' | 'push_on_status_change'
+): Promise<{ success: boolean; sent: number; failed: number }> {
+  if (!isPushConfigured()) {
+    return { success: true, sent: 0, failed: 0 };
+  }
+
+  // Check preferences if event type is provided
+  if (eventType) {
+    const prefs = await getPortalPushPreferences(contactId);
+    if (prefs) {
+      if (!prefs.push_enabled || !prefs[eventType]) {
+        return { success: true, sent: 0, failed: 0 };
+      }
+    }
+  }
+
+  // Get all contact subscriptions
+  const result = await query(
+    'SELECT endpoint, p256dh, auth FROM portal_push_subscriptions WHERE contact_id = $1',
+    [contactId]
+  );
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const row of result.rows) {
+    const subscription: webpush.PushSubscription = {
+      endpoint: row.endpoint,
+      keys: {
+        p256dh: row.p256dh,
+        auth: row.auth,
+      },
+    };
+
+    try {
+      await webpush.sendNotification(subscription, JSON.stringify(payload));
+      sent++;
+      // Update last_used_at
+      await query(
+        'UPDATE portal_push_subscriptions SET last_used_at = NOW() WHERE endpoint = $1',
+        [row.endpoint]
+      );
+    } catch (error: any) {
+      // If subscription is no longer valid, remove it
+      if (error.statusCode === 404 || error.statusCode === 410) {
+        await query('DELETE FROM portal_push_subscriptions WHERE endpoint = $1', [row.endpoint]);
+      }
+      failed++;
+    }
+  }
+
+  return { success: true, sent, failed };
+}
+
+// Helper function to send ticket notifications to portal contacts
+export async function sendPortalTicketNotification(
+  contactId: string,
+  ticket: { id: string; ticketNumber: string; title: string },
+  eventType: 'push_on_ticket_reply' | 'push_on_status_change',
+  message: string
+): Promise<void> {
+  const payload: PushPayload = {
+    title: `${ticket.ticketNumber}: ${ticket.title}`,
+    body: message,
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
+    tag: `portal-ticket-${ticket.id}`,
+    data: {
+      url: `/portal/tickets/${ticket.id}`,
+      ticketId: ticket.id,
+      type: eventType.replace('push_on_', ''),
+    },
+  };
+
+  await sendPushToPortalContact(contactId, payload, eventType);
+}

@@ -1838,4 +1838,222 @@ router.delete('/mfa/trusted-devices', authenticateCustomerToken, async (req: Cus
   }
 });
 
+// ============================================================================
+// PUSH NOTIFICATIONS
+// ============================================================================
+
+// Get VAPID public key
+router.get('/push/vapid-public-key', (_req, res) => {
+  const publicKey = process.env.VAPID_PUBLIC_KEY || '';
+  const configured = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+  res.json({ success: true, publicKey, configured });
+});
+
+// Subscribe to push notifications
+router.post('/push/subscribe', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { subscription, deviceName } = req.body;
+    const contactId = req.contactId;
+
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({ error: 'Invalid subscription data' });
+    }
+
+    // Check if subscription already exists
+    const existing = await pool.query(
+      'SELECT id FROM portal_push_subscriptions WHERE endpoint = $1',
+      [subscription.endpoint]
+    );
+
+    if (existing.rows.length > 0) {
+      // Update existing subscription
+      await pool.query(
+        `UPDATE portal_push_subscriptions
+         SET contact_id = $1, p256dh = $2, auth = $3, device_name = $4, last_used_at = NOW()
+         WHERE endpoint = $5`,
+        [contactId, subscription.keys.p256dh, subscription.keys.auth, deviceName, subscription.endpoint]
+      );
+      return res.json({ success: true, id: existing.rows[0].id });
+    }
+
+    // Create new subscription
+    const id = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO portal_push_subscriptions (id, contact_id, endpoint, p256dh, auth, device_name)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, contactId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, deviceName]
+    );
+
+    // Update contact's push enabled preference
+    await pool.query(
+      'UPDATE customer_contacts SET push_enabled = true WHERE id = $1',
+      [contactId]
+    );
+
+    res.json({ success: true, id });
+  } catch (error) {
+    console.error('Portal push subscribe error:', error);
+    res.status(500).json({ error: 'Failed to subscribe' });
+  }
+});
+
+// Unsubscribe from push notifications
+router.post('/push/unsubscribe', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { endpoint } = req.body;
+
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Endpoint is required' });
+    }
+
+    await pool.query('DELETE FROM portal_push_subscriptions WHERE endpoint = $1', [endpoint]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Portal push unsubscribe error:', error);
+    res.status(500).json({ error: 'Failed to unsubscribe' });
+  }
+});
+
+// Get user's push subscriptions
+router.get('/push/subscriptions', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, endpoint, device_name, created_at, last_used_at
+       FROM portal_push_subscriptions WHERE contact_id = $1
+       ORDER BY last_used_at DESC NULLS LAST`,
+      [req.contactId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Get portal push subscriptions error:', error);
+    res.status(500).json({ error: 'Failed to get subscriptions' });
+  }
+});
+
+// Delete a specific subscription
+router.delete('/push/subscriptions/:id', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Verify subscription belongs to this contact
+    const result = await pool.query(
+      'DELETE FROM portal_push_subscriptions WHERE id = $1 AND contact_id = $2',
+      [id, req.contactId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete portal push subscription error:', error);
+    res.status(500).json({ error: 'Failed to delete subscription' });
+  }
+});
+
+// Get push notification preferences
+router.get('/push/preferences', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT push_enabled, push_on_ticket_reply, push_on_status_change
+       FROM customer_contacts WHERE id = $1`,
+      [req.contactId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const prefs = result.rows[0];
+    res.json({
+      success: true,
+      data: {
+        push_enabled: prefs.push_enabled ?? true,
+        push_on_ticket_reply: prefs.push_on_ticket_reply ?? true,
+        push_on_status_change: prefs.push_on_status_change ?? true,
+      }
+    });
+  } catch (error) {
+    console.error('Get portal push preferences error:', error);
+    res.status(500).json({ error: 'Failed to get preferences' });
+  }
+});
+
+// Update push notification preferences
+router.put('/push/preferences', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { push_enabled, push_on_ticket_reply, push_on_status_change } = req.body;
+
+    await pool.query(
+      `UPDATE customer_contacts SET
+        push_enabled = COALESCE($1, push_enabled),
+        push_on_ticket_reply = COALESCE($2, push_on_ticket_reply),
+        push_on_status_change = COALESCE($3, push_on_status_change)
+       WHERE id = $4`,
+      [push_enabled, push_on_ticket_reply, push_on_status_change, req.contactId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update portal push preferences error:', error);
+    res.status(500).json({ error: 'Failed to update preferences' });
+  }
+});
+
+// Send test push notification
+router.post('/push/test', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const webpush = await import('web-push');
+    const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
+    const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+    const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
+
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+      return res.status(500).json({ error: 'Push notifications not configured' });
+    }
+
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
+    const result = await pool.query(
+      'SELECT endpoint, p256dh, auth FROM portal_push_subscriptions WHERE contact_id = $1',
+      [req.contactId]
+    );
+
+    let sent = 0;
+    let failed = 0;
+
+    for (const row of result.rows) {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: row.endpoint,
+            keys: { p256dh: row.p256dh, auth: row.auth }
+          },
+          JSON.stringify({
+            title: 'Test Benachrichtigung',
+            body: 'Push-Benachrichtigungen funktionieren!',
+            icon: '/pwa-192x192.png',
+            data: { url: '/portal' }
+          })
+        );
+        sent++;
+      } catch (error: any) {
+        if (error.statusCode === 404 || error.statusCode === 410) {
+          // Remove expired subscription
+          await pool.query('DELETE FROM portal_push_subscriptions WHERE endpoint = $1', [row.endpoint]);
+        }
+        failed++;
+      }
+    }
+
+    res.json({ success: true, sent, failed });
+  } catch (error) {
+    console.error('Send portal test push error:', error);
+    res.status(500).json({ error: 'Failed to send test notification' });
+  }
+});
+
 export default router;
