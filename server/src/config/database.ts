@@ -1665,6 +1665,22 @@ export async function initializeDatabase() {
 
     console.log('✅ Multi-tenant organization migration completed');
 
+    // Migration: Add organization_id to sla_policies if not exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'sla_policies' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE sla_policies ADD COLUMN organization_id TEXT;
+        END IF;
+      EXCEPTION
+        WHEN undefined_table THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+
     // ============================================
     // Fix ticket_sequences - migrate from user_id to organization_id based
     // ============================================
