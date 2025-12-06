@@ -989,9 +989,25 @@ export async function initializeDatabase() {
 
     // Create indexes for Tickets
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_org ON tickets(organization_id)');
+    // Create index on organization_id only if column exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'tickets' AND column_name = 'organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_tickets_org ON tickets(organization_id)';
+        END IF;
+      END $$;
+    `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_customer ON tickets(customer_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_device ON tickets(device_id)');
+    // Create index on device_id only if column exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'tickets' AND column_name = 'device_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_tickets_device ON tickets(device_id)';
+        END IF;
+      END $$;
+    `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_number ON tickets(ticket_number)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_id)');
