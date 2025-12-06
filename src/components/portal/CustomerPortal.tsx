@@ -10,8 +10,12 @@ import { PortalProfile } from './PortalProfile';
 import { PortalKnowledgeBase } from './PortalKnowledgeBase';
 import { PortalDevices } from './PortalDevices';
 import { PortalInvoices } from './PortalInvoices';
+import { PortalWelcomeGuide } from './PortalWelcomeGuide';
 
 type PortalView = 'tickets' | 'ticket-detail' | 'profile' | 'kb' | 'devices' | 'invoices';
+
+// LocalStorage key for welcome guide preference
+const WELCOME_GUIDE_KEY = 'portal_welcome_guide_seen';
 
 export const CustomerPortal = () => {
   const [contact, setContact] = useState<PortalContact | null>(null);
@@ -21,6 +25,7 @@ export const CustomerPortal = () => {
   const [currentView, setCurrentView] = useState<PortalView>('tickets');
   const [portalSettings, setPortalSettings] = useState<PortalSettings | null>(null);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
+  const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
 
   // Check for activation token in URL
   const urlParams = new URLSearchParams(window.location.search);
@@ -118,6 +123,28 @@ export const CustomerPortal = () => {
     } catch (err) {
       console.error('Failed to load portal settings:', err);
     }
+
+    // Show welcome guide on first login (if not disabled)
+    const guideSeen = localStorage.getItem(WELCOME_GUIDE_KEY);
+    if (!guideSeen) {
+      setShowWelcomeGuide(true);
+    }
+  };
+
+  const handleCloseWelcomeGuide = () => {
+    setShowWelcomeGuide(false);
+    // Mark as seen (but can be shown again via profile)
+    localStorage.setItem(WELCOME_GUIDE_KEY, 'seen');
+  };
+
+  const handleNeverShowWelcomeGuide = () => {
+    setShowWelcomeGuide(false);
+    // Mark as permanently dismissed
+    localStorage.setItem(WELCOME_GUIDE_KEY, 'never');
+  };
+
+  const handleShowWelcomeGuide = () => {
+    setShowWelcomeGuide(true);
   };
 
   const handleLogout = () => {
@@ -208,6 +235,7 @@ export const CustomerPortal = () => {
       onShowDevices={contact.canViewDevices ? handleShowDevices : undefined}
       onShowInvoices={(contact.canViewInvoices || contact.canViewQuotes) ? handleShowInvoices : undefined}
       onShowTickets={handleShowTickets}
+      onShowHelp={handleShowWelcomeGuide}
       currentView={currentView}
       portalSettings={portalSettings}
     >
@@ -237,6 +265,14 @@ export const CustomerPortal = () => {
         onClose={() => setShowCreateDialog(false)}
         onCreated={handleTicketCreated}
       />
+
+      {showWelcomeGuide && (
+        <PortalWelcomeGuide
+          onClose={handleCloseWelcomeGuide}
+          onNeverShowAgain={handleNeverShowWelcomeGuide}
+          companyName={portalSettings?.companyName || undefined}
+        />
+      )}
     </PortalLayout>
   );
 };
