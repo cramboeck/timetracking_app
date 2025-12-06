@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { query } from '../config/database';
 import * as ninjaService from '../services/ninjarmmService';
-import { sendPushNotification } from '../services/pushNotifications';
+import { sendPushToUser } from '../services/pushNotifications';
 
 const router = express.Router();
 
@@ -922,7 +922,7 @@ async function handleNewAlert(
       // Get ticket URL if created
       const ticketUrl = ticketId ? `/tickets/${ticketId}` : '/ninja';
 
-      await sendPushNotification(userId, {
+      await sendPushToUser(userId, {
         title,
         body,
         icon: '/favicon.svg',
