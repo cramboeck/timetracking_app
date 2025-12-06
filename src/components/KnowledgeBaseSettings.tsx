@@ -6,6 +6,8 @@ import {
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { knowledgeBaseApi, portalSettingsApi, KbCategory, KbArticle, PortalSettings } from '../services/api';
+import { MarkdownEditor } from './MarkdownEditor';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 type KbTab = 'categories' | 'articles' | 'branding';
 
@@ -54,6 +56,9 @@ export const KnowledgeBaseSettings = () => {
   // Article filter state
   const [articleFilter, setArticleFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [articleSearch, setArticleSearch] = useState('');
+
+  // Article editor preview mode
+  const [articleEditorMode, setArticleEditorMode] = useState<'edit' | 'preview'>('edit');
 
   useEffect(() => {
     loadData();
@@ -157,6 +162,7 @@ export const KnowledgeBaseSettings = () => {
         isFeatured: false,
       });
     }
+    setArticleEditorMode('edit');
     setArticleModalOpen(true);
   };
 
@@ -782,19 +788,58 @@ export const KnowledgeBaseSettings = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
-              Inhalt *
-            </label>
-            <textarea
-              value={articleForm.content}
-              onChange={(e) => setArticleForm({ ...articleForm, content: e.target.value })}
-              placeholder="Artikel-Inhalt (HTML oder Markdown wird unterstützt)"
-              rows={12}
-              className="w-full px-4 py-2 border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary/20 font-mono text-sm"
-            />
-            <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
-              Tipp: Du kannst einfachen Text oder HTML verwenden. Zeilenumbrüche werden automatisch formatiert.
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-300">
+                Inhalt *
+              </label>
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
+                <button
+                  type="button"
+                  onClick={() => setArticleEditorMode('edit')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    articleEditorMode === 'edit'
+                      ? 'bg-white dark:bg-dark-50 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  Bearbeiten
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setArticleEditorMode('preview')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    articleEditorMode === 'preview'
+                      ? 'bg-white dark:bg-dark-50 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  Vorschau
+                </button>
+              </div>
+            </div>
+            {articleEditorMode === 'edit' ? (
+              <>
+                <MarkdownEditor
+                  value={articleForm.content}
+                  onChange={(value) => setArticleForm({ ...articleForm, content: value })}
+                  placeholder="Artikel-Inhalt mit Markdown formatieren..."
+                  rows={12}
+                />
+                <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
+                  Tipp: Verwende Markdown für Formatierung: # Überschrift, **fett**, *kursiv*, - Liste, `code`
+                </p>
+              </>
+            ) : (
+              <div className="border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-50 p-4 min-h-[300px] max-h-[400px] overflow-y-auto">
+                {articleForm.content ? (
+                  <MarkdownRenderer content={articleForm.content} />
+                ) : (
+                  <p className="text-gray-400 dark:text-dark-500 italic">
+                    Kein Inhalt zum Anzeigen
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

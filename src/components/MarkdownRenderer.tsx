@@ -7,11 +7,14 @@ interface MarkdownRendererProps {
 
 /**
  * Simple Markdown renderer supporting:
+ * - # Headings (h1-h4)
  * - **bold** and *italic*
  * - `inline code`
+ * - ```code blocks```
  * - [links](url)
  * - Lists (- item or 1. item)
  * - > Blockquotes
+ * - --- Horizontal rules
  * - Paragraphs (blank lines)
  */
 export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererProps) => {
@@ -22,6 +25,8 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
     const elements: JSX.Element[] = [];
     let currentList: { type: 'ul' | 'ol'; items: string[] } | null = null;
     let blockquoteLines: string[] = [];
+    let codeBlockLines: string[] | null = null;
+    let codeBlockLanguage: string = '';
 
     const flushBlockquote = () => {
       if (blockquoteLines.length > 0) {
@@ -59,6 +64,23 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
           </ListTag>
         );
         currentList = null;
+      }
+    };
+
+    const flushCodeBlock = () => {
+      if (codeBlockLines !== null) {
+        elements.push(
+          <pre
+            key={`code-${elements.length}`}
+            className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 my-3 overflow-x-auto"
+          >
+            <code className="text-sm font-mono text-gray-800 dark:text-gray-200">
+              {codeBlockLines.join('\n')}
+            </code>
+          </pre>
+        );
+        codeBlockLines = null;
+        codeBlockLanguage = '';
       }
     };
 
@@ -133,6 +155,59 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
     };
 
     lines.forEach((line, index) => {
+      // Code block start/end
+      if (line.startsWith('```')) {
+        if (codeBlockLines === null) {
+          // Start code block
+          flushBlockquote();
+          flushList();
+          codeBlockLines = [];
+          codeBlockLanguage = line.substring(3).trim();
+        } else {
+          // End code block
+          flushCodeBlock();
+        }
+        return;
+      }
+
+      // Inside code block
+      if (codeBlockLines !== null) {
+        codeBlockLines.push(line);
+        return;
+      }
+
+      // Horizontal rule
+      if (line.match(/^[-*_]{3,}\s*$/)) {
+        flushBlockquote();
+        flushList();
+        elements.push(
+          <hr key={`hr-${index}`} className="my-4 border-gray-300 dark:border-gray-600" />
+        );
+        return;
+      }
+
+      // Headings
+      const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
+      if (headingMatch) {
+        flushBlockquote();
+        flushList();
+        const level = headingMatch[1].length;
+        const text = headingMatch[2];
+        const headingClasses: Record<number, string> = {
+          1: 'text-2xl font-bold text-gray-900 dark:text-white mt-6 mb-3',
+          2: 'text-xl font-bold text-gray-900 dark:text-white mt-5 mb-2',
+          3: 'text-lg font-semibold text-gray-900 dark:text-white mt-4 mb-2',
+          4: 'text-base font-semibold text-gray-900 dark:text-white mt-3 mb-1',
+        };
+        const HeadingTag = `h${level}` as keyof JSX.IntrinsicElements;
+        elements.push(
+          <HeadingTag key={`h-${index}`} className={headingClasses[level]}>
+            {parseInline(text)}
+          </HeadingTag>
+        );
+        return;
+      }
+
       // Blockquote
       if (line.startsWith('> ')) {
         flushList();
@@ -190,6 +265,7 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
     // Flush any remaining content
     flushBlockquote();
     flushList();
+    flushCodeBlock();
 
     return elements;
   }, [content]);

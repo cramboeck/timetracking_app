@@ -4,6 +4,7 @@ import {
   Star, ThumbsUp, ThumbsDown, Eye, Clock
 } from 'lucide-react';
 import { publicKbApi, KbCategory, KbArticle } from '../../services/api';
+import { MarkdownRenderer } from '../MarkdownRenderer';
 
 interface PortalKnowledgeBaseProps {
   userId: string;
@@ -151,10 +152,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
 
         {/* Content */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
-          <div
-            className="prose dark:prose-invert max-w-none"
-            dangerouslySetInnerHTML={{ __html: selectedArticle.content.replace(/\n/g, '<br />') }}
-          />
+          <MarkdownRenderer content={selectedArticle.content} />
         </div>
 
         {/* Feedback */}
