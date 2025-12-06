@@ -62,6 +62,10 @@ services:
       SECURITY_LOG_PATH: /app/logs/security.log
       SECURITY_ALERT_EMAIL: ${SECURITY_ALERT_EMAIL:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      # Push Notifications (VAPID)
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
     volumes:
       - backend_logs:/app/logs
       - backend_uploads:/app/uploads

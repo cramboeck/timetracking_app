@@ -491,6 +491,28 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       WHERE t.id = $1
     `, [id]);
 
+    // Send push notifications to organization members (async, non-blocking)
+    (async () => {
+      try {
+        // Get all organization members except the creator
+        const members = await query(
+          `SELECT user_id FROM organization_members WHERE organization_id = $1 AND user_id != $2`,
+          [organizationId, userId]
+        );
+
+        for (const member of members.rows) {
+          sendTicketNotification(
+            member.user_id,
+            { id, ticketNumber, title },
+            'push_on_new_ticket',
+            `Neues Ticket erstellt: ${title}`
+          ).catch(err => console.error('Push notification error:', err));
+        }
+      } catch (err) {
+        console.error('Error sending push notifications:', err);
+      }
+    })();
+
     res.status(201).json({ success: true, data: transformTicket(ticketResult.rows[0]) });
   } catch (error) {
     console.error('Error creating ticket:', error);

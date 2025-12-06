@@ -441,13 +441,27 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
 
     const ticket = ticketResult.rows[0];
 
-    // Send push notification to ticket owner (async, non-blocking)
-    sendTicketNotification(
-      userId,
-      { id: ticketId, ticketNumber, title },
-      'push_on_new_ticket',
-      `Neues Ticket von ${customerName}`
-    ).catch(err => console.error('Failed to send push notification:', err));
+    // Send push notifications to all organization members (async, non-blocking)
+    (async () => {
+      try {
+        // Get all organization members
+        const members = await pool.query(
+          `SELECT user_id FROM organization_members WHERE organization_id = $1`,
+          [organizationId]
+        );
+
+        for (const member of members.rows) {
+          sendTicketNotification(
+            member.user_id,
+            { id: ticketId, ticketNumber, title },
+            'push_on_new_ticket',
+            `Neues Portal-Ticket von ${customerName}: ${title}`
+          ).catch(err => console.error('Push notification error:', err));
+        }
+      } catch (err) {
+        console.error('Error sending push notifications:', err);
+      }
+    })();
 
     // Send email confirmation to customer contact (async, non-blocking)
     try {
