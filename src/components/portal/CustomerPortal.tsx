@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { customerPortalApi, PortalContact, PortalTicket, publicKbApi, PortalSettings } from '../../services/api';
 import { PortalLogin } from './PortalLogin';
 import { PortalLayout } from './PortalLayout';
@@ -36,6 +36,31 @@ export const CustomerPortal = () => {
       setPendingTicketId(ticketId);
     }
   }, []);
+
+  // Listen for navigation messages from Service Worker (push notification clicks)
+  useEffect(() => {
+    if (!contact || !('serviceWorker' in navigator)) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      console.log('📬 [Portal SW Message] Received:', event.data);
+
+      if (event.data?.type === 'NAVIGATE_TO') {
+        const url = event.data.url;
+        console.log('📬 [Portal SW Message] Navigating to:', url);
+
+        // Handle portal ticket URLs: /portal/tickets/{id}
+        if (url?.startsWith('/portal/tickets/')) {
+          const ticketId = url.replace('/portal/tickets/', '').split('?')[0];
+          console.log('📬 [Portal SW Message] Opening ticket:', ticketId);
+          setSelectedTicketId(ticketId);
+          setCurrentView('ticket-detail');
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, [contact]);
 
   // Navigate to pending ticket after login
   useEffect(() => {

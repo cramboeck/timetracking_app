@@ -66,11 +66,6 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
     loadNotificationPreferences();
   }, []);
 
-  // Load push notification data
-  useEffect(() => {
-    loadPushData();
-  }, []);
-
   const loadPushData = useCallback(async () => {
     // Check browser support
     const supported = 'serviceWorker' in navigator && 'PushManager' in window;
@@ -112,6 +107,11 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       setPushLoading(false);
     }
   }, []);
+
+  // Load push notification data on mount
+  useEffect(() => {
+    loadPushData();
+  }, [loadPushData]);
 
   // Helper: Convert VAPID key to Uint8Array
   const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
