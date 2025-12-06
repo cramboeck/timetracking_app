@@ -669,15 +669,29 @@ export async function initializeDatabase() {
       END $$;
     `);
 
-    // Create indexes for NinjaRMM tables
+    // Create indexes for NinjaRMM tables (with conditional checks for optional columns)
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_user_id ON ninjarmm_devices(user_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_org_id ON ninjarmm_devices(organization_id)');
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ninjarmm_devices' AND column_name = 'organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_org_id ON ninjarmm_devices(organization_id)';
+        END IF;
+      END $$;
+    `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_ninja_org_id ON ninjarmm_devices(ninja_org_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_organizations_user_id ON ninjarmm_organizations(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_organizations_customer_id ON ninjarmm_organizations(customer_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_user_id ON ninjarmm_alerts(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_device_id ON ninjarmm_alerts(device_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_customers_ninjarmm_org ON customers(ninjarmm_organization_id)');
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'customers' AND column_name = 'ninjarmm_organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_customers_ninjarmm_org ON customers(ninjarmm_organization_id)';
+        END IF;
+      END $$;
+    `);
 
     // Migration: Add webhook columns to ninjarmm_config
     await client.query(`
@@ -1032,11 +1046,13 @@ export async function initializeDatabase() {
     // ============================================
     // Canned Responses (for quick ticket replies)
     // ============================================
+    // Note: canned_responses and ticket_tags are created WITHOUT foreign keys here
+    // because organizations table may not exist yet. Foreign keys added later.
     await client.query(`
       CREATE TABLE IF NOT EXISTS canned_responses (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        organization_id TEXT,
         title TEXT NOT NULL,
         content TEXT NOT NULL,
         shortcut TEXT,
@@ -1046,7 +1062,14 @@ export async function initializeDatabase() {
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
-    await client.query('CREATE INDEX IF NOT EXISTS idx_canned_responses_org ON canned_responses(organization_id)');
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'canned_responses' AND column_name = 'organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_canned_responses_org ON canned_responses(organization_id)';
+        END IF;
+      END $$;
+    `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_canned_responses_user ON canned_responses(user_id)');
 
     // ============================================
@@ -1055,14 +1078,21 @@ export async function initializeDatabase() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS ticket_tags (
         id TEXT PRIMARY KEY,
-        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        organization_id TEXT,
         name TEXT NOT NULL,
         color TEXT DEFAULT '#3B82F6',
         description TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
-    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tags_org ON ticket_tags(organization_id)');
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ticket_tags' AND column_name = 'organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_ticket_tags_org ON ticket_tags(organization_id)';
+        END IF;
+      END $$;
+    `);
 
     // Ticket-Tag junction table (many-to-many)
     await client.query(`
@@ -1753,8 +1783,15 @@ export async function initializeDatabase() {
       )
     `);
 
-    await client.query('CREATE INDEX IF NOT EXISTS idx_leads_org ON leads(organization_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(organization_id, status)');
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_leads_org ON leads(organization_id)';
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(organization_id, status)';
+        END IF;
+      END $$;
+    `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_to)');
     console.log('✅ Leads table created');
 
