@@ -688,7 +688,10 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
 
     // Parse the webhook payload
     const payload = req.body;
-    console.log('📥 NinjaRMM Webhook received:', JSON.stringify(payload, null, 2));
+    console.log('📥 NinjaRMM Webhook received:');
+    console.log('   Raw payload:', JSON.stringify(payload, null, 2));
+    console.log('   Config - auto_create_tickets:', config.webhook_auto_create_tickets);
+    console.log('   Config - min_severity:', config.webhook_min_severity);
 
     // Extract alert information from NinjaRMM webhook payload
     // NinjaRMM sends different event types with different structures:
@@ -746,9 +749,13 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
 
     // Handle different event types
     // NinjaRMM sends various CONDITION_* types for alerts
-    const isAlertEvent = eventType.startsWith('CONDITION_') && !eventType.includes('CLEARED') && !eventType.includes('RESET')
+    // Also handles plain "CONDITION" events which are common in Windows Event Log alerts
+    const isAlertEvent = eventType === 'CONDITION'
+      || (eventType.startsWith('CONDITION_') && !eventType.includes('CLEARED') && !eventType.includes('RESET'))
+      || eventType === 'CONDITION_TRIGGERED'
       || eventType === 'ALERT' || eventType === 'alert';
     const isResetEvent = eventType === 'ALERT_RESET' || eventType === 'CONDITION_CLEARED'
+      || eventType === 'CONDITION_RESET'
       || eventType === 'reset' || eventType.includes('RESET');
 
     if (isAlertEvent) {
@@ -818,6 +825,9 @@ async function handleNewAlert(
   let deviceId: string | null = null;
   let customerId: string | null = null;
 
+  console.log('   handleNewAlert - ninjaDeviceId:', ninjaDeviceId);
+  console.log('   handleNewAlert - deviceName:', deviceName);
+
   if (ninjaDeviceId) {
     const deviceResult = await query(
       `SELECT d.id, o.customer_id
@@ -826,9 +836,11 @@ async function handleNewAlert(
        WHERE d.user_id = $1 AND (d.ninja_device_id = $2 OR d.ninja_id::TEXT = $2)`,
       [userId, ninjaDeviceId]
     );
+    console.log('   Device lookup result:', deviceResult.rows.length, 'rows');
     if (deviceResult.rows.length > 0) {
       deviceId = deviceResult.rows[0].id;
       customerId = deviceResult.rows[0].customer_id;
+      console.log('   Found device:', deviceId, 'customer:', customerId);
     }
   }
 
@@ -871,11 +883,16 @@ async function handleNewAlert(
 
   // Check if we should auto-create a ticket
   let ticketId: string | null = null;
+  console.log('   Auto-create tickets enabled:', config.webhook_auto_create_tickets);
+  console.log('   Is new alert:', isNew);
   if (config.webhook_auto_create_tickets && isNew) {
     // Check severity threshold
     const severityLevels: Record<string, number> = { 'CRITICAL': 4, 'MAJOR': 3, 'MODERATE': 2, 'MINOR': 1, 'INFO': 0 };
     const alertSeverityLevel = severityLevels[severity.toUpperCase()] || 0;
     const minSeverityLevel = severityLevels[config.webhook_min_severity?.toUpperCase()] || 0;
+    console.log('   Alert severity level:', alertSeverityLevel, '(', severity, ')');
+    console.log('   Min severity level:', minSeverityLevel, '(', config.webhook_min_severity, ')');
+    console.log('   Should create ticket:', alertSeverityLevel >= minSeverityLevel);
 
     if (alertSeverityLevel >= minSeverityLevel) {
       ticketId = await createTicketFromWebhook(userId, {
