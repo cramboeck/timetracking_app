@@ -760,6 +760,26 @@ export async function initializeDatabase() {
       END $$
     `);
 
+    // NinjaRMM alert exclusions - rules to ignore certain alerts
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_alert_exclusions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        match_type TEXT NOT NULL DEFAULT 'contains' CHECK(match_type IN ('contains', 'equals', 'regex', 'starts_with', 'ends_with')),
+        match_field TEXT NOT NULL DEFAULT 'message' CHECK(match_field IN ('message', 'source_name', 'condition_name', 'device_name', 'severity')),
+        match_value TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        hit_count INTEGER DEFAULT 0,
+        last_hit_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alert_exclusions_user ON ninjarmm_alert_exclusions(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alert_exclusions_active ON ninjarmm_alert_exclusions(user_id, is_active)');
+
     // ============================================
     // Feature Flags System
     // ============================================

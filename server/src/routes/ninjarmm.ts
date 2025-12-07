@@ -648,6 +648,86 @@ router.post('/alerts/:id/create-ticket', authenticateToken, requireNinjaFeature,
 // Webhook Endpoints (Public - No Auth Required)
 // ============================================
 
+// Helper function to check if an alert matches any exclusion rules
+async function checkAlertExclusions(
+  userId: string,
+  alertData: {
+    message: string;
+    deviceName: string;
+    severity: string;
+    sourceName: string;
+    conditionName: string;
+  }
+): Promise<{ id: string; name: string } | null> {
+  try {
+    // Get all active exclusions for this user
+    const result = await query(
+      `SELECT id, name, match_type, match_field, match_value
+       FROM ninjarmm_alert_exclusions
+       WHERE user_id = $1 AND is_active = TRUE`,
+      [userId]
+    );
+
+    for (const exclusion of result.rows) {
+      // Get the field value to check
+      let fieldValue = '';
+      switch (exclusion.match_field) {
+        case 'message':
+          fieldValue = alertData.message || '';
+          break;
+        case 'device_name':
+          fieldValue = alertData.deviceName || '';
+          break;
+        case 'severity':
+          fieldValue = alertData.severity || '';
+          break;
+        case 'source_name':
+          fieldValue = alertData.sourceName || '';
+          break;
+        case 'condition_name':
+          fieldValue = alertData.conditionName || '';
+          break;
+      }
+
+      // Check if the value matches based on match_type
+      let matches = false;
+      const matchValue = exclusion.match_value || '';
+
+      switch (exclusion.match_type) {
+        case 'contains':
+          matches = fieldValue.toLowerCase().includes(matchValue.toLowerCase());
+          break;
+        case 'equals':
+          matches = fieldValue.toLowerCase() === matchValue.toLowerCase();
+          break;
+        case 'starts_with':
+          matches = fieldValue.toLowerCase().startsWith(matchValue.toLowerCase());
+          break;
+        case 'ends_with':
+          matches = fieldValue.toLowerCase().endsWith(matchValue.toLowerCase());
+          break;
+        case 'regex':
+          try {
+            const regex = new RegExp(matchValue, 'i');
+            matches = regex.test(fieldValue);
+          } catch (e) {
+            console.error(`Invalid regex in exclusion ${exclusion.id}: ${matchValue}`);
+          }
+          break;
+      }
+
+      if (matches) {
+        return { id: exclusion.id, name: exclusion.name };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error checking alert exclusions:', error);
+    return null; // On error, don't exclude the alert
+  }
+}
+
 // POST /api/ninjarmm/webhook/:userId - Receive NinjaRMM webhook events
 // This endpoint is called by NinjaRMM when alerts are triggered/reset
 router.post('/webhook/:userId', async (req: any, res: Response) => {
@@ -793,6 +873,31 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
     const isResetEvent = eventType === 'ALERT_RESET' || eventType === 'CONDITION_CLEARED'
       || eventType === 'CONDITION_RESET'
       || eventType === 'reset' || eventType.includes('RESET');
+
+    // Check if this alert matches any exclusion rules
+    if (isAlertEvent) {
+      const exclusionMatch = await checkAlertExclusions(userId, {
+        message,
+        deviceName,
+        severity,
+        sourceName: payload.sourceName || payload.activitySourceName || '',
+        conditionName: payload.conditionName || payload.data?.message?.params?.conditionName || '',
+      });
+
+      if (exclusionMatch) {
+        console.log(`   Alert excluded by rule: ${exclusionMatch.name}`);
+        await query(
+          `UPDATE ninjarmm_webhook_events SET status = 'ignored', processing_time_ms = $1 WHERE id = $2`,
+          [Date.now() - startTime, webhookEventId]
+        );
+        // Update exclusion hit count
+        await query(
+          `UPDATE ninjarmm_alert_exclusions SET hit_count = hit_count + 1, last_hit_at = NOW() WHERE id = $1`,
+          [exclusionMatch.id]
+        );
+        return res.json({ success: true, eventId: webhookEventId, excluded: true, excludedBy: exclusionMatch.name });
+      }
+    }
 
     if (isAlertEvent) {
       // New alert - create or update alert record
@@ -1342,6 +1447,318 @@ router.get('/webhook-events/:id/payload', authenticateToken, requireNinjaFeature
     });
   } catch (error: any) {
     console.error('Get webhook payload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// Alert Exclusions (Ignore Rules)
+// ============================================
+
+// GET /api/ninjarmm/exclusions - Get all alert exclusions
+router.get('/exclusions', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const result = await query(
+      `SELECT id, name, description, match_type, match_field, match_value,
+              is_active, hit_count, last_hit_at, created_at, updated_at
+       FROM ninjarmm_alert_exclusions
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    const exclusions = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      matchType: row.match_type,
+      matchField: row.match_field,
+      matchValue: row.match_value,
+      isActive: row.is_active,
+      hitCount: row.hit_count,
+      lastHitAt: row.last_hit_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    res.json({
+      success: true,
+      data: exclusions,
+    });
+  } catch (error: any) {
+    console.error('Get exclusions error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/exclusions - Create new exclusion
+router.post('/exclusions', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { name, description, matchType, matchField, matchValue, isActive } = req.body;
+
+    if (!name || !matchValue) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name und Match-Wert sind erforderlich',
+      });
+    }
+
+    // Validate matchType
+    const validMatchTypes = ['contains', 'equals', 'regex', 'starts_with', 'ends_with'];
+    if (matchType && !validMatchTypes.includes(matchType)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ungültiger Match-Typ',
+      });
+    }
+
+    // Validate matchField
+    const validMatchFields = ['message', 'source_name', 'condition_name', 'device_name', 'severity'];
+    if (matchField && !validMatchFields.includes(matchField)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ungültiges Match-Feld',
+      });
+    }
+
+    // Validate regex if matchType is regex
+    if (matchType === 'regex') {
+      try {
+        new RegExp(matchValue);
+      } catch (e) {
+        return res.status(400).json({
+          success: false,
+          error: 'Ungültiger regulärer Ausdruck',
+        });
+      }
+    }
+
+    const exclusionId = uuidv4();
+    await query(
+      `INSERT INTO ninjarmm_alert_exclusions
+       (id, user_id, name, description, match_type, match_field, match_value, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        exclusionId,
+        userId,
+        name,
+        description || null,
+        matchType || 'contains',
+        matchField || 'message',
+        matchValue,
+        isActive !== false,
+      ]
+    );
+
+    res.json({
+      success: true,
+      data: { id: exclusionId },
+      message: 'Ausnahme erstellt',
+    });
+  } catch (error: any) {
+    console.error('Create exclusion error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/ninjarmm/exclusions/:id - Update exclusion
+router.put('/exclusions/:id', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const { name, description, matchType, matchField, matchValue, isActive } = req.body;
+
+    // Check if exclusion exists and belongs to user
+    const existing = await query(
+      'SELECT id FROM ninjarmm_alert_exclusions WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ausnahme nicht gefunden',
+      });
+    }
+
+    // Validate regex if matchType is regex
+    if (matchType === 'regex' && matchValue) {
+      try {
+        new RegExp(matchValue);
+      } catch (e) {
+        return res.status(400).json({
+          success: false,
+          error: 'Ungültiger regulärer Ausdruck',
+        });
+      }
+    }
+
+    // Build update query dynamically
+    const updates: string[] = ['updated_at = NOW()'];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (name !== undefined) {
+      updates.push(`name = $${paramIndex++}`);
+      values.push(name);
+    }
+    if (description !== undefined) {
+      updates.push(`description = $${paramIndex++}`);
+      values.push(description || null);
+    }
+    if (matchType !== undefined) {
+      updates.push(`match_type = $${paramIndex++}`);
+      values.push(matchType);
+    }
+    if (matchField !== undefined) {
+      updates.push(`match_field = $${paramIndex++}`);
+      values.push(matchField);
+    }
+    if (matchValue !== undefined) {
+      updates.push(`match_value = $${paramIndex++}`);
+      values.push(matchValue);
+    }
+    if (isActive !== undefined) {
+      updates.push(`is_active = $${paramIndex++}`);
+      values.push(isActive);
+    }
+
+    values.push(id, userId);
+
+    await query(
+      `UPDATE ninjarmm_alert_exclusions
+       SET ${updates.join(', ')}
+       WHERE id = $${paramIndex++} AND user_id = $${paramIndex}`,
+      values
+    );
+
+    res.json({
+      success: true,
+      message: 'Ausnahme aktualisiert',
+    });
+  } catch (error: any) {
+    console.error('Update exclusion error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/ninjarmm/exclusions/:id - Delete exclusion
+router.delete('/exclusions/:id', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const result = await query(
+      'DELETE FROM ninjarmm_alert_exclusions WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ausnahme nicht gefunden',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Ausnahme gelöscht',
+    });
+  } catch (error: any) {
+    console.error('Delete exclusion error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/exclusions/from-event/:eventId - Create exclusion from webhook event
+router.post('/exclusions/from-event/:eventId', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { eventId } = req.params;
+    const { matchField = 'message', matchType = 'contains' } = req.body;
+
+    // Get the webhook event
+    const eventResult = await query(
+      `SELECT message, device_name, severity, payload
+       FROM ninjarmm_webhook_events
+       WHERE id = $1 AND user_id = $2`,
+      [eventId, userId]
+    );
+
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Webhook-Event nicht gefunden',
+      });
+    }
+
+    const event = eventResult.rows[0];
+    let payload: any = {};
+    try {
+      payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+    } catch (e) {
+      // ignore parse error
+    }
+
+    // Determine match value based on field
+    let matchValue = '';
+    let name = '';
+    switch (matchField) {
+      case 'message':
+        matchValue = event.message || '';
+        name = `Ignoriere: ${matchValue.substring(0, 50)}...`;
+        break;
+      case 'source_name':
+        matchValue = payload.sourceName || payload.activitySourceName || '';
+        name = `Ignoriere Quelle: ${matchValue}`;
+        break;
+      case 'condition_name':
+        matchValue = payload.conditionName || payload.data?.message?.params?.conditionName || '';
+        name = `Ignoriere Bedingung: ${matchValue}`;
+        break;
+      case 'device_name':
+        matchValue = event.device_name || '';
+        name = `Ignoriere Gerät: ${matchValue}`;
+        break;
+      case 'severity':
+        matchValue = event.severity || '';
+        name = `Ignoriere Severity: ${matchValue}`;
+        break;
+    }
+
+    if (!matchValue) {
+      return res.status(400).json({
+        success: false,
+        error: `Kein Wert für Feld "${matchField}" im Event gefunden`,
+      });
+    }
+
+    const exclusionId = uuidv4();
+    await query(
+      `INSERT INTO ninjarmm_alert_exclusions
+       (id, user_id, name, description, match_type, match_field, match_value, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)`,
+      [
+        exclusionId,
+        userId,
+        name,
+        `Automatisch erstellt aus Webhook-Event ${eventId.substring(0, 8)}`,
+        matchType,
+        matchField,
+        matchValue,
+      ]
+    );
+
+    res.json({
+      success: true,
+      data: { id: exclusionId, name, matchValue },
+      message: 'Ausnahme aus Event erstellt',
+    });
+  } catch (error: any) {
+    console.error('Create exclusion from event error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
