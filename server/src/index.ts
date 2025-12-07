@@ -110,13 +110,55 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use('/api/uploads', express.static(uploadsDir));
 
-// Health check
+// Health check - Basic liveness probe (is the server running?)
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
     environment: process.env.NODE_ENV || 'development',
-    emailTestMode: process.env.EMAIL_TEST_MODE === 'true'
+  });
+});
+
+// Ready check - Full readiness probe (is the server ready to accept requests?)
+app.get('/ready', async (req, res) => {
+  const checks: Record<string, { status: string; latency?: number; error?: string }> = {};
+  let allHealthy = true;
+
+  // Check database connection
+  try {
+    const dbStart = Date.now();
+    const { pool } = await import('./config/database');
+    await pool.query('SELECT 1');
+    checks.database = { status: 'ok', latency: Date.now() - dbStart };
+  } catch (error: any) {
+    checks.database = { status: 'error', error: error.message };
+    allHealthy = false;
+  }
+
+  // Check disk space for uploads (basic check)
+  try {
+    const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
+    fs.accessSync(uploadsDir, fs.constants.W_OK);
+    checks.uploads = { status: 'ok' };
+  } catch (error: any) {
+    checks.uploads = { status: 'error', error: 'Uploads directory not writable' };
+    allHealthy = false;
+  }
+
+  // Memory usage
+  const memUsage = process.memoryUsage();
+  checks.memory = {
+    status: 'ok',
+    latency: Math.round(memUsage.heapUsed / 1024 / 1024), // MB used
+  };
+
+  res.status(allHealthy ? 200 : 503).json({
+    status: allHealthy ? 'ready' : 'degraded',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    version: process.env.npm_package_version || '1.0.0',
+    checks,
   });
 });
 

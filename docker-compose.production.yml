@@ -54,6 +54,12 @@ services:
       EMAIL_USER: ${EMAIL_USER}
       EMAIL_PASSWORD: ${EMAIL_PASSWORD}
       EMAIL_FROM: ${EMAIL_FROM}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-auto}
+      # Microsoft Graph API (optional)
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+      GRAPH_MAIL_FROM: ${GRAPH_MAIL_FROM:-}
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # CORS
@@ -69,6 +75,7 @@ services:
     volumes:
       - backend_logs:/app/logs
       - backend_uploads:/app/uploads
+      - backend_backups:/app/backups
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
       interval: 30s
@@ -169,6 +176,11 @@ volumes:
   backend_uploads:
     external: true
     name: timetracking_app_backend_uploads
+
+  # Backend-Backups (database dumps)
+  backend_backups:
+    external: true
+    name: timetracking_app_backend_backups
 
   # Certbot Challenge-Dateien
   certbot_data:
