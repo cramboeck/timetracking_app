@@ -111,17 +111,21 @@ if (!fs.existsSync(uploadsDir)) {
 app.use('/api/uploads', express.static(uploadsDir));
 
 // Health check - Basic liveness probe (is the server running?)
-app.get('/health', (req, res) => {
+// Available at both /health (direct) and /api/health (via nginx)
+const healthHandler = (req: any, res: any) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()),
     environment: process.env.NODE_ENV || 'development',
   });
-});
+};
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 // Ready check - Full readiness probe (is the server ready to accept requests?)
-app.get('/ready', async (req, res) => {
+// Available at both /ready (direct) and /api/ready (via nginx)
+const readyHandler = async (req: any, res: any) => {
   const checks: Record<string, { status: string; latency?: number; error?: string }> = {};
   let allHealthy = true;
 
@@ -160,7 +164,9 @@ app.get('/ready', async (req, res) => {
     version: process.env.npm_package_version || '1.0.0',
     checks,
   });
-});
+};
+app.get('/ready', readyHandler);
+app.get('/api/ready', readyHandler);
 
 // Start notification jobs
 startNotificationJobs();
