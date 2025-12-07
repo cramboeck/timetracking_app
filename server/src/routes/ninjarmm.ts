@@ -700,7 +700,29 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
     // - ALERT / ALERT_RESET - standard alerts
     const eventType = payload.activityType || payload.eventType || payload.type || 'UNKNOWN';
     const ninjaAlertId = payload.id?.toString() || payload.alertId?.toString() || payload.uid || payload.activityId?.toString();
-    const ninjaDeviceId = payload.deviceId?.toString() || payload.device?.id?.toString() || payload.nodeId?.toString();
+
+    // Extended device ID extraction - NinjaRMM uses various field names
+    const ninjaDeviceId = payload.deviceId?.toString()
+      || payload.device?.id?.toString()
+      || payload.nodeId?.toString()
+      || payload.node?.id?.toString()
+      || payload.targetNodeId?.toString()
+      || payload.device_id?.toString()
+      || payload.affected_entity?.id?.toString()
+      || payload.sourceDeviceId?.toString()
+      || payload.data?.deviceId?.toString()
+      || payload.data?.nodeId?.toString();
+
+    console.log('   Extracted ninjaDeviceId:', ninjaDeviceId);
+    console.log('   Available device fields:', {
+      deviceId: payload.deviceId,
+      'device.id': payload.device?.id,
+      nodeId: payload.nodeId,
+      'node.id': payload.node?.id,
+      targetNodeId: payload.targetNodeId,
+      sourceDeviceId: payload.sourceDeviceId,
+      'data.deviceId': payload.data?.deviceId,
+    });
 
     // NinjaRMM severity mapping - they use different field names
     let severity = payload.severity || payload.priority || 'INFO';
@@ -728,15 +750,29 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
       message = payload.actionsetName || payload.actionName || payload.scriptName || 'Script/Action ausgeführt';
     }
 
-    // Extract device name from various fields
+    // Extended device name extraction
     const deviceName = payload.deviceName
       || payload.device?.systemName
       || payload.device?.displayName
+      || payload.device?.name
       || payload.nodeName
+      || payload.node?.name
+      || payload.node?.systemName
       || payload.systemName
       || payload.displayName
+      || payload.targetNodeName
+      || payload.affected_entity?.name
+      || payload.data?.deviceName
+      || payload.data?.nodeName
       || '';
-    const orgId = payload.organizationId?.toString() || payload.device?.organizationId?.toString() || payload.orgId?.toString();
+
+    console.log('   Extracted deviceName:', deviceName);
+
+    const orgId = payload.organizationId?.toString()
+      || payload.device?.organizationId?.toString()
+      || payload.orgId?.toString()
+      || payload.org?.id?.toString()
+      || payload.organization?.id?.toString();
 
     // Log the webhook event with extracted message and device name
     webhookEventId = uuidv4();
