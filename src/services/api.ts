@@ -2331,6 +2331,20 @@ export const ninjaApi = {
   }> => {
     return authFetch(`/ninjarmm/webhook-events/${eventId}/payload`);
   },
+
+  // Backfill device names for existing webhook events
+  backfillWebhookDeviceNames: async (): Promise<{
+    success: boolean;
+    data: {
+      processedCount: number;
+      updatedCount: number;
+    };
+    message: string;
+  }> => {
+    return authFetch('/ninjarmm/webhook-events/backfill-device-names', {
+      method: 'POST',
+    });
+  },
 };
 
 // Feature Packages API

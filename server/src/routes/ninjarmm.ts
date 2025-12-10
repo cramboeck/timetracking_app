@@ -1451,6 +1451,91 @@ router.get('/webhook-events/:id/payload', authenticateToken, requireNinjaFeature
   }
 });
 
+// POST /api/ninjarmm/webhook-events/backfill-device-names - Backfill device names for existing webhook events
+router.post('/webhook-events/backfill-device-names', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    let updatedCount = 0;
+    let processedCount = 0;
+
+    // Get all webhook events with missing device_name but have ninja_device_id
+    const eventsResult = await query(
+      `SELECT id, ninja_device_id, payload
+       FROM ninjarmm_webhook_events
+       WHERE user_id = $1 AND (device_name IS NULL OR device_name = '')
+       ORDER BY created_at DESC
+       LIMIT 500`,
+      [userId]
+    );
+
+    for (const event of eventsResult.rows) {
+      processedCount++;
+      let deviceName: string | null = null;
+
+      // First, try to get device name from our synced devices table
+      if (event.ninja_device_id) {
+        const deviceResult = await query(
+          `SELECT system_name, display_name
+           FROM ninjarmm_devices
+           WHERE user_id = $1 AND (ninja_device_id = $2 OR ninja_id::TEXT = $2)`,
+          [userId, event.ninja_device_id]
+        );
+
+        if (deviceResult.rows.length > 0) {
+          deviceName = deviceResult.rows[0].display_name || deviceResult.rows[0].system_name;
+        }
+      }
+
+      // If still no device name, try to extract from payload
+      if (!deviceName && event.payload) {
+        let payload: any = {};
+        try {
+          payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+        } catch (e) {
+          // ignore parse error
+        }
+
+        // Try various field names NinjaRMM uses
+        deviceName = payload.deviceName
+          || payload.device?.systemName
+          || payload.device?.displayName
+          || payload.device?.name
+          || payload.nodeName
+          || payload.node?.name
+          || payload.node?.systemName
+          || payload.systemName
+          || payload.displayName
+          || payload.targetNodeName
+          || payload.affected_entity?.name
+          || payload.data?.deviceName
+          || payload.data?.nodeName
+          || null;
+      }
+
+      // Update the event if we found a device name
+      if (deviceName) {
+        await query(
+          `UPDATE ninjarmm_webhook_events SET device_name = $1 WHERE id = $2`,
+          [deviceName, event.id]
+        );
+        updatedCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        processedCount,
+        updatedCount,
+      },
+      message: `${updatedCount} von ${processedCount} Events aktualisiert`,
+    });
+  } catch (error: any) {
+    console.error('Backfill device names error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================
 // Alert Exclusions (Ignore Rules)
 // ============================================

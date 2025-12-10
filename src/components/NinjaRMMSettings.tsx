@@ -54,6 +54,7 @@ export const NinjaRMMSettings = () => {
   const [webhookCopied, setWebhookCopied] = useState(false);
   const [selectedPayload, setSelectedPayload] = useState<{ id: string; eventType: string; payload: any; createdAt: string } | null>(null);
   const [loadingPayload, setLoadingPayload] = useState(false);
+  const [backfillingDeviceNames, setBackfillingDeviceNames] = useState(false);
 
   // Modal state
   const [selectedDevice, setSelectedDevice] = useState<NinjaDevice | null>(null);
@@ -419,6 +420,24 @@ export const NinjaRMMSettings = () => {
       setError(err.message || 'Fehler beim Generieren des Secrets');
     } finally {
       setGeneratingSecret(false);
+    }
+  };
+
+  const handleBackfillDeviceNames = async () => {
+    try {
+      setBackfillingDeviceNames(true);
+      setError('');
+      setSuccess('');
+      const result = await ninjaApi.backfillWebhookDeviceNames();
+      if (result.success) {
+        setSuccess(result.message || `${result.data.updatedCount} Gerätenamen nachgetragen`);
+        // Reload webhook events to show updated device names
+        loadWebhookData();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Aktualisieren der Gerätenamen');
+    } finally {
+      setBackfillingDeviceNames(false);
     }
   };
 
@@ -1219,13 +1238,24 @@ export const NinjaRMMSettings = () => {
                     <h3 className="font-medium text-gray-900 dark:text-white">Webhook-Events</h3>
                     <p className="text-sm text-gray-500 dark:text-dark-400">Letzte eingehende Events</p>
                   </div>
-                  <button
-                    onClick={loadWebhookData}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
-                  >
-                    <RefreshCw size={14} />
-                    Aktualisieren
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleBackfillDeviceNames}
+                      disabled={backfillingDeviceNames}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50"
+                      title="Gerätenamen für bestehende Events aus synchronisierten Geräten nachtragen"
+                    >
+                      <Monitor size={14} />
+                      {backfillingDeviceNames ? 'Aktualisiere...' : 'Gerätenamen nachtragen'}
+                    </button>
+                    <button
+                      onClick={loadWebhookData}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+                    >
+                      <RefreshCw size={14} />
+                      Aktualisieren
+                    </button>
+                  </div>
                 </div>
                 {webhookEvents.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 dark:text-dark-400">
