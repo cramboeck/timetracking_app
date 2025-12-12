@@ -3,9 +3,10 @@ import {
   Settings, Save, RefreshCw, Link2, Unlink, CheckCircle, XCircle,
   AlertTriangle, Server, Building, Clock, ExternalLink, Shield, Monitor,
   Wifi, WifiOff, Bell, Ticket, X, Cpu, HardDrive, Globe, User, Search,
-  Webhook, Copy, Key, Eye, EyeOff, Zap
+  Webhook, Copy, Key, Eye, EyeOff, Zap, Filter, Plus, Trash2, Edit3,
+  ToggleLeft, ToggleRight, Ban
 } from 'lucide-react';
-import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert } from '../services/api';
+import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert, NinjaAlertExclusion } from '../services/api';
 import { customersApi } from '../services/api';
 import { Customer } from '../types';
 
@@ -55,6 +56,22 @@ export const NinjaRMMSettings = () => {
   const [selectedPayload, setSelectedPayload] = useState<{ id: string; eventType: string; payload: any; createdAt: string } | null>(null);
   const [loadingPayload, setLoadingPayload] = useState(false);
   const [backfillingDeviceNames, setBackfillingDeviceNames] = useState(false);
+
+  // Exclusion state
+  const [exclusions, setExclusions] = useState<NinjaAlertExclusion[]>([]);
+  const [loadingExclusions, setLoadingExclusions] = useState(false);
+  const [showExclusionForm, setShowExclusionForm] = useState(false);
+  const [editingExclusion, setEditingExclusion] = useState<NinjaAlertExclusion | null>(null);
+  const [exclusionForm, setExclusionForm] = useState({
+    name: '',
+    description: '',
+    matchType: 'contains' as 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex',
+    matchField: 'message' as 'message' | 'source_name' | 'condition_name' | 'device_name' | 'severity',
+    matchValue: '',
+    isActive: true,
+  });
+  const [savingExclusion, setSavingExclusion] = useState(false);
+  const [creatingExclusionFromEvent, setCreatingExclusionFromEvent] = useState<string | null>(null);
 
   // Modal state
   const [selectedDevice, setSelectedDevice] = useState<NinjaDevice | null>(null);
@@ -441,6 +458,118 @@ export const NinjaRMMSettings = () => {
     }
   };
 
+  // Exclusion handlers
+  const loadExclusions = async () => {
+    try {
+      setLoadingExclusions(true);
+      const result = await ninjaApi.getExclusions();
+      if (result.success) {
+        setExclusions(result.data);
+      }
+    } catch (err: any) {
+      console.error('Fehler beim Laden der Ausnahmen:', err);
+    } finally {
+      setLoadingExclusions(false);
+    }
+  };
+
+  const resetExclusionForm = () => {
+    setExclusionForm({
+      name: '',
+      description: '',
+      matchType: 'contains',
+      matchField: 'message',
+      matchValue: '',
+      isActive: true,
+    });
+    setEditingExclusion(null);
+    setShowExclusionForm(false);
+  };
+
+  const handleEditExclusion = (exclusion: NinjaAlertExclusion) => {
+    setEditingExclusion(exclusion);
+    setExclusionForm({
+      name: exclusion.name,
+      description: exclusion.description || '',
+      matchType: exclusion.matchType,
+      matchField: exclusion.matchField,
+      matchValue: exclusion.matchValue,
+      isActive: exclusion.isActive,
+    });
+    setShowExclusionForm(true);
+  };
+
+  const handleSaveExclusion = async () => {
+    if (!exclusionForm.name || !exclusionForm.matchValue) {
+      setError('Name und Match-Wert sind erforderlich');
+      return;
+    }
+    try {
+      setSavingExclusion(true);
+      setError('');
+      if (editingExclusion) {
+        const result = await ninjaApi.updateExclusion(editingExclusion.id, exclusionForm);
+        if (result.success) {
+          setSuccess('Ausnahme aktualisiert');
+          loadExclusions();
+          resetExclusionForm();
+        }
+      } else {
+        const result = await ninjaApi.createExclusion(exclusionForm);
+        if (result.success) {
+          setSuccess('Ausnahme erstellt');
+          loadExclusions();
+          resetExclusionForm();
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Speichern der Ausnahme');
+    } finally {
+      setSavingExclusion(false);
+    }
+  };
+
+  const handleDeleteExclusion = async (id: string) => {
+    if (!confirm('Ausnahme wirklich löschen?')) return;
+    try {
+      const result = await ninjaApi.deleteExclusion(id);
+      if (result.success) {
+        setSuccess('Ausnahme gelöscht');
+        loadExclusions();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Löschen der Ausnahme');
+    }
+  };
+
+  const handleToggleExclusion = async (exclusion: NinjaAlertExclusion) => {
+    try {
+      const result = await ninjaApi.updateExclusion(exclusion.id, { isActive: !exclusion.isActive });
+      if (result.success) {
+        loadExclusions();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Ändern der Ausnahme');
+    }
+  };
+
+  const handleCreateExclusionFromEvent = async (eventId: string, matchField: 'message' | 'source_name' | 'condition_name' | 'device_name') => {
+    try {
+      setCreatingExclusionFromEvent(eventId);
+      setError('');
+      const result = await ninjaApi.createExclusionFromEvent(eventId, { matchField, matchType: 'contains' });
+      if (result.success) {
+        setSuccess(`Ausnahme erstellt: ${result.data.name}`);
+        loadExclusions();
+        loadWebhookData();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Erstellen der Ausnahme');
+    } finally {
+      setCreatingExclusionFromEvent(null);
+    }
+  };
+
   const copyWebhookUrl = async () => {
     if (!webhookConfig?.webhookUrl) return;
     try {
@@ -452,10 +581,11 @@ export const NinjaRMMSettings = () => {
     }
   };
 
-  // Load webhook data when switching to webhook section
+  // Load webhook data and exclusions when switching to webhook section
   useEffect(() => {
     if (activeSection === 'webhook' && config?.isConnected) {
       loadWebhookData();
+      loadExclusions();
     }
   }, [activeSection, config?.isConnected]);
 
@@ -1326,19 +1456,228 @@ export const NinjaRMMSettings = () => {
                               {new Date(event.createdAt).toLocaleString('de-DE')}
                             </td>
                             <td className="px-4 py-3">
-                              <button
-                                onClick={() => loadWebhookPayload(event.id)}
-                                disabled={loadingPayload}
-                                className="px-2 py-1 text-xs bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300 rounded hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50"
-                                title="Raw Payload anzeigen"
-                              >
-                                {loadingPayload ? '...' : 'Payload'}
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => loadWebhookPayload(event.id)}
+                                  disabled={loadingPayload}
+                                  className="px-2 py-1 text-xs bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300 rounded hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50"
+                                  title="Raw Payload anzeigen"
+                                >
+                                  {loadingPayload ? '...' : 'Payload'}
+                                </button>
+                                {event.status !== 'ignored' && event.message && (
+                                  <button
+                                    onClick={() => handleCreateExclusionFromEvent(event.id, 'message')}
+                                    disabled={creatingExclusionFromEvent === event.id}
+                                    className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded hover:bg-orange-200 dark:hover:bg-orange-900/50 disabled:opacity-50"
+                                    title="Ähnliche Alerts künftig ignorieren"
+                                  >
+                                    {creatingExclusionFromEvent === event.id ? '...' : (
+                                      <Ban size={12} />
+                                    )}
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Alert Exclusions */}
+              <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 overflow-hidden">
+                <div className="p-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                      <Filter size={18} />
+                      Alert-Ausnahmen
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Regeln zum Ignorieren bestimmter Alerts</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={loadExclusions}
+                      disabled={loadingExclusions}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+                    >
+                      <RefreshCw size={14} className={loadingExclusions ? 'animate-spin' : ''} />
+                    </button>
+                    <button
+                      onClick={() => setShowExclusionForm(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-dark"
+                    >
+                      <Plus size={14} />
+                      Neue Ausnahme
+                    </button>
+                  </div>
+                </div>
+
+                {/* Exclusion Form */}
+                {showExclusionForm && (
+                  <div className="p-4 bg-gray-50 dark:bg-dark-50 border-b border-gray-200 dark:border-dark-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">Name *</label>
+                        <input
+                          type="text"
+                          value={exclusionForm.name}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, name: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-200 rounded-lg text-gray-900 dark:text-white"
+                          placeholder="z.B. Veeam VSS Backup ignorieren"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">Beschreibung</label>
+                        <input
+                          type="text"
+                          value={exclusionForm.description}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, description: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-200 rounded-lg text-gray-900 dark:text-white"
+                          placeholder="Optional"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">Feld</label>
+                        <select
+                          value={exclusionForm.matchField}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, matchField: e.target.value as any })}
+                          className="w-full px-3 py-2 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-200 rounded-lg text-gray-900 dark:text-white"
+                        >
+                          <option value="message">Nachricht</option>
+                          <option value="condition_name">Condition Name</option>
+                          <option value="source_name">Quelle</option>
+                          <option value="device_name">Gerätename</option>
+                          <option value="severity">Schweregrad</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">Match-Typ</label>
+                        <select
+                          value={exclusionForm.matchType}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, matchType: e.target.value as any })}
+                          className="w-full px-3 py-2 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-200 rounded-lg text-gray-900 dark:text-white"
+                        >
+                          <option value="contains">Enthält</option>
+                          <option value="equals">Ist gleich</option>
+                          <option value="starts_with">Beginnt mit</option>
+                          <option value="ends_with">Endet mit</option>
+                          <option value="regex">Regex</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">Wert *</label>
+                        <input
+                          type="text"
+                          value={exclusionForm.matchValue}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, matchValue: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-200 rounded-lg text-gray-900 dark:text-white"
+                          placeholder="z.B. VSS Writer"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-dark-300">
+                        <input
+                          type="checkbox"
+                          checked={exclusionForm.isActive}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, isActive: e.target.checked })}
+                          className="rounded border-gray-300 dark:border-dark-200"
+                        />
+                        Aktiv
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={resetExclusionForm}
+                          className="px-4 py-2 text-sm text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
+                        >
+                          Abbrechen
+                        </button>
+                        <button
+                          onClick={handleSaveExclusion}
+                          disabled={savingExclusion}
+                          className="flex items-center gap-2 px-4 py-2 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+                        >
+                          <Save size={14} />
+                          {savingExclusion ? 'Speichern...' : editingExclusion ? 'Aktualisieren' : 'Erstellen'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Exclusions List */}
+                {exclusions.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-dark-400">
+                    <Ban size={32} className="mx-auto mb-2 opacity-50" />
+                    <p>Keine Ausnahmen definiert</p>
+                    <p className="text-sm mt-1">Erstelle eine Ausnahme, um bestimmte Alerts zu ignorieren</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-200 dark:divide-dark-200">
+                    {exclusions.map(exclusion => (
+                      <div key={exclusion.id} className={`p-4 flex items-center justify-between ${!exclusion.isActive ? 'opacity-50' : ''}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 dark:text-white">{exclusion.name}</span>
+                            {!exclusion.isActive && (
+                              <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400 rounded">Deaktiviert</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+                            <span className="inline-flex items-center gap-1">
+                              <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-dark-200 rounded text-xs">
+                                {exclusion.matchField === 'message' ? 'Nachricht' :
+                                 exclusion.matchField === 'condition_name' ? 'Condition' :
+                                 exclusion.matchField === 'source_name' ? 'Quelle' :
+                                 exclusion.matchField === 'device_name' ? 'Gerät' : 'Severity'}
+                              </code>
+                              <span className="text-gray-400">
+                                {exclusion.matchType === 'contains' ? 'enthält' :
+                                 exclusion.matchType === 'equals' ? '=' :
+                                 exclusion.matchType === 'starts_with' ? 'beginnt mit' :
+                                 exclusion.matchType === 'ends_with' ? 'endet mit' : 'regex'}
+                              </span>
+                              <code className="px-1.5 py-0.5 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 rounded text-xs max-w-xs truncate">
+                                {exclusion.matchValue}
+                              </code>
+                            </span>
+                          </div>
+                          {exclusion.hitCount > 0 && (
+                            <div className="text-xs text-gray-400 dark:text-dark-500 mt-1">
+                              {exclusion.hitCount}x getroffen • Zuletzt: {exclusion.lastHitAt ? new Date(exclusion.lastHitAt).toLocaleString('de-DE') : '-'}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <button
+                            onClick={() => handleToggleExclusion(exclusion)}
+                            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-dark-300"
+                            title={exclusion.isActive ? 'Deaktivieren' : 'Aktivieren'}
+                          >
+                            {exclusion.isActive ? <ToggleRight size={20} className="text-green-500" /> : <ToggleLeft size={20} />}
+                          </button>
+                          <button
+                            onClick={() => handleEditExclusion(exclusion)}
+                            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-dark-300"
+                            title="Bearbeiten"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteExclusion(exclusion.id)}
+                            className="p-2 text-gray-400 hover:text-red-500"
+                            title="Löschen"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

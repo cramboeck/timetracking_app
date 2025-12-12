@@ -2345,7 +2345,86 @@ export const ninjaApi = {
       method: 'POST',
     });
   },
+
+  // ============================================
+  // Alert Exclusions
+  // ============================================
+
+  // Get all exclusions
+  getExclusions: async (): Promise<{
+    success: boolean;
+    data: NinjaAlertExclusion[];
+  }> => {
+    return authFetch('/ninjarmm/exclusions');
+  },
+
+  // Create new exclusion
+  createExclusion: async (data: {
+    name: string;
+    description?: string;
+    matchType: 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex';
+    matchField: 'message' | 'source_name' | 'condition_name' | 'device_name' | 'severity';
+    matchValue: string;
+    isActive?: boolean;
+  }): Promise<{ success: boolean; data: { id: string }; message: string }> => {
+    return authFetch('/ninjarmm/exclusions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update exclusion
+  updateExclusion: async (id: string, data: {
+    name?: string;
+    description?: string;
+    matchType?: 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex';
+    matchField?: 'message' | 'source_name' | 'condition_name' | 'device_name' | 'severity';
+    matchValue?: string;
+    isActive?: boolean;
+  }): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/ninjarmm/exclusions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete exclusion
+  deleteExclusion: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/ninjarmm/exclusions/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Create exclusion from webhook event
+  createExclusionFromEvent: async (eventId: string, options?: {
+    matchField?: 'message' | 'source_name' | 'condition_name' | 'device_name' | 'severity';
+    matchType?: 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex';
+  }): Promise<{
+    success: boolean;
+    data: { id: string; name: string; matchValue: string };
+    message: string;
+  }> => {
+    return authFetch(`/ninjarmm/exclusions/from-event/${eventId}`, {
+      method: 'POST',
+      body: JSON.stringify(options || {}),
+    });
+  },
 };
+
+// Alert Exclusion type
+export interface NinjaAlertExclusion {
+  id: string;
+  name: string;
+  description: string | null;
+  matchType: 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex';
+  matchField: 'message' | 'source_name' | 'condition_name' | 'device_name' | 'severity';
+  matchValue: string;
+  isActive: boolean;
+  hitCount: number;
+  lastHitAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // Feature Packages API
 export interface UserFeatures {
