@@ -1,5 +1,5 @@
 import { useRef, useCallback, KeyboardEvent } from 'react';
-import { Bold, Italic, List, Code, Link2, ListOrdered, Quote, Heading1, Heading2, Heading3, Minus } from 'lucide-react';
+import { Bold, Italic, List, Code, Link2, ListOrdered, Quote } from 'lucide-react';
 
 interface MarkdownEditorProps {
   value: string;
@@ -30,9 +30,6 @@ export const MarkdownEditor = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const tools: ToolbarButton[] = [
-    { icon: Heading1, title: 'Überschrift 1', shortcut: '1', prefix: '# ', suffix: '', multiline: true },
-    { icon: Heading2, title: 'Überschrift 2', shortcut: '2', prefix: '## ', suffix: '', multiline: true },
-    { icon: Heading3, title: 'Überschrift 3', shortcut: '3', prefix: '### ', suffix: '', multiline: true },
     { icon: Bold, title: 'Fett (Ctrl+B)', shortcut: 'b', prefix: '**', suffix: '**' },
     { icon: Italic, title: 'Kursiv (Ctrl+I)', shortcut: 'i', prefix: '*', suffix: '*' },
     { icon: Code, title: 'Code (Ctrl+`)', shortcut: '`', prefix: '`', suffix: '`' },
@@ -40,7 +37,6 @@ export const MarkdownEditor = ({
     { icon: List, title: 'Liste (Ctrl+L)', shortcut: 'l', prefix: '- ', suffix: '', multiline: true },
     { icon: ListOrdered, title: 'Nummerierte Liste', shortcut: '', prefix: '1. ', suffix: '', multiline: true },
     { icon: Quote, title: 'Zitat', shortcut: '', prefix: '> ', suffix: '', multiline: true },
-    { icon: Minus, title: 'Trennlinie', shortcut: '', prefix: '\n---\n', suffix: '' },
   ];
 
   const insertFormatting = useCallback((prefix: string, suffix: string, multiline = false) => {
@@ -103,7 +99,7 @@ export const MarkdownEditor = ({
   return (
     <div className={`border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden ${className}`}>
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex-wrap">
+      <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         {tools.map((tool, index) => {
           const Icon = tool.icon;
           return (
