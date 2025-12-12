@@ -830,8 +830,8 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
       message = payload.actionsetName || payload.actionName || payload.scriptName || 'Script/Action ausgeführt';
     }
 
-    // Extended device name extraction
-    const deviceName = payload.deviceName
+    // Extended device name extraction from payload
+    let deviceName = payload.deviceName
       || payload.device?.systemName
       || payload.device?.displayName
       || payload.device?.name
@@ -845,6 +845,20 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
       || payload.data?.deviceName
       || payload.data?.nodeName
       || '';
+
+    // If no device name in payload but we have a device ID, look it up in our synced devices
+    if (!deviceName && ninjaDeviceId) {
+      const deviceLookup = await query(
+        `SELECT system_name, display_name
+         FROM ninjarmm_devices
+         WHERE user_id = $1 AND (ninja_device_id = $2 OR ninja_id::TEXT = $2)`,
+        [userId, ninjaDeviceId]
+      );
+      if (deviceLookup.rows.length > 0) {
+        deviceName = deviceLookup.rows[0].display_name || deviceLookup.rows[0].system_name || '';
+        console.log('   Device name from DB lookup:', deviceName);
+      }
+    }
 
     console.log('   Extracted deviceName:', deviceName);
 
