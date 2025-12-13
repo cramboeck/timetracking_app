@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView } from './components/AreaNavigation';
+import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 import { Stopwatch } from './components/Stopwatch';
 import { ManualEntry } from './components/ManualEntry';
 import { TimeEntriesList } from './components/TimeEntriesList';
@@ -21,12 +22,47 @@ import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
+import { useIsDesktop } from './hooks/useMediaQuery';
 import { haptics } from './utils/haptics';
 import { notificationService } from './utils/notifications';
 import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, userApi } from './services/api';
 
+const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
+
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
+  const isDesktop = useIsDesktop();
+
+  // Track sidebar collapsed state for layout adjustment
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+    }
+    return false;
+  });
+
+  // Listen for sidebar collapse changes from localStorage
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === SIDEBAR_COLLAPSED_KEY) {
+        setSidebarCollapsed(e.newValue === 'true');
+      }
+    };
+
+    // Also listen for custom event from DesktopSidebar
+    const handleSidebarToggle = () => {
+      setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('sidebar-toggle', handleSidebarToggle);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('sidebar-toggle', handleSidebarToggle);
+    };
+  }, []);
+
   // Use localStorage as initial fallback, will be overwritten by server preferences
   const [currentArea, setCurrentArea] = useState<Area>(() => {
     const saved = localStorage.getItem('currentArea');
@@ -686,8 +722,15 @@ function App() {
       />
 
       <main
-        className="flex-1 overflow-y-auto pt-12 pb-16"
-        {...swipeHandlers}
+        className={`flex-1 overflow-y-auto transition-all duration-300 ${
+          isDesktop
+            ? `pt-0 pb-0`  // No padding on desktop - sidebar handles navigation
+            : 'pt-12 pb-16'  // Mobile: top nav + bottom nav padding
+        }`}
+        style={isDesktop ? {
+          marginLeft: sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH,
+        } : undefined}
+        {...(isDesktop ? {} : swipeHandlers)}  // Only enable swipe on mobile
       >
         {currentSubView === 'stopwatch' && (
           <Stopwatch
@@ -827,13 +870,15 @@ function App() {
         )}
       </main>
 
-      {/* Floating Action Button */}
-      <FloatingActionButton
-        isTimerRunning={!!runningEntry}
-        onStartTimer={handleFABStartTimer}
-        onStopTimer={handleFABStopTimer}
-        currentView={currentSubView}
-      />
+      {/* Floating Action Button - only on mobile */}
+      {!isDesktop && (
+        <FloatingActionButton
+          isTimerRunning={!!runningEntry}
+          onStartTimer={handleFABStartTimer}
+          onStopTimer={handleFABStopTimer}
+          currentView={currentSubView}
+        />
+      )}
 
       {/* Welcome Modal for new users */}
       {showWelcomeModal && (

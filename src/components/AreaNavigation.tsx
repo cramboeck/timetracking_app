@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   Clock, List, Calendar,
   Ticket, Monitor, Bell, Wrench,
@@ -6,6 +5,8 @@ import {
   Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo
 } from 'lucide-react';
 import { useFeatures } from '../contexts/FeaturesContext';
+import { useIsDesktop } from '../hooks/useMediaQuery';
+import { DesktopSidebar } from './DesktopSidebar';
 
 // Area definitions
 export type Area = 'arbeiten' | 'support' | 'business';
@@ -65,6 +66,7 @@ export const AreaNavigation = ({
   onSubViewChange
 }: AreaNavigationProps) => {
   const { hasPackage } = useFeatures();
+  const isDesktop = useIsDesktop();
 
   // Determine which areas to show
   const visibleAreas: Area[] = [
@@ -75,6 +77,19 @@ export const AreaNavigation = ({
 
   const currentAreaConfig = areaConfig[currentArea];
 
+  // Desktop: Show sidebar instead of mobile navigation
+  if (isDesktop) {
+    return (
+      <DesktopSidebar
+        currentArea={currentArea}
+        currentSubView={currentSubView}
+        onAreaChange={onAreaChange}
+        onSubViewChange={onSubViewChange}
+      />
+    );
+  }
+
+  // Mobile: Show original navigation
   return (
     <>
       {/* Sub-Navigation (Top) - iOS Glassmorphism */}
