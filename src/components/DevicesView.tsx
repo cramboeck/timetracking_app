@@ -205,10 +205,10 @@ export const DevicesView = () => {
                   </p>
                   <p className="text-sm text-gray-500 dark:text-dark-400">{device.organizationName}</p>
                 </td>
-                <td className="px-4 py-3 hidden md:table-cell text-gray-600 dark:text-dark-300">
+                <td className="px-4 py-3 hidden md:table-cell text-gray-600 dark:text-gray-300">
                   {device.nodeClass?.replace(/_/g, ' ')}
                 </td>
-                <td className="px-4 py-3 hidden lg:table-cell text-gray-600 dark:text-dark-300">
+                <td className="px-4 py-3 hidden lg:table-cell text-gray-600 dark:text-gray-300">
                   {device.customerName || '-'}
                 </td>
                 <td className="px-4 py-3 hidden lg:table-cell text-gray-500 dark:text-dark-400 text-sm">
@@ -394,7 +394,7 @@ export const DevicesView = () => {
               </div>
               <button
                 onClick={() => setSelectedDevice(null)}
-                className="px-4 py-2 text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
               >
                 Schließen
               </button>

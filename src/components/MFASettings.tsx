@@ -356,11 +356,11 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-gray-600 dark:text-dark-300">
+            <p className="text-gray-600 dark:text-gray-300">
               Aktiviere die Zwei-Faktor-Authentifizierung für zusätzliche Sicherheit.
               Du benötigst eine Authenticator-App wie:
             </p>
-            <ul className="list-disc list-inside text-gray-600 dark:text-dark-300 ml-2 space-y-1">
+            <ul className="list-disc list-inside text-gray-600 dark:text-gray-300 ml-2 space-y-1">
               <li>Microsoft Authenticator</li>
               <li>Google Authenticator</li>
               <li>Authy</li>
@@ -400,7 +400,7 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
         <div className="space-y-6">
           {setupStep === 'qr' && setupData && (
             <>
-              <p className="text-gray-600 dark:text-dark-300">
+              <p className="text-gray-600 dark:text-gray-300">
                 Scanne den QR-Code mit deiner Authenticator-App:
               </p>
 
@@ -437,7 +437,7 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
 
           {setupStep === 'verify' && (
             <>
-              <p className="text-gray-600 dark:text-dark-300">
+              <p className="text-gray-600 dark:text-gray-300">
                 Gib den 6-stelligen Code aus deiner Authenticator-App ein:
               </p>
 
@@ -539,7 +539,7 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Passwort
             </label>
             <div className="relative">
@@ -561,7 +561,7 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Authenticator-Code
             </label>
             <input
@@ -608,12 +608,12 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
         <div className="space-y-4">
           {!newRecoveryCodes ? (
             <>
-              <p className="text-gray-600 dark:text-dark-300">
+              <p className="text-gray-600 dark:text-gray-300">
                 Generiere neue Wiederherstellungscodes. Die alten Codes werden ungültig.
               </p>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Passwort
                 </label>
                 <div className="relative">
@@ -635,7 +635,7 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Authenticator-Code
                 </label>
                 <input

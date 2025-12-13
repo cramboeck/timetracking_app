@@ -109,7 +109,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Von
               </label>
               <TimePicker
@@ -119,7 +119,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Bis
               </label>
               <TimePicker

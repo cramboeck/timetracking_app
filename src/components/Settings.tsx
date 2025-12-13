@@ -937,7 +937,7 @@ export const Settings = ({
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
                         isActive
                           ? 'bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-medium'
-                          : 'text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
                       }`}
                     >
                       <Icon size={20} className={isActive ? 'text-accent-primary' : 'text-gray-400'} />
@@ -1552,13 +1552,13 @@ export const Settings = ({
                               <div className="flex items-center gap-2">
                                 <h3 className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</h3>
                                 {customer.customerNumber && (
-                                  <span className="text-xs bg-gray-100 dark:bg-dark-50 text-gray-600 dark:text-dark-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                  <span className="text-xs bg-gray-100 dark:bg-dark-50 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full whitespace-nowrap">
                                     #{customer.customerNumber}
                                   </span>
                                 )}
                               </div>
                               {customer.reportTitle && (
-                                <p className="text-sm text-gray-600 dark:text-dark-300 mt-0.5 truncate">
+                                <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5 truncate">
                                   {customer.reportTitle}
                                 </p>
                               )}
@@ -1603,7 +1603,7 @@ export const Settings = ({
                                 className={`p-2 rounded-lg transition-colors ${
                                   customer.sevdeskCustomerId
                                     ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
-                                    : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
                                 }`}
                                 title={customer.sevdeskCustomerId ? 'sevDesk verknüpft' : 'Mit sevDesk verknüpfen'}
                               >
@@ -1615,7 +1615,7 @@ export const Settings = ({
                                 className={`p-2 rounded-lg transition-colors ${
                                   customer.ninjarmmOrganizationId
                                     ? 'text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'
-                                    : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
                                 }`}
                                 title={customer.ninjarmmOrganizationId ? 'NinjaRMM verknüpft' : 'Mit NinjaRMM verknüpfen'}
                               >
@@ -1624,7 +1624,7 @@ export const Settings = ({
                             {currentUser?.hasTicketAccess && (
                               <button
                                 onClick={() => setContactsCustomer(customer)}
-                                className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
                                 title="Kontakte verwalten"
                               >
                                 <UserCog size={18} />
@@ -1633,7 +1633,7 @@ export const Settings = ({
                             {canEdit && (
                               <button
                                 onClick={() => openCustomerModal(customer)}
-                                className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
                                 title="Bearbeiten"
                               >
                                 <Edit2 size={18} />
@@ -1721,7 +1721,7 @@ export const Settings = ({
                           {canEdit && (
                             <button
                               onClick={() => openProjectModal(project)}
-                              className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                              className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
                             >
                               <Edit2 size={18} />
                             </button>
@@ -1801,7 +1801,7 @@ export const Settings = ({
                             {canEdit && (
                               <button
                                 onClick={() => openActivityModal(activity)}
-                                className="p-2 text-gray-600 dark:text-dark-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                                 title="Bearbeiten"
                               >
                                 <Edit2 size={18} />
@@ -1810,7 +1810,7 @@ export const Settings = ({
                             {canDelete && (
                               <button
                                 onClick={() => handleDeleteActivity(activity)}
-                                className="p-2 text-gray-600 dark:text-dark-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                 title="Löschen"
                               >
                                 <Trash2 size={18} />
@@ -3173,7 +3173,7 @@ export const Settings = ({
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Benutzername
             </label>
             <input
@@ -3186,7 +3186,7 @@ export const Settings = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               E-Mail
             </label>
             <input
@@ -3239,7 +3239,7 @@ export const Settings = ({
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Aktuelles Passwort
             </label>
             <input
@@ -3252,7 +3252,7 @@ export const Settings = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Neues Passwort
             </label>
             <input
@@ -3265,7 +3265,7 @@ export const Settings = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Passwort bestätigen
             </label>
             <input

@@ -93,7 +93,7 @@ export const DesktopSidebar = ({
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-full z-40 flex flex-col
+      className={`fixed left-0 top-0 h-full z-40 flex flex-col overflow-hidden
         bg-white dark:bg-gray-900
         border-r border-gray-200 dark:border-gray-700
         transition-all duration-300 ease-in-out
@@ -112,7 +112,7 @@ export const DesktopSidebar = ({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4">
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide py-4">
         {visibleAreas.map((area, areaIndex) => {
           const config = areaConfig[area];
           const AreaIcon = config.icon;

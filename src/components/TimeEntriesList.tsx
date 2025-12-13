@@ -247,7 +247,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                       )}
                       <button
                         onClick={() => openEditModal(entry)}
-                        className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors touch-manipulation"
+                        className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors touch-manipulation"
                         aria-label="Bearbeiten"
                       >
                         <Edit2 size={18} />
