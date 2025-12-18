@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText, PieChart as PieChartIcon, ChevronDown, ChevronRight, Archive, Trash2, X, Loader2 } from 'lucide-react';
+import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText, PieChart as PieChartIcon, ChevronDown, ChevronRight, Archive, Trash2, X, Loader2, Eye } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,6 +45,14 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
 
   // Saved reports state
+  interface SavedReportEntry {
+    date: string;
+    weekday: string;
+    projectName: string;
+    activityName: string;
+    description: string;
+    hours: number;
+  }
   interface SavedReport {
     id: string;
     customer_id: string;
@@ -57,11 +65,22 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
     project_count: number;
     created_at: string;
     notes: string | null;
+    time_entries: SavedReportEntry[];
   }
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
   const [showSavedReports, setShowSavedReports] = useState(false);
   const [isLoadingSavedReports, setIsLoadingSavedReports] = useState(false);
   const [savedReportsFilter, setSavedReportsFilter] = useState<string>('all');
+
+  // PDF Preview state for saved reports
+  const [savedReportPreview, setSavedReportPreview] = useState<{
+    show: boolean;
+    pdfUrl: string | null;
+    reportName: string;
+    currentIndex: number;
+    totalCount: number;
+  }>({ show: false, pdfUrl: null, reportName: '', currentIndex: 0, totalCount: 0 });
+  const [isGeneratingSavedPreview, setIsGeneratingSavedPreview] = useState(false);
 
   // Load company info from API
   useEffect(() => {
@@ -113,6 +132,233 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
       }
     } catch (error) {
       console.error('Error deleting report:', error);
+    }
+  };
+
+  // Generate PDF from saved report data
+  const generateSavedReportPDF = async (report: SavedReport) => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = 210;
+    const margin = 20;
+
+    // Colors
+    const dark = { r: 17, g: 24, b: 39 };
+    const gray = { r: 107, g: 114, b: 128 };
+    const accent = { r: 249, g: 115, b: 22 };
+
+    // Cover Page
+    let y = 30;
+
+    // Company logo if available
+    if (companyInfo?.logo) {
+      try {
+        doc.addImage(companyInfo.logo, 'AUTO', pageWidth - margin - 40, 20, 40, 20);
+      } catch {}
+    }
+
+    // Company name
+    if (companyInfo?.name) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(companyInfo.name, margin, y);
+    }
+
+    y = 80;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(28);
+    doc.setTextColor(dark.r, dark.g, dark.b);
+    doc.text(report.report_title, margin, y);
+
+    y += 15;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(16);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text(report.customer_name, margin, y);
+
+    y += 10;
+    doc.setFontSize(12);
+    const startDate = new Date(report.start_date).toLocaleDateString('de-DE');
+    const endDate = new Date(report.end_date).toLocaleDateString('de-DE');
+    doc.text(`${startDate} - ${endDate}`, margin, y);
+
+    // Summary cards
+    y = 140;
+    const cardW = 50;
+    const cardH = 35;
+    const cardGap = 10;
+    const startX = (pageWidth - (cardW * 3 + cardGap * 2)) / 2;
+
+    const cards = [
+      { label: 'Gesamtstunden', value: `${report.total_hours.toFixed(2)}h` },
+      { label: 'Einträge', value: String(report.entry_count) },
+      { label: 'Projekte', value: String(report.project_count) }
+    ];
+
+    cards.forEach((card, i) => {
+      const x = startX + i * (cardW + cardGap);
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(x, y, cardW, cardH, 3, 3, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(accent.r, accent.g, accent.b);
+      doc.text(card.value, x + cardW / 2, y + 15, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(card.label, x + cardW / 2, y + 26, { align: 'center' });
+    });
+
+    // Detail pages (landscape)
+    if (report.time_entries && report.time_entries.length > 0) {
+      doc.addPage([297, 210], 'l');
+      const lPageW = 297;
+      const lMargin = 15;
+      let ly = 20;
+
+      // Header
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(`${report.report_title} - ${report.customer_name}`, lMargin, ly);
+
+      ly += 15;
+
+      // Table header
+      const colWidths = [22, 22, 50, 40, 100, 20];
+      const headers = ['Datum', 'Tag', 'Projekt', 'Tätigkeit', 'Beschreibung', 'Std'];
+
+      doc.setFillColor(accent.r, accent.g, accent.b);
+      doc.rect(lMargin, ly - 5, lPageW - lMargin * 2, 8, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+
+      let colX = lMargin + 2;
+      headers.forEach((h, i) => {
+        doc.text(h, colX, ly);
+        colX += colWidths[i];
+      });
+
+      ly += 8;
+
+      // Table rows
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      const rowHeight = 7;
+      let pageRowCount = 0;
+      const maxRowsPerPage = 22;
+
+      report.time_entries.forEach((entry, idx) => {
+        if (pageRowCount >= maxRowsPerPage) {
+          doc.addPage([297, 210], 'l');
+          ly = 20;
+          pageRowCount = 0;
+
+          // Repeat header
+          doc.setFillColor(accent.r, accent.g, accent.b);
+          doc.rect(lMargin, ly - 5, lPageW - lMargin * 2, 8, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.setTextColor(255, 255, 255);
+          colX = lMargin + 2;
+          headers.forEach((h, i) => {
+            doc.text(h, colX, ly);
+            colX += colWidths[i];
+          });
+          ly += 8;
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(dark.r, dark.g, dark.b);
+        }
+
+        // Alternating row background
+        if (idx % 2 === 0) {
+          doc.setFillColor(249, 250, 251);
+          doc.rect(lMargin, ly - 4, lPageW - lMargin * 2, rowHeight, 'F');
+        }
+
+        colX = lMargin + 2;
+        doc.setFontSize(8);
+
+        const entryDate = new Date(entry.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+        doc.text(entryDate, colX, ly);
+        colX += colWidths[0];
+
+        doc.text(entry.weekday || '', colX, ly);
+        colX += colWidths[1];
+
+        doc.text((entry.projectName || '').substring(0, 25), colX, ly);
+        colX += colWidths[2];
+
+        doc.text((entry.activityName || '-').substring(0, 20), colX, ly);
+        colX += colWidths[3];
+
+        doc.text((entry.description || '').substring(0, 60), colX, ly);
+        colX += colWidths[4];
+
+        doc.text(entry.hours.toFixed(2), colX, ly);
+
+        ly += rowHeight;
+        pageRowCount++;
+      });
+
+      // Total row
+      ly += 3;
+      doc.setFillColor(dark.r, dark.g, dark.b);
+      doc.rect(lMargin, ly - 4, lPageW - lMargin * 2, 8, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(255, 255, 255);
+      doc.text('GESAMT', lMargin + 2, ly);
+      doc.text(`${report.total_hours.toFixed(2)} h`, lPageW - lMargin - 18, ly);
+    }
+
+    return doc;
+  };
+
+  // Preview saved report PDF
+  const previewSavedReport = async (index: number) => {
+    const reports = filteredSavedReports;
+    if (index < 0 || index >= reports.length) return;
+
+    setIsGeneratingSavedPreview(true);
+    try {
+      const report = reports[index];
+      const doc = await generateSavedReportPDF(report);
+      const pdfUrl = doc.output('bloburl') as string;
+
+      if (savedReportPreview.pdfUrl) {
+        URL.revokeObjectURL(savedReportPreview.pdfUrl);
+      }
+
+      setSavedReportPreview({
+        show: true,
+        pdfUrl,
+        reportName: `${report.customer_name} - ${report.report_title}`,
+        currentIndex: index,
+        totalCount: reports.length
+      });
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      alert('Fehler beim Erstellen der Vorschau');
+    } finally {
+      setIsGeneratingSavedPreview(false);
+    }
+  };
+
+  const closeSavedReportPreview = () => {
+    if (savedReportPreview.pdfUrl) {
+      URL.revokeObjectURL(savedReportPreview.pdfUrl);
+    }
+    setSavedReportPreview({ show: false, pdfUrl: null, reportName: '', currentIndex: 0, totalCount: 0 });
+  };
+
+  const navigateSavedReportPreview = async (direction: 'prev' | 'next') => {
+    const newIndex = direction === 'next'
+      ? savedReportPreview.currentIndex + 1
+      : savedReportPreview.currentIndex - 1;
+    if (newIndex >= 0 && newIndex < savedReportPreview.totalCount) {
+      await previewSavedReport(newIndex);
     }
   };
 
@@ -1030,13 +1276,23 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                           })}
                         </div>
                       </div>
-                      <button
-                        onClick={() => deleteSavedReport(report.id)}
-                        className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                        title="Report löschen"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => previewSavedReport(filteredSavedReports.indexOf(report))}
+                          disabled={isGeneratingSavedPreview}
+                          className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors disabled:opacity-50"
+                          title="PDF Vorschau"
+                        >
+                          {isGeneratingSavedPreview ? <Loader2 size={18} className="animate-spin" /> : <Eye size={18} />}
+                        </button>
+                        <button
+                          onClick={() => deleteSavedReport(report.id)}
+                          className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                          title="Report löschen"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1054,6 +1310,76 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
               >
                 Schließen
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Preview Modal for Saved Reports */}
+      {savedReportPreview.show && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[95vw] h-[95vh] max-w-7xl flex flex-col">
+            {/* Preview Header */}
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileText size={20} className="text-blue-600" />
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    {savedReportPreview.reportName}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    PDF Vorschau
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Navigation for multiple reports */}
+                {savedReportPreview.totalCount > 1 && (
+                  <div className="flex items-center gap-1 mr-4">
+                    <button
+                      onClick={() => navigateSavedReportPreview('prev')}
+                      disabled={savedReportPreview.currentIndex === 0 || isGeneratingSavedPreview}
+                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
+                    </button>
+                    <span className="text-sm text-gray-600 dark:text-gray-300 min-w-[60px] text-center">
+                      {savedReportPreview.currentIndex + 1} / {savedReportPreview.totalCount}
+                    </span>
+                    <button
+                      onClick={() => navigateSavedReportPreview('next')}
+                      disabled={savedReportPreview.currentIndex === savedReportPreview.totalCount - 1 || isGeneratingSavedPreview}
+                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={closeSavedReportPreview}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
+              </div>
+            </div>
+
+            {/* PDF Viewer */}
+            <div className="flex-1 bg-gray-100 dark:bg-gray-900 overflow-hidden">
+              {isGeneratingSavedPreview ? (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 size={40} className="animate-spin text-blue-600" />
+                    <span className="text-gray-600 dark:text-gray-400">PDF wird generiert...</span>
+                  </div>
+                </div>
+              ) : savedReportPreview.pdfUrl ? (
+                <iframe
+                  src={savedReportPreview.pdfUrl}
+                  className="w-full h-full border-0"
+                  title="PDF Preview"
+                />
+              ) : null}
             </div>
           </div>
         </div>

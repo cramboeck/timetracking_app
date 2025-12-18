@@ -255,7 +255,9 @@ router.get('/saved', authenticateToken, async (req: AuthRequest, res) => {
           entry_count: reportData.entryCount || 0,
           project_count: reportData.projectCount || 0,
           created_at: row.created_at,
-          notes: row.notes
+          notes: row.notes,
+          // Include full data for PDF generation
+          time_entries: reportData.timeEntries || []
         };
       })
     });
