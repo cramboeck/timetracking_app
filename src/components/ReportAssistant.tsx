@@ -448,10 +448,20 @@ export const ReportAssistant = ({
 
       y += 10;
       let rowIndex = 0;
+      const lineHeight = 4; // Height per line of text
+      const minRowHeight = 7; // Minimum row height
+      const maxDescWidth = colHours - colDesc - 15; // Width for description column
 
       for (const entry of customerEntries) {
-        // Check for page break
-        if (y > lHeight - 25) {
+        // Calculate description lines first to know row height
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        const desc = entry.description || '-';
+        const descLines = doc.splitTextToSize(desc, maxDescWidth);
+        const rowHeight = Math.max(minRowHeight, descLines.length * lineHeight + 3);
+
+        // Check for page break with dynamic row height
+        if (y + rowHeight > lHeight - 25) {
           // Add page footer
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(8);
@@ -479,10 +489,10 @@ export const ReportAssistant = ({
           y += 10;
         }
 
-        // Alternating row background
+        // Alternating row background with dynamic height
         if (rowIndex % 2 === 1) {
           doc.setFillColor(250, 250, 250);
-          doc.rect(margin, y - 4, lWidth - margin * 2, 7, 'F');
+          doc.rect(margin, y - 4, lWidth - margin * 2, rowHeight, 'F');
         }
 
         doc.setFont('helvetica', 'normal');
@@ -497,7 +507,7 @@ export const ReportAssistant = ({
         doc.text(entry.weekday, colDay, y);
         doc.setTextColor(dark.r, dark.g, dark.b);
 
-        // Project
+        // Project (truncate if needed)
         const maxProjectWidth = 52;
         let projectName = entry.project.name;
         while (doc.getTextWidth(projectName) > maxProjectWidth && projectName.length > 3) {
@@ -505,7 +515,7 @@ export const ReportAssistant = ({
         }
         doc.text(projectName, colProject, y);
 
-        // Activity
+        // Activity (truncate if needed)
         const maxActivityWidth = 50;
         let activityName = entry.activity?.name || '-';
         while (doc.getTextWidth(activityName) > maxActivityWidth && activityName.length > 3) {
@@ -513,19 +523,15 @@ export const ReportAssistant = ({
         }
         doc.text(activityName, colActivity, y);
 
-        // Description
-        const maxDescWidth = colHours - colDesc - 25;
-        let desc = entry.description || '-';
-        while (doc.getTextWidth(desc) > maxDescWidth && desc.length > 3) {
-          desc = desc.substring(0, desc.length - 4) + '...';
-        }
-        doc.text(desc, colDesc, y);
+        // Description - multi-line
+        doc.text(descLines, colDesc, y);
 
-        // Hours
+        // Hours (vertically centered if multi-line)
         doc.setFont('helvetica', 'bold');
-        doc.text(formatHoursMinutes(entry.hours), colHours, y, { align: 'right' });
+        const hoursY = descLines.length > 1 ? y + ((descLines.length - 1) * lineHeight) / 2 : y;
+        doc.text(formatHoursMinutes(entry.hours), colHours, hoursY, { align: 'right' });
 
-        y += 7;
+        y += rowHeight;
         rowIndex++;
       }
 
