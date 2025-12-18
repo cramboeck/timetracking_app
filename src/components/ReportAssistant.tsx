@@ -69,10 +69,18 @@ export const ReportAssistant = ({
 
   // Report options
   const [showAmounts, setShowAmounts] = useState(false);
-  const [dateRangeType, setDateRangeType] = useState<'month' | 'custom'>('month');
+  const [dateRangeType, setDateRangeType] = useState<'month' | 'quarter' | 'year' | 'custom'>('month');
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [selectedQuarter, setSelectedQuarter] = useState(() => {
+    const now = new Date();
+    const quarter = Math.floor(now.getMonth() / 3) + 1;
+    return `${now.getFullYear()}-Q${quarter}`;
+  });
+  const [selectedYear, setSelectedYear] = useState(() => {
+    return new Date().getFullYear().toString();
   });
   const [customStartDate, setCustomStartDate] = useState(() => {
     const now = new Date();
@@ -91,13 +99,27 @@ export const ReportAssistant = ({
         start: new Date(year, month - 1, 1),
         end: new Date(year, month, 0, 23, 59, 59)
       };
+    } else if (dateRangeType === 'quarter') {
+      const [year, q] = selectedQuarter.split('-Q');
+      const quarter = parseInt(q);
+      const startMonth = (quarter - 1) * 3;
+      return {
+        start: new Date(parseInt(year), startMonth, 1),
+        end: new Date(parseInt(year), startMonth + 3, 0, 23, 59, 59)
+      };
+    } else if (dateRangeType === 'year') {
+      const year = parseInt(selectedYear);
+      return {
+        start: new Date(year, 0, 1),
+        end: new Date(year, 11, 31, 23, 59, 59)
+      };
     } else {
       return {
         start: new Date(customStartDate),
         end: new Date(customEndDate + 'T23:59:59')
       };
     }
-  }, [dateRangeType, selectedMonth, customStartDate, customEndDate]);
+  }, [dateRangeType, selectedMonth, selectedQuarter, selectedYear, customStartDate, customEndDate]);
 
   // Load company info from API
   useEffect(() => {
@@ -213,50 +235,62 @@ export const ReportAssistant = ({
     return customerEntries.sort((a, b) => a.date.getTime() - b.date.getTime());
   };
 
+  // Helper to get image dimensions from base64/data URL
+  const getImageDimensions = (src: string): Promise<{ width: number; height: number }> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => resolve({ width: 200, height: 100 }); // fallback
+      img.src = src;
+    });
+  };
+
   // Generate Clockodo-style PDF
-  const generateClockodoPDF = (customerData: CustomerReportData) => {
-    const doc = new jsPDF();
+  const generateClockodoPDF = async (customerData: CustomerReportData) => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const customerEntries = getCustomerEntries(customerData.customer.id);
-    const pageWidth = 210;
-    const pageHeight = 297;
+
+    // Portrait page dimensions
+    const portraitWidth = 210;
+    const portraitHeight = 297;
+    // Landscape page dimensions
+    const landscapeWidth = 297;
+    const landscapeHeight = 210;
+
     const marginLeft = 20;
     const marginRight = 20;
-    const contentWidth = pageWidth - marginLeft - marginRight;
 
     // Colors
     const accentColor = { r: 249, g: 115, b: 22 }; // Orange (#f97316)
 
-    // ============ COVER PAGE ============
+    // ============ COVER PAGE (Portrait) ============
     let y = 40;
 
-    // Logo (top right, properly scaled for rectangular logos)
+    // Logo (top right, properly scaled maintaining aspect ratio)
     if (companyInfo?.logo) {
       try {
-        const img = new Image();
-        img.src = companyInfo.logo;
+        const imgDims = await getImageDimensions(companyInfo.logo);
 
-        // Max dimensions for logo
-        const maxLogoWidth = 45;
-        const maxLogoHeight = 25;
+        // Max dimensions for logo on cover
+        const maxLogoWidth = 50;
+        const maxLogoHeight = 28;
 
-        // Calculate aspect ratio and scale
-        let logoWidth = maxLogoWidth;
-        let logoHeight = maxLogoHeight;
+        // Calculate proper scaling
+        const aspectRatio = imgDims.width / imgDims.height;
+        let logoWidth: number;
+        let logoHeight: number;
 
-        if (img.width && img.height) {
-          const aspectRatio = img.width / img.height;
-          if (aspectRatio > maxLogoWidth / maxLogoHeight) {
-            // Width constrained
-            logoWidth = maxLogoWidth;
-            logoHeight = maxLogoWidth / aspectRatio;
-          } else {
-            // Height constrained
-            logoHeight = maxLogoHeight;
-            logoWidth = maxLogoHeight * aspectRatio;
-          }
+        if (aspectRatio > maxLogoWidth / maxLogoHeight) {
+          // Width is the limiting factor
+          logoWidth = maxLogoWidth;
+          logoHeight = maxLogoWidth / aspectRatio;
+        } else {
+          // Height is the limiting factor
+          logoHeight = maxLogoHeight;
+          logoWidth = maxLogoHeight * aspectRatio;
         }
 
-        doc.addImage(companyInfo.logo, 'PNG', pageWidth - marginRight - logoWidth, 15, logoWidth, logoHeight);
+        doc.addImage(companyInfo.logo, 'AUTO', portraitWidth - marginRight - logoWidth, 15, logoWidth, logoHeight);
       } catch (error) {
         console.error('Error adding logo:', error);
       }
@@ -287,8 +321,9 @@ export const ReportAssistant = ({
 
     // Summary box (gray background)
     y = 140;
+    const coverContentWidth = portraitWidth - marginLeft - marginRight;
     doc.setFillColor(245, 245, 245);
-    doc.roundedRect(marginLeft, y, contentWidth, 40, 3, 3, 'F');
+    doc.roundedRect(marginLeft, y, coverContentWidth, 40, 3, 3, 'F');
 
     // Clock icon placeholder (circle)
     doc.setFillColor(50, 50, 50);
@@ -325,8 +360,8 @@ export const ReportAssistant = ({
     doc.text(`Unterschrift ${companyInfo?.name || 'Auftragnehmer'}`, marginLeft, y + 6);
 
     // Right signature line
-    doc.line(pageWidth / 2 + 10, y, pageWidth - marginRight, y);
-    doc.text('Unterschrift Akzeptanz', pageWidth / 2 + 10, y + 6);
+    doc.line(portraitWidth / 2 + 10, y, portraitWidth - marginRight, y);
+    doc.text('Unterschrift Akzeptanz', portraitWidth / 2 + 10, y + 6);
 
     // Creation timestamp
     const now = new Date();
@@ -335,20 +370,28 @@ export const ReportAssistant = ({
     doc.text(
       `Erstellt am ${now.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })} ${now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
       marginLeft,
-      pageHeight - 20
+      portraitHeight - 20
     );
 
-    // ============ DETAIL PAGES ============
+    // ============ DETAIL PAGES (Landscape) ============
     if (customerEntries.length > 0) {
-      doc.addPage();
+      // Add landscape page for details
+      doc.addPage('landscape');
       y = 20;
 
-      // Header on detail pages
-      const addDetailHeader = () => {
+      // Column positions for landscape (297mm wide)
+      const colDatum = marginLeft;
+      const colTag = marginLeft + 28;
+      const colLeistung = marginLeft + 45;
+      const colBeschreibung = marginLeft + 100;
+      const colMenge = landscapeWidth - marginRight;
+
+      // Header on detail pages (landscape)
+      const addDetailHeader = async () => {
         // Orange accent line
         doc.setDrawColor(accentColor.r, accentColor.g, accentColor.b);
         doc.setLineWidth(2);
-        doc.line(marginLeft, 15, marginLeft, 45);
+        doc.line(marginLeft, 15, marginLeft, 42);
 
         // Report info
         doc.setFont('helvetica', 'normal');
@@ -366,32 +409,39 @@ export const ReportAssistant = ({
         doc.setTextColor(80, 80, 80);
         doc.text(formatDateRange(dateRange.start, dateRange.end), marginLeft + 6, 36);
 
-        // Logo on detail pages
+        // Logo on detail pages (landscape) - properly scaled
         if (companyInfo?.logo) {
           try {
-            const maxLogoWidth = 35;
-            const maxLogoHeight = 18;
-            doc.addImage(companyInfo.logo, 'PNG', pageWidth - marginRight - maxLogoWidth, 15, maxLogoWidth, maxLogoHeight);
+            const imgDims = await getImageDimensions(companyInfo.logo);
+            const maxLogoWidth = 40;
+            const maxLogoHeight = 20;
+            const aspectRatio = imgDims.width / imgDims.height;
+            let logoWidth: number;
+            let logoHeight: number;
+
+            if (aspectRatio > maxLogoWidth / maxLogoHeight) {
+              logoWidth = maxLogoWidth;
+              logoHeight = maxLogoWidth / aspectRatio;
+            } else {
+              logoHeight = maxLogoHeight;
+              logoWidth = maxLogoHeight * aspectRatio;
+            }
+
+            doc.addImage(companyInfo.logo, 'AUTO', landscapeWidth - marginRight - logoWidth, 15, logoWidth, logoHeight);
           } catch (error) {
             // Ignore logo errors
           }
         }
 
-        return 55;
+        return 50;
       };
 
-      y = addDetailHeader();
+      y = await addDetailHeader();
 
       // Table header
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(0, 0, 0);
-
-      const colDatum = marginLeft;
-      const colTag = marginLeft + 25;
-      const colLeistung = marginLeft + 40;
-      const colBeschreibung = marginLeft + 75;
-      const colMenge = pageWidth - marginRight - 15;
 
       doc.text('Datum', colDatum, y);
       doc.text('Tag', colTag, y);
@@ -402,18 +452,18 @@ export const ReportAssistant = ({
       y += 3;
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.5);
-      doc.line(marginLeft, y, pageWidth - marginRight, y);
+      doc.line(marginLeft, y, landscapeWidth - marginRight, y);
       y += 8;
 
       // Table rows
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
 
-      customerEntries.forEach((entry, index) => {
-        // Check for page break
-        if (y > pageHeight - 30) {
-          doc.addPage();
-          y = addDetailHeader();
+      for (const entry of customerEntries) {
+        // Check for page break (landscape height is 210mm)
+        if (y > landscapeHeight - 25) {
+          doc.addPage('landscape');
+          y = await addDetailHeader();
 
           // Re-add table header
           doc.setFont('helvetica', 'bold');
@@ -425,7 +475,7 @@ export const ReportAssistant = ({
           doc.text('Menge', colMenge, y, { align: 'right' });
           y += 3;
           doc.setLineWidth(0.5);
-          doc.line(marginLeft, y, pageWidth - marginRight, y);
+          doc.line(marginLeft, y, landscapeWidth - marginRight, y);
           y += 8;
           doc.setFont('helvetica', 'normal');
         }
@@ -438,14 +488,15 @@ export const ReportAssistant = ({
 
         // Service/Activity (use project name or activity)
         const leistung = entry.activity?.name || entry.project.name;
-        const maxLeistungWidth = 30;
-        const truncatedLeistung = doc.getTextWidth(leistung) > maxLeistungWidth
-          ? leistung.substring(0, 15) + '...'
-          : leistung;
+        const maxLeistungWidth = 50;
+        let truncatedLeistung = leistung;
+        while (doc.getTextWidth(truncatedLeistung) > maxLeistungWidth && truncatedLeistung.length > 3) {
+          truncatedLeistung = truncatedLeistung.substring(0, truncatedLeistung.length - 4) + '...';
+        }
         doc.text(truncatedLeistung, colLeistung, y);
 
-        // Description (truncate if needed)
-        const maxDescWidth = colMenge - colBeschreibung - 20;
+        // Description (truncate if needed) - more space in landscape
+        const maxDescWidth = colMenge - colBeschreibung - 25;
         let desc = entry.description || '-';
         while (doc.getTextWidth(desc) > maxDescWidth && desc.length > 3) {
           desc = desc.substring(0, desc.length - 4) + '...';
@@ -456,14 +507,14 @@ export const ReportAssistant = ({
         doc.text(formatHoursMinutes(entry.hours), colMenge, y, { align: 'right' });
 
         y += 6;
-      });
+      }
 
       // Optional: Total at bottom of last page
-      if (y < pageHeight - 40) {
+      if (y < landscapeHeight - 30) {
         y += 5;
         doc.setDrawColor(0, 0, 0);
         doc.setLineWidth(0.3);
-        doc.line(colMenge - 30, y, pageWidth - marginRight, y);
+        doc.line(colMenge - 30, y, landscapeWidth - marginRight, y);
         y += 6;
         doc.setFont('helvetica', 'bold');
         doc.text('Gesamt:', colMenge - 30, y);
@@ -474,17 +525,28 @@ export const ReportAssistant = ({
     return doc;
   };
 
-  const exportSelected = () => {
-    selectedCustomers.forEach(customerId => {
+  const exportSelected = async () => {
+    for (const customerId of Array.from(selectedCustomers)) {
       const customerData = reportData.find(d => d.customer.id === customerId);
       if (customerData) {
-        const doc = generateClockodoPDF(customerData);
-        const dateStr = dateRangeType === 'month'
-          ? selectedMonth.replace('-', '_')
-          : `${customStartDate}_${customEndDate}`;
+        const doc = await generateClockodoPDF(customerData);
+        let dateStr: string;
+        switch (dateRangeType) {
+          case 'month':
+            dateStr = selectedMonth.replace('-', '_');
+            break;
+          case 'quarter':
+            dateStr = selectedQuarter.replace('-', '_');
+            break;
+          case 'year':
+            dateStr = selectedYear;
+            break;
+          default:
+            dateStr = `${customStartDate}_${customEndDate}`;
+        }
         doc.save(`Dienstleistungsreport_${customerData.customer.name.replace(/\s+/g, '_')}_${dateStr}.pdf`);
       }
-    });
+    }
   };
 
   const generateEmailTemplate = () => {
@@ -533,6 +595,40 @@ ${companyInfo?.phone || ''}`;
     return options;
   }, []);
 
+  // Generate quarter options (last 8 quarters)
+  const quarterOptions = useMemo(() => {
+    const options = [];
+    const now = new Date();
+    const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+    const currentYear = now.getFullYear();
+
+    for (let i = 0; i < 8; i++) {
+      let q = currentQuarter - i;
+      let y = currentYear;
+      while (q <= 0) {
+        q += 4;
+        y -= 1;
+      }
+      const quarterNames = ['Q1 (Jan-Mär)', 'Q2 (Apr-Jun)', 'Q3 (Jul-Sep)', 'Q4 (Okt-Dez)'];
+      options.push({
+        value: `${y}-Q${q}`,
+        label: `${quarterNames[q - 1]} ${y}`
+      });
+    }
+    return options;
+  }, []);
+
+  // Generate year options (last 5 years)
+  const yearOptions = useMemo(() => {
+    const options = [];
+    const currentYear = new Date().getFullYear();
+    for (let i = 0; i < 5; i++) {
+      const year = currentYear - i;
+      options.push({ value: year.toString(), label: year.toString() });
+    }
+    return options;
+  }, []);
+
   if (!isOpen) return null;
 
   return (
@@ -567,7 +663,7 @@ ${companyInfo?.phone || ''}`;
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Zeitraum
               </label>
-              <div className="flex gap-2">
+              <div className="flex gap-1 flex-wrap">
                 <button
                   onClick={() => setDateRangeType('month')}
                   className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
@@ -576,8 +672,27 @@ ${companyInfo?.phone || ''}`;
                       : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-gray-300'
                   }`}
                 >
-                  <Calendar size={14} className="inline mr-1" />
                   Monat
+                </button>
+                <button
+                  onClick={() => setDateRangeType('quarter')}
+                  className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                    dateRangeType === 'quarter'
+                      ? 'bg-accent-primary text-white border-accent-primary'
+                      : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  Quartal
+                </button>
+                <button
+                  onClick={() => setDateRangeType('year')}
+                  className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                    dateRangeType === 'year'
+                      ? 'bg-accent-primary text-white border-accent-primary'
+                      : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  Jahr
                 </button>
                 <button
                   onClick={() => setDateRangeType('custom')}
@@ -587,13 +702,13 @@ ${companyInfo?.phone || ''}`;
                       : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-gray-300'
                   }`}
                 >
-                  Benutzerdefiniert
+                  Frei
                 </button>
               </div>
             </div>
 
-            {/* Month Selector or Custom Dates */}
-            {dateRangeType === 'month' ? (
+            {/* Date Range Selector based on type */}
+            {dateRangeType === 'month' && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                   Monat wählen
@@ -608,7 +723,43 @@ ${companyInfo?.phone || ''}`;
                   ))}
                 </select>
               </div>
-            ) : (
+            )}
+
+            {dateRangeType === 'quarter' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Quartal wählen
+                </label>
+                <select
+                  value={selectedQuarter}
+                  onChange={(e) => setSelectedQuarter(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                >
+                  {quarterOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {dateRangeType === 'year' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Jahr wählen
+                </label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                >
+                  {yearOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {dateRangeType === 'custom' && (
               <>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
