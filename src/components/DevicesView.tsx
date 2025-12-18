@@ -24,6 +24,7 @@ export const DevicesView = () => {
   const [softwareLoading, setSoftwareLoading] = useState(false);
   const [softwareLastFetched, setSoftwareLastFetched] = useState<string | null>(null);
   const [softwareSearch, setSoftwareSearch] = useState('');
+  const [softwareSort, setSoftwareSort] = useState<'name' | 'date'>('name');
 
   useEffect(() => {
     loadDataAndSync();
@@ -144,16 +145,45 @@ export const DevicesView = () => {
     setShowSoftware(!showSoftware);
   };
 
-  // Filter software by search
+  // Filter and sort software
   const filteredSoftware = useMemo(() => {
-    if (!softwareSearch) return software;
-    const search = softwareSearch.toLowerCase();
-    return software.filter(sw =>
-      sw.name.toLowerCase().includes(search) ||
-      sw.publisher?.toLowerCase().includes(search) ||
-      sw.version?.toLowerCase().includes(search)
-    );
-  }, [software, softwareSearch]);
+    let result = software;
+
+    // Filter by search
+    if (softwareSearch) {
+      const search = softwareSearch.toLowerCase();
+      result = result.filter(sw =>
+        sw.name.toLowerCase().includes(search) ||
+        sw.publisher?.toLowerCase().includes(search) ||
+        sw.version?.toLowerCase().includes(search)
+      );
+    }
+
+    // Sort
+    return [...result].sort((a, b) => {
+      if (softwareSort === 'date') {
+        // Sort by install date (newest first), null dates at end
+        if (!a.installDate && !b.installDate) return 0;
+        if (!a.installDate) return 1;
+        if (!b.installDate) return -1;
+        return new Date(b.installDate).getTime() - new Date(a.installDate).getTime();
+      }
+      // Sort by name (alphabetically)
+      return a.name.localeCompare(b.name, 'de');
+    });
+  }, [software, softwareSearch, softwareSort]);
+
+  // Format install date for display
+  const formatInstallDate = (dateStr: string | null) => {
+    if (!dateStr) return '-';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
 
   // Reset software when device changes
   useEffect(() => {
@@ -495,32 +525,59 @@ export const DevicesView = () => {
                 {showSoftware && (
                   <div className="p-4 border-t border-gray-200 dark:border-dark-200">
                     {/* Software Header */}
-                    <div className="flex flex-col sm:flex-row gap-3 mb-4">
-                      <div className="relative flex-1">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                          type="text"
-                          placeholder="Software suchen..."
-                          value={softwareSearch}
-                          onChange={(e) => setSoftwareSearch(e.target.value)}
-                          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
-                        />
+                    <div className="flex flex-col gap-3 mb-4">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1">
+                          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Software suchen..."
+                            value={softwareSearch}
+                            onChange={(e) => setSoftwareSearch(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                          />
+                        </div>
+                        <button
+                          onClick={() => selectedDevice && refreshSoftware(selectedDevice.id)}
+                          disabled={softwareLoading}
+                          className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-200 disabled:opacity-50 transition-colors"
+                        >
+                          <RefreshCw size={14} className={softwareLoading ? 'animate-spin' : ''} />
+                          <span className="sm:inline">Aktualisieren</span>
+                        </button>
                       </div>
-                      <button
-                        onClick={() => selectedDevice && refreshSoftware(selectedDevice.id)}
-                        disabled={softwareLoading}
-                        className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-200 disabled:opacity-50 transition-colors"
-                      >
-                        <RefreshCw size={14} className={softwareLoading ? 'animate-spin' : ''} />
-                        Aktualisieren
-                      </button>
-                    </div>
 
-                    {softwareLastFetched && (
-                      <p className="text-xs text-gray-500 dark:text-dark-400 mb-3">
-                        Zuletzt abgerufen: {new Date(softwareLastFetched).toLocaleString('de-DE')}
-                      </p>
-                    )}
+                      {/* Sort Toggle */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
+                          <button
+                            onClick={() => setSoftwareSort('name')}
+                            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                              softwareSort === 'name'
+                                ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                                : 'text-gray-500 dark:text-dark-400 hover:text-gray-700'
+                            }`}
+                          >
+                            A-Z
+                          </button>
+                          <button
+                            onClick={() => setSoftwareSort('date')}
+                            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                              softwareSort === 'date'
+                                ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                                : 'text-gray-500 dark:text-dark-400 hover:text-gray-700'
+                            }`}
+                          >
+                            Datum
+                          </button>
+                        </div>
+                        {softwareLastFetched && (
+                          <p className="text-xs text-gray-500 dark:text-dark-400">
+                            Stand: {new Date(softwareLastFetched).toLocaleDateString('de-DE')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
 
                     {softwareLoading ? (
                       <div className="flex items-center justify-center py-8">
@@ -531,21 +588,45 @@ export const DevicesView = () => {
                         {software.length === 0 ? 'Keine Software gefunden' : 'Keine Software entspricht der Suche'}
                       </div>
                     ) : (
-                      <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-dark-200 rounded-lg">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50 dark:bg-dark-50 sticky top-0">
+                      <div className="max-h-72 overflow-y-auto">
+                        {/* Mobile: Card View */}
+                        <div className="sm:hidden space-y-2">
+                          {filteredSoftware.map(sw => (
+                            <div key={sw.id} className="p-3 bg-gray-50 dark:bg-dark-50 rounded-lg">
+                              <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{sw.name}</p>
+                              {sw.publisher && (
+                                <p className="text-xs text-gray-500 dark:text-dark-400 truncate">{sw.publisher}</p>
+                              )}
+                              <div className="flex items-center justify-between mt-2 text-xs">
+                                <span className="text-gray-600 dark:text-gray-400 font-mono">{sw.version || '-'}</span>
+                                {sw.installDate && (
+                                  <span className="text-gray-500 dark:text-dark-400">{formatInstallDate(sw.installDate)}</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Desktop: Table View */}
+                        <table className="hidden sm:table w-full text-sm border border-gray-200 dark:border-dark-200 rounded-lg overflow-hidden">
+                          <thead className="bg-gray-50 dark:bg-dark-50">
                             <tr>
                               <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-dark-400">Name</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-dark-400 hidden sm:table-cell">Hersteller</th>
                               <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-dark-400">Version</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-dark-400">Installiert</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
                             {filteredSoftware.map(sw => (
                               <tr key={sw.id} className="hover:bg-gray-50 dark:hover:bg-dark-50">
-                                <td className="px-3 py-2 text-gray-900 dark:text-white">{sw.name}</td>
-                                <td className="px-3 py-2 text-gray-500 dark:text-dark-400 hidden sm:table-cell">{sw.publisher || '-'}</td>
+                                <td className="px-3 py-2">
+                                  <p className="text-gray-900 dark:text-white">{sw.name}</p>
+                                  {sw.publisher && (
+                                    <p className="text-xs text-gray-500 dark:text-dark-400">{sw.publisher}</p>
+                                  )}
+                                </td>
                                 <td className="px-3 py-2 text-gray-500 dark:text-dark-400 font-mono text-xs">{sw.version || '-'}</td>
+                                <td className="px-3 py-2 text-gray-500 dark:text-dark-400 text-xs">{formatInstallDate(sw.installDate)}</td>
                               </tr>
                             ))}
                           </tbody>

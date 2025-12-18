@@ -51,6 +51,7 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
   const [deviceSoftware, setDeviceSoftware] = useState<Record<string, DeviceSoftware[]>>({});
   const [loadingSoftware, setLoadingSoftware] = useState<string | null>(null);
   const [softwareSearch, setSoftwareSearch] = useState('');
+  const [softwareSort, setSoftwareSort] = useState<'name' | 'date'>('name');
 
   useEffect(() => {
     loadDevices();
@@ -124,16 +125,44 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
     }
   };
 
-  // Filter software by search
+  // Filter and sort software
   const getFilteredSoftware = (deviceId: string) => {
-    const sw = deviceSoftware[deviceId] || [];
-    if (!softwareSearch) return sw;
-    const search = softwareSearch.toLowerCase();
-    return sw.filter(s =>
-      s.name.toLowerCase().includes(search) ||
-      s.publisher?.toLowerCase().includes(search) ||
-      s.version?.toLowerCase().includes(search)
-    );
+    let result = deviceSoftware[deviceId] || [];
+
+    // Filter by search
+    if (softwareSearch) {
+      const search = softwareSearch.toLowerCase();
+      result = result.filter(s =>
+        s.name.toLowerCase().includes(search) ||
+        s.publisher?.toLowerCase().includes(search) ||
+        s.version?.toLowerCase().includes(search)
+      );
+    }
+
+    // Sort
+    return [...result].sort((a, b) => {
+      if (softwareSort === 'date') {
+        // Sort by install date (newest first), null dates at end
+        if (!a.installDate && !b.installDate) return 0;
+        if (!a.installDate) return 1;
+        if (!b.installDate) return -1;
+        return new Date(b.installDate).getTime() - new Date(a.installDate).getTime();
+      }
+      // Sort by name (alphabetically)
+      return a.name.localeCompare(b.name, 'de');
+    });
+  };
+
+  // Format install date for display
+  const formatSoftwareDate = (dateStr: string | null) => {
+    if (!dateStr) return '-';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
   };
 
   const toggleExpand = (deviceId: string) => {
@@ -610,26 +639,53 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                             </div>
                           ) : (
                             <>
-                              <div className="flex gap-2 mb-2">
-                                <div className="relative flex-1">
-                                  <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
-                                  <input
-                                    type="text"
-                                    placeholder="Software suchen..."
-                                    value={softwareSearch}
-                                    onChange={(e) => setSoftwareSearch(e.target.value)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="w-full pl-7 pr-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                  />
+                              {/* Search and Controls */}
+                              <div className="space-y-2 mb-3">
+                                <div className="flex gap-2">
+                                  <div className="relative flex-1">
+                                    <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                      type="text"
+                                      placeholder="Software suchen..."
+                                      value={softwareSearch}
+                                      onChange={(e) => setSoftwareSearch(e.target.value)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-full pl-7 pr-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    />
+                                  </div>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); loadDeviceSoftware(device.id, true); }}
+                                    disabled={loadingSoftware === device.id}
+                                    className="p-1.5 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 disabled:opacity-50"
+                                    title="Aktualisieren"
+                                  >
+                                    <RefreshCw size={12} className={loadingSoftware === device.id ? 'animate-spin' : ''} />
+                                  </button>
                                 </div>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); loadDeviceSoftware(device.id, true); }}
-                                  disabled={loadingSoftware === device.id}
-                                  className="p-1.5 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 disabled:opacity-50"
-                                  title="Aktualisieren"
-                                >
-                                  <RefreshCw size={12} className={loadingSoftware === device.id ? 'animate-spin' : ''} />
-                                </button>
+
+                                {/* Sort Toggle */}
+                                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded p-0.5" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    onClick={() => setSoftwareSort('name')}
+                                    className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+                                      softwareSort === 'name'
+                                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400'
+                                    }`}
+                                  >
+                                    A-Z
+                                  </button>
+                                  <button
+                                    onClick={() => setSoftwareSort('date')}
+                                    className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+                                      softwareSort === 'date'
+                                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400'
+                                    }`}
+                                  >
+                                    Datum
+                                  </button>
+                                </div>
                               </div>
 
                               {getFilteredSoftware(device.id).length === 0 ? (
@@ -637,30 +693,22 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                                   {deviceSoftware[device.id]?.length === 0 ? 'Keine Software gefunden' : 'Keine Treffer'}
                                 </p>
                               ) : (
-                                <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded">
-                                  <table className="w-full text-xs">
-                                    <thead className="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
-                                      <tr>
-                                        <th className="px-2 py-1 text-left text-gray-500 dark:text-gray-400">Name</th>
-                                        <th className="px-2 py-1 text-left text-gray-500 dark:text-gray-400 hidden sm:table-cell">Version</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-600">
-                                      {getFilteredSoftware(device.id).map(sw => (
-                                        <tr key={sw.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                          <td className="px-2 py-1 text-gray-900 dark:text-white">
-                                            {sw.name}
-                                            {sw.publisher && (
-                                              <span className="block text-gray-400 dark:text-gray-500 truncate">{sw.publisher}</span>
-                                            )}
-                                          </td>
-                                          <td className="px-2 py-1 text-gray-500 dark:text-gray-400 hidden sm:table-cell font-mono">
-                                            {sw.version || '-'}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
+                                <div className="max-h-48 overflow-y-auto space-y-1.5">
+                                  {/* Card view for all screen sizes (better for mobile) */}
+                                  {getFilteredSoftware(device.id).map(sw => (
+                                    <div key={sw.id} className="p-2 bg-white dark:bg-gray-700/50 rounded border border-gray-100 dark:border-gray-600">
+                                      <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{sw.name}</p>
+                                      {sw.publisher && (
+                                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{sw.publisher}</p>
+                                      )}
+                                      <div className="flex items-center justify-between mt-1 text-xs">
+                                        <span className="text-gray-500 dark:text-gray-400 font-mono">{sw.version || '-'}</span>
+                                        {sw.installDate && (
+                                          <span className="text-gray-400 dark:text-gray-500">{formatSoftwareDate(sw.installDate)}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </>
