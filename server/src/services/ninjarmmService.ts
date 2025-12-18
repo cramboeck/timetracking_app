@@ -759,24 +759,40 @@ function parseNinjaTimestamp(value: string | number | null | undefined): Date | 
 
 // Helper function to extract private IP from device data
 function extractPrivateIp(device: NinjaRMMDevice): string | null {
+  const deviceName = device.systemName || device.displayName || `Device-${device.id}`;
+
   // First check if there's a direct privateIp field on the device
   const directIp = (device as any).privateIp || (device as any).internalIp || (device as any).localIp || (device as any).ipAddress;
   if (typeof directIp === 'string' && directIp) {
     // Verify it's a private IP
     if (directIp.startsWith('10.') || directIp.startsWith('192.168.') ||
         (directIp.startsWith('172.') && parseInt(directIp.split('.')[1]) >= 16 && parseInt(directIp.split('.')[1]) <= 31)) {
+      console.log(`[IP-Extract] ${deviceName}: Found direct private IP: ${directIp}`);
       return directIp;
     }
   }
 
   // Search through NICs
   const nics = device.nics || [];
+
+  // Debug: Log the NICs structure for first few devices
+  if (nics.length > 0) {
+    console.log(`[IP-Extract] ${deviceName}: Found ${nics.length} NICs`);
+  } else {
+    console.log(`[IP-Extract] ${deviceName}: No NICs found in device data`);
+  }
+
   if (Array.isArray(nics)) {
     for (const nic of nics) {
       if (!nic) continue;
 
       // Handle various NinjaRMM NIC data structures
       let ip: any = nic.ipAddress || (nic as any).ip || (nic as any).ipv4 || (nic as any).address || '';
+
+      // Debug: Show what we're getting from the NIC
+      if (nics.indexOf(nic) === 0) {
+        console.log(`[IP-Extract] ${deviceName}: First NIC data:`, JSON.stringify(nic).substring(0, 200));
+      }
 
       // If ip is an array, take the first element
       if (Array.isArray(ip)) {
@@ -796,11 +812,13 @@ function extractPrivateIp(device: NinjaRMMDevice): string | null {
       // Check if it's a private IP range (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
       if (ip.startsWith('10.') || ip.startsWith('192.168.') ||
           (ip.startsWith('172.') && parseInt(ip.split('.')[1]) >= 16 && parseInt(ip.split('.')[1]) <= 31)) {
+        console.log(`[IP-Extract] ${deviceName}: Found private IP in NICs: ${ip}`);
         return ip;
       }
     }
   }
 
+  console.log(`[IP-Extract] ${deviceName}: No private IP found`);
   return null;
 }
 
@@ -809,6 +827,9 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
   let errors = 0;
 
   try {
+    const config = await getConfig(userId);
+    if (!config) throw new Error('NinjaRMM not configured');
+
     // Use getDevicesDetailed to get full hardware info (OS, system, processor, memory)
     const devices = await getDevicesDetailed(userId);
     console.log(`Syncing ${devices.length} devices with detailed info for user ${userId}`);
@@ -816,7 +837,24 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
     for (const device of devices) {
       try {
         const lastContact = parseNinjaTimestamp(device.lastContact);
-        const privateIp = extractPrivateIp(device);
+
+        // The bulk /devices-detailed endpoint might not include NICs data
+        // Fetch network interfaces separately if needed
+        let deviceWithNics = device;
+        if (!device.nics || device.nics.length === 0) {
+          try {
+            const nics = await ninjaFetch(config, `/device/${device.id}/network-interfaces`);
+            if (nics && Array.isArray(nics)) {
+              deviceWithNics = { ...device, nics };
+              console.log(`[Sync] ${device.systemName}: Fetched ${nics.length} NICs separately`);
+            }
+          } catch (nicErr) {
+            // Network interface fetch failed - not critical, continue without
+            console.log(`[Sync] ${device.systemName}: Could not fetch NICs: ${(nicErr as Error).message}`);
+          }
+        }
+
+        const privateIp = extractPrivateIp(deviceWithNics);
 
         // Get current device to check for IP changes (for history tracking)
         const existingDevice = await query(
@@ -898,10 +936,11 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
             device.system?.model || null,
             device.system?.serialNumber || null,
             device.lastLoggedInUser || null,
-            JSON.stringify(device),
+            JSON.stringify(deviceWithNics),  // Save device with NICs included
           ]
         );
         synced++;
+        console.log(`[Sync] ${device.systemName}: Saved with privateIp=${privateIp || 'null'}`);
       } catch (err) {
         console.error(`Error syncing device ${device.id}:`, err);
         errors++;
