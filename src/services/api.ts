@@ -2107,6 +2107,16 @@ export interface NinjaDevice {
   syncedAt: string;
 }
 
+export interface NinjaDeviceSoftware {
+  id: string;
+  deviceId: string;
+  name: string;
+  publisher: string | null;
+  version: string | null;
+  installDate: string | null;
+  sizeBytes: number | null;
+}
+
 export interface NinjaAlert {
   id: string;
   ninjaUid: string;
@@ -2409,6 +2419,34 @@ export const ninjaApi = {
       method: 'POST',
       body: JSON.stringify(options || {}),
     });
+  },
+
+  // ============================================
+  // Software Inventory
+  // ============================================
+
+  // Get cached software for a device
+  getDeviceSoftware: async (deviceId: string): Promise<{
+    success: boolean;
+    data: {
+      software: NinjaDeviceSoftware[];
+      lastFetched: string | null;
+      count: number;
+    };
+  }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}/software`);
+  },
+
+  // Refresh software for a device (fetch from NinjaRMM)
+  refreshDeviceSoftware: async (deviceId: string): Promise<{
+    success: boolean;
+    data: {
+      software: NinjaDeviceSoftware[];
+      lastFetched: string;
+      count: number;
+    };
+  }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}/software/refresh`, { method: 'POST' });
   },
 };
 

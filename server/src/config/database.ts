@@ -842,6 +842,29 @@ export async function initializeDatabase() {
     console.log('✅ Device IP history table created with 30-day retention');
 
     // ============================================
+    // NinjaRMM Device Software Inventory
+    // Stores installed software for devices (loaded on-demand)
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_device_software (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL REFERENCES ninjarmm_devices(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        publisher TEXT,
+        version TEXT,
+        install_date TEXT,
+        size_bytes BIGINT,
+        ninja_software_id TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(device_id, name, version)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_software_device ON ninjarmm_device_software(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_software_name ON ninjarmm_device_software(name)');
+
+    console.log('✅ Device software inventory table created');
+
+    // ============================================
     // Feature Flags System
     // ============================================
 

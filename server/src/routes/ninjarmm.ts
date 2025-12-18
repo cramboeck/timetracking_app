@@ -564,6 +564,54 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
 });
 
 // ============================================
+// Software Inventory
+// ============================================
+
+// GET /api/ninjarmm/devices/:id/software - Get cached software for a device
+router.get('/devices/:id/software', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const { software, lastFetched } = await ninjaService.getDeviceSoftware(userId, id);
+
+    res.json({
+      success: true,
+      data: {
+        software,
+        lastFetched,
+        count: software.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get device software error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/devices/:id/software/refresh - Fetch fresh software from NinjaRMM
+router.post('/devices/:id/software/refresh', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const software = await ninjaService.fetchAndStoreDeviceSoftware(userId, id);
+
+    res.json({
+      success: true,
+      data: {
+        software,
+        lastFetched: new Date(),
+        count: software.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Refresh device software error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
 // Alerts
 // ============================================
 

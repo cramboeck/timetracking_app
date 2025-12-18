@@ -1,9 +1,18 @@
-import { useState, useEffect } from 'react';
-import { Monitor, Laptop, Server, Wifi, WifiOff, RefreshCw, Search, User, Globe, AlertTriangle, ChevronDown, ChevronUp, Clock, CheckCircle, HardDrive, Cpu, Power } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Monitor, Laptop, Server, Wifi, WifiOff, RefreshCw, Search, User, Globe, AlertTriangle, ChevronDown, ChevronUp, Clock, CheckCircle, HardDrive, Cpu, Power, LayoutGrid, List, Package } from 'lucide-react';
 import { customerPortalApi, PortalContact, PortalDevice, PortalDeviceAlert } from '../../services/api';
 
 interface PortalDevicesProps {
   contact: PortalContact;
+}
+
+interface DeviceSoftware {
+  id: string;
+  name: string;
+  publisher: string | null;
+  version: string | null;
+  installDate: string | null;
+  sizeBytes: number | null;
 }
 
 const deviceTypeIcons: Record<string, typeof Monitor> = {
@@ -33,6 +42,15 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
   const [expandedDevice, setExpandedDevice] = useState<string | null>(null);
   const [deviceAlerts, setDeviceAlerts] = useState<Record<string, PortalDeviceAlert[]>>({});
   const [loadingAlerts, setLoadingAlerts] = useState<string | null>(null);
+
+  // View mode: 'grid' or 'table'
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+  // Software state
+  const [showSoftware, setShowSoftware] = useState<string | null>(null);
+  const [deviceSoftware, setDeviceSoftware] = useState<Record<string, DeviceSoftware[]>>({});
+  const [loadingSoftware, setLoadingSoftware] = useState<string | null>(null);
+  const [softwareSearch, setSoftwareSearch] = useState('');
 
   useEffect(() => {
     loadDevices();
@@ -64,6 +82,58 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
     } finally {
       setLoadingAlerts(null);
     }
+  };
+
+  // Load software for a device
+  const loadDeviceSoftware = async (deviceId: string, forceRefresh = false) => {
+    if (!forceRefresh && deviceSoftware[deviceId]) return;
+
+    try {
+      setLoadingSoftware(deviceId);
+      const endpoint = forceRefresh
+        ? `/portal/devices/${deviceId}/software/refresh`
+        : `/portal/devices/${deviceId}/software`;
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
+        method: forceRefresh ? 'POST' : 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('portal_token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setDeviceSoftware(prev => ({ ...prev, [deviceId]: data.data.software || [] }));
+      }
+    } catch (err: any) {
+      console.error('Failed to load device software:', err);
+    } finally {
+      setLoadingSoftware(null);
+    }
+  };
+
+  // Toggle software display
+  const toggleSoftware = async (deviceId: string) => {
+    if (showSoftware === deviceId) {
+      setShowSoftware(null);
+      setSoftwareSearch('');
+    } else {
+      setShowSoftware(deviceId);
+      await loadDeviceSoftware(deviceId);
+    }
+  };
+
+  // Filter software by search
+  const getFilteredSoftware = (deviceId: string) => {
+    const sw = deviceSoftware[deviceId] || [];
+    if (!softwareSearch) return sw;
+    const search = softwareSearch.toLowerCase();
+    return sw.filter(s =>
+      s.name.toLowerCase().includes(search) ||
+      s.publisher?.toLowerCase().includes(search) ||
+      s.version?.toLowerCase().includes(search)
+    );
   };
 
   const toggleExpand = (deviceId: string) => {
@@ -146,13 +216,40 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
             </span>
           </div>
         </div>
-        <button
-          onClick={loadDevices}
-          className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-        >
-          <RefreshCw size={18} />
-          Aktualisieren
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View Toggle */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-md transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+              title="Kachelansicht"
+            >
+              <LayoutGrid size={18} />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-2 rounded-md transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+              title="Tabellenansicht"
+            >
+              <List size={18} />
+            </button>
+          </div>
+          <button
+            onClick={loadDevices}
+            className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            <RefreshCw size={18} />
+            Aktualisieren
+          </button>
+        </div>
       </div>
 
       {/* Search & Filter */}
@@ -184,13 +281,90 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
         </div>
       )}
 
-      {/* Devices Grid */}
+      {/* Devices View */}
       {filteredDevices.length === 0 ? (
         <div className="text-center py-12 text-gray-500 dark:text-gray-400">
           <Monitor size={48} className="mx-auto mb-4 opacity-50" />
           <p>Keine Geräte gefunden</p>
         </div>
+      ) : viewMode === 'table' ? (
+        /* Table View */
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700/50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Gerät</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden md:table-cell">Typ</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden lg:table-cell">Benutzer</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden lg:table-cell">IP</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden sm:table-cell">Letzter Kontakt</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Alerts</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredDevices.map(device => {
+                  const DeviceIcon = getDeviceIcon(device.deviceType);
+                  return (
+                    <tr
+                      key={device.id}
+                      onClick={() => toggleExpand(device.id)}
+                      className={`cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                        device.offline ? 'opacity-60' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-3">
+                        {device.offline ? (
+                          <WifiOff size={18} className="text-gray-400" />
+                        ) : (
+                          <Wifi size={18} className="text-green-500" />
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <DeviceIcon size={18} className="text-gray-400" />
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {device.displayName || device.systemName}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {device.osVersion || device.osName}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell text-sm text-gray-600 dark:text-gray-300">
+                        {device.deviceType?.replace(/_/g, ' ')}
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell text-sm text-gray-600 dark:text-gray-300">
+                        {device.lastLoggedInUser || '-'}
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell text-sm text-gray-600 dark:text-gray-300 font-mono">
+                        {device.privateIp || '-'}
+                      </td>
+                      <td className="px-4 py-3 hidden sm:table-cell text-sm text-gray-500 dark:text-gray-400">
+                        {formatRelativeTime(device.lastContact)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {device.openAlerts > 0 ? (
+                          <span className="flex items-center gap-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-1 rounded-full">
+                            <AlertTriangle size={12} />
+                            {device.openAlerts}
+                          </span>
+                        ) : (
+                          <CheckCircle size={16} className="text-green-500" />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* Grid View */
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredDevices.map(device => {
             const DeviceIcon = getDeviceIcon(device.deviceType);
@@ -405,6 +579,91 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                             <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-1">
                               + {alerts.length - 5} weitere Meldungen
                             </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Software Section */}
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleSoftware(device.id); }}
+                        className="w-full flex items-center justify-between text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      >
+                        <span className="flex items-center gap-1">
+                          <Package size={12} />
+                          Installierte Software
+                          {deviceSoftware[device.id] && (
+                            <span className="ml-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">
+                              {deviceSoftware[device.id].length}
+                            </span>
+                          )}
+                        </span>
+                        {showSoftware === device.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+
+                      {showSoftware === device.id && (
+                        <div className="mt-3">
+                          {loadingSoftware === device.id ? (
+                            <div className="flex items-center justify-center py-4">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex gap-2 mb-2">
+                                <div className="relative flex-1">
+                                  <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    placeholder="Software suchen..."
+                                    value={softwareSearch}
+                                    onChange={(e) => setSoftwareSearch(e.target.value)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-full pl-7 pr-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                  />
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); loadDeviceSoftware(device.id, true); }}
+                                  disabled={loadingSoftware === device.id}
+                                  className="p-1.5 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 disabled:opacity-50"
+                                  title="Aktualisieren"
+                                >
+                                  <RefreshCw size={12} className={loadingSoftware === device.id ? 'animate-spin' : ''} />
+                                </button>
+                              </div>
+
+                              {getFilteredSoftware(device.id).length === 0 ? (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                                  {deviceSoftware[device.id]?.length === 0 ? 'Keine Software gefunden' : 'Keine Treffer'}
+                                </p>
+                              ) : (
+                                <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded">
+                                  <table className="w-full text-xs">
+                                    <thead className="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
+                                      <tr>
+                                        <th className="px-2 py-1 text-left text-gray-500 dark:text-gray-400">Name</th>
+                                        <th className="px-2 py-1 text-left text-gray-500 dark:text-gray-400 hidden sm:table-cell">Version</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-600">
+                                      {getFilteredSoftware(device.id).map(sw => (
+                                        <tr key={sw.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                          <td className="px-2 py-1 text-gray-900 dark:text-white">
+                                            {sw.name}
+                                            {sw.publisher && (
+                                              <span className="block text-gray-400 dark:text-gray-500 truncate">{sw.publisher}</span>
+                                            )}
+                                          </td>
+                                          <td className="px-2 py-1 text-gray-500 dark:text-gray-400 hidden sm:table-cell font-mono">
+                                            {sw.version || '-'}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       )}

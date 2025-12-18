@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Monitor, Wifi, WifiOff, Search, RefreshCw, ExternalLink,
-  X, Cpu, HardDrive, Globe, Building, AlertTriangle
+  X, Cpu, HardDrive, Globe, Building, AlertTriangle, Package, ChevronDown, ChevronUp
 } from 'lucide-react';
-import { ninjaApi, NinjaDevice, NinjaRMMConfig } from '../services/api';
+import { ninjaApi, NinjaDevice, NinjaRMMConfig, NinjaDeviceSoftware } from '../services/api';
 
 export const DevicesView = () => {
   const [devices, setDevices] = useState<NinjaDevice[]>([]);
@@ -17,6 +17,13 @@ export const DevicesView = () => {
   // Search & Filter
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
+
+  // Software
+  const [showSoftware, setShowSoftware] = useState(false);
+  const [software, setSoftware] = useState<NinjaDeviceSoftware[]>([]);
+  const [softwareLoading, setSoftwareLoading] = useState(false);
+  const [softwareLastFetched, setSoftwareLastFetched] = useState<string | null>(null);
+  const [softwareSearch, setSoftwareSearch] = useState('');
 
   useEffect(() => {
     loadDataAndSync();
@@ -92,6 +99,71 @@ export const DevicesView = () => {
       setRefreshingDevice(false);
     }
   };
+
+  // Load cached software for a device
+  const loadSoftware = async (deviceId: string) => {
+    try {
+      setSoftwareLoading(true);
+      const result = await ninjaApi.getDeviceSoftware(deviceId);
+      if (result.success) {
+        setSoftware(result.data.software);
+        setSoftwareLastFetched(result.data.lastFetched);
+      }
+    } catch (err: any) {
+      console.error('Failed to load software:', err.message);
+    } finally {
+      setSoftwareLoading(false);
+    }
+  };
+
+  // Refresh software from NinjaRMM
+  const refreshSoftware = async (deviceId: string) => {
+    try {
+      setSoftwareLoading(true);
+      const result = await ninjaApi.refreshDeviceSoftware(deviceId);
+      if (result.success) {
+        setSoftware(result.data.software);
+        setSoftwareLastFetched(result.data.lastFetched);
+      }
+    } catch (err: any) {
+      setError(`Software konnte nicht geladen werden: ${err.message}`);
+    } finally {
+      setSoftwareLoading(false);
+    }
+  };
+
+  // Toggle software section
+  const handleToggleSoftware = async () => {
+    if (!showSoftware && selectedDevice) {
+      // First time opening - load cached software, or fetch if none exists
+      await loadSoftware(selectedDevice.id);
+      if (software.length === 0) {
+        await refreshSoftware(selectedDevice.id);
+      }
+    }
+    setShowSoftware(!showSoftware);
+  };
+
+  // Filter software by search
+  const filteredSoftware = useMemo(() => {
+    if (!softwareSearch) return software;
+    const search = softwareSearch.toLowerCase();
+    return software.filter(sw =>
+      sw.name.toLowerCase().includes(search) ||
+      sw.publisher?.toLowerCase().includes(search) ||
+      sw.version?.toLowerCase().includes(search)
+    );
+  }, [software, softwareSearch]);
+
+  // Reset software when device changes
+  useEffect(() => {
+    if (selectedDevice) {
+      setShowSoftware(false);
+      setSoftware([]);
+      setSoftwareLastFetched(null);
+      setSoftwareSearch('');
+    }
+  }, [selectedDevice?.id]);
 
   const filteredDevices = useMemo(() => {
     return devices.filter(device => {
@@ -396,6 +468,92 @@ export const DevicesView = () => {
                     </div>
                   </dl>
                 </div>
+              </div>
+
+              {/* Software Section (Collapsible) */}
+              <div className="mt-4 border border-gray-200 dark:border-dark-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={handleToggleSoftware}
+                  className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-50 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Package size={16} className="text-gray-500" />
+                    <span className="font-medium text-gray-900 dark:text-white">Installierte Software</span>
+                    {software.length > 0 && (
+                      <span className="px-2 py-0.5 text-xs bg-accent-primary/10 text-accent-primary rounded-full">
+                        {software.length}
+                      </span>
+                    )}
+                  </div>
+                  {showSoftware ? (
+                    <ChevronUp size={18} className="text-gray-500" />
+                  ) : (
+                    <ChevronDown size={18} className="text-gray-500" />
+                  )}
+                </button>
+
+                {showSoftware && (
+                  <div className="p-4 border-t border-gray-200 dark:border-dark-200">
+                    {/* Software Header */}
+                    <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                      <div className="relative flex-1">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Software suchen..."
+                          value={softwareSearch}
+                          onChange={(e) => setSoftwareSearch(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                        />
+                      </div>
+                      <button
+                        onClick={() => selectedDevice && refreshSoftware(selectedDevice.id)}
+                        disabled={softwareLoading}
+                        className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-200 disabled:opacity-50 transition-colors"
+                      >
+                        <RefreshCw size={14} className={softwareLoading ? 'animate-spin' : ''} />
+                        Aktualisieren
+                      </button>
+                    </div>
+
+                    {softwareLastFetched && (
+                      <p className="text-xs text-gray-500 dark:text-dark-400 mb-3">
+                        Zuletzt abgerufen: {new Date(softwareLastFetched).toLocaleString('de-DE')}
+                      </p>
+                    )}
+
+                    {softwareLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <RefreshCw size={20} className="animate-spin text-gray-400" />
+                      </div>
+                    ) : filteredSoftware.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500 dark:text-dark-400">
+                        {software.length === 0 ? 'Keine Software gefunden' : 'Keine Software entspricht der Suche'}
+                      </div>
+                    ) : (
+                      <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-dark-200 rounded-lg">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 dark:bg-dark-50 sticky top-0">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-dark-400">Name</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-dark-400 hidden sm:table-cell">Hersteller</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-dark-400">Version</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
+                            {filteredSoftware.map(sw => (
+                              <tr key={sw.id} className="hover:bg-gray-50 dark:hover:bg-dark-50">
+                                <td className="px-3 py-2 text-gray-900 dark:text-white">{sw.name}</td>
+                                <td className="px-3 py-2 text-gray-500 dark:text-dark-400 hidden sm:table-cell">{sw.publisher || '-'}</td>
+                                <td className="px-3 py-2 text-gray-500 dark:text-dark-400 font-mono text-xs">{sw.version || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

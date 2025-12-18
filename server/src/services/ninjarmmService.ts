@@ -1247,6 +1247,137 @@ export async function getLocalDevices(
   });
 }
 
+// ============================================
+// Software Inventory
+// ============================================
+
+export interface DeviceSoftware {
+  id: string;
+  deviceId: string;
+  name: string;
+  publisher: string | null;
+  version: string | null;
+  installDate: string | null;
+  sizeBytes: number | null;
+}
+
+// Fetch software from NinjaRMM API and store in database
+export async function fetchAndStoreDeviceSoftware(
+  userId: string,
+  deviceId: string
+): Promise<DeviceSoftware[]> {
+  const config = await getConfig(userId);
+  if (!config) throw new Error('NinjaRMM not configured');
+
+  // Get the ninja device ID from our database
+  const deviceResult = await query(
+    'SELECT ninja_id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+    [deviceId, userId]
+  );
+
+  if (deviceResult.rows.length === 0) {
+    throw new Error('Device not found');
+  }
+
+  const ninjaDeviceId = deviceResult.rows[0].ninja_id;
+
+  // Fetch software from NinjaRMM API
+  console.log(`[Software] Fetching software for device ${deviceId} (ninja_id: ${ninjaDeviceId})`);
+  let softwareList: any[] = [];
+
+  try {
+    softwareList = await ninjaFetch(config, `/device/${ninjaDeviceId}/software`);
+    if (!Array.isArray(softwareList)) {
+      softwareList = [];
+    }
+    console.log(`[Software] Found ${softwareList.length} software entries`);
+  } catch (err) {
+    console.error(`[Software] Failed to fetch software: ${(err as Error).message}`);
+    throw new Error('Could not fetch software from NinjaRMM');
+  }
+
+  // Delete old software entries for this device
+  await query('DELETE FROM ninjarmm_device_software WHERE device_id = $1', [deviceId]);
+
+  // Insert new software entries
+  const result: DeviceSoftware[] = [];
+
+  for (const sw of softwareList) {
+    const id = uuidv4();
+    const name = sw.name || sw.displayName || 'Unknown';
+    const publisher = sw.publisher || sw.vendor || null;
+    const version = sw.version || sw.displayVersion || null;
+    const installDate = sw.installDate || sw.installedOn || null;
+    const sizeBytes = sw.size || sw.estimatedSize ? (sw.estimatedSize * 1024) : null;
+
+    try {
+      await query(
+        `INSERT INTO ninjarmm_device_software (id, device_id, name, publisher, version, install_date, size_bytes, ninja_software_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (device_id, name, version) DO UPDATE SET
+           publisher = EXCLUDED.publisher,
+           install_date = EXCLUDED.install_date,
+           size_bytes = EXCLUDED.size_bytes`,
+        [id, deviceId, name, publisher, version, installDate, sizeBytes, sw.id || null]
+      );
+
+      result.push({
+        id,
+        deviceId,
+        name,
+        publisher,
+        version,
+        installDate,
+        sizeBytes,
+      });
+    } catch (err) {
+      console.error(`[Software] Failed to insert software "${name}":`, err);
+    }
+  }
+
+  console.log(`[Software] Stored ${result.length} software entries for device ${deviceId}`);
+  return result;
+}
+
+// Get cached software from database
+export async function getDeviceSoftware(
+  userId: string,
+  deviceId: string
+): Promise<{ software: DeviceSoftware[]; lastFetched: Date | null }> {
+  // Verify device belongs to user
+  const deviceResult = await query(
+    'SELECT id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+    [deviceId, userId]
+  );
+
+  if (deviceResult.rows.length === 0) {
+    throw new Error('Device not found');
+  }
+
+  const result = await query(
+    `SELECT id, device_id, name, publisher, version, install_date, size_bytes, created_at
+     FROM ninjarmm_device_software
+     WHERE device_id = $1
+     ORDER BY name ASC`,
+    [deviceId]
+  );
+
+  const software = result.rows.map(row => ({
+    id: row.id,
+    deviceId: row.device_id,
+    name: row.name,
+    publisher: row.publisher,
+    version: row.version,
+    installDate: row.install_date,
+    sizeBytes: row.size_bytes ? parseInt(row.size_bytes) : null,
+  }));
+
+  // Get the most recent fetch time
+  const lastFetched = result.rows.length > 0 ? new Date(result.rows[0].created_at) : null;
+
+  return { software, lastFetched };
+}
+
 // Get synced alerts from local DB
 export async function getLocalAlerts(
   userId: string,

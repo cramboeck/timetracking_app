@@ -1236,6 +1236,134 @@ router.get('/devices/:deviceId/alerts', authenticateCustomerToken, async (req: C
   }
 });
 
+// Get software for a specific device
+router.get('/devices/:deviceId/software', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    const { deviceId } = req.params;
+
+    // Verify the device belongs to this customer's organization
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer?.ninjarmm_organization_id) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get device and verify ownership
+    const deviceResult = await pool.query(
+      `SELECT id, system_name FROM ninjarmm_devices
+       WHERE id = $1 AND user_id = $2 AND organization_id = $3`,
+      [deviceId, customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get software for this device
+    const softwareResult = await pool.query(
+      `SELECT id, name, publisher, version, install_date, size_bytes, created_at
+       FROM ninjarmm_device_software
+       WHERE device_id = $1
+       ORDER BY name ASC`,
+      [deviceId]
+    );
+
+    const software = softwareResult.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      publisher: row.publisher,
+      version: row.version,
+      installDate: row.install_date,
+      sizeBytes: row.size_bytes ? parseInt(row.size_bytes) : null,
+    }));
+
+    const lastFetched = softwareResult.rows.length > 0 ? softwareResult.rows[0].created_at : null;
+
+    res.json({
+      success: true,
+      data: {
+        deviceName: deviceResult.rows[0].system_name,
+        software,
+        lastFetched,
+        count: software.length,
+      },
+    });
+  } catch (error) {
+    console.error('Get device software error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Refresh software for a specific device (fetch from NinjaRMM)
+router.post('/devices/:deviceId/software/refresh', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    const { deviceId } = req.params;
+
+    // Verify the device belongs to this customer's organization
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer?.ninjarmm_organization_id) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get device and verify ownership
+    const deviceResult = await pool.query(
+      `SELECT id, ninja_id, system_name FROM ninjarmm_devices
+       WHERE id = $1 AND user_id = $2 AND organization_id = $3`,
+      [deviceId, customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Import the service function dynamically to avoid circular dependencies
+    const { fetchAndStoreDeviceSoftware } = await import('../services/ninjarmmService');
+    const software = await fetchAndStoreDeviceSoftware(customer.user_id, deviceId);
+
+    res.json({
+      success: true,
+      data: {
+        deviceName: deviceResult.rows[0].system_name,
+        software,
+        lastFetched: new Date(),
+        count: software.length,
+      },
+    });
+  } catch (error) {
+    console.error('Refresh device software error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ========================================================================
 // INVOICES & QUOTES (sevDesk Integration)
 // ========================================================================
