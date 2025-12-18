@@ -690,7 +690,7 @@ export const ReportAssistant = ({
 
           const reportPayload = {
             reportData: {
-              customerId: customerData.customer.id,
+              customerId: String(customerData.customer.id),
               customerName: customerData.customer.name,
               reportTitle: customerData.customer.reportTitle || 'Dienstleistungsnachweis',
               timeEntries: customerEntries.map(e => ({
@@ -721,8 +721,13 @@ export const ReportAssistant = ({
           if (response.ok) {
             savedCount++;
           } else {
-            const error = await response.json();
-            console.error('Save error:', error);
+            const errorText = await response.text();
+            console.error('Save error status:', response.status, 'body:', errorText);
+            // Show the actual error to user
+            setSaveMessage({
+              type: 'error',
+              text: `Fehler: ${response.status} - ${errorText.substring(0, 100)}`
+            });
           }
         }
       }
