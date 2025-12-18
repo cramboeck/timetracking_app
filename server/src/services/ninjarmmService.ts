@@ -1074,11 +1074,38 @@ export async function getLocalDevices(
       osVersion = `${osVersion} (Build ${osInfo.buildNumber})`;
     }
 
-    // Extract first valid private IP from NICs (exclude loopback 127.x.x.x and link-local 169.254.x.x)
+    // Extract private IP - check multiple possible locations in NinjaRMM data
     let privateIp: string | null = null;
-    for (const nic of nicsInfo) {
-      const ip = nic.ipAddress || nic.ip || '';
-      if (ip && !ip.startsWith('127.') && !ip.startsWith('169.254.') && !ip.startsWith('::')) {
+
+    // First check if there's a direct privateIp/internalIp field on the device
+    const directIp = deviceData.privateIp || deviceData.internalIp || deviceData.localIp || deviceData.ipAddress;
+    if (typeof directIp === 'string' && directIp) {
+      privateIp = directIp;
+    }
+
+    // If not found, search through NICs
+    if (!privateIp && nicsInfo && Array.isArray(nicsInfo)) {
+      for (const nic of nicsInfo) {
+        if (!nic) continue;
+
+        // Handle various NinjaRMM NIC data structures
+        let ip: any = nic.ipAddress || nic.ip || nic.ipv4 || nic.address || '';
+
+        // If ip is an array, take the first element
+        if (Array.isArray(ip)) {
+          ip = ip[0] || '';
+        }
+
+        // Ensure ip is a string
+        if (typeof ip !== 'string' || !ip) {
+          continue;
+        }
+
+        // Skip loopback and link-local addresses
+        if (ip.startsWith('127.') || ip.startsWith('169.254.') || ip.startsWith('::') || ip === '0.0.0.0') {
+          continue;
+        }
+
         // Check if it's a private IP range (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
         if (ip.startsWith('10.') || ip.startsWith('192.168.') ||
             (ip.startsWith('172.') && parseInt(ip.split('.')[1]) >= 16 && parseInt(ip.split('.')[1]) <= 31)) {
@@ -1086,6 +1113,11 @@ export async function getLocalDevices(
           break;
         }
       }
+    }
+
+    // Debug: Log the structure if no private IP found (remove after debugging)
+    if (!privateIp && nicsInfo && nicsInfo.length > 0) {
+      console.log('[DEBUG] NICs data structure:', JSON.stringify(nicsInfo[0], null, 2));
     }
 
     return {
