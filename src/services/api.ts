@@ -3279,6 +3279,24 @@ export const aiApi = {
       body: JSON.stringify(context),
     });
   },
+
+  // Generate KB article from ticket
+  generateKBArticleFromTicket: async (
+    ticketId: string
+  ): Promise<{
+    success: boolean;
+    data: {
+      title: string;
+      content: string;
+      excerpt: string;
+      suggestedCategory?: string;
+    };
+  }> => {
+    return authFetch('/ai/kb/generate-from-ticket', {
+      method: 'POST',
+      body: JSON.stringify({ ticketId }),
+    });
+  },
 };
 
 // ============================================

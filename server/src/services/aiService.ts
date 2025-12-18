@@ -862,6 +862,139 @@ Formatiere die Preise klar mit EUR.`;
 }
 
 // ============================================
+// Knowledge Base AI Generation
+// ============================================
+
+const KB_ARTICLE_SYSTEM_PROMPT = `Du bist ein technischer Redakteur, der Wissensdatenbank-Artikel aus Support-Tickets erstellt.
+Deine Aufgabe ist es, aus einem gelösten Support-Ticket einen hilfreichen KB-Artikel zu generieren.
+Der Artikel soll:
+- Das Problem klar und verständlich beschreiben
+- Die Lösung Schritt für Schritt erklären
+- Für andere Benutzer mit ähnlichen Problemen nützlich sein
+- In professionellem, aber verständlichem Deutsch geschrieben sein
+- Markdown-Formatierung verwenden (# Überschriften, - Listen, **fett**, etc.)`;
+
+export interface GeneratedKBArticle {
+  title: string;
+  content: string;
+  excerpt: string;
+  suggestedCategory?: string;
+}
+
+export async function generateKBArticleFromTicket(
+  userId: string,
+  ticketId: string
+): Promise<GeneratedKBArticle> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  // Get ticket context
+  const context = await getTicketContext(userId, ticketId);
+  if (!context) {
+    throw new Error('Ticket nicht gefunden');
+  }
+
+  // Get ticket resolution
+  const ticketResult = await query(
+    `SELECT resolution, closed_at, status FROM tickets WHERE id = $1 AND user_id = $2`,
+    [ticketId, userId]
+  );
+
+  if (ticketResult.rows.length === 0) {
+    throw new Error('Ticket nicht gefunden');
+  }
+
+  const ticket = ticketResult.rows[0];
+
+  // Get available KB categories for suggestion
+  const categoriesResult = await query(
+    `SELECT name FROM kb_categories WHERE user_id = $1 AND is_public = true ORDER BY name`,
+    [userId]
+  );
+  const availableCategories = categoriesResult.rows.map(r => r.name);
+
+  const prompt = `Erstelle einen Wissensdatenbank-Artikel aus folgendem Support-Ticket:
+
+## Ticket-Informationen
+- **Titel:** ${context.title}
+- **Kategorie:** ${context.category || 'Nicht kategorisiert'}
+- **Status:** ${ticket.status}
+${context.customerName ? `- **Kunde:** ${context.customerName}` : ''}
+${context.deviceName ? `- **Gerät:** ${context.deviceName}` : ''}
+
+## Problembeschreibung
+${context.description || 'Keine Beschreibung vorhanden.'}
+
+## Lösung
+${ticket.resolution || 'Keine Lösung dokumentiert.'}
+
+${context.previousComments.length > 0 ? `## Kommunikationsverlauf
+${context.previousComments.map((c, i) => `${i + 1}. ${c.content}`).join('\n')}` : ''}
+
+${availableCategories.length > 0 ? `## Verfügbare KB-Kategorien
+${availableCategories.join(', ')}` : ''}
+
+## Aufgabe
+Erstelle einen KB-Artikel mit:
+1. **Titel**: Ein klarer, suchfreundlicher Titel für das Problem
+2. **Kurzfassung**: Eine 1-2 Satz Zusammenfassung des Problems und der Lösung
+3. **Inhalt**: Ein strukturierter Artikel mit:
+   - Problembeschreibung
+   - Ursache (wenn bekannt)
+   - Lösungsschritte
+   - Tipps zur Vermeidung
+4. **Kategorie**: Eine passende Kategorie aus der Liste oben (falls vorhanden)
+
+Formatiere deine Antwort EXAKT so:
+---TITEL---
+[Titel hier]
+---KURZFASSUNG---
+[Kurzfassung hier]
+---INHALT---
+[Markdown-Inhalt hier]
+---KATEGORIE---
+[Kategoriename oder "Allgemein"]`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(
+      config.apiKey,
+      config.model,
+      prompt,
+      2000, // Longer response for article
+      config.temperature,
+      KB_ARTICLE_SYSTEM_PROMPT
+    );
+  } else {
+    result = await callOpenAI(
+      config.apiKey,
+      config.model,
+      prompt,
+      2000,
+      config.temperature,
+      KB_ARTICLE_SYSTEM_PROMPT
+    );
+  }
+
+  // Parse the response
+  const response = result.content;
+
+  const titleMatch = response.match(/---TITEL---\s*([\s\S]*?)(?=---KURZFASSUNG---|$)/);
+  const excerptMatch = response.match(/---KURZFASSUNG---\s*([\s\S]*?)(?=---INHALT---|$)/);
+  const contentMatch = response.match(/---INHALT---\s*([\s\S]*?)(?=---KATEGORIE---|$)/);
+  const categoryMatch = response.match(/---KATEGORIE---\s*([\s\S]*?)$/);
+
+  return {
+    title: titleMatch ? titleMatch[1].trim() : context.title,
+    excerpt: excerptMatch ? excerptMatch[1].trim() : '',
+    content: contentMatch ? contentMatch[1].trim() : response,
+    suggestedCategory: categoryMatch ? categoryMatch[1].trim() : undefined,
+  };
+}
+
+// ============================================
 // Time Entry AI Generation
 // ============================================
 

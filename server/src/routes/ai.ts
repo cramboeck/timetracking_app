@@ -248,6 +248,39 @@ router.post(
 // Time Entry AI Routes
 // ============================================
 
+// POST /api/ai/kb/generate-from-ticket - Generate KB article from ticket
+router.post(
+  '/kb/generate-from-ticket',
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { ticketId } = req.body;
+
+      if (!ticketId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Ticket-ID ist erforderlich',
+        });
+      }
+
+      const article = await aiService.generateKBArticleFromTicket(userId, ticketId);
+
+      res.json({
+        success: true,
+        data: article,
+      });
+    } catch (error: any) {
+      console.error('Generate KB article error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
+// ============================================
+// Time Entry AI Routes
+// ============================================
+
 // POST /api/ai/time-entry/suggest-description - Suggest description for time entry
 router.post(
   '/time-entry/suggest-description',

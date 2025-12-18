@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import {
   Plus, Edit2, Trash2, Book, FileText, FolderOpen, Eye, EyeOff,
-  Star, Save, Palette, Globe, Image, ChevronDown, ChevronUp, Search, X
+  Star, Save, Palette, Globe, Image, ChevronDown, ChevronUp, Search, X,
+  Sparkles, Ticket, Loader2
 } from 'lucide-react';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
-import { knowledgeBaseApi, portalSettingsApi, KbCategory, KbArticle, PortalSettings } from '../services/api';
+import { knowledgeBaseApi, portalSettingsApi, aiApi, ticketsApi, KbCategory, KbArticle, PortalSettings } from '../services/api';
 import { MarkdownEditor } from './MarkdownEditor';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { Ticket as TicketType } from '../types';
 
 type KbTab = 'categories' | 'articles' | 'branding';
 
@@ -60,9 +62,40 @@ export const KnowledgeBaseSettings = () => {
   // Article editor preview mode
   const [articleEditorMode, setArticleEditorMode] = useState<'edit' | 'preview'>('edit');
 
+  // AI state for KB article generation
+  const [aiConfigured, setAiConfigured] = useState(false);
+  const [generatingFromTicket, setGeneratingFromTicket] = useState(false);
+  const [resolvedTickets, setResolvedTickets] = useState<TicketType[]>([]);
+  const [selectedTicketId, setSelectedTicketId] = useState<string>('');
+  const [showTicketSelector, setShowTicketSelector] = useState(false);
+  const [ticketSearch, setTicketSearch] = useState('');
+
   useEffect(() => {
     loadData();
+    checkAiConfig();
   }, []);
+
+  const checkAiConfig = async () => {
+    try {
+      const response = await aiApi.getConfig();
+      setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
+    } catch (err) {
+      console.error('Failed to check AI config:', err);
+    }
+  };
+
+  const loadResolvedTickets = async () => {
+    try {
+      // Load resolved/closed tickets that could be converted to KB articles
+      const response = await ticketsApi.getAll();
+      const resolved = response.data.filter(
+        (t: TicketType) => t.status === 'resolved' || t.status === 'closed'
+      );
+      setResolvedTickets(resolved);
+    } catch (err) {
+      console.error('Failed to load resolved tickets:', err);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -161,9 +194,46 @@ export const KnowledgeBaseSettings = () => {
         isPublished: false,
         isFeatured: false,
       });
+      // Load resolved tickets for AI generation when creating new article
+      if (aiConfigured) {
+        loadResolvedTickets();
+      }
     }
     setArticleEditorMode('edit');
+    setShowTicketSelector(false);
+    setSelectedTicketId('');
+    setTicketSearch('');
     setArticleModalOpen(true);
+  };
+
+  const handleGenerateFromTicket = async () => {
+    if (!selectedTicketId) return;
+
+    try {
+      setGeneratingFromTicket(true);
+      const response = await aiApi.generateKBArticleFromTicket(selectedTicketId);
+
+      if (response.success && response.data) {
+        // Update form with generated content
+        setArticleForm({
+          ...articleForm,
+          title: response.data.title,
+          content: response.data.content,
+          excerpt: response.data.excerpt,
+          // Try to match suggested category to existing categories
+          categoryId: response.data.suggestedCategory
+            ? categories.find(c => c.name.toLowerCase() === response.data.suggestedCategory?.toLowerCase())?.id || articleForm.categoryId
+            : articleForm.categoryId,
+        });
+        setShowTicketSelector(false);
+        showSaveMessage('success', 'Artikel aus Ticket generiert');
+      }
+    } catch (err: any) {
+      console.error('Failed to generate article from ticket:', err);
+      showSaveMessage('error', err.message || 'Fehler bei der Generierung');
+    } finally {
+      setGeneratingFromTicket(false);
+    }
   };
 
   const handleSaveArticle = async () => {
@@ -721,6 +791,118 @@ export const KnowledgeBaseSettings = () => {
         maxWidth="max-w-3xl"
       >
         <div className="space-y-4">
+          {/* AI Generation from Ticket - only for new articles */}
+          {!editingArticle && aiConfigured && (
+            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+              {!showTicketSelector ? (
+                <button
+                  onClick={() => setShowTicketSelector(true)}
+                  className="flex items-center gap-2 text-purple-700 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-200 transition-colors"
+                >
+                  <Sparkles size={18} />
+                  <span className="font-medium">Aus Ticket generieren</span>
+                  <span className="text-sm text-purple-600 dark:text-purple-400">(KI)</span>
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
+                      <Ticket size={18} />
+                      <span className="font-medium">Ticket auswählen</span>
+                    </div>
+                    <button
+                      onClick={() => setShowTicketSelector(false)}
+                      className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  {/* Ticket search */}
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Tickets durchsuchen..."
+                      value={ticketSearch}
+                      onChange={(e) => setTicketSearch(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 text-sm border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    />
+                  </div>
+
+                  {/* Ticket list */}
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {resolvedTickets
+                      .filter(t =>
+                        !ticketSearch ||
+                        t.title.toLowerCase().includes(ticketSearch.toLowerCase()) ||
+                        t.ticketNumber?.toLowerCase().includes(ticketSearch.toLowerCase())
+                      )
+                      .slice(0, 10)
+                      .map((ticket) => (
+                        <button
+                          key={ticket.id}
+                          onClick={() => setSelectedTicketId(ticket.id)}
+                          className={`w-full text-left p-2 rounded-lg text-sm transition-colors ${
+                            selectedTicketId === ticket.id
+                              ? 'bg-purple-100 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-700'
+                              : 'hover:bg-gray-100 dark:hover:bg-dark-100'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-gray-500">#{ticket.ticketNumber}</span>
+                            <span className={`px-1.5 py-0.5 text-xs rounded ${
+                              ticket.status === 'resolved'
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                            }`}>
+                              {ticket.status === 'resolved' ? 'Gelöst' : 'Geschlossen'}
+                            </span>
+                          </div>
+                          <div className="font-medium text-gray-900 dark:text-white truncate">
+                            {ticket.title}
+                          </div>
+                          {ticket.customerName && (
+                            <div className="text-xs text-gray-500 dark:text-dark-400">
+                              {ticket.customerName}
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    {resolvedTickets.filter(t =>
+                      !ticketSearch ||
+                      t.title.toLowerCase().includes(ticketSearch.toLowerCase()) ||
+                      t.ticketNumber?.toLowerCase().includes(ticketSearch.toLowerCase())
+                    ).length === 0 && (
+                      <div className="text-center py-4 text-gray-500 dark:text-dark-400 text-sm">
+                        Keine gelösten Tickets gefunden
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Generate button */}
+                  <button
+                    onClick={handleGenerateFromTicket}
+                    disabled={!selectedTicketId || generatingFromTicket}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generatingFromTicket ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Generiere...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={18} />
+                        Artikel generieren
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
