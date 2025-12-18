@@ -331,6 +331,13 @@ export const entriesApi = {
       method: 'DELETE',
     });
   },
+
+  bulkUpdate: async (entryIds: string[], updates: { projectId?: string; description?: string }): Promise<{ success: boolean; data: { updatedCount: number } }> => {
+    return authFetch('/entries/bulk-update', {
+      method: 'PUT',
+      body: JSON.stringify({ entryIds, updates }),
+    });
+  },
 };
 
 // Projects API

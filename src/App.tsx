@@ -495,6 +495,20 @@ function App() {
     }
   };
 
+  const handleBulkUpdateEntries = async (entryIds: string[], updates: { projectId?: string; description?: string }) => {
+    try {
+      console.log('📦 [ENTRY] Bulk updating entries:', entryIds.length);
+      await entriesApi.bulkUpdate(entryIds, updates);
+      console.log('✅ [ENTRY] Bulk update complete');
+      // Reload entries to get updated data
+      const response = await entriesApi.getAll();
+      setEntries(response.data);
+    } catch (error) {
+      console.error('❌ [ENTRY] Failed to bulk update entries:', error);
+      throw error;
+    }
+  };
+
   // Customer handlers (API-based)
   const handleAddCustomer = async (customer: Customer) => {
     try {
@@ -763,6 +777,7 @@ function App() {
             onDelete={handleDeleteEntry}
             onEdit={handleEditEntry}
             onRepeatEntry={handleRepeatEntry}
+            onBulkUpdate={handleBulkUpdateEntries}
           />
         )}
         {currentSubView === 'calendar' && (
