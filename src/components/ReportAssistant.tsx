@@ -245,281 +245,307 @@ export const ReportAssistant = ({
     });
   };
 
-  // Generate Clockodo-style PDF
-  const generateClockodoPDF = async (customerData: CustomerReportData) => {
+  // Generate Modern PDF Report
+  const generateModernPDF = async (customerData: CustomerReportData) => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const customerEntries = getCustomerEntries(customerData.customer.id);
 
-    // Portrait page dimensions
-    const portraitWidth = 210;
-    const portraitHeight = 297;
-    // Landscape page dimensions
-    const landscapeWidth = 297;
-    const landscapeHeight = 210;
+    // Page dimensions
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 20;
+    const contentWidth = pageWidth - (margin * 2);
 
-    const marginLeft = 20;
-    const marginRight = 20;
+    // Colors - Modern palette
+    const dark = { r: 17, g: 24, b: 39 }; // Near black (#111827)
+    const gray = { r: 107, g: 114, b: 128 }; // Gray (#6b7280)
+    const lightGray = { r: 243, g: 244, b: 246 }; // Light gray (#f3f4f6)
+    const accent = { r: 249, g: 115, b: 22 }; // App accent (#f97316)
 
-    // Colors
-    const accentColor = { r: 249, g: 115, b: 22 }; // Orange (#f97316)
-
-    // ============ COVER PAGE (Portrait) ============
-    let y = 40;
-
-    // Logo (top right, properly scaled maintaining aspect ratio)
-    if (companyInfo?.logo) {
-      try {
-        const imgDims = await getImageDimensions(companyInfo.logo);
-
-        // Max dimensions for logo on cover
-        const maxLogoWidth = 50;
-        const maxLogoHeight = 28;
-
-        // Calculate proper scaling
-        const aspectRatio = imgDims.width / imgDims.height;
-        let logoWidth: number;
-        let logoHeight: number;
-
-        if (aspectRatio > maxLogoWidth / maxLogoHeight) {
-          // Width is the limiting factor
-          logoWidth = maxLogoWidth;
-          logoHeight = maxLogoWidth / aspectRatio;
-        } else {
-          // Height is the limiting factor
-          logoHeight = maxLogoHeight;
-          logoWidth = maxLogoHeight * aspectRatio;
+    // Helper to add logo with proper scaling
+    const addLogo = async (x: number, y: number, maxW: number, maxH: number) => {
+      if (companyInfo?.logo) {
+        try {
+          const dims = await getImageDimensions(companyInfo.logo);
+          const ratio = dims.width / dims.height;
+          let w: number, h: number;
+          if (ratio > maxW / maxH) {
+            w = maxW;
+            h = maxW / ratio;
+          } else {
+            h = maxH;
+            w = maxH * ratio;
+          }
+          doc.addImage(companyInfo.logo, 'AUTO', x, y, w, h);
+        } catch {
+          // Ignore logo errors
         }
-
-        doc.addImage(companyInfo.logo, 'AUTO', portraitWidth - marginRight - logoWidth, 15, logoWidth, logoHeight);
-      } catch (error) {
-        console.error('Error adding logo:', error);
       }
+    };
+
+    // ============ COVER PAGE ============
+    let y = 25;
+
+    // Header area with logo
+    await addLogo(pageWidth - margin - 45, y, 45, 25);
+
+    // Company name (top left)
+    if (companyInfo?.name) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(companyInfo.name, margin, y + 8);
     }
 
-    // Orange accent line (left side)
-    doc.setDrawColor(accentColor.r, accentColor.g, accentColor.b);
-    doc.setLineWidth(3);
-    doc.line(marginLeft, y, marginLeft, y + 50);
+    // Main title section
+    y = 80;
 
-    // Report type
+    // Accent bar
+    doc.setFillColor(accent.r, accent.g, accent.b);
+    doc.rect(margin, y, 4, 35, 'F');
+
+    // Report title
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
-    doc.setTextColor(80, 80, 80);
-    doc.text('Dienstleistungsreport', marginLeft + 8, y + 5);
+    doc.setFontSize(13);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text('Tätigkeitsnachweis', margin + 12, y + 8);
 
-    // Customer name (bold, large)
+    // Customer name
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(22);
-    doc.setTextColor(0, 0, 0);
-    doc.text(customerData.customer.name, marginLeft + 8, y + 20);
+    doc.setFontSize(26);
+    doc.setTextColor(dark.r, dark.g, dark.b);
+    doc.text(customerData.customer.name, margin + 12, y + 24);
 
     // Date range
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
-    doc.setTextColor(80, 80, 80);
-    doc.text(formatDateRange(dateRange.start, dateRange.end), marginLeft + 8, y + 32);
+    doc.setFontSize(12);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text(formatDateRange(dateRange.start, dateRange.end), margin + 12, y + 35);
 
-    // Summary box (gray background)
-    y = 140;
-    const coverContentWidth = portraitWidth - marginLeft - marginRight;
-    doc.setFillColor(245, 245, 245);
-    doc.roundedRect(marginLeft, y, coverContentWidth, 40, 3, 3, 'F');
+    // Summary cards
+    y = 150;
+    const cardWidth = (contentWidth - 16) / 3;
+    const cardHeight = 50;
 
-    // Clock icon placeholder (circle)
-    doc.setFillColor(50, 50, 50);
-    doc.circle(marginLeft + 20, y + 20, 10, 'F');
-    doc.setFillColor(245, 245, 245);
-    doc.circle(marginLeft + 20, y + 20, 7, 'F');
-    // Clock hands
-    doc.setDrawColor(50, 50, 50);
-    doc.setLineWidth(1.5);
-    doc.line(marginLeft + 20, y + 20, marginLeft + 20, y + 14);
-    doc.line(marginLeft + 20, y + 20, marginLeft + 25, y + 20);
-
-    // Total time label and value
-    doc.setFont('helvetica', 'bold');
+    // Card 1: Total Hours
+    doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+    doc.roundedRect(margin, y, cardWidth, cardHeight, 4, 4, 'F');
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.setTextColor(80, 80, 80);
-    doc.text('Gesamtzeit', marginLeft + 40, y + 14);
-
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text('Gesamtzeit', margin + 10, y + 15);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(24);
-    doc.setTextColor(0, 0, 0);
-    doc.text(formatHoursMinutes(customerData.totalHours), marginLeft + 40, y + 30);
+    doc.setFontSize(20);
+    doc.setTextColor(dark.r, dark.g, dark.b);
+    doc.text(formatHoursMinutes(customerData.totalHours), margin + 10, y + 35);
+
+    // Card 2: Entry Count
+    doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+    doc.roundedRect(margin + cardWidth + 8, y, cardWidth, cardHeight, 4, 4, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text('Einträge', margin + cardWidth + 18, y + 15);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.setTextColor(dark.r, dark.g, dark.b);
+    doc.text(customerData.entryCount.toString(), margin + cardWidth + 18, y + 35);
+
+    // Card 3: Projects
+    doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+    doc.roundedRect(margin + (cardWidth + 8) * 2, y, cardWidth, cardHeight, 4, 4, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text('Projekte', margin + (cardWidth + 8) * 2 + 10, y + 15);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.setTextColor(dark.r, dark.g, dark.b);
+    doc.text(customerData.projectCount.toString(), margin + (cardWidth + 8) * 2 + 10, y + 35);
 
     // Signature section
-    y = 220;
-    doc.setDrawColor(180, 180, 180);
+    y = 230;
+    doc.setDrawColor(200, 200, 200);
     doc.setLineWidth(0.5);
 
-    // Left signature line
-    doc.line(marginLeft, y, marginLeft + 75, y);
+    // Left signature
+    doc.line(margin, y, margin + 70, y);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Unterschrift ${companyInfo?.name || 'Auftragnehmer'}`, marginLeft, y + 6);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text('Datum, Unterschrift Auftragnehmer', margin, y + 6);
 
-    // Right signature line
-    doc.line(portraitWidth / 2 + 10, y, portraitWidth - marginRight, y);
-    doc.text('Unterschrift Akzeptanz', portraitWidth / 2 + 10, y + 6);
+    // Right signature
+    doc.line(pageWidth / 2 + 15, y, pageWidth - margin, y);
+    doc.text('Datum, Unterschrift Auftraggeber', pageWidth / 2 + 15, y + 6);
 
-    // Creation timestamp
+    // Footer
     const now = new Date();
-    doc.setFontSize(9);
-    doc.setTextColor(80, 80, 80);
+    doc.setFontSize(8);
+    doc.setTextColor(gray.r, gray.g, gray.b);
     doc.text(
-      `Erstellt am ${now.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })} ${now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
-      marginLeft,
-      portraitHeight - 20
+      `Erstellt: ${now.toLocaleDateString('de-DE')} ${now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`,
+      margin,
+      pageHeight - 15
     );
+    doc.text('Seite 1', pageWidth - margin, pageHeight - 15, { align: 'right' });
 
     // ============ DETAIL PAGES (Landscape) ============
     if (customerEntries.length > 0) {
-      // Add landscape page for details
-      doc.addPage('landscape');
-      y = 20;
+      // Add landscape page - correct jsPDF syntax
+      doc.addPage([297, 210], 'l');
 
-      // Column positions for landscape (297mm wide)
-      const colDatum = marginLeft;
-      const colTag = marginLeft + 28;
-      const colLeistung = marginLeft + 45;
-      const colBeschreibung = marginLeft + 100;
-      const colMenge = landscapeWidth - marginRight;
+      const lWidth = 297;
+      const lHeight = 210;
+      let pageNum = 2;
 
-      // Header on detail pages (landscape)
+      // Column positions for landscape
+      const colDate = margin;
+      const colDay = margin + 25;
+      const colProject = margin + 42;
+      const colActivity = margin + 100;
+      const colDesc = margin + 155;
+      const colHours = lWidth - margin;
+
+      // Header function for detail pages
       const addDetailHeader = async () => {
-        // Orange accent line
-        doc.setDrawColor(accentColor.r, accentColor.g, accentColor.b);
-        doc.setLineWidth(2);
-        doc.line(marginLeft, 15, marginLeft, 42);
+        // Top bar with accent color
+        doc.setFillColor(accent.r, accent.g, accent.b);
+        doc.rect(0, 0, lWidth, 3, 'F');
 
-        // Report info
+        // Header content
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        doc.text(customerData.customer.name, margin, 18);
+
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
-        doc.setTextColor(80, 80, 80);
-        doc.text('Dienstleistungsreport', marginLeft + 6, 20);
+        doc.setTextColor(gray.r, gray.g, gray.b);
+        doc.text(formatDateRange(dateRange.start, dateRange.end), margin, 26);
 
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(12);
-        doc.setTextColor(0, 0, 0);
-        doc.text(customerData.customer.name, marginLeft + 6, 28);
+        // Logo in header
+        await addLogo(lWidth - margin - 35, 10, 35, 18);
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(80, 80, 80);
-        doc.text(formatDateRange(dateRange.start, dateRange.end), marginLeft + 6, 36);
-
-        // Logo on detail pages (landscape) - properly scaled
-        if (companyInfo?.logo) {
-          try {
-            const imgDims = await getImageDimensions(companyInfo.logo);
-            const maxLogoWidth = 40;
-            const maxLogoHeight = 20;
-            const aspectRatio = imgDims.width / imgDims.height;
-            let logoWidth: number;
-            let logoHeight: number;
-
-            if (aspectRatio > maxLogoWidth / maxLogoHeight) {
-              logoWidth = maxLogoWidth;
-              logoHeight = maxLogoWidth / aspectRatio;
-            } else {
-              logoHeight = maxLogoHeight;
-              logoWidth = maxLogoHeight * aspectRatio;
-            }
-
-            doc.addImage(companyInfo.logo, 'AUTO', landscapeWidth - marginRight - logoWidth, 15, logoWidth, logoHeight);
-          } catch (error) {
-            // Ignore logo errors
-          }
-        }
-
-        return 50;
+        return 38;
       };
 
       y = await addDetailHeader();
 
-      // Table header
+      // Table header with background
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.rect(margin, y - 5, lWidth - margin * 2, 10, 'F');
+
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
-      doc.setTextColor(0, 0, 0);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text('Datum', colDate, y);
+      doc.text('Tag', colDay, y);
+      doc.text('Projekt', colProject, y);
+      doc.text('Tätigkeit', colActivity, y);
+      doc.text('Beschreibung', colDesc, y);
+      doc.text('Zeit', colHours, y, { align: 'right' });
 
-      doc.text('Datum', colDatum, y);
-      doc.text('Tag', colTag, y);
-      doc.text('Leistung', colLeistung, y);
-      doc.text('Beschreibung', colBeschreibung, y);
-      doc.text('Menge', colMenge, y, { align: 'right' });
-
-      y += 3;
-      doc.setDrawColor(0, 0, 0);
-      doc.setLineWidth(0.5);
-      doc.line(marginLeft, y, landscapeWidth - marginRight, y);
-      y += 8;
-
-      // Table rows
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
+      y += 10;
+      let rowIndex = 0;
 
       for (const entry of customerEntries) {
-        // Check for page break (landscape height is 210mm)
-        if (y > landscapeHeight - 25) {
-          doc.addPage('landscape');
+        // Check for page break
+        if (y > lHeight - 25) {
+          // Add page footer
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(gray.r, gray.g, gray.b);
+          doc.text(`Seite ${pageNum}`, lWidth - margin, lHeight - 10, { align: 'right' });
+
+          // New page
+          doc.addPage([297, 210], 'l');
+          pageNum++;
           y = await addDetailHeader();
+          rowIndex = 0;
 
           // Re-add table header
+          doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+          doc.rect(margin, y - 5, lWidth - margin * 2, 10, 'F');
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
-          doc.text('Datum', colDatum, y);
-          doc.text('Tag', colTag, y);
-          doc.text('Leistung', colLeistung, y);
-          doc.text('Beschreibung', colBeschreibung, y);
-          doc.text('Menge', colMenge, y, { align: 'right' });
-          y += 3;
-          doc.setLineWidth(0.5);
-          doc.line(marginLeft, y, landscapeWidth - marginRight, y);
-          y += 8;
-          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(dark.r, dark.g, dark.b);
+          doc.text('Datum', colDate, y);
+          doc.text('Tag', colDay, y);
+          doc.text('Projekt', colProject, y);
+          doc.text('Tätigkeit', colActivity, y);
+          doc.text('Beschreibung', colDesc, y);
+          doc.text('Zeit', colHours, y, { align: 'right' });
+          y += 10;
         }
+
+        // Alternating row background
+        if (rowIndex % 2 === 1) {
+          doc.setFillColor(250, 250, 250);
+          doc.rect(margin, y - 4, lWidth - margin * 2, 7, 'F');
+        }
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(dark.r, dark.g, dark.b);
 
         // Date
-        doc.text(entry.date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }), colDatum, y);
+        doc.text(entry.date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }), colDate, y);
 
         // Weekday
-        doc.text(entry.weekday, colTag, y);
+        doc.setTextColor(gray.r, gray.g, gray.b);
+        doc.text(entry.weekday, colDay, y);
+        doc.setTextColor(dark.r, dark.g, dark.b);
 
-        // Service/Activity (use project name or activity)
-        const leistung = entry.activity?.name || entry.project.name;
-        const maxLeistungWidth = 50;
-        let truncatedLeistung = leistung;
-        while (doc.getTextWidth(truncatedLeistung) > maxLeistungWidth && truncatedLeistung.length > 3) {
-          truncatedLeistung = truncatedLeistung.substring(0, truncatedLeistung.length - 4) + '...';
+        // Project
+        const maxProjectWidth = 52;
+        let projectName = entry.project.name;
+        while (doc.getTextWidth(projectName) > maxProjectWidth && projectName.length > 3) {
+          projectName = projectName.substring(0, projectName.length - 4) + '...';
         }
-        doc.text(truncatedLeistung, colLeistung, y);
+        doc.text(projectName, colProject, y);
 
-        // Description (truncate if needed) - more space in landscape
-        const maxDescWidth = colMenge - colBeschreibung - 25;
+        // Activity
+        const maxActivityWidth = 50;
+        let activityName = entry.activity?.name || '-';
+        while (doc.getTextWidth(activityName) > maxActivityWidth && activityName.length > 3) {
+          activityName = activityName.substring(0, activityName.length - 4) + '...';
+        }
+        doc.text(activityName, colActivity, y);
+
+        // Description
+        const maxDescWidth = colHours - colDesc - 25;
         let desc = entry.description || '-';
         while (doc.getTextWidth(desc) > maxDescWidth && desc.length > 3) {
           desc = desc.substring(0, desc.length - 4) + '...';
         }
-        doc.text(desc, colBeschreibung, y);
+        doc.text(desc, colDesc, y);
 
         // Hours
-        doc.text(formatHoursMinutes(entry.hours), colMenge, y, { align: 'right' });
-
-        y += 6;
-      }
-
-      // Optional: Total at bottom of last page
-      if (y < landscapeHeight - 30) {
-        y += 5;
-        doc.setDrawColor(0, 0, 0);
-        doc.setLineWidth(0.3);
-        doc.line(colMenge - 30, y, landscapeWidth - marginRight, y);
-        y += 6;
         doc.setFont('helvetica', 'bold');
-        doc.text('Gesamt:', colMenge - 30, y);
-        doc.text(formatHoursMinutes(customerData.totalHours), colMenge, y, { align: 'right' });
+        doc.text(formatHoursMinutes(entry.hours), colHours, y, { align: 'right' });
+
+        y += 7;
+        rowIndex++;
       }
+
+      // Total row
+      y += 5;
+      doc.setDrawColor(dark.r, dark.g, dark.b);
+      doc.setLineWidth(0.5);
+      doc.line(colHours - 50, y, lWidth - margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('Gesamt:', colHours - 50, y);
+      doc.setFontSize(11);
+      doc.text(formatHoursMinutes(customerData.totalHours), colHours, y, { align: 'right' });
+
+      // Final page footer
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(`Seite ${pageNum}`, lWidth - margin, lHeight - 10, { align: 'right' });
     }
 
     return doc;
@@ -529,7 +555,7 @@ export const ReportAssistant = ({
     for (const customerId of Array.from(selectedCustomers)) {
       const customerData = reportData.find(d => d.customer.id === customerId);
       if (customerData) {
-        const doc = await generateClockodoPDF(customerData);
+        const doc = await generateModernPDF(customerData);
         let dateStr: string;
         switch (dateRangeType) {
           case 'month':
@@ -544,7 +570,7 @@ export const ReportAssistant = ({
           default:
             dateStr = `${customStartDate}_${customEndDate}`;
         }
-        doc.save(`Dienstleistungsreport_${customerData.customer.name.replace(/\s+/g, '_')}_${dateStr}.pdf`);
+        doc.save(`Taetigkeitsnachweis_${customerData.customer.name.replace(/\s+/g, '_')}_${dateStr}.pdf`);
       }
     }
   };
@@ -642,8 +668,8 @@ ${companyInfo?.phone || ''}`;
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 Report-Assistent
               </h2>
-              <p className="text-sm text-gray-500 dark:text-dark-400">
-                Dienstleistungsreports im Clockodo-Stil
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Professionelle Tätigkeitsnachweise erstellen
               </p>
             </div>
           </div>
