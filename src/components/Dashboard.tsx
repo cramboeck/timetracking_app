@@ -818,31 +818,31 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
       )}
 
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold dark:text-white">Dashboard & Reports</h1>
-          <div className="flex gap-3">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+          <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Dashboard & Reports</h1>
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setReportAssistantOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors text-sm sm:text-base"
             >
-              <FileText size={18} />
-              Report-Assistent
+              <FileText size={16} />
+              <span className="hidden xs:inline">Report-</span>Assistent
             </button>
             <button
               onClick={openSavedReports}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm sm:text-base"
             >
-              <Archive size={18} />
-              Gespeicherte Reports
+              <Archive size={16} />
+              <span className="hidden sm:inline">Gespeicherte </span>Reports
             </button>
             {filteredEntries.length > 0 && (
               <button
                 onClick={generatePDF}
-                className="flex items-center gap-2 px-4 py-2 btn-accent"
+                className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 btn-accent text-sm sm:text-base"
               >
-                <Download size={18} />
-                PDF Export
+                <Download size={16} />
+                PDF
               </button>
             )}
           </div>

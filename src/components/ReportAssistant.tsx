@@ -1393,10 +1393,10 @@ ${companyInfo?.phone || ''}`;
 
         {/* Footer Actions */}
         {reportData.length > 0 && (
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-200">
+          <div className="px-3 sm:px-6 py-2 sm:py-4 border-t border-gray-200 dark:border-dark-200">
             {/* Save Message */}
             {saveMessage && (
-              <div className={`mb-3 px-3 py-2 rounded-lg text-sm ${
+              <div className={`mb-2 px-3 py-2 rounded-lg text-sm ${
                 saveMessage.type === 'success'
                   ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                   : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
@@ -1404,59 +1404,68 @@ ${companyInfo?.phone || ''}`;
                 {saveMessage.text}
               </div>
             )}
-            <div className="flex flex-wrap gap-3">
+            {/* Mobile: Icon-only compact buttons, Desktop: Full buttons with text */}
+            <div className="flex gap-1.5 sm:gap-3 sm:flex-wrap justify-center sm:justify-start">
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 rounded-lg font-medium transition-colors"
+                title="Schließen"
+                className="p-2.5 sm:px-4 sm:py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 rounded-lg font-medium transition-colors"
               >
-                Schließen
+                <X size={18} className="sm:hidden" />
+                <span className="hidden sm:inline">Schließen</span>
               </button>
               <button
                 onClick={openSavedReports}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"
+                title="Gespeicherte Reports"
+                className="p-2.5 sm:px-4 sm:py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center gap-1.5"
               >
                 <Archive size={18} />
-                Gespeicherte Reports
+                <span className="hidden sm:inline">Gespeicherte Reports</span>
               </button>
               <button
                 onClick={() => openPreview()}
                 disabled={selectedCustomers.size === 0 || isGeneratingPreview}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Vorschau"
+                className="p-2.5 sm:px-4 sm:py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 {isGeneratingPreview ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
                   <Eye size={18} />
                 )}
-                Vorschau
+                <span className="hidden sm:inline">Vorschau</span>
               </button>
               <button
                 onClick={() => saveReports()}
                 disabled={selectedCustomers.size === 0 || isSaving}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Als Nachweis speichern"
+                className="p-2.5 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 {isSaving ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
                   <Save size={18} />
                 )}
-                {isSaving ? 'Speichern...' : 'Als Nachweis speichern'}
+                <span className="hidden sm:inline">Als Nachweis Speichern</span>
               </button>
               <button
                 onClick={generateEmailTemplate}
                 disabled={selectedCustomers.size === 0}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="E-Mail Vorlage"
+                className="p-2.5 sm:px-4 sm:py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 <Mail size={18} />
-                E-Mail Vorlage
+                <span className="hidden sm:inline">E-Mail</span>
               </button>
               <button
                 onClick={exportSelected}
                 disabled={selectedCustomers.size === 0}
-                className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                title={`PDF exportieren (${selectedCustomers.size})`}
+                className="p-2.5 sm:px-4 sm:py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 <Download size={18} />
-                PDFs exportieren ({selectedCustomers.size})
+                <span className="hidden sm:inline">PDF ({selectedCustomers.size})</span>
+                <span className="sm:hidden text-xs font-bold">{selectedCustomers.size}</span>
               </button>
             </div>
           </div>
