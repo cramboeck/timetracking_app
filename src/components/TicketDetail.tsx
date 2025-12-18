@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb, Pencil, Check, Sparkles, ThumbsUp, ThumbsDown, RefreshCw, Bot, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb, Pencil, Check, Sparkles, ThumbsUp, ThumbsDown, RefreshCw, Bot, Loader2, Copy, ArrowRight } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
 import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl, organizationsApi, aiApi, AISuggestion } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -190,6 +190,61 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       loadAiSuggestions();
     } catch (err) {
       console.error('Failed to mark feedback:', err);
+    }
+  };
+
+  // Apply response suggestion to comment field
+  const applyResponseSuggestion = (content: string) => {
+    setNewComment(prev => prev ? `${prev}\n\n${content}` : content);
+    // Scroll to comment field
+    document.querySelector('textarea[placeholder*="Kommentar"]')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Apply priority suggestion by extracting priority from content
+  const applyPrioritySuggestion = async (content: string) => {
+    if (!ticket) return;
+
+    // Try to extract priority from AI response
+    const priorities: Record<string, TicketPriority> = {
+      'kritisch': 'critical',
+      'critical': 'critical',
+      'hoch': 'high',
+      'high': 'high',
+      'normal': 'normal',
+      'medium': 'normal',
+      'mittel': 'normal',
+      'niedrig': 'low',
+      'low': 'low',
+      'gering': 'low',
+    };
+
+    const lowerContent = content.toLowerCase();
+    let detectedPriority: TicketPriority | null = null;
+
+    for (const [keyword, priority] of Object.entries(priorities)) {
+      if (lowerContent.includes(keyword)) {
+        detectedPriority = priority;
+        break;
+      }
+    }
+
+    if (detectedPriority) {
+      try {
+        const response = await ticketsApi.update(ticket.id, { priority: detectedPriority });
+        setTicket(response.data);
+        setEditPriority(detectedPriority);
+      } catch (err) {
+        console.error('Failed to update priority:', err);
+      }
+    }
+  };
+
+  // Copy suggestion to clipboard
+  const copySuggestionToClipboard = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
     }
   };
 
@@ -1157,26 +1212,74 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                     <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
                       {suggestion.content}
                     </div>
-                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-purple-100 dark:border-purple-800">
+
+                    {/* Action Buttons based on type */}
+                    <div className="flex flex-wrap items-center gap-2 mt-3 pt-2 border-t border-purple-100 dark:border-purple-800">
+                      {/* Type-specific actions */}
+                      {suggestion.suggestionType === 'response' && (
+                        <button
+                          onClick={() => applyResponseSuggestion(suggestion.content)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 rounded transition-colors"
+                          title="In Kommentar übernehmen"
+                        >
+                          <ArrowRight size={12} />
+                          In Kommentar
+                        </button>
+                      )}
+                      {suggestion.suggestionType === 'priority' && (
+                        <button
+                          onClick={() => applyPrioritySuggestion(suggestion.content)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 dark:text-orange-400 rounded transition-colors"
+                          title="Priorität übernehmen"
+                        >
+                          <ArrowRight size={12} />
+                          Übernehmen
+                        </button>
+                      )}
+                      {suggestion.suggestionType === 'solution' && (
+                        <button
+                          onClick={() => {
+                            setSolutionText(suggestion.content);
+                            setShowSolutionModal(true);
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors"
+                          title="Als Lösung übernehmen"
+                        >
+                          <ArrowRight size={12} />
+                          Als Lösung
+                        </button>
+                      )}
+
+                      {/* Copy button for all types */}
+                      <button
+                        onClick={() => copySuggestionToClipboard(suggestion.content)}
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-400 rounded transition-colors"
+                        title="In Zwischenablage kopieren"
+                      >
+                        <Copy size={12} />
+                        Kopieren
+                      </button>
+
+                      <div className="flex-1" />
+
+                      {/* Feedback buttons */}
                       <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(suggestion.createdAt).toLocaleString('de-DE')} • {suggestion.modelUsed}
+                        {new Date(suggestion.createdAt).toLocaleString('de-DE')}
                       </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleSuggestionFeedback(suggestion.id, true)}
-                          className="p-1 text-gray-400 hover:text-green-500 transition-colors"
-                          title="Hilfreich"
-                        >
-                          <ThumbsUp size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleSuggestionFeedback(suggestion.id, false)}
-                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                          title="Nicht hilfreich"
-                        >
-                          <ThumbsDown size={14} />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleSuggestionFeedback(suggestion.id, true)}
+                        className="p-1 text-gray-400 hover:text-green-500 transition-colors"
+                        title="Hilfreich"
+                      >
+                        <ThumbsUp size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleSuggestionFeedback(suggestion.id, false)}
+                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                        title="Nicht hilfreich"
+                      >
+                        <ThumbsDown size={14} />
+                      </button>
                     </div>
                   </div>
                 );

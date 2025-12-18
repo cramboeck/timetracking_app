@@ -700,3 +700,163 @@ export async function testAIConnection(
     return { success: false, error: errorMessage };
   }
 }
+
+// ============================================
+// Quote AI Generation
+// ============================================
+
+const QUOTE_SYSTEM_PROMPTS = {
+  head: `Du bist ein professioneller IT-Dienstleister, der Angebote für Kunden schreibt.
+Erstelle einen professionellen, freundlichen Einleitungstext für ein Angebot.
+Der Text soll:
+- Persönlich und professionell sein
+- Bezug auf die Anfrage/das Gespräch nehmen
+- Die angebotenen Leistungen kurz einleiten
+- In deutscher Sprache sein
+- KEINE Anrede enthalten (diese wird separat hinzugefügt)
+- Maximal 3-4 Sätze lang sein`,
+
+  foot: `Du bist ein professioneller IT-Dienstleister, der Angebote für Kunden schreibt.
+Erstelle einen professionellen Schlusstext für ein Angebot.
+Der Text soll:
+- Freundlich und einladend sein
+- Zur Kontaktaufnahme bei Fragen ermutigen
+- Mit freundlichen Grüßen abschließen
+- In deutscher Sprache sein
+- Maximal 4-5 Sätze lang sein`,
+
+  priceResearch: `Du bist ein IT-Experte und Einkaufsberater für IT-Produkte und Dienstleistungen.
+Deine Aufgabe ist es, aktuelle Marktpreise zu recherchieren und Preisempfehlungen zu geben.
+Gib immer:
+1. Eine Einschätzung des aktuellen Marktpreises (Einkauf/B2B)
+2. Eine empfohlene Preisspanne für den Verkauf
+3. Typische Margen im IT-Bereich (15-40% je nach Produkt)
+4. Wichtige Faktoren, die den Preis beeinflussen
+Antworte auf Deutsch und strukturiert.`,
+};
+
+export async function generateQuoteText(
+  userId: string,
+  type: 'head' | 'foot',
+  context: {
+    customerName?: string;
+    header?: string;
+    positions?: Array<{ name: string; price: number }>;
+  }
+): Promise<string> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const systemPrompt = QUOTE_SYSTEM_PROMPTS[type];
+
+  let prompt = '';
+  if (type === 'head') {
+    prompt = `Erstelle einen Einleitungstext für ein Angebot.
+Kunde: ${context.customerName || 'Kunde'}
+Betreff: ${context.header || 'IT-Dienstleistungen'}
+${context.positions?.length ? `Positionen: ${context.positions.map(p => p.name).join(', ')}` : ''}`;
+  } else {
+    prompt = `Erstelle einen Schlusstext für ein Angebot.
+Kunde: ${context.customerName || 'Kunde'}
+Betreff: ${context.header || 'IT-Dienstleistungen'}
+${context.positions?.length ? `Gesamtwert: ${context.positions.reduce((sum, p) => sum + p.price, 0).toFixed(2)} EUR` : ''}`;
+  }
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      systemPrompt
+    );
+  } else {
+    result = await callOpenAI(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      systemPrompt
+    );
+  }
+
+  return result.content;
+}
+
+export async function researchProductPrice(
+  userId: string,
+  productName: string,
+  context?: string
+): Promise<{
+  result: string;
+  suggestedPrice?: number;
+  marketRange?: { min: number; max: number };
+}> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const prompt = `Recherchiere den aktuellen Marktpreis für:
+Produkt/Dienstleistung: ${productName}
+${context ? `Kontext: ${context}` : ''}
+
+Gib mir:
+1. Geschätzter Einkaufspreis (B2B/Händler)
+2. Empfohlener Verkaufspreis für IT-Dienstleister
+3. Übliche Marge
+4. Preisfaktoren
+
+Formatiere die Preise klar mit EUR.`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      QUOTE_SYSTEM_PROMPTS.priceResearch
+    );
+  } else {
+    result = await callOpenAI(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      QUOTE_SYSTEM_PROMPTS.priceResearch
+    );
+  }
+
+  // Try to extract suggested price from response
+  let suggestedPrice: number | undefined;
+  let marketRange: { min: number; max: number } | undefined;
+
+  // Simple regex to find prices in EUR
+  const priceMatches = result.content.match(/(\d+(?:[.,]\d+)?)\s*(?:€|EUR)/gi);
+  if (priceMatches && priceMatches.length >= 2) {
+    const prices = priceMatches.map(m => parseFloat(m.replace(/[^\d.,]/g, '').replace(',', '.')));
+    const validPrices = prices.filter(p => !isNaN(p) && p > 0);
+    if (validPrices.length >= 2) {
+      marketRange = {
+        min: Math.min(...validPrices),
+        max: Math.max(...validPrices),
+      };
+      // Suggest the higher price as selling price
+      suggestedPrice = marketRange.max;
+    }
+  }
+
+  return {
+    result: result.content,
+    suggestedPrice,
+    marketRange,
+  };
+}

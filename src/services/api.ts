@@ -3236,6 +3236,32 @@ export const aiApi = {
       method: 'POST',
     });
   },
+
+  // Generate quote text (head/foot text)
+  generateQuoteText: async (
+    type: 'head' | 'foot',
+    context: {
+      customerName?: string;
+      header?: string;
+      positions?: Array<{ name: string; price: number }>;
+    }
+  ): Promise<{ success: boolean; data: { text: string } }> => {
+    return authFetch('/ai/quote/generate-text', {
+      method: 'POST',
+      body: JSON.stringify({ type, context }),
+    });
+  },
+
+  // Research price for a product/service
+  researchPrice: async (
+    productName: string,
+    context?: string
+  ): Promise<{ success: boolean; data: { result: string; suggestedPrice?: number; marketRange?: { min: number; max: number } } }> => {
+    return authFetch('/ai/quote/research-price', {
+      method: 'POST',
+      body: JSON.stringify({ productName, context }),
+    });
+  },
 };
 
 // ============================================

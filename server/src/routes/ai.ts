@@ -182,4 +182,66 @@ router.post(
   }
 );
 
+// ============================================
+// Quote AI Routes
+// ============================================
+
+// POST /api/ai/quote/generate-text - Generate quote text (head/foot)
+router.post(
+  '/quote/generate-text',
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { type, context } = req.body;
+
+      if (!type || !['head', 'foot'].includes(type)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Typ muss "head" oder "foot" sein',
+        });
+      }
+
+      const text = await aiService.generateQuoteText(userId, type, context);
+
+      res.json({
+        success: true,
+        data: { text },
+      });
+    } catch (error: any) {
+      console.error('Generate quote text error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
+// POST /api/ai/quote/research-price - Research price for product/service
+router.post(
+  '/quote/research-price',
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { productName, context } = req.body;
+
+      if (!productName) {
+        return res.status(400).json({
+          success: false,
+          error: 'Produktname ist erforderlich',
+        });
+      }
+
+      const result = await aiService.researchProductPrice(userId, productName, context);
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      console.error('Research price error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
 export default router;
