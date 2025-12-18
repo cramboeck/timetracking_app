@@ -1,4 +1,5 @@
 import { Router, Request } from 'express';
+import crypto from 'crypto';
 import { pool } from '../config/database';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
