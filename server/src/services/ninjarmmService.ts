@@ -1420,17 +1420,20 @@ export async function fetchAndStoreDeviceOSPatches(
   console.log(`[OS Patches] Fetching patches for device ${deviceId} (ninja_id: ${ninjaDeviceId})`);
 
   // Fetch installed and pending patches in parallel
+  // Note: /device/{id}/os-patch-installs returns installed patches
+  //       /device/{id}/os-patches returns pending/failed/rejected patches
   const [installedPatches, pendingPatches] = await Promise.all([
-    ninjaFetch(config, `/device/${ninjaDeviceId}/os-patches`).catch((err) => {
-      console.log(`[OS Patches] Could not fetch installed patches: ${err.message}`);
-      return [];
-    }),
-    ninjaFetch(config, `/device/${ninjaDeviceId}/pending-os-patches`).catch((err) => {
-      // Try alternative endpoint
-      return ninjaFetch(config, `/device/${ninjaDeviceId}/os-patches/pending`).catch(() => {
-        console.log(`[OS Patches] Could not fetch pending patches`);
+    ninjaFetch(config, `/device/${ninjaDeviceId}/os-patch-installs`).catch((err) => {
+      console.log(`[OS Patches] Could not fetch installed patches from os-patch-installs: ${err.message}`);
+      // Try alternative endpoint names
+      return ninjaFetch(config, `/device/${ninjaDeviceId}/os-patches/installed`).catch(() => {
+        console.log(`[OS Patches] Could not fetch installed patches from alternative endpoint`);
         return [];
       });
+    }),
+    ninjaFetch(config, `/device/${ninjaDeviceId}/os-patches`).catch((err) => {
+      console.log(`[OS Patches] Could not fetch pending patches: ${err.message}`);
+      return [];
     }),
   ]);
 
