@@ -568,197 +568,321 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
     return new Date(parseInt(year), parseInt(month) - 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' });
   };
 
-  const generatePDF = () => {
-    const doc = new jsPDF();
+  // Helper to format hours as H:MM
+  const formatHoursMinutes = (hours: number): string => {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return `${h}:${m.toString().padStart(2, '0')} h`;
+  };
+
+  // Helper to get image dimensions from base64/data URL
+  const getImageDimensions = (src: string): Promise<{ width: number; height: number }> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => resolve({ width: 200, height: 100 }); // fallback
+      img.src = src;
+    });
+  };
+
+  const generatePDF = async () => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const periodLabel = getPeriodLabel();
     const customerFilter = selectedCustomer !== 'all' ? getCustomerById(selectedCustomer) : null;
 
-    let y = 20;
+    // Page dimensions
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 20;
+    const contentWidth = pageWidth - (margin * 2);
 
-    // Company Header with Logo
-    if (companyInfo) {
-      // Add logo if available with proper scaling
-      if (companyInfo.logo) {
+    // Colors - Modern palette (matching ReportAssistant)
+    const dark = { r: 17, g: 24, b: 39 }; // Near black (#111827)
+    const gray = { r: 107, g: 114, b: 128 }; // Gray (#6b7280)
+    const lightGray = { r: 243, g: 244, b: 246 }; // Light gray (#f3f4f6)
+    const accent = { r: 249, g: 115, b: 22 }; // App accent (#f97316)
+
+    // Helper to add logo with proper scaling
+    const addLogo = async (x: number, y: number, maxW: number, maxH: number) => {
+      if (companyInfo?.logo) {
         try {
-          // Create temporary image to get dimensions
-          const img = new Image();
-          img.src = companyInfo.logo;
-
-          // Calculate scaled dimensions (max 30mm width, max 20mm height, maintain aspect ratio)
-          const maxWidth = 30;
-          const maxHeight = 20;
-          const aspectRatio = img.width / img.height;
-
-          let logoWidth = maxWidth;
-          let logoHeight = maxWidth / aspectRatio;
-
-          if (logoHeight > maxHeight) {
-            logoHeight = maxHeight;
-            logoWidth = maxHeight * aspectRatio;
+          const dims = await getImageDimensions(companyInfo.logo);
+          const ratio = dims.width / dims.height;
+          let w: number, h: number;
+          if (ratio > maxW / maxH) {
+            w = maxW;
+            h = maxW / ratio;
+          } else {
+            h = maxH;
+            w = maxH * ratio;
           }
-
-          doc.addImage(companyInfo.logo, 'PNG', 20, y, logoWidth, logoHeight);
-        } catch (error) {
-          console.error('Error adding logo to PDF:', error);
+          doc.addImage(companyInfo.logo, 'AUTO', x, y, w, h);
+        } catch {
+          // Ignore logo errors
         }
       }
+    };
 
-      // Company info on the right side
-      doc.setFontSize(9);
+    // ============ COVER PAGE ============
+    let y = 25;
+
+    // Header area with logo
+    await addLogo(pageWidth - margin - 45, y, 45, 25);
+
+    // Company name (top left)
+    if (companyInfo?.name) {
       doc.setFont('helvetica', 'bold');
-      doc.text(companyInfo.name, 190, y, { align: 'right' });
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      y += 4;
-      doc.text(companyInfo.address, 190, y, { align: 'right' });
-      y += 4;
-      doc.text(`${companyInfo.zipCode} ${companyInfo.city}`, 190, y, { align: 'right' });
-      y += 4;
-      doc.text(companyInfo.country, 190, y, { align: 'right' });
-      y += 5;
-      doc.text(companyInfo.email, 190, y, { align: 'right' });
-
-      if (companyInfo.phone) {
-        y += 4;
-        doc.text(`Tel: ${companyInfo.phone}`, 190, y, { align: 'right' });
-      }
-
-      if (companyInfo.website) {
-        y += 4;
-        doc.text(companyInfo.website, 190, y, { align: 'right' });
-      }
-
-      y += 10;
+      doc.setFontSize(11);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(companyInfo.name, margin, y + 8);
     }
 
-    // Report Title - centered (use custom title if customer is filtered and has one)
-    y = Math.max(y, 45); // Ensure minimum spacing
+    // Main title section
+    y = 80;
 
+    // Accent bar
+    doc.setFillColor(accent.r, accent.g, accent.b);
+    doc.rect(margin, y, 4, 35, 'F');
+
+    // Report title (from customer settings or default)
     let reportTitle = 'Stundenbericht';
     if (customerFilter?.reportTitle) {
-      // Replace template variables
       reportTitle = customerFilter.reportTitle
         .replace(/\{\{kunde\}\}/gi, customerFilter.name)
-        .replace(/\{\{monat\}\}/gi, getPeriodLabel())
-        .replace(/\{\{zeitraum\}\}/gi, getPeriodLabel());
+        .replace(/\{\{monat\}\}/gi, periodLabel)
+        .replace(/\{\{zeitraum\}\}/gi, periodLabel);
     }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(13);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text(reportTitle, margin + 12, y + 8);
 
-    doc.setFontSize(22);
+    // Customer name or "Alle Kunden"
     doc.setFont('helvetica', 'bold');
-    doc.text(reportTitle, 105, y, { align: 'center' });
+    doc.setFontSize(26);
+    doc.setTextColor(dark.r, dark.g, dark.b);
+    doc.text(customerFilter?.name || 'Alle Kunden', margin + 12, y + 24);
 
-    y += 10;
+    // Date range
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(12);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text(periodLabel, margin + 12, y + 35);
+
+    // Summary cards
+    y = 150;
+    const cardWidth = (contentWidth - 16) / 3;
+    const cardHeight = 50;
+
+    // Card 1: Total Hours
+    doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+    doc.roundedRect(margin, y, cardWidth, cardHeight, 4, 4, 'F');
     doc.setFont('helvetica', 'normal');
-    doc.text(periodLabel, 105, y, { align: 'center' });
-
-    y += 15;
-
-    // Customer Info (if filtered)
-    if (customerFilter) {
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Kunde:', 20, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(customerFilter.name, 40, y);
-      y += 6;
-      if (customerFilter.contactPerson) {
-        doc.text(`Ansprechpartner: ${customerFilter.contactPerson}`, 40, y);
-        y += 6;
-      }
-      if (customerFilter.email) {
-        doc.text(`E-Mail: ${customerFilter.email}`, 40, y);
-        y += 6;
-      }
-      y += 5;
-    }
-
-    // Summary box
-    y += 5;
-    doc.setFillColor(240, 240, 240);
-    doc.rect(20, y, 170, 20, 'F');
     doc.setFontSize(10);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text('Gesamtzeit', margin + 10, y + 15);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Gesamtstunden: ${totalHours.toFixed(2)} h`, 25, y + 8);
-    doc.text(`Gesamtbetrag: ${totalAmount.toFixed(2)} EUR`, 25, y + 15);
+    doc.setFontSize(20);
+    doc.setTextColor(dark.r, dark.g, dark.b);
+    doc.text(formatHoursMinutes(totalHours), margin + 10, y + 35);
 
-    // Table Header
-    y += 30;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Kunde', 20, y);
-    doc.text('Projekt', 70, y);
-    doc.text('Stunden', 120, y);
-    doc.text('Satz (€/h)', 142, y);
-    doc.text('Betrag (€)', 170, y);
-    doc.line(20, y + 2, 190, y + 2);
-
-    // Table Rows
-    y += 8;
+    // Card 2: Project Count
+    doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+    doc.roundedRect(margin + cardWidth + 8, y, cardWidth, cardHeight, 4, 4, 'F');
     doc.setFont('helvetica', 'normal');
-
-    stats.forEach((stat) => {
-      if (y > 260) {
-        doc.addPage();
-        y = 20;
-      }
-
-      const hours = stat.totalSeconds / 3600;
-      doc.text(stat.customerName.substring(0, 22), 20, y);
-      doc.text(stat.projectName.substring(0, 22), 70, y);
-      doc.text(hours.toFixed(2), 120, y);
-      doc.text((stat.hourlyRate || 0).toFixed(2), 145, y);
-      doc.text((stat.totalAmount || 0).toFixed(2), 172, y);
-      y += 6;
-    });
-
-    // Total line
-    y += 3;
-    doc.line(20, y, 190, y);
-    y += 7;
+    doc.setFontSize(10);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text('Projekte', margin + cardWidth + 18, y + 15);
     doc.setFont('helvetica', 'bold');
-    doc.text('Gesamt:', 95, y);
-    doc.text(totalHours.toFixed(2) + ' h', 120, y);
-    doc.text(totalAmount.toFixed(2) + ' €', 168, y);
+    doc.setFontSize(20);
+    doc.setTextColor(dark.r, dark.g, dark.b);
+    doc.text(stats.length.toString(), margin + cardWidth + 18, y + 35);
+
+    // Card 3: Total Amount
+    doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+    doc.roundedRect(margin + (cardWidth + 8) * 2, y, cardWidth, cardHeight, 4, 4, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text('Gesamtbetrag', margin + (cardWidth + 8) * 2 + 10, y + 15);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.setTextColor(dark.r, dark.g, dark.b);
+    doc.text(`${totalAmount.toFixed(2)} €`, margin + (cardWidth + 8) * 2 + 10, y + 35);
 
     // Signature section
-    y += 20;
-    if (y > 240) {
-      doc.addPage();
-      y = 30;
-    }
+    y = 230;
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.5);
 
-    doc.setFontSize(10);
+    // Left signature
+    doc.line(margin, y, margin + 70, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('Hiermit bestätige ich die Richtigkeit der aufgeführten Stunden:', 20, y);
+    doc.setFontSize(9);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text('Datum, Unterschrift Auftragnehmer', margin, y + 6);
 
-    y += 20;
-    doc.line(20, y, 90, y);
-    doc.line(120, y, 190, y);
-    y += 5;
+    // Right signature
+    doc.line(pageWidth / 2 + 15, y, pageWidth - margin, y);
+    doc.text('Datum, Unterschrift Auftraggeber', pageWidth / 2 + 15, y + 6);
+
+    // Footer
+    const now = new Date();
     doc.setFontSize(8);
-    doc.text('Ort, Datum', 20, y);
-    doc.text('Unterschrift Auftragnehmer', 120, y);
+    doc.setTextColor(gray.r, gray.g, gray.b);
+    doc.text(
+      `Erstellt: ${now.toLocaleDateString('de-DE')} ${now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`,
+      margin,
+      pageHeight - 15
+    );
+    doc.text('Seite 1', pageWidth - margin, pageHeight - 15, { align: 'right' });
 
-    y += 15;
-    doc.line(20, y, 90, y);
-    doc.line(120, y, 190, y);
-    y += 5;
-    doc.text('Ort, Datum', 20, y);
-    doc.text('Unterschrift Auftraggeber', 120, y);
+    // ============ DETAIL PAGE (Landscape) ============
+    if (stats.length > 0) {
+      doc.addPage([297, 210], 'l');
 
-    // Footer with company tax info and note
-    doc.setFontSize(7);
-    doc.setTextColor(100, 100, 100);
-    doc.setFont('helvetica', 'normal');
+      const lWidth = 297;
+      const lHeight = 210;
+      let pageNum = 2;
 
-    if (companyInfo?.taxId) {
-      doc.text(`Steuernummer: ${companyInfo.taxId}`, 105, 280, { align: 'center' });
+      // Column positions for landscape
+      const colCustomer = margin;
+      const colProject = margin + 60;
+      const colHours = margin + 145;
+      const colRate = margin + 185;
+      const colAmount = lWidth - margin;
+
+      // Header function for detail pages
+      const addDetailHeader = async () => {
+        // Top bar with accent color
+        doc.setFillColor(accent.r, accent.g, accent.b);
+        doc.rect(0, 0, lWidth, 3, 'F');
+
+        // Header content
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        doc.text(customerFilter?.name || 'Alle Kunden', margin, 18);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(gray.r, gray.g, gray.b);
+        doc.text(periodLabel, margin, 26);
+
+        // Logo in header
+        await addLogo(lWidth - margin - 35, 10, 35, 18);
+
+        return 38;
+      };
+
+      y = await addDetailHeader();
+
+      // Table header with background
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.rect(margin, y - 5, lWidth - margin * 2, 10, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text('Kunde', colCustomer, y);
+      doc.text('Projekt', colProject, y);
+      doc.text('Stunden', colHours, y);
+      doc.text('Stundensatz', colRate, y);
+      doc.text('Betrag', colAmount, y, { align: 'right' });
+
+      y += 10;
+      let rowIndex = 0;
+
+      for (const stat of stats) {
+        // Check for page break
+        if (y > lHeight - 35) {
+          // Add page footer
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(gray.r, gray.g, gray.b);
+          doc.text(`Seite ${pageNum}`, lWidth - margin, lHeight - 10, { align: 'right' });
+
+          // New page
+          doc.addPage([297, 210], 'l');
+          pageNum++;
+          y = await addDetailHeader();
+          rowIndex = 0;
+
+          // Re-add table header
+          doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+          doc.rect(margin, y - 5, lWidth - margin * 2, 10, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.setTextColor(dark.r, dark.g, dark.b);
+          doc.text('Kunde', colCustomer, y);
+          doc.text('Projekt', colProject, y);
+          doc.text('Stunden', colHours, y);
+          doc.text('Stundensatz', colRate, y);
+          doc.text('Betrag', colAmount, y, { align: 'right' });
+          y += 10;
+        }
+
+        // Alternating row background
+        if (rowIndex % 2 === 1) {
+          doc.setFillColor(250, 250, 250);
+          doc.rect(margin, y - 4, lWidth - margin * 2, 7, 'F');
+        }
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(dark.r, dark.g, dark.b);
+
+        const hours = stat.totalSeconds / 3600;
+
+        // Customer (truncate if needed)
+        let customerName = stat.customerName;
+        while (doc.getTextWidth(customerName) > 55 && customerName.length > 3) {
+          customerName = customerName.substring(0, customerName.length - 4) + '...';
+        }
+        doc.text(customerName, colCustomer, y);
+
+        // Project (truncate if needed)
+        let projectName = stat.projectName;
+        while (doc.getTextWidth(projectName) > 80 && projectName.length > 3) {
+          projectName = projectName.substring(0, projectName.length - 4) + '...';
+        }
+        doc.text(projectName, colProject, y);
+
+        // Hours
+        doc.text(formatHoursMinutes(hours), colHours, y);
+
+        // Rate
+        doc.setTextColor(gray.r, gray.g, gray.b);
+        doc.text(`${(stat.hourlyRate || 0).toFixed(2)} €/h`, colRate, y);
+
+        // Amount
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        doc.text(`${(stat.totalAmount || 0).toFixed(2)} €`, colAmount, y, { align: 'right' });
+
+        y += 7;
+        rowIndex++;
+      }
+
+      // Total row
+      y += 5;
+      doc.setDrawColor(dark.r, dark.g, dark.b);
+      doc.setLineWidth(0.5);
+      doc.line(colHours - 10, y, lWidth - margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('Gesamt:', colHours - 10, y);
+      doc.text(formatHoursMinutes(totalHours), colHours, y);
+      doc.setFontSize(11);
+      doc.text(`${totalAmount.toFixed(2)} €`, colAmount, y, { align: 'right' });
+
+      // Final page footer
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(`Seite ${pageNum}`, lWidth - margin, lHeight - 10, { align: 'right' });
     }
-
-    doc.setTextColor(150, 150, 150);
-    doc.text('// TODO: Microsoft 365 Integration - Automatischer Versand via Graph API', 20, 285);
 
     // Save
     const filename = customerFilter
