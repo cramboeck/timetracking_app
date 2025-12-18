@@ -426,6 +426,22 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_report_approvals_token ON report_approvals(token)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_report_approvals_status ON report_approvals(status)');
 
+    // Migration: Extend report_approvals to support 'saved' status and nullable recipient_email
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Drop and recreate the status check constraint to include 'saved'
+        ALTER TABLE report_approvals DROP CONSTRAINT IF EXISTS report_approvals_status_check;
+        ALTER TABLE report_approvals ADD CONSTRAINT report_approvals_status_check
+          CHECK(status IN ('pending', 'approved', 'rejected', 'saved'));
+
+        -- Make recipient_email nullable for saved reports
+        ALTER TABLE report_approvals ALTER COLUMN recipient_email DROP NOT NULL;
+      EXCEPTION
+        WHEN others THEN NULL;
+      END $$;
+    `);
+
     // ============================================
     // NinjaRMM Integration Tables
     // ============================================

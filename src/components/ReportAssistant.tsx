@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro } from 'lucide-react';
+import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2 } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import { useAuth } from '../contexts/AuthContext';
@@ -90,6 +90,23 @@ export const ReportAssistant = ({
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
   });
+
+  // Saving state
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Duplicate confirmation state
+  interface ExistingReport {
+    id: string;
+    customerName: string;
+    savedAt: string;
+    totalHours: number;
+  }
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{
+    show: boolean;
+    existingReports: ExistingReport[];
+    pendingCustomerIds: string[];
+  }>({ show: false, existingReports: [], pendingCustomerIds: [] });
 
   // Calculate effective date range
   const dateRange = useMemo(() => {
@@ -583,6 +600,155 @@ export const ReportAssistant = ({
     }
   };
 
+  // Check for existing reports before saving
+  const checkForDuplicates = async (): Promise<ExistingReport[]> => {
+    const token = localStorage.getItem('token');
+    const existingReports: ExistingReport[] = [];
+
+    for (const customerId of Array.from(selectedCustomers)) {
+      const customerData = reportData.find(d => d.customer.id === customerId);
+      if (customerData) {
+        try {
+          const response = await fetch('/api/report-approvals/check-exists', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              customerId,
+              startDate: dateRange.start.toISOString(),
+              endDate: dateRange.end.toISOString()
+            })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.exists) {
+              existingReports.push(data.existingReport);
+            }
+          }
+        } catch (error) {
+          console.error('Check duplicates error:', error);
+        }
+      }
+    }
+
+    return existingReports;
+  };
+
+  // Save reports to database as proof
+  const saveReports = async (overwrite = false) => {
+    if (selectedCustomers.size === 0) return;
+
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const token = localStorage.getItem('token');
+
+      // Check for duplicates first (unless we're overwriting)
+      if (!overwrite) {
+        const existingReports = await checkForDuplicates();
+        if (existingReports.length > 0) {
+          setIsSaving(false);
+          setDuplicateConfirm({
+            show: true,
+            existingReports,
+            pendingCustomerIds: Array.from(selectedCustomers)
+          });
+          return;
+        }
+      }
+
+      // Delete existing reports if overwriting
+      if (overwrite && duplicateConfirm.existingReports.length > 0) {
+        for (const existing of duplicateConfirm.existingReports) {
+          await fetch(`/api/report-approvals/saved/${existing.id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        }
+      }
+
+      let savedCount = 0;
+
+      for (const customerId of Array.from(selectedCustomers)) {
+        const customerData = reportData.find(d => d.customer.id === customerId);
+        if (customerData) {
+          const customerEntries = getCustomerEntries(customerId);
+
+          const reportPayload = {
+            reportData: {
+              customerId: customerData.customer.id,
+              customerName: customerData.customer.name,
+              reportTitle: customerData.customer.reportTitle || 'Dienstleistungsnachweis',
+              timeEntries: customerEntries.map(e => ({
+                date: e.date.toISOString(),
+                weekday: e.weekday,
+                projectName: e.project.name,
+                activityName: e.activity?.name || '-',
+                description: e.description,
+                hours: e.hours
+              })),
+              startDate: dateRange.start.toISOString(),
+              endDate: dateRange.end.toISOString(),
+              totalHours: customerData.totalHours,
+              entryCount: customerData.entryCount,
+              projectCount: customerData.projectCount
+            }
+          };
+
+          const response = await fetch('/api/report-approvals/save', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(reportPayload)
+          });
+
+          if (response.ok) {
+            savedCount++;
+          } else {
+            const error = await response.json();
+            console.error('Save error:', error);
+          }
+        }
+      }
+
+      // Reset duplicate confirm state
+      setDuplicateConfirm({ show: false, existingReports: [], pendingCustomerIds: [] });
+
+      if (savedCount > 0) {
+        setSaveMessage({
+          type: 'success',
+          text: `${savedCount} Report(s) erfolgreich gespeichert`
+        });
+        // Clear message after 3 seconds
+        setTimeout(() => setSaveMessage(null), 3000);
+      } else {
+        setSaveMessage({
+          type: 'error',
+          text: 'Keine Reports gespeichert'
+        });
+      }
+    } catch (error) {
+      console.error('Save reports error:', error);
+      setSaveMessage({
+        type: 'error',
+        text: 'Fehler beim Speichern'
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Cancel duplicate overwrite
+  const cancelDuplicateOverwrite = () => {
+    setDuplicateConfirm({ show: false, existingReports: [], pendingCustomerIds: [] });
+  };
+
   const generateEmailTemplate = () => {
     const selectedData = reportData.filter(d => selectedCustomers.has(d.customer.id));
     if (selectedData.length === 0) return;
@@ -936,31 +1102,100 @@ ${companyInfo?.phone || ''}`;
           )}
         </div>
 
+        {/* Duplicate Confirmation Dialog */}
+        {duplicateConfirm.show && (
+          <div className="px-6 py-4 bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-800">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center">
+                <span className="text-amber-600 dark:text-amber-400 text-xl">⚠</span>
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-amber-800 dark:text-amber-300 mb-1">
+                  Bereits gespeicherte Reports gefunden
+                </h4>
+                <p className="text-sm text-amber-700 dark:text-amber-400 mb-3">
+                  Für folgende Kunden existieren bereits Reports im gewählten Zeitraum:
+                </p>
+                <ul className="text-sm text-amber-700 dark:text-amber-400 mb-4 space-y-1">
+                  {duplicateConfirm.existingReports.map((report, idx) => (
+                    <li key={idx} className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                      <strong>{report.customerName}</strong>
+                      <span className="text-amber-600 dark:text-amber-500">
+                        ({formatHoursMinutes(report.totalHours)}, gespeichert am {new Date(report.savedAt).toLocaleDateString('de-DE')})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex gap-3">
+                  <button
+                    onClick={cancelDuplicateOverwrite}
+                    className="px-4 py-2 text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-lg font-medium transition-colors"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    onClick={() => saveReports(true)}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 transition-colors disabled:opacity-50"
+                  >
+                    {isSaving ? 'Überschreibe...' : 'Überschreiben'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer Actions */}
         {reportData.length > 0 && (
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-200 flex flex-wrap gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 rounded-lg font-medium transition-colors"
-            >
-              Schließen
-            </button>
-            <button
-              onClick={generateEmailTemplate}
-              disabled={selectedCustomers.size === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Mail size={18} />
-              E-Mail Vorlage
-            </button>
-            <button
-              onClick={exportSelected}
-              disabled={selectedCustomers.size === 0}
-              className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download size={18} />
-              PDFs exportieren ({selectedCustomers.size})
-            </button>
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-200">
+            {/* Save Message */}
+            {saveMessage && (
+              <div className={`mb-3 px-3 py-2 rounded-lg text-sm ${
+                saveMessage.type === 'success'
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+              }`}>
+                {saveMessage.text}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 rounded-lg font-medium transition-colors"
+              >
+                Schließen
+              </button>
+              <button
+                onClick={saveReports}
+                disabled={selectedCustomers.size === 0 || isSaving}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Save size={18} />
+                )}
+                {isSaving ? 'Speichern...' : 'Als Nachweis speichern'}
+              </button>
+              <button
+                onClick={generateEmailTemplate}
+                disabled={selectedCustomers.size === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Mail size={18} />
+                E-Mail Vorlage
+              </button>
+              <button
+                onClick={exportSelected}
+                disabled={selectedCustomers.size === 0}
+                className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download size={18} />
+                PDFs exportieren ({selectedCustomers.size})
+              </button>
+            </div>
           </div>
         )}
       </div>
