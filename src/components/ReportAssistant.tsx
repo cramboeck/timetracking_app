@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2 } from 'lucide-react';
+import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2, Send, Copy, Link, CheckCircle, XCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import { useAuth } from '../contexts/AuthContext';
@@ -121,19 +121,37 @@ export const ReportAssistant = ({
   // Saved reports state
   interface SavedReport {
     id: string;
+    token: string;
+    customer_id: string;
     customer_name: string;
+    recipient_email: string;
     report_title: string;
     start_date: string;
     end_date: string;
     total_hours: number;
     entry_count: number;
     project_count: number;
+    status: 'saved' | 'pending' | 'approved' | 'rejected';
     created_at: string;
+    reviewed_at: string | null;
+    expires_at: string | null;
     notes: string | null;
+    time_entries: any[];
   }
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
   const [showSavedReports, setShowSavedReports] = useState(false);
   const [isLoadingSavedReports, setIsLoadingSavedReports] = useState(false);
+  const [savedReportsFilter, setSavedReportsFilter] = useState<'all' | 'saved' | 'pending' | 'approved' | 'rejected'>('all');
+
+  // Send for approval state
+  const [sendApprovalDialog, setSendApprovalDialog] = useState<{
+    show: boolean;
+    report: SavedReport | null;
+    email: string;
+    name: string;
+    isSending: boolean;
+    testMode: boolean;
+  }>({ show: false, report: null, email: '', name: '', isSending: false, testMode: true });
 
   // Calculate effective date range
   const dateRange = useMemo(() => {
@@ -853,11 +871,12 @@ export const ReportAssistant = ({
   };
 
   // Load saved reports
-  const loadSavedReports = async () => {
+  const loadSavedReports = async (filterStatus?: string) => {
     setIsLoadingSavedReports(true);
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/report-approvals/saved', {
+      const status = filterStatus || savedReportsFilter;
+      const response = await fetch(`/api/report-approvals/saved?status=${status}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -892,6 +911,106 @@ export const ReportAssistant = ({
       }
     } catch (error) {
       console.error('Error deleting report:', error);
+    }
+  };
+
+  // Send report for approval
+  const openSendApprovalDialog = (report: SavedReport) => {
+    setSendApprovalDialog({
+      show: true,
+      report,
+      email: report.recipient_email || '',
+      name: '',
+      isSending: false,
+      testMode: true
+    });
+  };
+
+  const sendForApproval = async () => {
+    if (!sendApprovalDialog.report || !sendApprovalDialog.email) return;
+
+    setSendApprovalDialog(prev => ({ ...prev, isSending: true }));
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      const report = sendApprovalDialog.report;
+
+      const response = await fetch('/api/report-approvals/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          recipientEmail: sendApprovalDialog.email,
+          recipientName: sendApprovalDialog.name || sendApprovalDialog.email,
+          reportData: {
+            customerId: report.customer_id,
+            customerName: report.customer_name,
+            reportTitle: report.report_title,
+            timeEntries: report.time_entries,
+            startDate: report.start_date,
+            endDate: report.end_date,
+            totalHours: report.total_hours,
+            entryCount: report.entry_count,
+            projectCount: report.project_count
+          },
+          expiresInDays: 7,
+          testMode: sendApprovalDialog.testMode
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSaveMessage({
+          type: 'success',
+          text: sendApprovalDialog.testMode
+            ? `[TEST] Freigabe-Anfrage wurde erstellt (keine E-Mail versendet)`
+            : `Freigabe-Anfrage wurde an ${sendApprovalDialog.email} gesendet`
+        });
+        setTimeout(() => setSaveMessage(null), 5000);
+
+        // Close dialog and refresh list
+        setSendApprovalDialog({ show: false, report: null, email: '', name: '', isSending: false, testMode: true });
+        loadSavedReports();
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Fehler beim Senden');
+      }
+    } catch (error: any) {
+      setSaveMessage({ type: 'error', text: error.message });
+      setTimeout(() => setSaveMessage(null), 5000);
+    } finally {
+      setSendApprovalDialog(prev => ({ ...prev, isSending: false }));
+    }
+  };
+
+  // Copy approval link to clipboard
+  const copyApprovalLink = async (report: SavedReport) => {
+    const approvalUrl = `${window.location.origin}/approve/${report.token}`;
+    try {
+      await navigator.clipboard.writeText(approvalUrl);
+      setSaveMessage({ type: 'success', text: 'Link in Zwischenablage kopiert' });
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch {
+      // Fallback for older browsers
+      prompt('Freigabe-Link:', approvalUrl);
+    }
+  };
+
+  // Get status badge for report
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'saved':
+        return { label: 'Gespeichert', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', icon: Save };
+      case 'pending':
+        return { label: 'Wartet', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock };
+      case 'approved':
+        return { label: 'Genehmigt', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle };
+      case 'rejected':
+        return { label: 'Abgelehnt', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: XCircle };
+      default:
+        return { label: status, color: 'bg-gray-100 text-gray-700', icon: AlertCircle };
     }
   };
 
@@ -1476,23 +1595,41 @@ ${companyInfo?.phone || ''}`;
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[85vh] flex flex-col">
               {/* Header */}
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <Archive size={24} className="text-accent-primary" />
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Gespeicherte Reports
+                    Reports & Genehmigungen
                   </h3>
                 </div>
-                <button
-                  onClick={() => setShowSavedReports(false)}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-                >
-                  <X size={20} className="text-gray-500" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Status Filter */}
+                  <select
+                    value={savedReportsFilter}
+                    onChange={(e) => {
+                      const newFilter = e.target.value as typeof savedReportsFilter;
+                      setSavedReportsFilter(newFilter);
+                      loadSavedReports(newFilter);
+                    }}
+                    className="px-3 py-1.5 text-sm border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-200 text-gray-700 dark:text-gray-300"
+                  >
+                    <option value="all">Alle Status</option>
+                    <option value="saved">Gespeichert</option>
+                    <option value="pending">Wartet auf Genehmigung</option>
+                    <option value="approved">Genehmigt</option>
+                    <option value="rejected">Abgelehnt</option>
+                  </select>
+                  <button
+                    onClick={() => setShowSavedReports(false)}
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                  >
+                    <X size={20} className="text-gray-500" />
+                  </button>
+                </div>
               </div>
 
               {/* Content */}
-              <div className="flex-1 overflow-auto p-6">
+              <div className="flex-1 overflow-auto p-4 sm:p-6">
                 {isLoadingSavedReports ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 size={32} className="animate-spin text-accent-primary" />
@@ -1500,50 +1637,113 @@ ${companyInfo?.phone || ''}`;
                 ) : savedReports.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                     <Archive size={48} className="mx-auto mb-4 opacity-50" />
-                    <p>Keine gespeicherten Reports vorhanden</p>
+                    <p>Keine Reports für diesen Filter vorhanden</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {savedReports.map((report) => (
-                      <div
-                        key={report.id}
-                        className="bg-gray-50 dark:bg-dark-200 rounded-lg p-4 flex items-center justify-between"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-1">
-                            <h4 className="font-semibold text-gray-900 dark:text-white">
-                              {report.customer_name}
-                            </h4>
-                            <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">
-                              {report.report_title}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                            <span className="flex items-center gap-1">
-                              <Calendar size={14} />
-                              {new Date(report.start_date).toLocaleDateString('de-DE')} - {new Date(report.end_date).toLocaleDateString('de-DE')}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Clock size={14} />
-                              {report.total_hours.toFixed(2)}h
-                            </span>
-                            <span>{report.entry_count} Einträge</span>
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                            Gespeichert am {new Date(report.created_at).toLocaleDateString('de-DE', {
-                              day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                            })}
+                    {savedReports.map((report) => {
+                      const statusBadge = getStatusBadge(report.status);
+                      const StatusIcon = statusBadge.icon;
+                      return (
+                        <div
+                          key={report.id}
+                          className="bg-gray-50 dark:bg-dark-200 rounded-lg p-4"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              {/* Header row with name and status */}
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <h4 className="font-semibold text-gray-900 dark:text-white">
+                                  {report.customer_name}
+                                </h4>
+                                <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${statusBadge.color}`}>
+                                  <StatusIcon size={12} />
+                                  {statusBadge.label}
+                                </span>
+                                <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">
+                                  {report.report_title}
+                                </span>
+                              </div>
+                              {/* Details row */}
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                <span className="flex items-center gap-1">
+                                  <Calendar size={14} />
+                                  {new Date(report.start_date).toLocaleDateString('de-DE')} - {new Date(report.end_date).toLocaleDateString('de-DE')}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Clock size={14} />
+                                  {report.total_hours.toFixed(2)}h
+                                </span>
+                                <span>{report.entry_count} Einträge</span>
+                              </div>
+                              {/* Meta info */}
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                <span>
+                                  Erstellt: {new Date(report.created_at).toLocaleDateString('de-DE', {
+                                    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                                  })}
+                                </span>
+                                {report.status === 'pending' && report.recipient_email && (
+                                  <span className="text-yellow-600 dark:text-yellow-400">
+                                    Gesendet an: {report.recipient_email}
+                                  </span>
+                                )}
+                                {report.reviewed_at && (
+                                  <span className={report.status === 'approved' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                                    {report.status === 'approved' ? 'Genehmigt' : 'Abgelehnt'}: {new Date(report.reviewed_at).toLocaleDateString('de-DE')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {/* Actions */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {/* Send for approval (only for saved reports) */}
+                              {report.status === 'saved' && (
+                                <button
+                                  onClick={() => openSendApprovalDialog(report)}
+                                  className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                                  title="Zur Genehmigung senden"
+                                >
+                                  <Send size={18} />
+                                </button>
+                              )}
+                              {/* Copy approval link (for pending reports) */}
+                              {report.status === 'pending' && report.token && (
+                                <button
+                                  onClick={() => copyApprovalLink(report)}
+                                  className="p-2 text-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
+                                  title="Freigabe-Link kopieren"
+                                >
+                                  <Link size={18} />
+                                </button>
+                              )}
+                              {/* Open approval page (for pending reports) */}
+                              {report.status === 'pending' && report.token && (
+                                <a
+                                  href={`/approve/${report.token}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2 text-gray-600 hover:bg-gray-200 dark:hover:bg-dark-300 rounded-lg transition-colors"
+                                  title="Freigabe-Seite öffnen"
+                                >
+                                  <ExternalLink size={18} />
+                                </a>
+                              )}
+                              {/* Delete (only for saved or rejected) */}
+                              {(report.status === 'saved' || report.status === 'rejected') && (
+                                <button
+                                  onClick={() => deleteSavedReport(report.id)}
+                                  className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                                  title="Report löschen"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => deleteSavedReport(report.id)}
-                          className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                          title="Report löschen"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1551,13 +1751,117 @@ ${companyInfo?.phone || ''}`;
               {/* Footer */}
               <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-200 flex justify-between items-center">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {savedReports.length} Report(s) gespeichert
+                  {savedReports.length} Report(s)
                 </span>
                 <button
                   onClick={() => setShowSavedReports(false)}
                   className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
                 >
                   Schließen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Send for Approval Dialog */}
+        {sendApprovalDialog.show && sendApprovalDialog.report && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[90vw] max-w-md p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Send size={24} className="text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Zur Genehmigung senden
+                </h3>
+              </div>
+
+              <div className="mb-4 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <strong>{sendApprovalDialog.report.customer_name}</strong>
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-500">
+                  {new Date(sendApprovalDialog.report.start_date).toLocaleDateString('de-DE')} - {new Date(sendApprovalDialog.report.end_date).toLocaleDateString('de-DE')} | {sendApprovalDialog.report.total_hours.toFixed(2)}h
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    E-Mail Adresse des Empfängers *
+                  </label>
+                  <input
+                    type="email"
+                    value={sendApprovalDialog.email}
+                    onChange={(e) => setSendApprovalDialog(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="kunde@beispiel.de"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Name des Empfängers (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={sendApprovalDialog.name}
+                    onChange={(e) => setSendApprovalDialog(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Max Mustermann"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                {/* Test Mode Toggle */}
+                <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle size={18} className="text-amber-600 dark:text-amber-400" />
+                    <span className="text-sm text-amber-800 dark:text-amber-300">Test-Modus</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSendApprovalDialog(prev => ({ ...prev, testMode: !prev.testMode }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      sendApprovalDialog.testMode ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        sendApprovalDialog.testMode ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                {sendApprovalDialog.testMode && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 -mt-2">
+                    Im Test-Modus wird keine E-Mail versendet. Der Freigabe-Link wird nur erstellt und kann kopiert werden.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setSendApprovalDialog({ show: false, report: null, email: '', name: '', isSending: false, testMode: true })}
+                  disabled={sendApprovalDialog.isSending}
+                  className="flex-1 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors disabled:opacity-50"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={sendForApproval}
+                  disabled={!sendApprovalDialog.email || sendApprovalDialog.isSending}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {sendApprovalDialog.isSending ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Wird gesendet...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={18} />
+                      {sendApprovalDialog.testMode ? 'Link erstellen' : 'Senden'}
+                    </>
+                  )}
                 </button>
               </div>
             </div>

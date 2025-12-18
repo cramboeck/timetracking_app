@@ -227,34 +227,48 @@ router.post('/save', authenticateToken, validate(saveReportSchema), async (req: 
   }
 });
 
-// GET /api/report-approvals/saved - Get all saved reports for current user (protected)
+// GET /api/report-approvals/saved - Get all reports for current user (protected)
+// Query params: ?status=all (default) | saved | pending | approved | rejected
 router.get('/saved', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const statusFilter = req.query.status as string || 'all';
 
-    const result = await pool.query(
-      `SELECT id, token, recipient_name as customer_name, status, sent_at as created_at,
+    let query = `SELECT id, token, recipient_email, recipient_name as customer_name, status, sent_at as created_at,
               reviewed_at, expires_at, comment as notes, report_data
        FROM report_approvals
-       WHERE user_id = $1 AND status = 'saved'
-       ORDER BY sent_at DESC`,
-      [userId]
-    );
+       WHERE user_id = $1`;
+
+    const params: any[] = [userId];
+
+    if (statusFilter !== 'all') {
+      query += ` AND status = $2`;
+      params.push(statusFilter);
+    }
+
+    query += ` ORDER BY sent_at DESC`;
+
+    const result = await pool.query(query, params);
 
     res.json({
       reports: result.rows.map(row => {
         const reportData = row.report_data || {};
         return {
           id: row.id,
+          token: row.token,
           customer_id: reportData.customerId || '',
           customer_name: reportData.customerName || row.customer_name || 'Unbekannt',
+          recipient_email: row.recipient_email || '',
           report_title: reportData.reportTitle || 'Dienstleistungsnachweis',
           start_date: reportData.startDate || '',
           end_date: reportData.endDate || '',
           total_hours: reportData.totalHours || 0,
           entry_count: reportData.entryCount || 0,
           project_count: reportData.projectCount || 0,
+          status: row.status,
           created_at: row.created_at,
+          reviewed_at: row.reviewed_at,
+          expires_at: row.expires_at,
           notes: row.notes,
           // Include full data for PDF generation
           time_entries: reportData.timeEntries || []
