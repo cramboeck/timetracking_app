@@ -2238,7 +2238,7 @@ export async function initializeDatabase() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS contracts (
         id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
 
         -- Contract details
@@ -2382,12 +2382,25 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add user_id column to contracts if it doesn't exist (for existing tables with organization_id)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'contracts' AND column_name = 'user_id'
+        ) THEN
+          ALTER TABLE contracts ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+
     // Create indexes for contracts
-    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_org ON contracts(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_user ON contracts(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_customer ON contracts(customer_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(organization_id, status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(user_id, status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_end_date ON contracts(end_date)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_number ON contracts(organization_id, contract_number)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_number ON contracts(user_id, contract_number)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_contract_positions_contract ON contract_positions(contract_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_contract_hourly_tracking ON contract_hourly_tracking(contract_id, year, month)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_contract_activity_contract ON contract_activity_log(contract_id)');

@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export interface Contract {
   id: string;
-  organizationId: string;
+  userId: string;
   customerId: string;
   contractNumber: string;
   name: string;
@@ -87,7 +87,7 @@ export interface ContractSummary {
 function mapContractRow(row: any): Contract {
   return {
     id: row.id,
-    organizationId: row.organization_id,
+    userId: row.user_id,
     customerId: row.customer_id,
     contractNumber: row.contract_number,
     name: row.name,
@@ -144,7 +144,7 @@ function mapPositionRow(row: any): ContractPosition {
 // ============================================
 
 export async function getContracts(
-  organizationId: string,
+  userId: string,
   filters?: {
     customerId?: string;
     status?: string;
@@ -157,9 +157,9 @@ export async function getContracts(
     FROM contracts c
     LEFT JOIN customers cu ON c.customer_id = cu.id
     LEFT JOIN projects p ON c.project_id = p.id
-    WHERE c.organization_id = $1
+    WHERE c.user_id = $1
   `;
-  const params: any[] = [organizationId];
+  const params: any[] = [userId];
   let paramIndex = 2;
 
   if (filters?.customerId) {
@@ -190,7 +190,7 @@ export async function getContracts(
 }
 
 export async function getContractById(
-  organizationId: string,
+  userId: string,
   contractId: string
 ): Promise<Contract | null> {
   const result = await query(
@@ -198,21 +198,21 @@ export async function getContractById(
      FROM contracts c
      LEFT JOIN customers cu ON c.customer_id = cu.id
      LEFT JOIN projects p ON c.project_id = p.id
-     WHERE c.id = $1 AND c.organization_id = $2`,
-    [contractId, organizationId]
+     WHERE c.id = $1 AND c.user_id = $2`,
+    [contractId, userId]
   );
 
   if (result.rows.length === 0) return null;
   return mapContractRow(result.rows[0]);
 }
 
-export async function getNextContractNumber(organizationId: string): Promise<string> {
+export async function getNextContractNumber(userId: string): Promise<string> {
   const result = await query(
     `SELECT contract_number FROM contracts
-     WHERE organization_id = $1
+     WHERE user_id = $1
      ORDER BY created_at DESC
      LIMIT 1`,
-    [organizationId]
+    [userId]
   );
 
   if (result.rows.length === 0) {
@@ -230,16 +230,15 @@ export async function getNextContractNumber(organizationId: string): Promise<str
 }
 
 export async function createContract(
-  organizationId: string,
   userId: string,
   data: Partial<Contract>
 ): Promise<Contract> {
   const id = uuidv4();
-  const contractNumber = data.contractNumber || (await getNextContractNumber(organizationId));
+  const contractNumber = data.contractNumber || (await getNextContractNumber(userId));
 
   const result = await query(
     `INSERT INTO contracts (
-      id, organization_id, customer_id, contract_number, name, description,
+      id, user_id, customer_id, contract_number, name, description,
       contract_type, status, start_date, end_date, is_indefinite,
       notice_period_days, auto_renew, renewal_period_months,
       billing_cycle, base_price, currency,
@@ -253,7 +252,7 @@ export async function createContract(
     ) RETURNING *`,
     [
       id,
-      organizationId,
+      userId,
       data.customerId,
       contractNumber,
       data.name,
@@ -289,12 +288,11 @@ export async function createContract(
 }
 
 export async function updateContract(
-  organizationId: string,
-  contractId: string,
   userId: string,
+  contractId: string,
   data: Partial<Contract>
 ): Promise<Contract | null> {
-  const existing = await getContractById(organizationId, contractId);
+  const existing = await getContractById(userId, contractId);
   if (!existing) return null;
 
   const result = await query(
@@ -323,11 +321,11 @@ export async function updateContract(
       internal_notes = $24,
       project_id = $25,
       updated_at = NOW()
-     WHERE id = $1 AND organization_id = $2
+     WHERE id = $1 AND user_id = $2
      RETURNING *`,
     [
       contractId,
-      organizationId,
+      userId,
       data.customerId,
       data.name,
       data.description,
@@ -365,16 +363,15 @@ export async function updateContract(
 }
 
 export async function deleteContract(
-  organizationId: string,
-  contractId: string,
-  userId: string
+  userId: string,
+  contractId: string
 ): Promise<boolean> {
-  const existing = await getContractById(organizationId, contractId);
+  const existing = await getContractById(userId, contractId);
   if (!existing) return false;
 
-  await query('DELETE FROM contracts WHERE id = $1 AND organization_id = $2', [
+  await query('DELETE FROM contracts WHERE id = $1 AND user_id = $2', [
     contractId,
-    organizationId,
+    userId,
   ]);
 
   return true;
@@ -571,7 +568,7 @@ export async function updateContractHourlyTracking(
 // Statistics & Summary
 // ============================================
 
-export async function getContractSummary(organizationId: string): Promise<ContractSummary> {
+export async function getContractSummary(userId: string): Promise<ContractSummary> {
   const result = await query(
     `SELECT
       COUNT(*) as total,
@@ -580,8 +577,8 @@ export async function getContractSummary(organizationId: string): Promise<Contra
       SUM(CASE WHEN status = 'active' AND billing_cycle = 'monthly' THEN COALESCE(base_price, 0) ELSE 0 END) as monthly_revenue,
       SUM(CASE WHEN status = 'active' THEN COALESCE(included_hours_monthly, 0) ELSE 0 END) as included_hours
      FROM contracts
-     WHERE organization_id = $1`,
-    [organizationId]
+     WHERE user_id = $1`,
+    [userId]
   );
 
   const row = result.rows[0];
@@ -595,26 +592,26 @@ export async function getContractSummary(organizationId: string): Promise<Contra
 }
 
 export async function getExpiringContracts(
-  organizationId: string,
+  userId: string,
   daysAhead: number = 30
 ): Promise<Contract[]> {
   const result = await query(
     `SELECT c.*, cu.name as customer_name
      FROM contracts c
      LEFT JOIN customers cu ON c.customer_id = cu.id
-     WHERE c.organization_id = $1
+     WHERE c.user_id = $1
        AND c.status = 'active'
        AND c.end_date IS NOT NULL
        AND c.end_date <= CURRENT_DATE + INTERVAL '1 day' * $2
      ORDER BY c.end_date ASC`,
-    [organizationId, daysAhead]
+    [userId, daysAhead]
   );
 
   return result.rows.map(mapContractRow);
 }
 
 export async function getContractsByCustomer(
-  organizationId: string,
+  userId: string,
   customerId: string
 ): Promise<Contract[]> {
   const result = await query(
@@ -622,9 +619,9 @@ export async function getContractsByCustomer(
      FROM contracts c
      LEFT JOIN customers cu ON c.customer_id = cu.id
      LEFT JOIN projects p ON c.project_id = p.id
-     WHERE c.organization_id = $1 AND c.customer_id = $2
+     WHERE c.user_id = $1 AND c.customer_id = $2
      ORDER BY c.status, c.created_at DESC`,
-    [organizationId, customerId]
+    [userId, customerId]
   );
 
   return result.rows.map(mapContractRow);
@@ -668,28 +665,28 @@ export async function getContractActivityLog(
 // Status Updates
 // ============================================
 
-export async function updateContractStatuses(organizationId: string): Promise<number> {
+export async function updateContractStatuses(userId: string): Promise<number> {
   // Mark contracts as expiring if end_date is within 30 days
   const expiringResult = await query(
     `UPDATE contracts
      SET status = 'expiring', updated_at = NOW()
-     WHERE organization_id = $1
+     WHERE user_id = $1
        AND status = 'active'
        AND end_date IS NOT NULL
        AND end_date <= CURRENT_DATE + INTERVAL '30 days'
        AND end_date > CURRENT_DATE`,
-    [organizationId]
+    [userId]
   );
 
   // Mark contracts as expired if end_date has passed
   const expiredResult = await query(
     `UPDATE contracts
      SET status = 'expired', updated_at = NOW()
-     WHERE organization_id = $1
+     WHERE user_id = $1
        AND status IN ('active', 'expiring')
        AND end_date IS NOT NULL
        AND end_date < CURRENT_DATE`,
-    [organizationId]
+    [userId]
   );
 
   return (expiringResult.rowCount ?? 0) + (expiredResult.rowCount ?? 0);

@@ -11,14 +11,10 @@ const router = express.Router();
 // GET /api/contracts - Get all contracts
 router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const organizationId = req.user!.organizationId;
-    if (!organizationId) {
-      return res.status(400).json({ success: false, error: 'Organization nicht gefunden' });
-    }
-
+    const userId = req.userId!;
     const { customerId, status, contractType, search } = req.query;
 
-    const contracts = await contractService.getContracts(organizationId, {
+    const contracts = await contractService.getContracts(userId, {
       customerId: customerId as string | undefined,
       status: status as string | undefined,
       contractType: contractType as string | undefined,
@@ -35,12 +31,8 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
 // GET /api/contracts/summary - Get contract summary/statistics
 router.get('/summary', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const organizationId = req.user!.organizationId;
-    if (!organizationId) {
-      return res.status(400).json({ success: false, error: 'Organization nicht gefunden' });
-    }
-
-    const summary = await contractService.getContractSummary(organizationId);
+    const userId = req.userId!;
+    const summary = await contractService.getContractSummary(userId);
     res.json({ success: true, data: summary });
   } catch (error: any) {
     console.error('Get contract summary error:', error);
@@ -51,13 +43,9 @@ router.get('/summary', authenticateToken, async (req: AuthRequest, res: Response
 // GET /api/contracts/expiring - Get expiring contracts
 router.get('/expiring', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const organizationId = req.user!.organizationId;
-    if (!organizationId) {
-      return res.status(400).json({ success: false, error: 'Organization nicht gefunden' });
-    }
-
+    const userId = req.userId!;
     const daysAhead = parseInt(req.query.days as string) || 30;
-    const contracts = await contractService.getExpiringContracts(organizationId, daysAhead);
+    const contracts = await contractService.getExpiringContracts(userId, daysAhead);
 
     res.json({ success: true, data: contracts });
   } catch (error: any) {
@@ -69,12 +57,8 @@ router.get('/expiring', authenticateToken, async (req: AuthRequest, res: Respons
 // GET /api/contracts/next-number - Get next contract number
 router.get('/next-number', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const organizationId = req.user!.organizationId;
-    if (!organizationId) {
-      return res.status(400).json({ success: false, error: 'Organization nicht gefunden' });
-    }
-
-    const nextNumber = await contractService.getNextContractNumber(organizationId);
+    const userId = req.userId!;
+    const nextNumber = await contractService.getNextContractNumber(userId);
     res.json({ success: true, data: nextNumber });
   } catch (error: any) {
     console.error('Get next contract number error:', error);
@@ -85,13 +69,9 @@ router.get('/next-number', authenticateToken, async (req: AuthRequest, res: Resp
 // GET /api/contracts/customer/:customerId - Get contracts by customer
 router.get('/customer/:customerId', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const organizationId = req.user!.organizationId;
-    if (!organizationId) {
-      return res.status(400).json({ success: false, error: 'Organization nicht gefunden' });
-    }
-
+    const userId = req.userId!;
     const { customerId } = req.params;
-    const contracts = await contractService.getContractsByCustomer(organizationId, customerId);
+    const contracts = await contractService.getContractsByCustomer(userId, customerId);
 
     res.json({ success: true, data: contracts });
   } catch (error: any) {
@@ -103,12 +83,8 @@ router.get('/customer/:customerId', authenticateToken, async (req: AuthRequest, 
 // GET /api/contracts/:id - Get single contract
 router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const organizationId = req.user!.organizationId;
-    if (!organizationId) {
-      return res.status(400).json({ success: false, error: 'Organization nicht gefunden' });
-    }
-
-    const contract = await contractService.getContractById(organizationId, req.params.id);
+    const userId = req.userId!;
+    const contract = await contractService.getContractById(userId, req.params.id);
 
     if (!contract) {
       return res.status(404).json({ success: false, error: 'Vertrag nicht gefunden' });
@@ -124,12 +100,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
 // POST /api/contracts - Create new contract
 router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const organizationId = req.user!.organizationId;
-    const userId = req.user!.id;
-
-    if (!organizationId) {
-      return res.status(400).json({ success: false, error: 'Organization nicht gefunden' });
-    }
+    const userId = req.userId!;
 
     const {
       customerId,
@@ -165,7 +136,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const contract = await contractService.createContract(organizationId, userId, {
+    const contract = await contractService.createContract(userId, {
       customerId,
       contractNumber,
       name,
@@ -202,17 +173,11 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
 // PUT /api/contracts/:id - Update contract
 router.put('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const organizationId = req.user!.organizationId;
-    const userId = req.user!.id;
-
-    if (!organizationId) {
-      return res.status(400).json({ success: false, error: 'Organization nicht gefunden' });
-    }
+    const userId = req.userId!;
 
     const contract = await contractService.updateContract(
-      organizationId,
-      req.params.id,
       userId,
+      req.params.id,
       req.body
     );
 
@@ -230,14 +195,8 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
 // DELETE /api/contracts/:id - Delete contract
 router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const organizationId = req.user!.organizationId;
-    const userId = req.user!.id;
-
-    if (!organizationId) {
-      return res.status(400).json({ success: false, error: 'Organization nicht gefunden' });
-    }
-
-    const deleted = await contractService.deleteContract(organizationId, req.params.id, userId);
+    const userId = req.userId!;
+    const deleted = await contractService.deleteContract(userId, req.params.id);
 
     if (!deleted) {
       return res.status(404).json({ success: false, error: 'Vertrag nicht gefunden' });
@@ -381,12 +340,8 @@ router.get('/:id/activity', authenticateToken, async (req: AuthRequest, res: Res
 // POST /api/contracts/update-statuses - Update contract statuses (cron job endpoint)
 router.post('/update-statuses', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const organizationId = req.user!.organizationId;
-    if (!organizationId) {
-      return res.status(400).json({ success: false, error: 'Organization nicht gefunden' });
-    }
-
-    const updatedCount = await contractService.updateContractStatuses(organizationId);
+    const userId = req.userId!;
+    const updatedCount = await contractService.updateContractStatuses(userId);
     res.json({ success: true, data: { updatedCount } });
   } catch (error: any) {
     console.error('Update contract statuses error:', error);
