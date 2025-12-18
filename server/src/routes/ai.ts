@@ -244,4 +244,30 @@ router.post(
   }
 );
 
+// ============================================
+// Time Entry AI Routes
+// ============================================
+
+// POST /api/ai/time-entry/suggest-description - Suggest description for time entry
+router.post(
+  '/time-entry/suggest-description',
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const context = req.body;
+
+      const suggestion = await aiService.suggestTimeEntryDescription(userId, context);
+
+      res.json({
+        success: true,
+        data: { suggestion },
+      });
+    } catch (error: any) {
+      console.error('Suggest time entry description error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
 export default router;

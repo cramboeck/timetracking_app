@@ -3262,6 +3262,23 @@ export const aiApi = {
       body: JSON.stringify({ productName, context }),
     });
   },
+
+  // Generate time entry description suggestion
+  suggestTimeEntryDescription: async (
+    context: {
+      projectName?: string;
+      customerName?: string;
+      activityName?: string;
+      ticketTitle?: string;
+      ticketDescription?: string;
+      existingDescription?: string;
+    }
+  ): Promise<{ success: boolean; data: { suggestion: string } }> => {
+    return authFetch('/ai/time-entry/suggest-description', {
+      method: 'POST',
+      body: JSON.stringify(context),
+    });
+  },
 };
 
 // ============================================

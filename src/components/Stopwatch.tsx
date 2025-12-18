@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, Plus } from 'lucide-react';
+import { Play, Pause, Square, Plus, Sparkles, Loader2 } from 'lucide-react';
 import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
+import { aiApi } from '../services/api';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => void;
@@ -32,7 +33,50 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   // Ref to track if timer has been stopped - used to prevent stale debounced updates
   const isStoppedRef = useRef(false);
 
+  // AI state
+  const [aiConfigured, setAiConfigured] = useState(false);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
+
   const activeProjects = projects.filter(p => p.isActive);
+
+  // Check AI config on mount
+  useEffect(() => {
+    const checkAiConfig = async () => {
+      try {
+        const response = await aiApi.getConfig();
+        setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
+      } catch (err) {
+        setAiConfigured(false);
+      }
+    };
+    checkAiConfig();
+  }, []);
+
+  // Generate AI description
+  const generateAiDescription = async () => {
+    if (!aiConfigured) return;
+    setGeneratingDescription(true);
+    try {
+      const selectedProject = projects.find(p => p.id === projectId);
+      const selectedCustomer = customers.find(c => c.id === customerId);
+      const selectedActivity = activities.find(a => a.id === activityId);
+
+      const response = await aiApi.suggestTimeEntryDescription({
+        projectName: selectedProject?.name,
+        customerName: selectedCustomer?.name,
+        activityName: selectedActivity?.name,
+        existingDescription: description || undefined,
+      });
+
+      if (response.success && response.data.suggestion) {
+        setDescription(response.data.suggestion);
+      }
+    } catch (err) {
+      console.error('Failed to generate description:', err);
+    } finally {
+      setGeneratingDescription(false);
+    }
+  };
 
   // Get customers that have active projects
   const customersWithProjects = customers.filter(c =>
@@ -309,14 +353,31 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Beschreibung (optional)
-                {isRunning && (
-                  <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
-                    · editierbar während der Erfassung
-                  </span>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Beschreibung (optional)
+                  {isRunning && (
+                    <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
+                      · editierbar während der Erfassung
+                    </span>
+                  )}
+                </label>
+                {aiConfigured && (projectId || activityId) && (
+                  <button
+                    onClick={generateAiDescription}
+                    disabled={generatingDescription}
+                    className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                    title="KI-Vorschlag generieren"
+                  >
+                    {generatingDescription ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={12} />
+                    )}
+                    KI-Vorschlag
+                  </button>
                 )}
-              </label>
+              </div>
               <textarea
                 placeholder="Was wurde gemacht?"
                 value={description}

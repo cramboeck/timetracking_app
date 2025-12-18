@@ -860,3 +860,80 @@ Formatiere die Preise klar mit EUR.`;
     marketRange,
   };
 }
+
+// ============================================
+// Time Entry AI Generation
+// ============================================
+
+const TIME_ENTRY_SYSTEM_PROMPT = `Du bist ein IT-Support-Mitarbeiter, der Zeiteinträge für seine Arbeit dokumentiert.
+Erstelle eine kurze, präzise Beschreibung für einen Zeiteintrag basierend auf dem Kontext.
+Die Beschreibung soll:
+- Professionell und sachlich sein
+- Die durchgeführte Tätigkeit klar beschreiben
+- Maximal 1-2 Sätze lang sein
+- Auf Deutsch sein
+- Für eine Rechnung geeignet sein
+- Keine Anreden oder Floskeln enthalten`;
+
+export async function suggestTimeEntryDescription(
+  userId: string,
+  context: {
+    projectName?: string;
+    customerName?: string;
+    activityName?: string;
+    ticketTitle?: string;
+    ticketDescription?: string;
+    existingDescription?: string;
+  }
+): Promise<string> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  let prompt = 'Erstelle eine Beschreibung für einen Zeiteintrag mit folgenden Informationen:\n\n';
+
+  if (context.customerName) {
+    prompt += `Kunde: ${context.customerName}\n`;
+  }
+  if (context.projectName) {
+    prompt += `Projekt: ${context.projectName}\n`;
+  }
+  if (context.activityName) {
+    prompt += `Tätigkeit: ${context.activityName}\n`;
+  }
+  if (context.ticketTitle) {
+    prompt += `Ticket: ${context.ticketTitle}\n`;
+    if (context.ticketDescription) {
+      prompt += `Ticket-Beschreibung: ${context.ticketDescription.substring(0, 500)}\n`;
+    }
+  }
+  if (context.existingDescription) {
+    prompt += `\nBereits eingetragene Beschreibung (erweitern/verbessern): ${context.existingDescription}\n`;
+  }
+
+  prompt += '\nGib nur die Beschreibung zurück, ohne Erklärungen.';
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(
+      config.apiKey,
+      config.model,
+      prompt,
+      200, // Short response
+      config.temperature,
+      TIME_ENTRY_SYSTEM_PROMPT
+    );
+  } else {
+    result = await callOpenAI(
+      config.apiKey,
+      config.model,
+      prompt,
+      200,
+      config.temperature,
+      TIME_ENTRY_SYSTEM_PROMPT
+    );
+  }
+
+  return result.content.trim();
+}

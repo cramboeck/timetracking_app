@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react';
-import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Loader2 } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Loader2, Sparkles } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TimePicker } from './TimePicker';
 import { useAuth } from '../contexts/AuthContext';
+import { aiApi } from '../services/api';
 
 interface TimeEntriesListProps {
   entries: TimeEntry[];
@@ -48,6 +49,49 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [filterDescription, setFilterDescription] = useState<string>('');
+
+  // AI state
+  const [aiConfigured, setAiConfigured] = useState(false);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
+
+  // Check AI config on mount
+  useEffect(() => {
+    const checkAiConfig = async () => {
+      try {
+        const response = await aiApi.getConfig();
+        setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
+      } catch (err) {
+        setAiConfigured(false);
+      }
+    };
+    checkAiConfig();
+  }, []);
+
+  // Generate AI description for edit modal
+  const generateEditAiDescription = async () => {
+    if (!aiConfigured || !editingEntry) return;
+    setGeneratingDescription(true);
+    try {
+      const project = projects.find(p => p.id === editProjectId);
+      const customer = project ? customers.find(c => c.id === project.customerId) : null;
+      const activity = editingEntry.activityId ? activities.find(a => a.id === editingEntry.activityId) : null;
+
+      const response = await aiApi.suggestTimeEntryDescription({
+        projectName: project?.name,
+        customerName: customer?.name,
+        activityName: activity?.name,
+        existingDescription: editDescription || undefined,
+      });
+
+      if (response.success && response.data.suggestion) {
+        setEditDescription(response.data.suggestion);
+      }
+    } catch (err) {
+      console.error('Failed to generate description:', err);
+    } finally {
+      setGeneratingDescription(false);
+    }
+  };
 
   // Selection state
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
@@ -695,9 +739,26 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Beschreibung
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Beschreibung
+              </label>
+              {aiConfigured && editProjectId && (
+                <button
+                  onClick={generateEditAiDescription}
+                  disabled={generatingDescription}
+                  className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                  title="KI-Vorschlag generieren"
+                >
+                  {generatingDescription ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={12} />
+                  )}
+                  KI-Vorschlag
+                </button>
+              )}
+            </div>
             <textarea
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
