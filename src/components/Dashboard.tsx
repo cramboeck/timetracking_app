@@ -1365,7 +1365,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
             </div>
 
             {/* PDF Viewer */}
-            <div className="flex-1 bg-gray-100 dark:bg-gray-900 overflow-hidden">
+            <div className="flex-1 bg-gray-100 dark:bg-gray-900 overflow-hidden relative">
               {isGeneratingSavedPreview ? (
                 <div className="w-full h-full flex items-center justify-center">
                   <div className="flex flex-col items-center gap-3">
@@ -1374,11 +1374,34 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                   </div>
                 </div>
               ) : savedReportPreview.pdfUrl ? (
-                <iframe
-                  src={savedReportPreview.pdfUrl}
-                  className="w-full h-full border-0"
-                  title="PDF Preview"
-                />
+                <>
+                  <object
+                    data={savedReportPreview.pdfUrl}
+                    type="application/pdf"
+                    className="w-full h-full"
+                  >
+                    {/* Fallback for browsers that don't support object */}
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+                      <p className="text-gray-600 dark:text-gray-400">PDF kann nicht angezeigt werden</p>
+                      <a
+                        href={savedReportPreview.pdfUrl}
+                        download={`${savedReportPreview.reportName}.pdf`}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      >
+                        PDF herunterladen
+                      </a>
+                    </div>
+                  </object>
+                  {/* Download button always visible */}
+                  <a
+                    href={savedReportPreview.pdfUrl}
+                    download={`${savedReportPreview.reportName}.pdf`}
+                    className="absolute bottom-4 right-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg flex items-center gap-2"
+                  >
+                    <Download size={18} />
+                    Herunterladen
+                  </a>
+                </>
               ) : null}
             </div>
           </div>
