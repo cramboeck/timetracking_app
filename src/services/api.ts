@@ -3115,6 +3115,100 @@ export const tasksApi = {
   },
 };
 
+// ============================================
+// AI Assistant API
+// ============================================
+
+export interface AIConfig {
+  id: string;
+  userId: string;
+  provider: 'openai' | 'anthropic';
+  apiKey: string | null;
+  hasApiKey: boolean;
+  model: string;
+  enabled: boolean;
+  maxTokens: number;
+  temperature: number;
+}
+
+export interface AISuggestion {
+  id: string;
+  ticketId: string;
+  suggestionType: 'solution' | 'category' | 'priority' | 'response';
+  content: string;
+  confidence: number | null;
+  modelUsed: string;
+  tokensUsed: number | null;
+  createdAt: string;
+}
+
+export const aiApi = {
+  // Get AI configuration
+  getConfig: async (): Promise<{ success: boolean; data: AIConfig | null }> => {
+    return authFetch('/ai/config');
+  },
+
+  // Save AI configuration
+  saveConfig: async (config: {
+    provider?: 'openai' | 'anthropic';
+    apiKey?: string;
+    model?: string;
+    enabled?: boolean;
+    maxTokens?: number;
+    temperature?: number;
+  }): Promise<{ success: boolean; data: AIConfig }> => {
+    return authFetch('/ai/config', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  },
+
+  // Test AI connection
+  testConnection: async (
+    provider: 'openai' | 'anthropic',
+    apiKey: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    return authFetch('/ai/test-connection', {
+      method: 'POST',
+      body: JSON.stringify({ provider, apiKey }),
+    });
+  },
+
+  // Generate AI suggestion for ticket
+  generateSuggestion: async (
+    ticketId: string,
+    suggestionType: 'solution' | 'category' | 'priority' | 'response' = 'solution'
+  ): Promise<{ success: boolean; data: AISuggestion }> => {
+    return authFetch(`/ai/tickets/${ticketId}/suggest`, {
+      method: 'POST',
+      body: JSON.stringify({ suggestionType }),
+    });
+  },
+
+  // Get suggestion history for ticket
+  getSuggestions: async (ticketId: string): Promise<{ success: boolean; data: AISuggestion[] }> => {
+    return authFetch(`/ai/tickets/${ticketId}/suggestions`);
+  },
+
+  // Mark suggestion as helpful/not helpful
+  markSuggestionFeedback: async (
+    suggestionId: string,
+    isHelpful: boolean
+  ): Promise<{ success: boolean }> => {
+    return authFetch(`/ai/suggestions/${suggestionId}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify({ isHelpful }),
+    });
+  },
+
+  // Mark suggestion as applied
+  markSuggestionApplied: async (suggestionId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/ai/suggestions/${suggestionId}/apply`, {
+      method: 'POST',
+    });
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,

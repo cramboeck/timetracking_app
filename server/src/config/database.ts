@@ -1249,6 +1249,49 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_ticket ON ticket_tag_assignments(ticket_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_tag ON ticket_tag_assignments(tag_id)');
 
+    // ============================================
+    // AI Configuration & Ticket Suggestions
+    // ============================================
+
+    // AI Provider Configuration (per user)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ai_config (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL DEFAULT 'openai' CHECK(provider IN ('openai', 'anthropic')),
+        api_key TEXT,
+        model TEXT DEFAULT 'gpt-4o-mini',
+        enabled BOOLEAN DEFAULT false,
+        max_tokens INTEGER DEFAULT 1000,
+        temperature NUMERIC(3,2) DEFAULT 0.7,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id)
+      )
+    `);
+
+    // AI Suggestions for Tickets (internal only)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_ai_suggestions (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        suggestion_type TEXT NOT NULL DEFAULT 'solution' CHECK(suggestion_type IN ('solution', 'category', 'priority', 'response')),
+        content TEXT NOT NULL,
+        confidence NUMERIC(3,2),
+        context_used JSONB,
+        model_used TEXT,
+        tokens_used INTEGER,
+        is_helpful BOOLEAN,
+        applied BOOLEAN DEFAULT false,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ai_config_user ON ai_config(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_ai_suggestions_ticket ON ticket_ai_suggestions(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_ai_suggestions_user ON ticket_ai_suggestions(user_id)');
+
     // Feature subscriptions for add-on packages
     await client.query(`
       CREATE TABLE IF NOT EXISTS feature_packages (

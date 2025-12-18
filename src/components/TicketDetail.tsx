@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb, Pencil, Check } from 'lucide-react';
+import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb, Pencil, Check, Sparkles, ThumbsUp, ThumbsDown, RefreshCw, Bot, Loader2 } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl, organizationsApi } from '../services/api';
+import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl, organizationsApi, aiApi, AISuggestion } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SlaStatus } from './SlaStatus';
 import { TicketMergeDialog } from './TicketMergeDialog';
@@ -115,6 +115,13 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskTitle, setEditingTaskTitle] = useState('');
 
+  // AI Assistant
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
+  const [showAiPanel, setShowAiPanel] = useState(false);
+  const [loadingAiSuggestion, setLoadingAiSuggestion] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiConfigured, setAiConfigured] = useState(false);
+
   useEffect(() => {
     loadTicket();
     loadTags();
@@ -122,6 +129,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     loadCannedResponses();
     loadTasks();
     loadUserRole();
+    checkAiConfig();
   }, [ticketId]);
 
   // Load user role for permission checks
@@ -134,6 +142,54 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     } catch (err) {
       // Non-critical, just hide merge button
       console.error('Failed to load user role:', err);
+    }
+  };
+
+  // Check if AI is configured
+  const checkAiConfig = async () => {
+    try {
+      const response = await aiApi.getConfig();
+      setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
+    } catch (err) {
+      console.error('Failed to check AI config:', err);
+      setAiConfigured(false);
+    }
+  };
+
+  // Load existing AI suggestions for ticket
+  const loadAiSuggestions = async () => {
+    try {
+      const response = await aiApi.getSuggestions(ticketId);
+      setAiSuggestions(response.data || []);
+    } catch (err) {
+      console.error('Failed to load AI suggestions:', err);
+    }
+  };
+
+  // Generate new AI suggestion
+  const generateAiSuggestion = async () => {
+    setLoadingAiSuggestion(true);
+    setAiError(null);
+    try {
+      const response = await aiApi.generateSuggestion(ticketId, 'solution');
+      if (response.success && response.data) {
+        setAiSuggestions(prev => [response.data, ...prev]);
+      }
+    } catch (err: any) {
+      setAiError(err.message || 'Fehler beim Generieren des Vorschlags');
+    } finally {
+      setLoadingAiSuggestion(false);
+    }
+  };
+
+  // Mark suggestion feedback
+  const handleSuggestionFeedback = async (suggestionId: string, isHelpful: boolean) => {
+    try {
+      await aiApi.markSuggestionFeedback(suggestionId, isHelpful);
+      // Reload suggestions to update UI
+      loadAiSuggestions();
+    } catch (err) {
+      console.error('Failed to mark feedback:', err);
     }
   };
 
@@ -985,6 +1041,103 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
           <Play size={20} />
           Timer für dieses Ticket starten
         </button>
+
+        {/* AI Assistant Button */}
+        {aiConfigured && (
+          <button
+            onClick={() => {
+              if (!showAiPanel) {
+                loadAiSuggestions();
+              }
+              setShowAiPanel(!showAiPanel);
+            }}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors ${
+              showAiPanel
+                ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                : 'bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300'
+            }`}
+          >
+            <Bot size={20} />
+            KI-Assistent {showAiPanel ? 'ausblenden' : 'anzeigen'}
+          </button>
+        )}
+
+        {/* AI Assistant Panel */}
+        {showAiPanel && aiConfigured && (
+          <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="text-purple-600 dark:text-purple-400" size={18} />
+                <h3 className="text-sm font-medium text-purple-800 dark:text-purple-300">
+                  KI-Lösungsvorschläge
+                </h3>
+              </div>
+              <button
+                onClick={generateAiSuggestion}
+                disabled={loadingAiSuggestion}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg transition-colors"
+              >
+                {loadingAiSuggestion ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Generiere...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={14} />
+                    Neuer Vorschlag
+                  </>
+                )}
+              </button>
+            </div>
+
+            {aiError && (
+              <div className="mb-3 p-2 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">
+                {aiError}
+              </div>
+            )}
+
+            {aiSuggestions.length === 0 && !loadingAiSuggestion && (
+              <p className="text-sm text-purple-600 dark:text-purple-400 italic">
+                Klicke auf "Neuer Vorschlag" um KI-basierte Lösungsvorschläge zu erhalten.
+              </p>
+            )}
+
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {aiSuggestions.map((suggestion) => (
+                <div
+                  key={suggestion.id}
+                  className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-purple-100 dark:border-purple-800"
+                >
+                  <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+                    {suggestion.content}
+                  </div>
+                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-purple-100 dark:border-purple-800">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {new Date(suggestion.createdAt).toLocaleString('de-DE')} • {suggestion.modelUsed}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleSuggestionFeedback(suggestion.id, true)}
+                        className="p-1 text-gray-400 hover:text-green-500 transition-colors"
+                        title="Hilfreich"
+                      >
+                        <ThumbsUp size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleSuggestionFeedback(suggestion.id, false)}
+                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                        title="Nicht hilfreich"
+                      >
+                        <ThumbsDown size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Description */}
         {isEditing ? (

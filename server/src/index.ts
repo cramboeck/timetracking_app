@@ -30,6 +30,7 @@ import mfaRoutes from './routes/mfa';
 import organizationsRoutes from './routes/organizations';
 import leadsRoutes from './routes/leads';
 import tasksRoutes from './routes/tasks';
+import aiRoutes from './routes/ai';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -102,6 +103,7 @@ app.use('/api/mfa', mfaRoutes);
 app.use('/api/organizations', organizationsRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/tasks', tasksRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
