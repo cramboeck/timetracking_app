@@ -21,6 +21,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const { currentUser } = useAuth();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [customerId, setCustomerId] = useState('');
   const [projectId, setProjectId] = useState('');
   const [activityId, setActivityId] = useState('');
   const [ticketId, setTicketId] = useState<string | undefined>(undefined);
@@ -31,14 +32,26 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   // Ref to track if timer has been stopped - used to prevent stale debounced updates
   const isStoppedRef = useRef(false);
 
-  console.log('⏱️ [STOPWATCH] Received projects:', projects);
-  console.log('⏱️ [STOPWATCH] Received customers:', customers);
   const activeProjects = projects.filter(p => p.isActive);
-  console.log('⏱️ [STOPWATCH] Active projects after filter:', activeProjects);
+
+  // Get customers that have active projects
+  const customersWithProjects = customers.filter(c =>
+    activeProjects.some(p => p.customerId === c.id)
+  );
+
+  // Get projects for selected customer
+  const projectsForCustomer = customerId
+    ? activeProjects.filter(p => p.customerId === customerId)
+    : [];
 
   // Handle prefilled entry (from repeat action or ticket)
   useEffect(() => {
     if (prefilledEntry && !isRunning) {
+      // Find the customer for this project
+      const project = projects.find(p => p.id === prefilledEntry.projectId);
+      if (project) {
+        setCustomerId(project.customerId);
+      }
       setProjectId(prefilledEntry.projectId);
       setActivityId(prefilledEntry.activityId || '');
       setDescription(prefilledEntry.description);
@@ -46,12 +59,17 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       // Clear the prefilled entry
       onPrefilledEntryUsed?.();
     }
-  }, [prefilledEntry, isRunning, onPrefilledEntryUsed]);
+  }, [prefilledEntry, isRunning, onPrefilledEntryUsed, projects]);
 
   useEffect(() => {
     if (runningEntry) {
       setIsRunning(true);
       startTimeRef.current = runningEntry.startTime;
+      // Find the customer for this project
+      const project = projects.find(p => p.id === runningEntry.projectId);
+      if (project) {
+        setCustomerId(project.customerId);
+      }
       setProjectId(runningEntry.projectId);
       setActivityId(runningEntry.activityId || '');
       setTicketId(runningEntry.ticketId);
@@ -60,7 +78,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       const elapsed = Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000);
       setElapsedSeconds(elapsed);
     }
-  }, [runningEntry]);
+  }, [runningEntry, projects]);
 
   useEffect(() => {
     if (isRunning) {
@@ -151,6 +169,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     setIsRunning(false);
     setElapsedSeconds(0);
     startTimeRef.current = null;
+    setCustomerId('');
     setProjectId('');
     setActivityId('');
     setTicketId(undefined);
@@ -213,6 +232,37 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
           {/* Form */}
           <div className="space-y-4 mb-8">
+            {/* Customer Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Kunde
+              </label>
+              <select
+                value={customerId}
+                onChange={(e) => {
+                  setCustomerId(e.target.value);
+                  setProjectId(''); // Reset project when customer changes
+                }}
+                disabled={isRunning || customersWithProjects.length === 0}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
+              >
+                <option value="">
+                  {customersWithProjects.length === 0 ? 'Keine Kunden vorhanden' : 'Kunde wählen...'}
+                </option>
+                {customersWithProjects.map(customer => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                  </option>
+                ))}
+              </select>
+              {customersWithProjects.length === 0 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                  Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
+                </p>
+              )}
+            </div>
+
+            {/* Project Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Projekt
@@ -220,23 +270,18 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                disabled={isRunning || activeProjects.length === 0}
+                disabled={isRunning || !customerId || projectsForCustomer.length === 0}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
               >
                 <option value="">
-                  {activeProjects.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
+                  {!customerId ? 'Erst Kunde wählen...' : projectsForCustomer.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
                 </option>
-                {activeProjects.map(project => (
+                {projectsForCustomer.map(project => (
                   <option key={project.id} value={project.id}>
-                    {getProjectDisplay(project)}
+                    {project.name}
                   </option>
                 ))}
               </select>
-              {activeProjects.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                  Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
-                </p>
-              )}
             </div>
 
             <div>
@@ -366,7 +411,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
         {/* Helper Text */}
         {!isRunning && elapsedSeconds === 0 && (
           <div className="text-center text-gray-500 dark:text-gray-400 text-sm max-w-md">
-            <p>Wähle ein Projekt aus und starte die Zeiterfassung mit einem Klick auf Start</p>
+            <p>Wähle einen Kunden und ein Projekt aus, dann starte die Zeiterfassung mit einem Klick auf Start</p>
           </div>
         )}
       </div>
