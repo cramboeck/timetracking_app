@@ -2092,6 +2092,7 @@ export interface NinjaDevice {
   offline: boolean;
   lastContact: string | null;
   publicIp: string | null;
+  privateIp: string | null;
   osName: string | null;
   osVersion?: string | null;
   osBuild?: string | null;

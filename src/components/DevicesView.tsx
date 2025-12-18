@@ -327,6 +327,10 @@ export const DevicesView = () => {
                   </div>
                   <dl className="space-y-2 text-sm">
                     <div className="flex justify-between">
+                      <dt className="text-gray-500 dark:text-dark-400">Private IP</dt>
+                      <dd className="text-gray-900 dark:text-white font-mono">{selectedDevice.privateIp || '-'}</dd>
+                    </div>
+                    <div className="flex justify-between">
                       <dt className="text-gray-500 dark:text-dark-400">Öffentliche IP</dt>
                       <dd className="text-gray-900 dark:text-white font-mono">{selectedDevice.publicIp || '-'}</dd>
                     </div>

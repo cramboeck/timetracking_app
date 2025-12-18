@@ -475,11 +475,26 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
     const systemInfo = deviceData.system || {};
     const processorInfo = deviceData.processor || (deviceData.processors?.[0]) || {};
     const memoryInfo = deviceData.memory || {};
+    const nicsInfo = deviceData.nics || [];
 
     // Build full OS version string
     let osVersion = osInfo.name || row.os_name || '';
     if (osInfo.buildNumber) {
       osVersion = `${osVersion} (Build ${osInfo.buildNumber})`;
+    }
+
+    // Extract first valid private IP from NICs (exclude loopback and link-local)
+    let privateIp: string | null = null;
+    for (const nic of nicsInfo) {
+      const ip = nic.ipAddress || nic.ip || '';
+      if (ip && !ip.startsWith('127.') && !ip.startsWith('169.254.') && !ip.startsWith('::')) {
+        // Check if it's a private IP range (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
+        if (ip.startsWith('10.') || ip.startsWith('192.168.') ||
+            (ip.startsWith('172.') && parseInt(ip.split('.')[1]) >= 16 && parseInt(ip.split('.')[1]) <= 31)) {
+          privateIp = ip;
+          break;
+        }
+      }
     }
 
     res.json({
@@ -495,6 +510,7 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
         offline: row.offline,
         lastContact: row.last_contact ? new Date(row.last_contact).toISOString() : null,
         publicIp: row.public_ip,
+        privateIp,
         osName: row.os_name,
         osVersion: osVersion,
         osBuild: osInfo.buildNumber || null,
