@@ -10,6 +10,7 @@ export interface Customer {
   reportTitle?: string; // Custom report title for this customer (e.g., "Stundenzettel" or "Tätigkeitsnachweis")
   sevdeskCustomerId?: string; // Link to sevDesk contact
   hourlyRate?: number; // Customer-specific hourly rate (Business feature)
+  timeRoundingInterval?: number; // Time rounding interval in minutes for billing (e.g., 15 = round up to nearest 15 min)
   ninjarmmOrganizationId?: string; // Link to NinjaRMM organization (Support feature)
   createdAt: string;
 }

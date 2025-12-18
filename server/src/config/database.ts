@@ -542,6 +542,19 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add time_rounding_interval to customers (for billing)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'time_rounding_interval'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN time_rounding_interval INTEGER DEFAULT 15;
+        END IF;
+      END $$;
+    `);
+
     // Migration: Add missing columns to ninjarmm_alerts
     await client.query(`
       DO $$

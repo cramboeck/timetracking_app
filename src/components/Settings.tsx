@@ -104,6 +104,7 @@ export const Settings = ({
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerReportTitle, setCustomerReportTitle] = useState('');
   const [customerHourlyRate, setCustomerHourlyRate] = useState('');
+  const [customerTimeRoundingInterval, setCustomerTimeRoundingInterval] = useState('15');
   const [customerNinjarmmOrgId, setCustomerNinjarmmOrgId] = useState('');
 
   // CSV Import
@@ -181,6 +182,7 @@ export const Settings = ({
       setCustomerAddress(customer.address || '');
       setCustomerReportTitle(customer.reportTitle || '');
       setCustomerHourlyRate(customer.hourlyRate?.toString() || '');
+      setCustomerTimeRoundingInterval(customer.timeRoundingInterval?.toString() || '15');
       setCustomerNinjarmmOrgId(customer.ninjarmmOrganizationId || '');
     } else {
       setEditingCustomer(null);
@@ -192,6 +194,7 @@ export const Settings = ({
       setCustomerAddress('');
       setCustomerReportTitle('');
       setCustomerHourlyRate('');
+      setCustomerTimeRoundingInterval('15');
       setCustomerNinjarmmOrgId('');
     }
     setCustomerModalOpen(true);
@@ -307,6 +310,7 @@ export const Settings = ({
     if (!customerName.trim()) return;
 
     const hourlyRateValue = customerHourlyRate.trim() ? parseFloat(customerHourlyRate) : undefined;
+    const timeRoundingIntervalValue = customerTimeRoundingInterval.trim() ? parseInt(customerTimeRoundingInterval) : 15;
 
     if (editingCustomer) {
       onUpdateCustomer(editingCustomer.id, {
@@ -318,6 +322,7 @@ export const Settings = ({
         address: customerAddress.trim() || undefined,
         reportTitle: customerReportTitle.trim() || undefined,
         hourlyRate: hourlyRateValue,
+        timeRoundingInterval: timeRoundingIntervalValue,
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined
       });
     } else {
@@ -332,6 +337,7 @@ export const Settings = ({
         address: customerAddress.trim() || undefined,
         reportTitle: customerReportTitle.trim() || undefined,
         hourlyRate: hourlyRateValue,
+        timeRoundingInterval: timeRoundingIntervalValue,
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
         createdAt: new Date().toISOString()
       });
@@ -2709,6 +2715,31 @@ export const Settings = ({
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Kundenspezifischer Stundensatz für Abrechnungen (überschreibt den Standard)
+              </p>
+            </div>
+          )}
+
+          {/* Time Rounding Interval - only show if billing is enabled */}
+          {billingEnabled && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Zeitaufrundung (Minuten)
+              </label>
+              <select
+                value={customerTimeRoundingInterval}
+                onChange={(e) => setCustomerTimeRoundingInterval(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                <option value="1">1 Minute (keine Rundung)</option>
+                <option value="5">5 Minuten</option>
+                <option value="6">6 Minuten (0,1h)</option>
+                <option value="10">10 Minuten</option>
+                <option value="15">15 Minuten (0,25h)</option>
+                <option value="30">30 Minuten (0,5h)</option>
+                <option value="60">60 Minuten (1h)</option>
+              </select>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Zeiteinträge werden auf dieses Intervall aufgerundet (z.B. 7 Min. → 15 Min.)
               </p>
             </div>
           )}

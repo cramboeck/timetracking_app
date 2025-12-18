@@ -1841,8 +1841,11 @@ export interface BillingSummaryItem {
   customerName: string;
   hourlyRate: number | null;
   sevdeskCustomerId: string | null;
+  timeRoundingInterval: number;
   totalSeconds: number;
   totalHours: number;
+  roundedSeconds: number;
+  roundedHours: number;
   totalAmount: number | null;
   isBilled?: boolean;
   entries: Array<{

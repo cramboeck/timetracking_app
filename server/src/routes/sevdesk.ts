@@ -323,6 +323,13 @@ router.post('/record-export', authenticateToken, requireBillingFeature, async (r
   }
 });
 
+// Helper function to round up seconds to nearest interval (in minutes)
+function roundUpToInterval(seconds: number, intervalMinutes: number): number {
+  if (intervalMinutes <= 0) return seconds;
+  const intervalSeconds = intervalMinutes * 60;
+  return Math.ceil(seconds / intervalSeconds) * intervalSeconds;
+}
+
 // POST /api/sevdesk/create-export - Simple export: mark all unbilled entries for customer/period as billed
 router.post('/create-export', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
@@ -336,9 +343,9 @@ router.post('/create-export', authenticateToken, requireBillingFeature, async (r
       });
     }
 
-    // Get customer info for hourly rate
+    // Get customer info for hourly rate and rounding interval
     const customerResult = await query(
-      'SELECT id, name, hourly_rate FROM customers WHERE id = $1 AND user_id = $2',
+      'SELECT id, name, hourly_rate, time_rounding_interval FROM customers WHERE id = $1 AND user_id = $2',
       [customerId, userId]
     );
 
@@ -347,6 +354,7 @@ router.post('/create-export', authenticateToken, requireBillingFeature, async (r
     }
 
     const customer = customerResult.rows[0];
+    const roundingInterval = customer.time_rounding_interval || 15; // Default 15 minutes
 
     // Get config for default hourly rate
     const config = await sevdeskService.getConfig(userId);
@@ -361,12 +369,17 @@ router.post('/create-export', authenticateToken, requireBillingFeature, async (r
 
     const entryIds = entries.map(e => e.id);
 
-    // Calculate totals
+    // Calculate totals with rounding
     const totalSeconds = entries.reduce((sum, e) => sum + e.duration, 0);
-    const totalHours = Math.round((totalSeconds / 3600) * 100) / 100;
-    const totalAmount = Math.round(totalHours * hourlyRate * 100) / 100;
+    // Round up each entry individually, then sum
+    const roundedSeconds = entries.reduce((sum, e) => sum + roundUpToInterval(e.duration, roundingInterval), 0);
 
-    // Record the export (marks entries as billed)
+    const totalHours = Math.round((totalSeconds / 3600) * 100) / 100;
+    const roundedHours = Math.round((roundedSeconds / 3600) * 100) / 100;
+    // Amount is calculated based on ROUNDED hours
+    const totalAmount = Math.round(roundedHours * hourlyRate * 100) / 100;
+
+    // Record the export (marks entries as billed) - store rounded hours as the billing hours
     const exportId = await sevdeskService.recordInvoiceExport(
       userId,
       customerId,
@@ -375,7 +388,7 @@ router.post('/create-export', authenticateToken, requireBillingFeature, async (r
       null, // no sevDesk invoice number
       periodStart,
       periodEnd,
-      totalHours,
+      roundedHours, // Use rounded hours for the export record
       totalAmount
     );
 
@@ -384,8 +397,10 @@ router.post('/create-export', authenticateToken, requireBillingFeature, async (r
       data: {
         exportId,
         totalHours,
+        roundedHours,
         totalAmount,
         entriesCount: entries.length,
+        roundingInterval,
       },
     });
   } catch (error: any) {
