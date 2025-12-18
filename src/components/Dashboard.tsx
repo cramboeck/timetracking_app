@@ -861,6 +861,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
         entries={entries}
         projects={projects}
         customers={customers}
+        activities={activities}
       />
     </div>
   );
