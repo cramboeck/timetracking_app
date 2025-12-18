@@ -1380,16 +1380,10 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                     type="application/pdf"
                     className="w-full h-full"
                   >
-                    {/* Fallback for browsers that don't support object */}
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-4">
-                      <p className="text-gray-600 dark:text-gray-400">PDF kann nicht angezeigt werden</p>
-                      <a
-                        href={savedReportPreview.pdfUrl}
-                        download={`${savedReportPreview.reportName}.pdf`}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                      >
-                        PDF herunterladen
-                      </a>
+                    {/* Fallback message - buttons are below */}
+                    <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                      <p className="text-gray-600 dark:text-gray-400 mb-2">PDF-Vorschau nicht verfügbar</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-500">Bitte Buttons unten verwenden</p>
                     </div>
                   </object>
                   {/* Action buttons - responsive for mobile */}
