@@ -1314,6 +1314,25 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_ai_suggestions_ticket ON ticket_ai_suggestions(ticket_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_ai_suggestions_user ON ticket_ai_suggestions(user_id)');
 
+    // Migration: Add system_prompt and assistant_type columns to ai_config
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT FROM information_schema.columns
+          WHERE table_name = 'ai_config' AND column_name = 'system_prompt'
+        ) THEN
+          ALTER TABLE ai_config ADD COLUMN system_prompt TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT FROM information_schema.columns
+          WHERE table_name = 'ai_config' AND column_name = 'prompt_templates'
+        ) THEN
+          ALTER TABLE ai_config ADD COLUMN prompt_templates JSONB DEFAULT '{}';
+        END IF;
+      END $$;
+    `);
+
     // Feature subscriptions for add-on packages
     await client.query(`
       CREATE TABLE IF NOT EXISTS feature_packages (

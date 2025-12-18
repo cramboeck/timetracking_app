@@ -14,7 +14,18 @@ export interface AIConfig {
   enabled: boolean;
   maxTokens: number;
   temperature: number;
+  systemPrompt: string | null;
+  promptTemplates: Record<string, string>;
 }
+
+// Default system prompts for different assistant types
+export const DEFAULT_SYSTEM_PROMPTS: Record<string, string> = {
+  default: 'Du bist ein hilfreicher IT-Support-Assistent, der Technikern bei der Lösung von Problemen hilft. Antworte immer auf Deutsch.',
+  solution: 'Du bist ein erfahrener IT-Support-Spezialist. Analysiere Support-Tickets und schlage konkrete, praxiserprobte Lösungsschritte vor. Antworte immer auf Deutsch.',
+  category: 'Du bist ein IT-Ticket-Klassifizierer. Analysiere Tickets und ordne sie der passendsten Kategorie zu. Antworte nur mit dem Kategorienamen, ohne weitere Erklärung.',
+  priority: 'Du bist ein IT-Support-Experte für Priorisierung. Bewerte die Dringlichkeit von Tickets basierend auf Geschäftsauswirkungen und technischer Komplexität. Antworte auf Deutsch.',
+  response: 'Du bist ein freundlicher IT-Support-Mitarbeiter. Verfasse professionelle, kundenfreundliche Antworten auf Support-Anfragen. Antworte immer auf Deutsch.',
+};
 
 export interface TicketContext {
   ticketId: string;
@@ -56,7 +67,7 @@ export interface AISuggestion {
 
 export async function getAIConfig(userId: string): Promise<AIConfig | null> {
   const result = await query(
-    `SELECT id, user_id, provider, api_key, model, enabled, max_tokens, temperature
+    `SELECT id, user_id, provider, api_key, model, enabled, max_tokens, temperature, system_prompt, prompt_templates
      FROM ai_config WHERE user_id = $1`,
     [userId]
   );
@@ -73,6 +84,8 @@ export async function getAIConfig(userId: string): Promise<AIConfig | null> {
     enabled: row.enabled,
     maxTokens: row.max_tokens,
     temperature: parseFloat(row.temperature),
+    systemPrompt: row.system_prompt,
+    promptTemplates: row.prompt_templates || {},
   };
 }
 
@@ -91,6 +104,8 @@ export async function saveAIConfig(
         enabled = COALESCE($5, enabled),
         max_tokens = COALESCE($6, max_tokens),
         temperature = COALESCE($7, temperature),
+        system_prompt = COALESCE($8, system_prompt),
+        prompt_templates = COALESCE($9, prompt_templates),
         updated_at = NOW()
        WHERE user_id = $1
        RETURNING *`,
@@ -102,14 +117,16 @@ export async function saveAIConfig(
         config.enabled,
         config.maxTokens,
         config.temperature,
+        config.systemPrompt,
+        config.promptTemplates ? JSON.stringify(config.promptTemplates) : null,
       ]
     );
     return mapConfigRow(result.rows[0]);
   } else {
     const id = uuidv4();
     const result = await query(
-      `INSERT INTO ai_config (id, user_id, provider, api_key, model, enabled, max_tokens, temperature)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO ai_config (id, user_id, provider, api_key, model, enabled, max_tokens, temperature, system_prompt, prompt_templates)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         id,
@@ -120,6 +137,8 @@ export async function saveAIConfig(
         config.enabled ?? false,
         config.maxTokens || 1000,
         config.temperature || 0.7,
+        config.systemPrompt || null,
+        config.promptTemplates ? JSON.stringify(config.promptTemplates) : '{}',
       ]
     );
     return mapConfigRow(result.rows[0]);
@@ -136,6 +155,8 @@ function mapConfigRow(row: any): AIConfig {
     enabled: row.enabled,
     maxTokens: row.max_tokens,
     temperature: parseFloat(row.temperature),
+    systemPrompt: row.system_prompt,
+    promptTemplates: row.prompt_templates || {},
   };
 }
 
@@ -272,6 +293,103 @@ Antworte auf Deutsch und strukturiert. Halte die Antwort prägnant aber hilfreic
   return prompt;
 }
 
+function buildCategoryPrompt(
+  context: TicketContext,
+  categories: string[]
+): string {
+  return `Analysiere das folgende Support-Ticket und ordne es der passendsten Kategorie zu.
+
+## Ticket-Informationen
+- **Titel:** ${context.title}
+- **Beschreibung:** ${context.description || 'Keine Beschreibung vorhanden.'}
+${context.deviceName ? `- **Gerät:** ${context.deviceName}` : ''}
+
+## Verfügbare Kategorien
+${categories.map(c => `- ${c}`).join('\n')}
+
+## Aufgabe
+Wähle die passendste Kategorie aus der Liste. Antworte NUR mit dem Kategorienamen, ohne weitere Erklärung.`;
+}
+
+function buildPriorityPrompt(
+  context: TicketContext
+): string {
+  return `Analysiere das folgende Support-Ticket und bewerte die Priorität.
+
+## Ticket-Informationen
+- **Titel:** ${context.title}
+- **Beschreibung:** ${context.description || 'Keine Beschreibung vorhanden.'}
+${context.customerName ? `- **Kunde:** ${context.customerName}` : ''}
+${context.deviceName ? `- **Gerät:** ${context.deviceName}` : ''}
+${context.category ? `- **Kategorie:** ${context.category}` : ''}
+
+## Prioritätsstufen
+- **critical**: Systemausfall, Geschäftsstopp, Sicherheitsvorfall
+- **high**: Wichtige Funktion beeinträchtigt, viele Nutzer betroffen
+- **medium**: Normale Störung, Workaround möglich
+- **low**: Kosmetisches Problem, Frage, Verbesserungsvorschlag
+
+## Aufgabe
+Bewerte die Priorität und begründe kurz (1-2 Sätze) deine Einschätzung.
+
+Format deiner Antwort:
+**Priorität:** [critical/high/medium/low]
+**Begründung:** [Kurze Begründung]`;
+}
+
+function buildResponsePrompt(
+  context: TicketContext,
+  responseType: 'initial' | 'followup' | 'resolution' = 'initial'
+): string {
+  const responseTypeText = {
+    initial: 'eine erste Antwort auf die Kundenanfrage',
+    followup: 'eine Folge-Nachricht mit Status-Update',
+    resolution: 'eine Abschlussnachricht mit Lösung',
+  };
+
+  let prompt = `Verfasse ${responseTypeText[responseType]} für das folgende Support-Ticket.
+
+## Ticket-Informationen
+- **Titel:** ${context.title}
+- **Beschreibung:** ${context.description || 'Keine Beschreibung vorhanden.'}
+${context.customerName ? `- **Kunde:** ${context.customerName}` : ''}
+${context.priority ? `- **Priorität:** ${context.priority}` : ''}
+`;
+
+  if (context.previousComments.length > 0) {
+    prompt += `\n## Bisherige Kommunikation\n`;
+    context.previousComments.slice(-3).forEach((comment, i) => {
+      prompt += `**Nachricht ${i + 1}:** ${comment.content}\n`;
+    });
+  }
+
+  prompt += `
+## Aufgabe
+Verfasse eine professionelle, freundliche Antwort:
+- Sprich den Kunden direkt an
+- Sei konkret und hilfreich
+- Vermeide technischen Jargon wo möglich
+- Halte die Antwort prägnant
+
+Antworte auf Deutsch.`;
+
+  return prompt;
+}
+
+// Helper to get available categories for a user
+async function getAvailableCategories(userId: string): Promise<string[]> {
+  const result = await query(
+    `SELECT DISTINCT category FROM tickets WHERE user_id = $1 AND category IS NOT NULL ORDER BY category`,
+    [userId]
+  );
+  const categories = result.rows.map(r => r.category);
+  // Add default categories if none exist
+  if (categories.length === 0) {
+    return ['Hardware', 'Software', 'Netzwerk', 'E-Mail', 'Drucker', 'Sicherheit', 'Sonstiges'];
+  }
+  return categories;
+}
+
 // ============================================
 // AI API Calls
 // ============================================
@@ -281,7 +399,8 @@ async function callOpenAI(
   model: string,
   prompt: string,
   maxTokens: number,
-  temperature: number
+  temperature: number,
+  systemPrompt: string = DEFAULT_SYSTEM_PROMPTS.default
 ): Promise<{ content: string; tokensUsed: number }> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -294,7 +413,7 @@ async function callOpenAI(
       messages: [
         {
           role: 'system',
-          content: 'Du bist ein hilfreicher IT-Support-Assistent, der Technikern bei der Lösung von Problemen hilft.',
+          content: systemPrompt,
         },
         { role: 'user', content: prompt },
       ],
@@ -323,7 +442,8 @@ async function callAnthropic(
   model: string,
   prompt: string,
   maxTokens: number,
-  temperature: number
+  temperature: number,
+  systemPrompt: string = DEFAULT_SYSTEM_PROMPTS.default
 ): Promise<{ content: string; tokensUsed: number }> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -336,7 +456,7 @@ async function callAnthropic(
       model,
       max_tokens: maxTokens,
       messages: [{ role: 'user', content: prompt }],
-      system: 'Du bist ein hilfreicher IT-Support-Assistent, der Technikern bei der Lösung von Problemen hilft. Antworte immer auf Deutsch.',
+      system: systemPrompt,
     }),
   });
 
@@ -379,24 +499,46 @@ export async function generateTicketSuggestion(
     throw new Error('Ticket nicht gefunden');
   }
 
-  // Extract keywords for KB search
+  // Extract keywords for KB search (only for solution type)
   const keywords = [
     ...context.title.split(' '),
     ...(context.description?.split(' ') || []),
     context.category,
   ].filter(Boolean) as string[];
 
-  // Get relevant KB articles
-  const kbArticles = await getRelevantKBArticles(userId, keywords);
+  // Get KB articles upfront for solution suggestions
+  let kbArticles: KnowledgeBaseArticle[] = [];
+  if (suggestionType === 'solution') {
+    kbArticles = await getRelevantKBArticles(userId, keywords);
+  }
 
   // Build prompt based on suggestion type
   let prompt: string;
+  let systemPrompt: string;
+
   switch (suggestionType) {
     case 'solution':
       prompt = buildSolutionPrompt(context, kbArticles);
+      // Use custom prompt from templates, or config system prompt, or default
+      systemPrompt = config.promptTemplates?.solution || config.systemPrompt || DEFAULT_SYSTEM_PROMPTS.solution;
+      break;
+    case 'category':
+      const categories = await getAvailableCategories(userId);
+      prompt = buildCategoryPrompt(context, categories);
+      systemPrompt = config.promptTemplates?.category || DEFAULT_SYSTEM_PROMPTS.category;
+      break;
+    case 'priority':
+      prompt = buildPriorityPrompt(context);
+      systemPrompt = config.promptTemplates?.priority || DEFAULT_SYSTEM_PROMPTS.priority;
+      break;
+    case 'response':
+      prompt = buildResponsePrompt(context, 'initial');
+      systemPrompt = config.promptTemplates?.response || DEFAULT_SYSTEM_PROMPTS.response;
       break;
     default:
+      kbArticles = await getRelevantKBArticles(userId, keywords);
       prompt = buildSolutionPrompt(context, kbArticles);
+      systemPrompt = config.systemPrompt || DEFAULT_SYSTEM_PROMPTS.default;
   }
 
   // Call AI API
@@ -408,7 +550,8 @@ export async function generateTicketSuggestion(
         config.model,
         prompt,
         config.maxTokens,
-        config.temperature
+        config.temperature,
+        systemPrompt
       );
     } else {
       result = await callOpenAI(
@@ -416,7 +559,8 @@ export async function generateTicketSuggestion(
         config.model,
         prompt,
         config.maxTokens,
-        config.temperature
+        config.temperature,
+        systemPrompt
       );
     }
   } catch (error: any) {
@@ -428,7 +572,8 @@ export async function generateTicketSuggestion(
   const suggestionId = uuidv4();
   const contextUsed = {
     ticketNumber: context.ticketNumber,
-    kbArticlesUsed: kbArticles.map((a) => a.title),
+    suggestionType,
+    ...(kbArticles.length > 0 && { kbArticlesUsed: kbArticles.map((a) => a.title) }),
   };
 
   await query(

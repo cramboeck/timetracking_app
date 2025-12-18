@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Bot, Save, RefreshCw, CheckCircle, XCircle, Eye, EyeOff, Sparkles, Zap, Settings2 } from 'lucide-react';
-import { aiApi, AIConfig } from '../services/api';
+import { Bot, Save, RefreshCw, CheckCircle, XCircle, Eye, EyeOff, Sparkles, Zap, Settings2, FileText, RotateCcw } from 'lucide-react';
+import { aiApi, AIConfig, DEFAULT_SYSTEM_PROMPTS } from '../services/api';
 
 export const AISettings = () => {
   const [loading, setLoading] = useState(true);
@@ -17,6 +17,9 @@ export const AISettings = () => {
   const [enabled, setEnabled] = useState(false);
   const [maxTokens, setMaxTokens] = useState(1000);
   const [temperature, setTemperature] = useState(0.7);
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [promptTemplates, setPromptTemplates] = useState<Record<string, string>>({});
+  const [activePromptTab, setActivePromptTab] = useState<'default' | 'solution' | 'category' | 'priority' | 'response'>('default');
 
   // UI state
   const [showApiKey, setShowApiKey] = useState(false);
@@ -52,6 +55,8 @@ export const AISettings = () => {
         setEnabled(response.data.enabled);
         setMaxTokens(response.data.maxTokens);
         setTemperature(response.data.temperature);
+        setSystemPrompt(response.data.systemPrompt || '');
+        setPromptTemplates(response.data.promptTemplates || {});
         // Don't set apiKey - it's masked
       }
     } catch (err) {
@@ -113,6 +118,8 @@ export const AISettings = () => {
         enabled,
         maxTokens,
         temperature,
+        systemPrompt: systemPrompt || null,
+        promptTemplates,
       };
 
       // Only include apiKey if it was changed
@@ -130,6 +137,44 @@ export const AISettings = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Get current prompt value (custom or default)
+  const getCurrentPromptValue = (type: string): string => {
+    if (type === 'default') {
+      return systemPrompt || DEFAULT_SYSTEM_PROMPTS.default;
+    }
+    return promptTemplates[type] || DEFAULT_SYSTEM_PROMPTS[type] || '';
+  };
+
+  // Update prompt for specific type
+  const updatePrompt = (type: string, value: string) => {
+    if (type === 'default') {
+      setSystemPrompt(value);
+    } else {
+      setPromptTemplates(prev => ({ ...prev, [type]: value }));
+    }
+  };
+
+  // Reset prompt to default
+  const resetPromptToDefault = (type: string) => {
+    if (type === 'default') {
+      setSystemPrompt('');
+    } else {
+      setPromptTemplates(prev => {
+        const updated = { ...prev };
+        delete updated[type];
+        return updated;
+      });
+    }
+  };
+
+  // Check if prompt is customized
+  const isPromptCustomized = (type: string): boolean => {
+    if (type === 'default') {
+      return !!systemPrompt && systemPrompt !== DEFAULT_SYSTEM_PROMPTS.default;
+    }
+    return !!promptTemplates[type] && promptTemplates[type] !== DEFAULT_SYSTEM_PROMPTS[type];
   };
 
   if (loading) {
@@ -373,6 +418,87 @@ export const AISettings = () => {
               <span>Präzise (0)</span>
               <span>Kreativ (1)</span>
             </div>
+          </div>
+        </div>
+      </details>
+
+      {/* System Prompt Configuration */}
+      <details className="group">
+        <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+          <FileText size={16} />
+          System-Prompt anpassen
+        </summary>
+        <div className="mt-4 space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Passe die System-Prompts für verschiedene Assistenten-Funktionen an. Der System-Prompt definiert das Verhalten und den Kontext der KI.
+          </p>
+
+          {/* Prompt Type Tabs */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: 'default', label: 'Standard' },
+              { key: 'solution', label: 'Lösung' },
+              { key: 'category', label: 'Kategorie' },
+              { key: 'priority', label: 'Priorität' },
+              { key: 'response', label: 'Antwort' },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActivePromptTab(tab.key as any)}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1 ${
+                  activePromptTab === tab.key
+                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-medium'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {tab.label}
+                {isPromptCustomized(tab.key) && (
+                  <span className="w-2 h-2 bg-purple-500 rounded-full" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Prompt Editor */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm text-gray-600 dark:text-gray-400">
+                {activePromptTab === 'default' ? 'Standard System-Prompt' :
+                 activePromptTab === 'solution' ? 'Lösungsvorschläge Prompt' :
+                 activePromptTab === 'category' ? 'Kategorie-Klassifikation Prompt' :
+                 activePromptTab === 'priority' ? 'Prioritäts-Analyse Prompt' :
+                 'Antwort-Generator Prompt'}
+              </label>
+              {isPromptCustomized(activePromptTab) && (
+                <button
+                  onClick={() => resetPromptToDefault(activePromptTab)}
+                  className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+                >
+                  <RotateCcw size={12} />
+                  Auf Standard zurücksetzen
+                </button>
+              )}
+            </div>
+            <textarea
+              value={getCurrentPromptValue(activePromptTab)}
+              onChange={(e) => updatePrompt(activePromptTab, e.target.value)}
+              rows={6}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+              placeholder={DEFAULT_SYSTEM_PROMPTS[activePromptTab] || DEFAULT_SYSTEM_PROMPTS.default}
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {activePromptTab === 'default' && 'Dieser Prompt wird verwendet, wenn kein spezifischer Prompt definiert ist.'}
+              {activePromptTab === 'solution' && 'Wird bei "Lösung vorschlagen" im Ticket verwendet.'}
+              {activePromptTab === 'category' && 'Wird für die automatische Kategorisierung von Tickets verwendet.'}
+              {activePromptTab === 'priority' && 'Wird für die Prioritäts-Empfehlung verwendet.'}
+              {activePromptTab === 'response' && 'Wird für das Generieren von Kundenantworten verwendet.'}
+            </p>
+          </div>
+
+          {/* Quick Variables Info */}
+          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs text-gray-600 dark:text-gray-400">
+            <p className="font-medium mb-1">Hinweis:</p>
+            <p>Der System-Prompt definiert die Persönlichkeit und das Verhalten der KI. Der eigentliche Ticket-Kontext (Titel, Beschreibung, etc.) wird automatisch zum Prompt hinzugefügt.</p>
           </div>
         </div>
       </details>

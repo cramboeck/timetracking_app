@@ -3147,7 +3147,18 @@ export interface AIConfig {
   enabled: boolean;
   maxTokens: number;
   temperature: number;
+  systemPrompt: string | null;
+  promptTemplates: Record<string, string>;
 }
+
+// Default system prompts (mirrors server defaults)
+export const DEFAULT_SYSTEM_PROMPTS: Record<string, string> = {
+  default: 'Du bist ein hilfreicher IT-Support-Assistent, der Technikern bei der Lösung von Problemen hilft. Antworte immer auf Deutsch.',
+  solution: 'Du bist ein erfahrener IT-Support-Spezialist. Analysiere Support-Tickets und schlage konkrete, praxiserprobte Lösungsschritte vor. Antworte immer auf Deutsch.',
+  category: 'Du bist ein IT-Ticket-Klassifizierer. Analysiere Tickets und ordne sie der passendsten Kategorie zu. Antworte nur mit dem Kategorienamen, ohne weitere Erklärung.',
+  priority: 'Du bist ein IT-Support-Experte für Priorisierung. Bewerte die Dringlichkeit von Tickets basierend auf Geschäftsauswirkungen und technischer Komplexität. Antworte auf Deutsch.',
+  response: 'Du bist ein freundlicher IT-Support-Mitarbeiter. Verfasse professionelle, kundenfreundliche Antworten auf Support-Anfragen. Antworte immer auf Deutsch.',
+};
 
 export interface AISuggestion {
   id: string;
