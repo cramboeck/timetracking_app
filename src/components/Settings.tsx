@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -8,6 +8,7 @@ import { TicketSettings } from './TicketSettings';
 import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { NinjaRMMSettings } from './NinjaRMMSettings';
 import { PushNotificationSettings } from './PushNotificationSettings';
+import { AISettings } from './AISettings';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 import { CustomerNinjaRMMLink } from './CustomerNinjaRMMLink';
 import { IOSSwitch } from './IOSSwitch';
@@ -64,7 +65,7 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'ai'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
   const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
@@ -904,7 +905,8 @@ export const Settings = ({
       items: [
         { id: 'tickets', label: 'Ticket-System', icon: Ticket, desc: 'Tags & Textbausteine' },
         { id: 'portal', label: 'Kundenportal', icon: Book, desc: 'KB & Branding' },
-        { id: 'ninjarmm', label: 'NinjaRMM', icon: Server, desc: 'Geräte & Alerts' }
+        { id: 'ninjarmm', label: 'NinjaRMM', icon: Server, desc: 'Geräte & Alerts' },
+        { id: 'ai', label: 'KI-Assistent', icon: Bot, desc: 'Lösungsvorschläge' }
       ]
     }
   ];
@@ -2399,6 +2401,30 @@ export const Settings = ({
 
             {/* NinjaRMM Settings Component */}
             <NinjaRMMSettings />
+          </div>
+        )}
+
+        {activeTab === 'ai' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+                  <Bot size={28} className="text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">KI-Assistent</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    Konfiguriere OpenAI oder Anthropic für automatische Lösungsvorschläge
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Settings Component */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <AISettings />
+            </div>
           </div>
         )}
 
