@@ -1910,4 +1910,61 @@ router.post('/exclusions/from-event/:eventId', authenticateToken, requireNinjaFe
   }
 });
 
+// ============================================
+// IP History
+// ============================================
+
+// GET /api/ninjarmm/devices/:id/ip-history - Get IP change history for a device
+router.get('/devices/:id/ip-history', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const { ipType } = req.query; // 'private' | 'public' | undefined (both)
+
+    // Verify device belongs to user
+    const deviceResult = await query(
+      'SELECT id, system_name FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Device not found' });
+    }
+
+    let historyQuery = `
+      SELECT id, ip_type, old_ip, new_ip, changed_at
+      FROM ninjarmm_device_ip_history
+      WHERE device_id = $1
+    `;
+    const params: any[] = [id];
+
+    if (ipType === 'private' || ipType === 'public') {
+      historyQuery += ' AND ip_type = $2';
+      params.push(ipType);
+    }
+
+    historyQuery += ' ORDER BY changed_at DESC LIMIT 50';
+
+    const historyResult = await query(historyQuery, params);
+
+    res.json({
+      success: true,
+      data: {
+        deviceId: id,
+        deviceName: deviceResult.rows[0].system_name,
+        history: historyResult.rows.map(row => ({
+          id: row.id,
+          ipType: row.ip_type,
+          oldIp: row.old_ip,
+          newIp: row.new_ip,
+          changedAt: row.changed_at,
+        })),
+      },
+    });
+  } catch (error: any) {
+    console.error('Get IP history error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

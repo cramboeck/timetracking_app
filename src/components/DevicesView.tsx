@@ -19,21 +19,45 @@ export const DevicesView = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
 
   useEffect(() => {
-    loadData();
+    loadDataAndSync();
   }, []);
 
   const loadData = async () => {
     try {
-      setLoading(true);
       const [configRes, devicesRes] = await Promise.all([
         ninjaApi.getConfig(),
         ninjaApi.getDevices(),
       ]);
       if (configRes.success) setConfig(configRes.data);
       if (devicesRes.success) setDevices(devicesRes.data);
+      return configRes.success && devicesRes.success;
     } catch (err: any) {
       setError(err.message);
-    } finally {
+      return false;
+    }
+  };
+
+  // Load data from DB first, then sync in background to get fresh data
+  const loadDataAndSync = async () => {
+    setLoading(true);
+    try {
+      // First load existing data from DB for quick display
+      await loadData();
+      setLoading(false);
+
+      // Then sync in background to get fresh data (including private IPs)
+      setSyncing(true);
+      try {
+        await ninjaApi.syncAll();
+        await loadData();
+      } catch (syncErr: any) {
+        // Sync errors are not critical - we still have cached data
+        console.warn('Background sync failed:', syncErr.message);
+      } finally {
+        setSyncing(false);
+      }
+    } catch (err: any) {
+      setError(err.message);
       setLoading(false);
     }
   };

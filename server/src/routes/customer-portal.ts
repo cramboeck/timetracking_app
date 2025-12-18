@@ -1144,7 +1144,7 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
         lastBoot: lastBoot,
         lastContact: row.last_contact,
         lastLoggedInUser: row.last_logged_in_user,
-        publicIp: row.public_ip,
+        // Only show private IP to customers (they know their external IP)
         privateIp: row.private_ip,
         offline: row.offline,
         notes: row.notes,

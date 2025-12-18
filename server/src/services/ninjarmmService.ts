@@ -757,6 +757,53 @@ function parseNinjaTimestamp(value: string | number | null | undefined): Date | 
   return isNaN(date.getTime()) ? null : date;
 }
 
+// Helper function to extract private IP from device data
+function extractPrivateIp(device: NinjaRMMDevice): string | null {
+  // First check if there's a direct privateIp field on the device
+  const directIp = (device as any).privateIp || (device as any).internalIp || (device as any).localIp || (device as any).ipAddress;
+  if (typeof directIp === 'string' && directIp) {
+    // Verify it's a private IP
+    if (directIp.startsWith('10.') || directIp.startsWith('192.168.') ||
+        (directIp.startsWith('172.') && parseInt(directIp.split('.')[1]) >= 16 && parseInt(directIp.split('.')[1]) <= 31)) {
+      return directIp;
+    }
+  }
+
+  // Search through NICs
+  const nics = device.nics || [];
+  if (Array.isArray(nics)) {
+    for (const nic of nics) {
+      if (!nic) continue;
+
+      // Handle various NinjaRMM NIC data structures
+      let ip: any = nic.ipAddress || (nic as any).ip || (nic as any).ipv4 || (nic as any).address || '';
+
+      // If ip is an array, take the first element
+      if (Array.isArray(ip)) {
+        ip = ip[0] || '';
+      }
+
+      // Ensure ip is a string
+      if (typeof ip !== 'string' || !ip) {
+        continue;
+      }
+
+      // Skip loopback and link-local addresses
+      if (ip.startsWith('127.') || ip.startsWith('169.254.') || ip.startsWith('::') || ip === '0.0.0.0') {
+        continue;
+      }
+
+      // Check if it's a private IP range (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
+      if (ip.startsWith('10.') || ip.startsWith('192.168.') ||
+          (ip.startsWith('172.') && parseInt(ip.split('.')[1]) >= 16 && parseInt(ip.split('.')[1]) <= 31)) {
+        return ip;
+      }
+    }
+  }
+
+  return null;
+}
+
 export async function syncDevices(userId: string): Promise<SyncResult> {
   let synced = 0;
   let errors = 0;
@@ -769,6 +816,36 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
     for (const device of devices) {
       try {
         const lastContact = parseNinjaTimestamp(device.lastContact);
+        const privateIp = extractPrivateIp(device);
+
+        // Get current device to check for IP changes (for history tracking)
+        const existingDevice = await query(
+          'SELECT private_ip, public_ip FROM ninjarmm_devices WHERE user_id = $1 AND ninja_device_id = $2',
+          [userId, String(device.id)]
+        );
+
+        // Track IP changes in history
+        if (existingDevice.rows.length > 0) {
+          const oldPrivateIp = existingDevice.rows[0].private_ip;
+          const oldPublicIp = existingDevice.rows[0].public_ip;
+
+          if (privateIp && oldPrivateIp && privateIp !== oldPrivateIp) {
+            await query(
+              `INSERT INTO ninjarmm_device_ip_history (id, device_id, ip_type, old_ip, new_ip)
+               VALUES ($1, $2, 'private', $3, $4)`,
+              [uuidv4(), `${userId}_${device.id}`, oldPrivateIp, privateIp]
+            );
+            console.log(`📝 IP change logged for ${device.systemName}: ${oldPrivateIp} → ${privateIp}`);
+          }
+
+          if (device.publicIP && oldPublicIp && device.publicIP !== oldPublicIp) {
+            await query(
+              `INSERT INTO ninjarmm_device_ip_history (id, device_id, ip_type, old_ip, new_ip)
+               VALUES ($1, $2, 'public', $3, $4)`,
+              [uuidv4(), `${userId}_${device.id}`, oldPublicIp, device.publicIP]
+            );
+          }
+        }
 
         // Note: UNIQUE constraint is on (user_id, ninja_device_id) where ninja_device_id is TEXT
         // Organization lookup uses ninja_org_id (TEXT) to match the organization
@@ -776,12 +853,12 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
           `INSERT INTO ninjarmm_devices (
             id, user_id, ninja_device_id, ninja_id, organization_id, ninja_org_id,
             system_name, display_name, dns_name, node_class,
-            offline, last_contact, public_ip, os_name,
+            offline, last_contact, public_ip, private_ip, os_name,
             manufacturer, model, serial_number, last_logged_in_user, device_data, synced_at
           ) VALUES (
             $1, $2, $3, $4,
             (SELECT id FROM ninjarmm_organizations WHERE user_id = $2 AND ninja_org_id = $5),
-            $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW()
+            $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW()
           )
           ON CONFLICT (user_id, ninja_device_id)
           DO UPDATE SET
@@ -794,6 +871,7 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
             offline = EXCLUDED.offline,
             last_contact = EXCLUDED.last_contact,
             public_ip = EXCLUDED.public_ip,
+            private_ip = EXCLUDED.private_ip,
             os_name = EXCLUDED.os_name,
             manufacturer = EXCLUDED.manufacturer,
             model = EXCLUDED.model,
@@ -814,6 +892,7 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
             device.offline,
             lastContact,
             device.publicIP || null,
+            privateIp,              // Now saving private IP
             device.os?.name || null,
             device.system?.manufacturer || null,
             device.system?.model || null,
@@ -1000,7 +1079,7 @@ export async function getLocalDevices(
   let sql = `
     SELECT
       d.id, d.ninja_id, d.system_name, d.display_name, d.node_class,
-      d.offline, d.last_contact, d.public_ip, d.os_name,
+      d.offline, d.last_contact, d.public_ip, d.private_ip, d.os_name,
       d.manufacturer, d.model, d.serial_number, d.last_logged_in_user, d.synced_at,
       d.device_data,
       o.name as organization_name, c.name as customer_name
@@ -1074,50 +1153,31 @@ export async function getLocalDevices(
       osVersion = `${osVersion} (Build ${osInfo.buildNumber})`;
     }
 
-    // Extract private IP - check multiple possible locations in NinjaRMM data
-    let privateIp: string | null = null;
+    // Use private_ip from database (saved during sync)
+    // If not in DB, fall back to extracting from device_data for backwards compatibility
+    let privateIp: string | null = row.private_ip;
 
-    // First check if there's a direct privateIp/internalIp field on the device
-    const directIp = deviceData.privateIp || deviceData.internalIp || deviceData.localIp || deviceData.ipAddress;
-    if (typeof directIp === 'string' && directIp) {
-      privateIp = directIp;
-    }
+    if (!privateIp) {
+      // Fallback: extract from device_data for devices synced before private_ip was saved
+      const directIp = deviceData.privateIp || deviceData.internalIp || deviceData.localIp || deviceData.ipAddress;
+      if (typeof directIp === 'string' && directIp) {
+        privateIp = directIp;
+      }
 
-    // If not found, search through NICs
-    if (!privateIp && nicsInfo && Array.isArray(nicsInfo)) {
-      for (const nic of nicsInfo) {
-        if (!nic) continue;
-
-        // Handle various NinjaRMM NIC data structures
-        let ip: any = nic.ipAddress || nic.ip || nic.ipv4 || nic.address || '';
-
-        // If ip is an array, take the first element
-        if (Array.isArray(ip)) {
-          ip = ip[0] || '';
-        }
-
-        // Ensure ip is a string
-        if (typeof ip !== 'string' || !ip) {
-          continue;
-        }
-
-        // Skip loopback and link-local addresses
-        if (ip.startsWith('127.') || ip.startsWith('169.254.') || ip.startsWith('::') || ip === '0.0.0.0') {
-          continue;
-        }
-
-        // Check if it's a private IP range (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
-        if (ip.startsWith('10.') || ip.startsWith('192.168.') ||
-            (ip.startsWith('172.') && parseInt(ip.split('.')[1]) >= 16 && parseInt(ip.split('.')[1]) <= 31)) {
-          privateIp = ip;
-          break;
+      if (!privateIp && nicsInfo && Array.isArray(nicsInfo)) {
+        for (const nic of nicsInfo) {
+          if (!nic) continue;
+          let ip: any = nic.ipAddress || nic.ip || nic.ipv4 || nic.address || '';
+          if (Array.isArray(ip)) ip = ip[0] || '';
+          if (typeof ip !== 'string' || !ip) continue;
+          if (ip.startsWith('127.') || ip.startsWith('169.254.') || ip.startsWith('::') || ip === '0.0.0.0') continue;
+          if (ip.startsWith('10.') || ip.startsWith('192.168.') ||
+              (ip.startsWith('172.') && parseInt(ip.split('.')[1]) >= 16 && parseInt(ip.split('.')[1]) <= 31)) {
+            privateIp = ip;
+            break;
+          }
         }
       }
-    }
-
-    // Debug: Log the structure if no private IP found (remove after debugging)
-    if (!privateIp && nicsInfo && nicsInfo.length > 0) {
-      console.log('[DEBUG] NICs data structure:', JSON.stringify(nicsInfo[0], null, 2));
     }
 
     return {

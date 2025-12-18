@@ -797,6 +797,51 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alert_exclusions_active ON ninjarmm_alert_exclusions(user_id, is_active)');
 
     // ============================================
+    // NinjaRMM Device IP History
+    // Tracks IP address changes for 30 days
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_device_ip_history (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL REFERENCES ninjarmm_devices(id) ON DELETE CASCADE,
+        ip_type TEXT NOT NULL CHECK(ip_type IN ('private', 'public')),
+        old_ip TEXT NOT NULL,
+        new_ip TEXT NOT NULL,
+        changed_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_ip_history_device ON ninjarmm_device_ip_history(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_ip_history_changed ON ninjarmm_device_ip_history(changed_at)');
+
+    // Auto-cleanup old IP history entries (older than 30 days)
+    // This is done via scheduled job, but we can also add trigger
+    await client.query(`
+      CREATE OR REPLACE FUNCTION cleanup_old_ip_history() RETURNS trigger AS $$
+      BEGIN
+        DELETE FROM ninjarmm_device_ip_history WHERE changed_at < NOW() - INTERVAL '30 days';
+        RETURN NULL;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    // Create trigger if not exists (only fires occasionally to avoid performance impact)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_cleanup_ip_history'
+        ) THEN
+          CREATE TRIGGER trigger_cleanup_ip_history
+          AFTER INSERT ON ninjarmm_device_ip_history
+          FOR EACH STATEMENT
+          EXECUTE FUNCTION cleanup_old_ip_history();
+        END IF;
+      END $$;
+    `);
+
+    console.log('✅ Device IP history table created with 30-day retention');
+
+    // ============================================
     // Feature Flags System
     // ============================================
 
