@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2 } from 'lucide-react';
+import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import { useAuth } from '../contexts/AuthContext';
@@ -107,6 +107,16 @@ export const ReportAssistant = ({
     existingReports: ExistingReport[];
     pendingCustomerIds: string[];
   }>({ show: false, existingReports: [], pendingCustomerIds: [] });
+
+  // PDF Preview state
+  const [pdfPreview, setPdfPreview] = useState<{
+    show: boolean;
+    pdfUrl: string | null;
+    customerName: string;
+    currentIndex: number;
+    totalCount: number;
+  }>({ show: false, pdfUrl: null, customerName: '', currentIndex: 0, totalCount: 0 });
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
 
   // Calculate effective date range
   const dateRange = useMemo(() => {
@@ -749,6 +759,58 @@ export const ReportAssistant = ({
     setDuplicateConfirm({ show: false, existingReports: [], pendingCustomerIds: [] });
   };
 
+  // PDF Preview functions
+  const openPreview = async (index: number = 0) => {
+    const selectedIds = Array.from(selectedCustomers);
+    if (selectedIds.length === 0) return;
+
+    setIsGeneratingPreview(true);
+
+    try {
+      const customerId = selectedIds[index];
+      const customerData = reportData.find(d => d.customer.id === customerId);
+
+      if (customerData) {
+        const doc = await generateModernPDF(customerData);
+        const pdfUrl = doc.output('bloburl');
+
+        // Revoke previous URL to prevent memory leaks
+        if (pdfPreview.pdfUrl) {
+          URL.revokeObjectURL(pdfPreview.pdfUrl);
+        }
+
+        setPdfPreview({
+          show: true,
+          pdfUrl: pdfUrl as string,
+          customerName: customerData.customer.name,
+          currentIndex: index,
+          totalCount: selectedIds.length
+        });
+      }
+    } catch (error) {
+      console.error('Preview generation error:', error);
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
+
+  const closePreview = () => {
+    if (pdfPreview.pdfUrl) {
+      URL.revokeObjectURL(pdfPreview.pdfUrl);
+    }
+    setPdfPreview({ show: false, pdfUrl: null, customerName: '', currentIndex: 0, totalCount: 0 });
+  };
+
+  const navigatePreview = async (direction: 'prev' | 'next') => {
+    const newIndex = direction === 'next'
+      ? pdfPreview.currentIndex + 1
+      : pdfPreview.currentIndex - 1;
+
+    if (newIndex >= 0 && newIndex < pdfPreview.totalCount) {
+      await openPreview(newIndex);
+    }
+  };
+
   const generateEmailTemplate = () => {
     const selectedData = reportData.filter(d => selectedCustomers.has(d.customer.id));
     if (selectedData.length === 0) return;
@@ -1102,6 +1164,76 @@ ${companyInfo?.phone || ''}`;
           )}
         </div>
 
+        {/* PDF Preview Modal */}
+        {pdfPreview.show && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[95vw] h-[95vh] max-w-7xl flex flex-col">
+              {/* Preview Header */}
+              <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <FileText size={20} className="text-accent-primary" />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                      {pdfPreview.customerName}
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatDateRange(dateRange.start, dateRange.end)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Navigation for multiple reports */}
+                  {pdfPreview.totalCount > 1 && (
+                    <div className="flex items-center gap-1 mr-4">
+                      <button
+                        onClick={() => navigatePreview('prev')}
+                        disabled={pdfPreview.currentIndex === 0 || isGeneratingPreview}
+                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
+                      </button>
+                      <span className="text-sm text-gray-600 dark:text-gray-300 min-w-[60px] text-center">
+                        {pdfPreview.currentIndex + 1} / {pdfPreview.totalCount}
+                      </span>
+                      <button
+                        onClick={() => navigatePreview('next')}
+                        disabled={pdfPreview.currentIndex === pdfPreview.totalCount - 1 || isGeneratingPreview}
+                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    onClick={closePreview}
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                  >
+                    <X size={20} className="text-gray-500" />
+                  </button>
+                </div>
+              </div>
+
+              {/* PDF Viewer */}
+              <div className="flex-1 bg-gray-100 dark:bg-dark-200 overflow-hidden">
+                {isGeneratingPreview ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <Loader2 size={40} className="animate-spin text-accent-primary" />
+                      <span className="text-gray-600 dark:text-gray-300">PDF wird generiert...</span>
+                    </div>
+                  </div>
+                ) : pdfPreview.pdfUrl ? (
+                  <iframe
+                    src={pdfPreview.pdfUrl}
+                    className="w-full h-full border-0"
+                    title="PDF Preview"
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Duplicate Confirmation Dialog */}
         {duplicateConfirm.show && (
           <div className="px-6 py-4 bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-800">
@@ -1168,7 +1300,19 @@ ${companyInfo?.phone || ''}`;
                 Schließen
               </button>
               <button
-                onClick={saveReports}
+                onClick={() => openPreview()}
+                disabled={selectedCustomers.size === 0 || isGeneratingPreview}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGeneratingPreview ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Eye size={18} />
+                )}
+                Vorschau
+              </button>
+              <button
+                onClick={() => saveReports()}
                 disabled={selectedCustomers.size === 0 || isSaving}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
