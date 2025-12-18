@@ -2408,6 +2408,48 @@ export async function initializeDatabase() {
 
     console.log('✅ Contract Management tables created');
 
+    // ============================================
+    // Invoice Export System (for Billing/Finanzen)
+    // ============================================
+
+    // Invoice exports table - tracks billing exports
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS invoice_exports (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        sevdesk_invoice_id TEXT,
+        sevdesk_invoice_number TEXT,
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        total_hours DECIMAL(10, 2) NOT NULL,
+        total_amount DECIMAL(12, 2) NOT NULL,
+        status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'sent', 'paid', 'cancelled')),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Migration: Add invoice_export_id to time_entries if not exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'invoice_export_id'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN invoice_export_id TEXT REFERENCES invoice_exports(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Create indexes for invoice_exports
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_exports_user ON invoice_exports(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_exports_customer ON invoice_exports(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_exports_period ON invoice_exports(period_start, period_end)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_export ON time_entries(invoice_export_id)');
+
+    console.log('✅ Invoice Export tables created');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

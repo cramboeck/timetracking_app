@@ -382,7 +382,7 @@ const BillingTab = () => {
                     <div>
                       <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
                         {item.customerName}
-                        {item.sevdeskContactId && (
+                        {item.sevdeskCustomerId && (
                           <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                             <ExternalLink size={10} /> sevDesk
                           </span>

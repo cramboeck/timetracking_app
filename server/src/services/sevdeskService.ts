@@ -528,9 +528,9 @@ export async function deleteInvoiceExport(
   userId: string,
   exportId: string
 ): Promise<void> {
-  // First, get the export to find associated time entries
+  // First, verify the export exists and belongs to this user
   const exportResult = await query(
-    `SELECT entry_ids FROM invoice_exports WHERE id = $1 AND user_id = $2`,
+    `SELECT id FROM invoice_exports WHERE id = $1 AND user_id = $2`,
     [exportId, userId]
   );
 
@@ -538,19 +538,15 @@ export async function deleteInvoiceExport(
     throw new Error('Export not found');
   }
 
-  const entryIds = exportResult.rows[0].entry_ids;
-
   // Start transaction
   await query('BEGIN');
 
   try {
-    // Mark time entries as not billed
-    if (entryIds && entryIds.length > 0) {
-      await query(
-        `UPDATE time_entries SET billed = false WHERE id = ANY($1)`,
-        [entryIds]
-      );
-    }
+    // Unlink time entries from this export (set invoice_export_id to NULL)
+    await query(
+      `UPDATE time_entries SET invoice_export_id = NULL WHERE invoice_export_id = $1`,
+      [exportId]
+    );
 
     // Delete the export record
     await query(
