@@ -1324,20 +1324,21 @@ ${companyInfo?.phone || ''}`;
                         </a>
                       </div>
                     </object>
-                    <div className="absolute bottom-4 right-4 flex gap-2">
+                    {/* Action buttons - responsive for mobile */}
+                    <div className="absolute bottom-4 left-4 right-4 flex flex-col sm:flex-row sm:justify-end gap-2">
                       <a
                         href={pdfPreview.pdfUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 shadow-lg flex items-center gap-2"
+                        className="px-4 py-3 sm:py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 shadow-lg flex items-center justify-center gap-2"
                       >
                         <Eye size={18} />
-                        In neuem Tab
+                        In neuem Tab öffnen
                       </a>
                       <a
                         href={pdfPreview.pdfUrl}
                         download={`${pdfPreview.customerName}.pdf`}
-                        className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:opacity-90 shadow-lg flex items-center gap-2"
+                        className="px-4 py-3 sm:py-2 bg-accent-primary text-white rounded-lg hover:opacity-90 shadow-lg flex items-center justify-center gap-2"
                       >
                         <Download size={18} />
                         Herunterladen
