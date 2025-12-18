@@ -1324,14 +1324,25 @@ ${companyInfo?.phone || ''}`;
                         </a>
                       </div>
                     </object>
-                    <a
-                      href={pdfPreview.pdfUrl}
-                      download={`${pdfPreview.customerName}.pdf`}
-                      className="absolute bottom-4 right-4 px-4 py-2 bg-accent-primary text-white rounded-lg hover:opacity-90 shadow-lg flex items-center gap-2"
-                    >
-                      <Download size={18} />
-                      Herunterladen
-                    </a>
+                    <div className="absolute bottom-4 right-4 flex gap-2">
+                      <a
+                        href={pdfPreview.pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 shadow-lg flex items-center gap-2"
+                      >
+                        <Eye size={18} />
+                        In neuem Tab
+                      </a>
+                      <a
+                        href={pdfPreview.pdfUrl}
+                        download={`${pdfPreview.customerName}.pdf`}
+                        className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:opacity-90 shadow-lg flex items-center gap-2"
+                      >
+                        <Download size={18} />
+                        Herunterladen
+                      </a>
+                    </div>
                   </>
                 ) : null}
               </div>

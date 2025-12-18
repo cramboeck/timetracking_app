@@ -1392,15 +1392,26 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                       </a>
                     </div>
                   </object>
-                  {/* Download button always visible */}
-                  <a
-                    href={savedReportPreview.pdfUrl}
-                    download={`${savedReportPreview.reportName}.pdf`}
-                    className="absolute bottom-4 right-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg flex items-center gap-2"
-                  >
-                    <Download size={18} />
-                    Herunterladen
-                  </a>
+                  {/* Action buttons always visible */}
+                  <div className="absolute bottom-4 right-4 flex gap-2">
+                    <a
+                      href={savedReportPreview.pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 shadow-lg flex items-center gap-2"
+                    >
+                      <Eye size={18} />
+                      In neuem Tab
+                    </a>
+                    <a
+                      href={savedReportPreview.pdfUrl}
+                      download={`${savedReportPreview.reportName}.pdf`}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg flex items-center gap-2"
+                    >
+                      <Download size={18} />
+                      Herunterladen
+                    </a>
+                  </div>
                 </>
               ) : null}
             </div>
