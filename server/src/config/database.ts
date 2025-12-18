@@ -865,6 +865,35 @@ export async function initializeDatabase() {
     console.log('✅ Device software inventory table created');
 
     // ============================================
+    // NinjaRMM Device OS Patches (Windows Updates)
+    // Stores installed and pending OS patches for devices
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_device_os_patches (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL REFERENCES ninjarmm_devices(id) ON DELETE CASCADE,
+        patch_type TEXT NOT NULL CHECK(patch_type IN ('installed', 'pending', 'failed', 'rejected')),
+        kb_number TEXT,
+        name TEXT NOT NULL,
+        description TEXT,
+        severity TEXT,
+        category TEXT,
+        install_date TIMESTAMP,
+        installed_on TEXT,
+        size_bytes BIGINT,
+        status TEXT,
+        ninja_patch_id TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(device_id, patch_type, name, kb_number)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_os_patches_device ON ninjarmm_device_os_patches(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_os_patches_type ON ninjarmm_device_os_patches(device_id, patch_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_os_patches_kb ON ninjarmm_device_os_patches(kb_number)');
+
+    console.log('✅ Device OS patches table created');
+
+    // ============================================
     // Feature Flags System
     // ============================================
 

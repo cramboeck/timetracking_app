@@ -2117,6 +2117,21 @@ export interface NinjaDeviceSoftware {
   sizeBytes: number | null;
 }
 
+export interface NinjaDeviceOSPatch {
+  id: string;
+  deviceId: string;
+  patchType: 'installed' | 'pending' | 'failed' | 'rejected';
+  kbNumber: string | null;
+  name: string;
+  description: string | null;
+  severity: string | null;
+  category: string | null;
+  installDate: string | null;
+  installedOn: string | null;
+  sizeBytes: number | null;
+  status: string | null;
+}
+
 export interface NinjaAlert {
   id: string;
   ninjaUid: string;
@@ -2447,6 +2462,34 @@ export const ninjaApi = {
     };
   }> => {
     return authFetch(`/ninjarmm/devices/${deviceId}/software/refresh`, { method: 'POST' });
+  },
+
+  // Get OS patches for a device (Windows Updates)
+  getDeviceOSPatches: async (deviceId: string): Promise<{
+    success: boolean;
+    data: {
+      installed: NinjaDeviceOSPatch[];
+      pending: NinjaDeviceOSPatch[];
+      lastFetched: string | null;
+      installedCount: number;
+      pendingCount: number;
+    };
+  }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}/os-patches`);
+  },
+
+  // Refresh OS patches for a device (fetch from NinjaRMM)
+  refreshDeviceOSPatches: async (deviceId: string): Promise<{
+    success: boolean;
+    data: {
+      installed: NinjaDeviceOSPatch[];
+      pending: NinjaDeviceOSPatch[];
+      lastFetched: string;
+      installedCount: number;
+      pendingCount: number;
+    };
+  }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}/os-patches/refresh`, { method: 'POST' });
   },
 };
 

@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Monitor, Wifi, WifiOff, Search, RefreshCw, ExternalLink,
-  X, Cpu, HardDrive, Globe, Building, AlertTriangle, Package, ChevronDown, ChevronUp
+  X, Cpu, HardDrive, Globe, Building, AlertTriangle, Package, ChevronDown, ChevronUp, Shield
 } from 'lucide-react';
-import { ninjaApi, NinjaDevice, NinjaRMMConfig, NinjaDeviceSoftware } from '../services/api';
+import { ninjaApi, NinjaDevice, NinjaRMMConfig, NinjaDeviceSoftware, NinjaDeviceOSPatch } from '../services/api';
 
 export const DevicesView = () => {
   const [devices, setDevices] = useState<NinjaDevice[]>([]);
@@ -25,6 +25,15 @@ export const DevicesView = () => {
   const [softwareLastFetched, setSoftwareLastFetched] = useState<string | null>(null);
   const [softwareSearch, setSoftwareSearch] = useState('');
   const [softwareSort, setSoftwareSort] = useState<'name' | 'date'>('name');
+
+  // OS Patches (Windows Updates)
+  const [showPatches, setShowPatches] = useState(false);
+  const [installedPatches, setInstalledPatches] = useState<NinjaDeviceOSPatch[]>([]);
+  const [pendingPatches, setPendingPatches] = useState<NinjaDeviceOSPatch[]>([]);
+  const [patchesLoading, setPatchesLoading] = useState(false);
+  const [patchesLastFetched, setPatchesLastFetched] = useState<string | null>(null);
+  const [patchesSearch, setPatchesSearch] = useState('');
+  const [patchesTab, setPatchesTab] = useState<'pending' | 'installed'>('pending');
 
   useEffect(() => {
     loadDataAndSync();
@@ -145,6 +154,52 @@ export const DevicesView = () => {
     setShowSoftware(!showSoftware);
   };
 
+  // Load cached OS patches for a device
+  const loadPatches = async (deviceId: string) => {
+    try {
+      setPatchesLoading(true);
+      const result = await ninjaApi.getDeviceOSPatches(deviceId);
+      if (result.success) {
+        setInstalledPatches(result.data.installed);
+        setPendingPatches(result.data.pending);
+        setPatchesLastFetched(result.data.lastFetched);
+      }
+    } catch (err: any) {
+      console.error('Failed to load patches:', err.message);
+    } finally {
+      setPatchesLoading(false);
+    }
+  };
+
+  // Refresh OS patches from NinjaRMM
+  const refreshPatches = async (deviceId: string) => {
+    try {
+      setPatchesLoading(true);
+      const result = await ninjaApi.refreshDeviceOSPatches(deviceId);
+      if (result.success) {
+        setInstalledPatches(result.data.installed);
+        setPendingPatches(result.data.pending);
+        setPatchesLastFetched(result.data.lastFetched);
+      }
+    } catch (err: any) {
+      setError(`Updates konnten nicht geladen werden: ${err.message}`);
+    } finally {
+      setPatchesLoading(false);
+    }
+  };
+
+  // Toggle patches section
+  const handleTogglePatches = async () => {
+    if (!showPatches && selectedDevice) {
+      // First time opening - load cached patches, or fetch if none exists
+      await loadPatches(selectedDevice.id);
+      if (installedPatches.length === 0 && pendingPatches.length === 0) {
+        await refreshPatches(selectedDevice.id);
+      }
+    }
+    setShowPatches(!showPatches);
+  };
+
   // Filter and sort software
   const filteredSoftware = useMemo(() => {
     let result = software;
@@ -185,13 +240,43 @@ export const DevicesView = () => {
     }
   };
 
-  // Reset software when device changes
+  // Filter patches based on search and tab
+  const filteredPatches = useMemo(() => {
+    const patches = patchesTab === 'pending' ? pendingPatches : installedPatches;
+
+    if (!patchesSearch) return patches;
+
+    const search = patchesSearch.toLowerCase();
+    return patches.filter(patch =>
+      patch.name.toLowerCase().includes(search) ||
+      patch.kbNumber?.toLowerCase().includes(search) ||
+      patch.category?.toLowerCase().includes(search)
+    );
+  }, [installedPatches, pendingPatches, patchesSearch, patchesTab]);
+
+  // Get severity color class
+  const getSeverityColor = (severity: string | null) => {
+    if (!severity) return 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-400';
+    const sev = severity.toLowerCase();
+    if (sev === 'critical') return 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400';
+    if (sev === 'important') return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400';
+    if (sev === 'moderate') return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400';
+    return 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-400';
+  };
+
+  // Reset software and patches when device changes
   useEffect(() => {
     if (selectedDevice) {
       setShowSoftware(false);
       setSoftware([]);
       setSoftwareLastFetched(null);
       setSoftwareSearch('');
+      setShowPatches(false);
+      setInstalledPatches([]);
+      setPendingPatches([]);
+      setPatchesLastFetched(null);
+      setPatchesSearch('');
+      setPatchesTab('pending');
     }
   }, [selectedDevice?.id]);
 
@@ -627,6 +712,179 @@ export const DevicesView = () => {
                                 </td>
                                 <td className="px-3 py-2 text-gray-500 dark:text-dark-400 font-mono text-xs">{sw.version || '-'}</td>
                                 <td className="px-3 py-2 text-gray-500 dark:text-dark-400 text-xs">{formatInstallDate(sw.installDate)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Windows Updates Section (Collapsible) */}
+              <div className="mt-4 border border-gray-200 dark:border-dark-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={handleTogglePatches}
+                  className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-50 hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Shield size={16} className="text-gray-500" />
+                    <span className="font-medium text-gray-900 dark:text-white">Windows Updates</span>
+                    {pendingPatches.length > 0 && (
+                      <span className="px-2 py-0.5 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full">
+                        {pendingPatches.length} ausstehend
+                      </span>
+                    )}
+                    {installedPatches.length > 0 && (
+                      <span className="px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full">
+                        {installedPatches.length} installiert
+                      </span>
+                    )}
+                  </div>
+                  {showPatches ? (
+                    <ChevronUp size={18} className="text-gray-500" />
+                  ) : (
+                    <ChevronDown size={18} className="text-gray-500" />
+                  )}
+                </button>
+
+                {showPatches && (
+                  <div className="p-4 border-t border-gray-200 dark:border-dark-200">
+                    {/* Patches Header */}
+                    <div className="flex flex-col gap-3 mb-4">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1">
+                          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Update suchen (KB...)"
+                            value={patchesSearch}
+                            onChange={(e) => setPatchesSearch(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                          />
+                        </div>
+                        <button
+                          onClick={() => selectedDevice && refreshPatches(selectedDevice.id)}
+                          disabled={patchesLoading}
+                          className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-200 disabled:opacity-50 transition-colors"
+                        >
+                          <RefreshCw size={14} className={patchesLoading ? 'animate-spin' : ''} />
+                          <span className="sm:inline">Aktualisieren</span>
+                        </button>
+                      </div>
+
+                      {/* Tab Toggle */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">
+                          <button
+                            onClick={() => setPatchesTab('pending')}
+                            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                              patchesTab === 'pending'
+                                ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                                : 'text-gray-500 dark:text-dark-400 hover:text-gray-700'
+                            }`}
+                          >
+                            Ausstehend ({pendingPatches.length})
+                          </button>
+                          <button
+                            onClick={() => setPatchesTab('installed')}
+                            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                              patchesTab === 'installed'
+                                ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                                : 'text-gray-500 dark:text-dark-400 hover:text-gray-700'
+                            }`}
+                          >
+                            Installiert ({installedPatches.length})
+                          </button>
+                        </div>
+                        {patchesLastFetched && (
+                          <p className="text-xs text-gray-500 dark:text-dark-400">
+                            Stand: {new Date(patchesLastFetched).toLocaleDateString('de-DE')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {patchesLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <RefreshCw size={20} className="animate-spin text-gray-400" />
+                      </div>
+                    ) : filteredPatches.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500 dark:text-dark-400">
+                        {patchesTab === 'pending' ? (
+                          pendingPatches.length === 0 ? 'Keine ausstehenden Updates' : 'Keine Updates entsprechen der Suche'
+                        ) : (
+                          installedPatches.length === 0 ? 'Keine installierten Updates gefunden' : 'Keine Updates entsprechen der Suche'
+                        )}
+                      </div>
+                    ) : (
+                      <div className="max-h-72 overflow-y-auto">
+                        {/* Mobile: Card View */}
+                        <div className="sm:hidden space-y-2">
+                          {filteredPatches.map(patch => (
+                            <div key={patch.id} className="p-3 bg-gray-50 dark:bg-dark-50 rounded-lg">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="font-medium text-gray-900 dark:text-white text-sm">{patch.name}</p>
+                                {patch.severity && (
+                                  <span className={`px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${getSeverityColor(patch.severity)}`}>
+                                    {patch.severity}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-2 text-xs">
+                                {patch.kbNumber && (
+                                  <span className="font-mono text-gray-600 dark:text-gray-400">{patch.kbNumber}</span>
+                                )}
+                                {patch.category && (
+                                  <span className="text-gray-500 dark:text-dark-400">• {patch.category}</span>
+                                )}
+                              </div>
+                              {patch.installDate && (
+                                <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
+                                  Installiert: {formatInstallDate(patch.installDate)}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Desktop: Table View */}
+                        <table className="hidden sm:table w-full text-sm border border-gray-200 dark:border-dark-200 rounded-lg overflow-hidden">
+                          <thead className="bg-gray-50 dark:bg-dark-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-dark-400">Update</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-dark-400">KB</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-dark-400">Priorität</th>
+                              {patchesTab === 'installed' && (
+                                <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-dark-400">Installiert</th>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
+                            {filteredPatches.map(patch => (
+                              <tr key={patch.id} className="hover:bg-gray-50 dark:hover:bg-dark-50">
+                                <td className="px-3 py-2">
+                                  <p className="text-gray-900 dark:text-white text-sm">{patch.name}</p>
+                                  {patch.category && (
+                                    <p className="text-xs text-gray-500 dark:text-dark-400">{patch.category}</p>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-gray-500 dark:text-dark-400 font-mono text-xs">
+                                  {patch.kbNumber || '-'}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {patch.severity && (
+                                    <span className={`px-2 py-0.5 text-xs rounded-full ${getSeverityColor(patch.severity)}`}>
+                                      {patch.severity}
+                                    </span>
+                                  )}
+                                </td>
+                                {patchesTab === 'installed' && (
+                                  <td className="px-3 py-2 text-gray-500 dark:text-dark-400 text-xs">
+                                    {formatInstallDate(patch.installDate)}
+                                  </td>
+                                )}
                               </tr>
                             ))}
                           </tbody>

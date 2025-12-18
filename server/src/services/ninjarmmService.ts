@@ -1378,6 +1378,254 @@ export async function getDeviceSoftware(
   return { software, lastFetched };
 }
 
+// ============================================
+// OS Patches (Windows Updates)
+// ============================================
+
+export interface DeviceOSPatch {
+  id: string;
+  deviceId: string;
+  patchType: 'installed' | 'pending' | 'failed' | 'rejected';
+  kbNumber: string | null;
+  name: string;
+  description: string | null;
+  severity: string | null;
+  category: string | null;
+  installDate: Date | null;
+  installedOn: string | null;
+  sizeBytes: number | null;
+  status: string | null;
+}
+
+// Fetch OS patches from NinjaRMM API and store in database
+export async function fetchAndStoreDeviceOSPatches(
+  userId: string,
+  deviceId: string
+): Promise<{ installed: DeviceOSPatch[]; pending: DeviceOSPatch[] }> {
+  const config = await getConfig(userId);
+  if (!config) throw new Error('NinjaRMM not configured');
+
+  // Get the ninja device ID from our database
+  const deviceResult = await query(
+    'SELECT ninja_id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+    [deviceId, userId]
+  );
+
+  if (deviceResult.rows.length === 0) {
+    throw new Error('Device not found');
+  }
+
+  const ninjaDeviceId = deviceResult.rows[0].ninja_id;
+
+  console.log(`[OS Patches] Fetching patches for device ${deviceId} (ninja_id: ${ninjaDeviceId})`);
+
+  // Fetch installed and pending patches in parallel
+  const [installedPatches, pendingPatches] = await Promise.all([
+    ninjaFetch(config, `/device/${ninjaDeviceId}/os-patches`).catch((err) => {
+      console.log(`[OS Patches] Could not fetch installed patches: ${err.message}`);
+      return [];
+    }),
+    ninjaFetch(config, `/device/${ninjaDeviceId}/pending-os-patches`).catch((err) => {
+      // Try alternative endpoint
+      return ninjaFetch(config, `/device/${ninjaDeviceId}/os-patches/pending`).catch(() => {
+        console.log(`[OS Patches] Could not fetch pending patches`);
+        return [];
+      });
+    }),
+  ]);
+
+  // Delete old patch entries for this device
+  await query('DELETE FROM ninjarmm_device_os_patches WHERE device_id = $1', [deviceId]);
+
+  const result = {
+    installed: [] as DeviceOSPatch[],
+    pending: [] as DeviceOSPatch[],
+  };
+
+  // Process installed patches
+  const installedList = Array.isArray(installedPatches) ? installedPatches : [];
+  console.log(`[OS Patches] Found ${installedList.length} installed patches`);
+
+  for (const patch of installedList) {
+    const id = uuidv4();
+    const name = patch.name || patch.title || 'Unknown Update';
+    const kbNumber = patch.kbNumber || patch.kb || extractKBNumber(name) || null;
+    const description = patch.description || patch.details || null;
+    const severity = patch.severity || patch.criticality || null;
+    const category = patch.category || patch.type || patch.classification || null;
+    const installDate = patch.installedOn || patch.installDate || patch.installedAt || null;
+    const sizeBytes = patch.size || patch.sizeInBytes || null;
+
+    try {
+      await query(
+        `INSERT INTO ninjarmm_device_os_patches
+         (id, device_id, patch_type, kb_number, name, description, severity, category, install_date, installed_on, size_bytes, status, ninja_patch_id)
+         VALUES ($1, $2, 'installed', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ON CONFLICT (device_id, patch_type, name, kb_number) DO UPDATE SET
+           description = EXCLUDED.description,
+           severity = EXCLUDED.severity,
+           category = EXCLUDED.category,
+           install_date = EXCLUDED.install_date`,
+        [id, deviceId, kbNumber, name, description, severity, category,
+         installDate ? new Date(installDate) : null, installDate, sizeBytes,
+         patch.status || 'installed', patch.id || null]
+      );
+
+      result.installed.push({
+        id,
+        deviceId,
+        patchType: 'installed',
+        kbNumber,
+        name,
+        description,
+        severity,
+        category,
+        installDate: installDate ? new Date(installDate) : null,
+        installedOn: installDate,
+        sizeBytes,
+        status: patch.status || 'installed',
+      });
+    } catch (err) {
+      console.error(`[OS Patches] Failed to insert installed patch "${name}":`, err);
+    }
+  }
+
+  // Process pending patches
+  const pendingList = Array.isArray(pendingPatches) ? pendingPatches : [];
+  console.log(`[OS Patches] Found ${pendingList.length} pending patches`);
+
+  for (const patch of pendingList) {
+    const id = uuidv4();
+    const name = patch.name || patch.title || 'Unknown Update';
+    const kbNumber = patch.kbNumber || patch.kb || extractKBNumber(name) || null;
+    const description = patch.description || patch.details || null;
+    const severity = patch.severity || patch.criticality || null;
+    const category = patch.category || patch.type || patch.classification || null;
+    const sizeBytes = patch.size || patch.sizeInBytes || null;
+    const status = patch.status || 'pending';
+
+    // Determine patch type based on status
+    let patchType: 'pending' | 'failed' | 'rejected' = 'pending';
+    if (status.toLowerCase().includes('fail')) {
+      patchType = 'failed';
+    } else if (status.toLowerCase().includes('reject')) {
+      patchType = 'rejected';
+    }
+
+    try {
+      await query(
+        `INSERT INTO ninjarmm_device_os_patches
+         (id, device_id, patch_type, kb_number, name, description, severity, category, size_bytes, status, ninja_patch_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (device_id, patch_type, name, kb_number) DO UPDATE SET
+           description = EXCLUDED.description,
+           severity = EXCLUDED.severity,
+           category = EXCLUDED.category,
+           status = EXCLUDED.status`,
+        [id, deviceId, patchType, kbNumber, name, description, severity, category,
+         sizeBytes, status, patch.id || null]
+      );
+
+      result.pending.push({
+        id,
+        deviceId,
+        patchType,
+        kbNumber,
+        name,
+        description,
+        severity,
+        category,
+        installDate: null,
+        installedOn: null,
+        sizeBytes,
+        status,
+      });
+    } catch (err) {
+      console.error(`[OS Patches] Failed to insert pending patch "${name}":`, err);
+    }
+  }
+
+  console.log(`[OS Patches] Stored ${result.installed.length} installed, ${result.pending.length} pending patches for device ${deviceId}`);
+  return result;
+}
+
+// Helper function to extract KB number from patch name
+function extractKBNumber(name: string): string | null {
+  const match = name.match(/KB\d+/i);
+  return match ? match[0].toUpperCase() : null;
+}
+
+// Get cached OS patches from database
+export async function getDeviceOSPatches(
+  userId: string,
+  deviceId: string
+): Promise<{ installed: DeviceOSPatch[]; pending: DeviceOSPatch[]; lastFetched: Date | null }> {
+  // Verify device belongs to user
+  const deviceResult = await query(
+    'SELECT id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+    [deviceId, userId]
+  );
+
+  if (deviceResult.rows.length === 0) {
+    throw new Error('Device not found');
+  }
+
+  const result = await query(
+    `SELECT id, device_id, patch_type, kb_number, name, description, severity, category,
+            install_date, installed_on, size_bytes, status, created_at
+     FROM ninjarmm_device_os_patches
+     WHERE device_id = $1
+     ORDER BY
+       CASE patch_type
+         WHEN 'pending' THEN 1
+         WHEN 'failed' THEN 2
+         WHEN 'rejected' THEN 3
+         ELSE 4
+       END,
+       CASE severity
+         WHEN 'Critical' THEN 1
+         WHEN 'Important' THEN 2
+         WHEN 'Moderate' THEN 3
+         ELSE 4
+       END,
+       name ASC`,
+    [deviceId]
+  );
+
+  const installed: DeviceOSPatch[] = [];
+  const pending: DeviceOSPatch[] = [];
+  let lastFetched: Date | null = null;
+
+  for (const row of result.rows) {
+    if (!lastFetched) {
+      lastFetched = new Date(row.created_at);
+    }
+
+    const patch: DeviceOSPatch = {
+      id: row.id,
+      deviceId: row.device_id,
+      patchType: row.patch_type,
+      kbNumber: row.kb_number,
+      name: row.name,
+      description: row.description,
+      severity: row.severity,
+      category: row.category,
+      installDate: row.install_date ? new Date(row.install_date) : null,
+      installedOn: row.installed_on,
+      sizeBytes: row.size_bytes ? parseInt(row.size_bytes) : null,
+      status: row.status,
+    };
+
+    if (row.patch_type === 'installed') {
+      installed.push(patch);
+    } else {
+      pending.push(patch);
+    }
+  }
+
+  return { installed, pending, lastFetched };
+}
+
 // Get synced alerts from local DB
 export async function getLocalAlerts(
   userId: string,

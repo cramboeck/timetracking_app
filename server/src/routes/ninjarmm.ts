@@ -612,6 +612,58 @@ router.post('/devices/:id/software/refresh', authenticateToken, requireNinjaFeat
 });
 
 // ============================================
+// OS Patches (Windows Updates)
+// ============================================
+
+// GET /api/ninjarmm/devices/:id/os-patches - Get cached OS patches
+router.get('/devices/:id/os-patches', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const { installed, pending, lastFetched } = await ninjaService.getDeviceOSPatches(userId, id);
+
+    res.json({
+      success: true,
+      data: {
+        installed,
+        pending,
+        lastFetched,
+        installedCount: installed.length,
+        pendingCount: pending.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get device OS patches error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/devices/:id/os-patches/refresh - Fetch fresh OS patches from NinjaRMM
+router.post('/devices/:id/os-patches/refresh', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const { installed, pending } = await ninjaService.fetchAndStoreDeviceOSPatches(userId, id);
+
+    res.json({
+      success: true,
+      data: {
+        installed,
+        pending,
+        lastFetched: new Date(),
+        installedCount: installed.length,
+        pendingCount: pending.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Refresh device OS patches error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
 // Alerts
 // ============================================
 

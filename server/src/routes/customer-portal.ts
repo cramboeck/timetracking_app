@@ -1365,6 +1365,126 @@ router.post('/devices/:deviceId/software/refresh', authenticateCustomerToken, as
 });
 
 // ========================================================================
+// DEVICE OS PATCHES (Windows Updates)
+// ========================================================================
+
+// Get OS patches for a specific device
+router.get('/devices/:deviceId/os-patches', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    const { deviceId } = req.params;
+
+    // Verify the device belongs to this customer's organization
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer?.ninjarmm_organization_id) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get device and verify ownership
+    const deviceResult = await pool.query(
+      `SELECT id, ninja_id, system_name FROM ninjarmm_devices
+       WHERE id = $1 AND user_id = $2 AND organization_id = $3`,
+      [deviceId, customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Import the service function
+    const { getDeviceOSPatches } = await import('../services/ninjarmmService');
+    const { installed, pending, lastFetched } = await getDeviceOSPatches(customer.user_id, deviceId);
+
+    res.json({
+      success: true,
+      data: {
+        deviceName: deviceResult.rows[0].system_name,
+        installed,
+        pending,
+        lastFetched,
+        installedCount: installed.length,
+        pendingCount: pending.length,
+      },
+    });
+  } catch (error) {
+    console.error('Get device OS patches error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Refresh OS patches for a specific device (fetch from NinjaRMM)
+router.post('/devices/:deviceId/os-patches/refresh', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    const { deviceId } = req.params;
+
+    // Verify the device belongs to this customer's organization
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer?.ninjarmm_organization_id) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get device and verify ownership
+    const deviceResult = await pool.query(
+      `SELECT id, ninja_id, system_name FROM ninjarmm_devices
+       WHERE id = $1 AND user_id = $2 AND organization_id = $3`,
+      [deviceId, customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Import the service function
+    const { fetchAndStoreDeviceOSPatches } = await import('../services/ninjarmmService');
+    const { installed, pending } = await fetchAndStoreDeviceOSPatches(customer.user_id, deviceId);
+
+    res.json({
+      success: true,
+      data: {
+        deviceName: deviceResult.rows[0].system_name,
+        installed,
+        pending,
+        lastFetched: new Date(),
+        installedCount: installed.length,
+        pendingCount: pending.length,
+      },
+    });
+  } catch (error) {
+    console.error('Refresh device OS patches error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================================================
 // INVOICES & QUOTES (sevDesk Integration)
 // ========================================================================
 

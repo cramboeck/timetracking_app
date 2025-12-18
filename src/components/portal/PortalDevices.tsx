@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Monitor, Laptop, Server, Wifi, WifiOff, RefreshCw, Search, User, Globe, AlertTriangle, ChevronDown, ChevronUp, Clock, CheckCircle, HardDrive, Cpu, Power, LayoutGrid, List, Package } from 'lucide-react';
+import { Monitor, Laptop, Server, Wifi, WifiOff, RefreshCw, Search, User, Globe, AlertTriangle, ChevronDown, ChevronUp, Clock, CheckCircle, HardDrive, Cpu, Power, LayoutGrid, List, Package, Shield } from 'lucide-react';
 import { customerPortalApi, PortalContact, PortalDevice, PortalDeviceAlert } from '../../services/api';
 
 interface PortalDevicesProps {
@@ -13,6 +13,21 @@ interface DeviceSoftware {
   version: string | null;
   installDate: string | null;
   sizeBytes: number | null;
+}
+
+interface DeviceOSPatch {
+  id: string;
+  deviceId: string;
+  patchType: 'installed' | 'pending' | 'failed' | 'rejected';
+  kbNumber: string | null;
+  name: string;
+  description: string | null;
+  severity: string | null;
+  category: string | null;
+  installDate: string | null;
+  installedOn: string | null;
+  sizeBytes: number | null;
+  status: string | null;
 }
 
 const deviceTypeIcons: Record<string, typeof Monitor> = {
@@ -52,6 +67,13 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
   const [loadingSoftware, setLoadingSoftware] = useState<string | null>(null);
   const [softwareSearch, setSoftwareSearch] = useState('');
   const [softwareSort, setSoftwareSort] = useState<'name' | 'date'>('name');
+
+  // OS Patches state
+  const [showPatches, setShowPatches] = useState<string | null>(null);
+  const [devicePatches, setDevicePatches] = useState<Record<string, { installed: DeviceOSPatch[]; pending: DeviceOSPatch[] }>>({});
+  const [loadingPatches, setLoadingPatches] = useState<string | null>(null);
+  const [patchesSearch, setPatchesSearch] = useState('');
+  const [patchesTab, setPatchesTab] = useState<'pending' | 'installed'>('pending');
 
   useEffect(() => {
     loadDevices();
@@ -123,6 +145,79 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
       setShowSoftware(deviceId);
       await loadDeviceSoftware(deviceId);
     }
+  };
+
+  // Load OS patches for a device
+  const loadDevicePatches = async (deviceId: string, forceRefresh = false) => {
+    if (!forceRefresh && devicePatches[deviceId]) return;
+
+    try {
+      setLoadingPatches(deviceId);
+      const endpoint = forceRefresh
+        ? `/portal/devices/${deviceId}/os-patches/refresh`
+        : `/portal/devices/${deviceId}/os-patches`;
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
+        method: forceRefresh ? 'POST' : 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('portal_token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setDevicePatches(prev => ({
+          ...prev,
+          [deviceId]: {
+            installed: data.data.installed || [],
+            pending: data.data.pending || [],
+          },
+        }));
+      }
+    } catch (err: any) {
+      console.error('Failed to load device patches:', err);
+    } finally {
+      setLoadingPatches(null);
+    }
+  };
+
+  // Toggle patches display
+  const togglePatches = async (deviceId: string) => {
+    if (showPatches === deviceId) {
+      setShowPatches(null);
+      setPatchesSearch('');
+    } else {
+      setShowPatches(deviceId);
+      await loadDevicePatches(deviceId);
+    }
+  };
+
+  // Filter patches based on search and tab
+  const getFilteredPatches = (deviceId: string) => {
+    const patches = devicePatches[deviceId];
+    if (!patches) return [];
+
+    const list = patchesTab === 'pending' ? patches.pending : patches.installed;
+
+    if (!patchesSearch) return list;
+
+    const search = patchesSearch.toLowerCase();
+    return list.filter(patch =>
+      patch.name.toLowerCase().includes(search) ||
+      patch.kbNumber?.toLowerCase().includes(search) ||
+      patch.category?.toLowerCase().includes(search)
+    );
+  };
+
+  // Get severity color class
+  const getPatchSeverityColor = (severity: string | null) => {
+    if (!severity) return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
+    const sev = severity.toLowerCase();
+    if (sev === 'critical') return 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400';
+    if (sev === 'important') return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400';
+    if (sev === 'moderate') return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400';
+    return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
   };
 
   // Filter and sort software
@@ -707,6 +802,122 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                                           <span className="text-gray-400 dark:text-gray-500">{formatSoftwareDate(sw.installDate)}</span>
                                         )}
                                       </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Windows Updates Section */}
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); togglePatches(device.id); }}
+                        className="w-full flex items-center justify-between text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      >
+                        <span className="flex items-center gap-1">
+                          <Shield size={12} />
+                          Windows Updates
+                          {devicePatches[device.id]?.pending?.length > 0 && (
+                            <span className="ml-1 px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full">
+                              {devicePatches[device.id].pending.length} ausstehend
+                            </span>
+                          )}
+                        </span>
+                        {showPatches === device.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+
+                      {showPatches === device.id && (
+                        <div className="mt-3">
+                          {loadingPatches === device.id ? (
+                            <div className="flex items-center justify-center py-4">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                            </div>
+                          ) : (
+                            <>
+                              {/* Search and Controls */}
+                              <div className="space-y-2 mb-3">
+                                <div className="flex gap-2">
+                                  <div className="relative flex-1">
+                                    <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                      type="text"
+                                      placeholder="Update suchen (KB...)"
+                                      value={patchesSearch}
+                                      onChange={(e) => setPatchesSearch(e.target.value)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-full pl-7 pr-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    />
+                                  </div>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); loadDevicePatches(device.id, true); }}
+                                    disabled={loadingPatches === device.id}
+                                    className="p-1.5 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 disabled:opacity-50"
+                                    title="Aktualisieren"
+                                  >
+                                    <RefreshCw size={12} className={loadingPatches === device.id ? 'animate-spin' : ''} />
+                                  </button>
+                                </div>
+
+                                {/* Tab Toggle */}
+                                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded p-0.5" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    onClick={() => setPatchesTab('pending')}
+                                    className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+                                      patchesTab === 'pending'
+                                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400'
+                                    }`}
+                                  >
+                                    Ausstehend ({devicePatches[device.id]?.pending?.length || 0})
+                                  </button>
+                                  <button
+                                    onClick={() => setPatchesTab('installed')}
+                                    className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+                                      patchesTab === 'installed'
+                                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400'
+                                    }`}
+                                  >
+                                    Installiert ({devicePatches[device.id]?.installed?.length || 0})
+                                  </button>
+                                </div>
+                              </div>
+
+                              {getFilteredPatches(device.id).length === 0 ? (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                                  {patchesTab === 'pending'
+                                    ? (devicePatches[device.id]?.pending?.length === 0 ? 'Keine ausstehenden Updates' : 'Keine Treffer')
+                                    : (devicePatches[device.id]?.installed?.length === 0 ? 'Keine installierten Updates' : 'Keine Treffer')}
+                                </p>
+                              ) : (
+                                <div className="max-h-48 overflow-y-auto space-y-1.5">
+                                  {getFilteredPatches(device.id).map(patch => (
+                                    <div key={patch.id} className="p-2 bg-white dark:bg-gray-700/50 rounded border border-gray-100 dark:border-gray-600">
+                                      <div className="flex items-start justify-between gap-1">
+                                        <p className="text-xs font-medium text-gray-900 dark:text-white">{patch.name}</p>
+                                        {patch.severity && (
+                                          <span className={`px-1.5 py-0.5 text-xs rounded whitespace-nowrap ${getPatchSeverityColor(patch.severity)}`}>
+                                            {patch.severity}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1 text-xs">
+                                        {patch.kbNumber && (
+                                          <span className="font-mono text-gray-500 dark:text-gray-400">{patch.kbNumber}</span>
+                                        )}
+                                        {patch.category && (
+                                          <span className="text-gray-400 dark:text-gray-500">• {patch.category}</span>
+                                        )}
+                                      </div>
+                                      {patch.installDate && (
+                                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                          Installiert: {formatSoftwareDate(patch.installDate)}
+                                        </p>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
