@@ -1014,38 +1014,60 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
               <PieChartIcon className="text-blue-600" size={24} />
               <h2 className="text-lg font-semibold dark:text-white">Stundenverteilung nach Kunde</h2>
             </div>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieChartData}
-                    dataKey="hours"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    label={(entry) => `${entry.name}: ${entry.hours}h`}
-                  >
-                    {pieChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => `${value.toFixed(2)} Stunden`}
-                    contentStyle={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                      border: '1px solid #ccc',
-                      borderRadius: '8px',
-                      padding: '10px'
-                    }}
-                  />
-                  <Legend
-                    verticalAlign="bottom"
-                    height={36}
-                    formatter={(value, entry: any) => `${value} (${entry.payload.hours}h)`}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="flex flex-col lg:flex-row gap-6">
+              {/* Pie Chart */}
+              <div className="h-64 lg:h-80 flex-1 min-w-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieChartData}
+                      dataKey="hours"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      innerRadius={30}
+                      paddingAngle={2}
+                      label={false}
+                    >
+                      {pieChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number, name: string) => [`${value.toFixed(2)} Stunden`, name]}
+                      contentStyle={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        border: '1px solid #ccc',
+                        borderRadius: '8px',
+                        padding: '10px'
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              {/* Legend as list */}
+              <div className="lg:w-64 flex-shrink-0">
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {pieChartData.map((entry, index) => {
+                    const percentage = totalHours > 0 ? (entry.hours / totalHours * 100).toFixed(1) : '0';
+                    return (
+                      <div key={index} className="flex items-center gap-2 text-sm">
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: entry.color }}
+                        />
+                        <span className="flex-1 truncate text-gray-700 dark:text-gray-300" title={entry.name}>
+                          {entry.name}
+                        </span>
+                        <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                          {entry.hours.toFixed(1)}h ({percentage}%)
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         )}
