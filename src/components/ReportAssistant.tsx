@@ -612,7 +612,7 @@ export const ReportAssistant = ({
 
   // Check for existing reports before saving
   const checkForDuplicates = async (): Promise<ExistingReport[]> => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     const existingReports: ExistingReport[] = [];
 
     for (const customerId of Array.from(selectedCustomers)) {
@@ -655,7 +655,7 @@ export const ReportAssistant = ({
     setSaveMessage(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       console.log('Save reports - Token exists:', !!token, 'Length:', token?.length);
 
       if (!token) {
