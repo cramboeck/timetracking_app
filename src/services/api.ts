@@ -3209,6 +3209,202 @@ export const aiApi = {
   },
 };
 
+// ============================================
+// Contracts API
+// ============================================
+
+export interface Contract {
+  id: string;
+  organizationId: string;
+  customerId: string;
+  contractNumber: string;
+  name: string;
+  description: string | null;
+  contractType: 'service' | 'support' | 'maintenance' | 'project' | 'subscription' | 'framework' | 'other';
+  status: 'draft' | 'active' | 'paused' | 'expiring' | 'expired' | 'cancelled' | 'terminated';
+  startDate: string;
+  endDate: string | null;
+  isIndefinite: boolean;
+  noticePeriodDays: number;
+  autoRenew: boolean;
+  renewalPeriodMonths: number;
+  billingCycle: 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'one_time' | 'per_call';
+  basePrice: number | null;
+  currency: string;
+  includedHoursMonthly: number | null;
+  hourlyRate: number | null;
+  overageRate: number | null;
+  slaResponseHours: number | null;
+  slaResolutionHours: number | null;
+  supportHours: string | null;
+  documentUrl: string | null;
+  internalNotes: string | null;
+  projectId: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customerName?: string;
+  projectName?: string;
+}
+
+export interface ContractPosition {
+  id: string;
+  contractId: string;
+  positionNumber: number;
+  name: string;
+  description: string | null;
+  quantity: number;
+  unit: string;
+  unitPrice: number | null;
+  totalPrice: number | null;
+  positionType: 'service' | 'product' | 'license' | 'hours' | 'flat_fee' | 'other';
+  isRecurring: boolean;
+  billingCycle: 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'one_time';
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface ContractHourlyTracking {
+  id: string;
+  contractId: string;
+  year: number;
+  month: number;
+  includedHours: number;
+  usedHours: number;
+  overageHours: number;
+  rolloverHours: number;
+  overageAmount: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContractSummary {
+  totalContracts: number;
+  activeContracts: number;
+  expiringContracts: number;
+  totalMonthlyRevenue: number;
+  totalIncludedHours: number;
+}
+
+export const contractsApi = {
+  // Get all contracts
+  getContracts: async (filters?: {
+    customerId?: string;
+    status?: string;
+    contractType?: string;
+    search?: string;
+  }): Promise<{ success: boolean; data: Contract[] }> => {
+    const params = new URLSearchParams();
+    if (filters?.customerId) params.append('customerId', filters.customerId);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.contractType) params.append('contractType', filters.contractType);
+    if (filters?.search) params.append('search', filters.search);
+
+    const queryString = params.toString();
+    return authFetch(`/contracts${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get single contract
+  getContract: async (id: string): Promise<{ success: boolean; data: Contract }> => {
+    return authFetch(`/contracts/${id}`);
+  },
+
+  // Get contract summary
+  getSummary: async (): Promise<{ success: boolean; data: ContractSummary }> => {
+    return authFetch('/contracts/summary');
+  },
+
+  // Get expiring contracts
+  getExpiringContracts: async (days?: number): Promise<{ success: boolean; data: Contract[] }> => {
+    return authFetch(`/contracts/expiring${days ? `?days=${days}` : ''}`);
+  },
+
+  // Get next contract number
+  getNextContractNumber: async (): Promise<{ success: boolean; data: string }> => {
+    return authFetch('/contracts/next-number');
+  },
+
+  // Get contracts by customer
+  getContractsByCustomer: async (customerId: string): Promise<{ success: boolean; data: Contract[] }> => {
+    return authFetch(`/contracts/customer/${customerId}`);
+  },
+
+  // Create contract
+  createContract: async (data: Partial<Contract>): Promise<{ success: boolean; data: Contract }> => {
+    return authFetch('/contracts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update contract
+  updateContract: async (id: string, data: Partial<Contract>): Promise<{ success: boolean; data: Contract }> => {
+    return authFetch(`/contracts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete contract
+  deleteContract: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/contracts/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get contract positions
+  getPositions: async (contractId: string): Promise<{ success: boolean; data: ContractPosition[] }> => {
+    return authFetch(`/contracts/${contractId}/positions`);
+  },
+
+  // Create contract position
+  createPosition: async (contractId: string, data: Partial<ContractPosition>): Promise<{ success: boolean; data: ContractPosition }> => {
+    return authFetch(`/contracts/${contractId}/positions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update contract position
+  updatePosition: async (contractId: string, positionId: string, data: Partial<ContractPosition>): Promise<{ success: boolean; data: ContractPosition }> => {
+    return authFetch(`/contracts/${contractId}/positions/${positionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete contract position
+  deletePosition: async (contractId: string, positionId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/contracts/${contractId}/positions/${positionId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get hourly tracking
+  getHourlyTracking: async (contractId: string, year?: number, month?: number): Promise<{ success: boolean; data: ContractHourlyTracking[] }> => {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+
+    const queryString = params.toString();
+    return authFetch(`/contracts/${contractId}/hours${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Update hourly tracking
+  updateHourlyTracking: async (contractId: string, year: number, month: number, usedHours: number): Promise<{ success: boolean; data: ContractHourlyTracking }> => {
+    return authFetch(`/contracts/${contractId}/hours`, {
+      method: 'PUT',
+      body: JSON.stringify({ year, month, usedHours }),
+    });
+  },
+
+  // Get activity log
+  getActivityLog: async (contractId: string): Promise<{ success: boolean; data: Array<{ id: string; userId: string; action: string; details: any; createdAt: string }> }> => {
+    return authFetch(`/contracts/${contractId}/activity`);
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -3223,4 +3419,5 @@ export default {
   features: featuresApi,
   organizations: organizationsApi,
   tasks: tasksApi,
+  contracts: contractsApi,
 };
