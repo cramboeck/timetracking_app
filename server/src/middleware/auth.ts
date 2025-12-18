@@ -20,12 +20,17 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    if (!process.env.JWT_SECRET) {
+      console.error('AUTH ERROR: JWT_SECRET not configured');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as { userId: string };
     req.userId = decoded.userId;
     req.user = { id: decoded.userId };
     next();
-  } catch (error) {
-    return res.status(403).json({ error: 'Invalid token' });
+  } catch (error: any) {
+    console.error('AUTH ERROR:', error.name, error.message, 'Token prefix:', token?.substring(0, 20));
+    return res.status(403).json({ error: 'Invalid token', details: error.message });
   }
 }
 

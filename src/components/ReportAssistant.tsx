@@ -656,6 +656,13 @@ export const ReportAssistant = ({
 
     try {
       const token = localStorage.getItem('token');
+      console.log('Save reports - Token exists:', !!token, 'Length:', token?.length);
+
+      if (!token) {
+        setSaveMessage({ type: 'error', text: 'Nicht eingeloggt - bitte neu anmelden' });
+        setIsSaving(false);
+        return;
+      }
 
       // Check for duplicates first (unless we're overwriting)
       if (!overwrite) {
