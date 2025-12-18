@@ -304,11 +304,12 @@ export const ReportAssistant = ({
     doc.setFillColor(accent.r, accent.g, accent.b);
     doc.rect(margin, y, 4, 35, 'F');
 
-    // Report title
+    // Report title (from customer settings or default)
+    const reportTitle = customerData.customer.reportTitle || 'Dienstleistungsnachweis';
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(13);
     doc.setTextColor(gray.r, gray.g, gray.b);
-    doc.text('Tätigkeitsnachweis', margin + 12, y + 8);
+    doc.text(reportTitle, margin + 12, y + 8);
 
     // Customer name
     doc.setFont('helvetica', 'bold');
@@ -576,7 +577,8 @@ export const ReportAssistant = ({
           default:
             dateStr = `${customStartDate}_${customEndDate}`;
         }
-        doc.save(`Taetigkeitsnachweis_${customerData.customer.name.replace(/\s+/g, '_')}_${dateStr}.pdf`);
+        const fileTitle = (customerData.customer.reportTitle || 'Dienstleistungsnachweis').replace(/\s+/g, '_');
+        doc.save(`${fileTitle}_${customerData.customer.name.replace(/\s+/g, '_')}_${dateStr}.pdf`);
       }
     }
   };
