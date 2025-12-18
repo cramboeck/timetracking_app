@@ -323,6 +323,77 @@ router.post('/record-export', authenticateToken, requireBillingFeature, async (r
   }
 });
 
+// POST /api/sevdesk/create-export - Simple export: mark all unbilled entries for customer/period as billed
+router.post('/create-export', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { customerId, periodStart, periodEnd } = req.body;
+
+    if (!customerId || !periodStart || !periodEnd) {
+      return res.status(400).json({
+        success: false,
+        error: 'customerId, periodStart, and periodEnd are required',
+      });
+    }
+
+    // Get customer info for hourly rate
+    const customerResult = await query(
+      'SELECT id, name, hourly_rate FROM customers WHERE id = $1 AND user_id = $2',
+      [customerId, userId]
+    );
+
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Customer not found' });
+    }
+
+    const customer = customerResult.rows[0];
+
+    // Get config for default hourly rate
+    const config = await sevdeskService.getConfig(userId);
+    const hourlyRate = customer.hourly_rate ? parseFloat(customer.hourly_rate) : (config?.defaultHourlyRate || 95);
+
+    // Get all unbilled entries for this customer in the period
+    const entries = await sevdeskService.getUnbilledTimeEntries(userId, customerId, periodStart, periodEnd);
+
+    if (entries.length === 0) {
+      return res.status(400).json({ success: false, error: 'Keine offenen Zeiteinträge für diesen Zeitraum gefunden' });
+    }
+
+    const entryIds = entries.map(e => e.id);
+
+    // Calculate totals
+    const totalSeconds = entries.reduce((sum, e) => sum + e.duration, 0);
+    const totalHours = Math.round((totalSeconds / 3600) * 100) / 100;
+    const totalAmount = Math.round(totalHours * hourlyRate * 100) / 100;
+
+    // Record the export (marks entries as billed)
+    const exportId = await sevdeskService.recordInvoiceExport(
+      userId,
+      customerId,
+      entryIds,
+      null, // no sevDesk invoice ID
+      null, // no sevDesk invoice number
+      periodStart,
+      periodEnd,
+      totalHours,
+      totalAmount
+    );
+
+    res.json({
+      success: true,
+      data: {
+        exportId,
+        totalHours,
+        totalAmount,
+        entriesCount: entries.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Create export error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/sevdesk/invoice-exports - Get invoice export history
 router.get('/invoice-exports', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {

@@ -395,7 +395,7 @@ const BillingTab = () => {
                     <div className="text-right">
                       <div className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</div>
                     </div>
-                    {item.sevdeskContactId && hasConfig ? (
+                    {item.sevdeskCustomerId && hasConfig ? (
                       <button
                         onClick={() => handleMarkAsBilled(item.customerId, item.customerName)}
                         disabled={processing === item.customerId}

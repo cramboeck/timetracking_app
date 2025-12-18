@@ -1932,11 +1932,19 @@ export const sevdeskApi = {
     });
   },
 
-  // Record export without sevDesk
+  // Record export without sevDesk (with explicit entry IDs)
   recordExport: async (customerId: string, entryIds: string[], periodStart: string, periodEnd: string, totalHours: number, totalAmount: number): Promise<{ success: boolean; data: { exportId: string } }> => {
     return authFetch('/sevdesk/record-export', {
       method: 'POST',
       body: JSON.stringify({ customerId, entryIds, periodStart, periodEnd, totalHours, totalAmount }),
+    });
+  },
+
+  // Create invoice export - marks all unbilled entries for customer/period as billed
+  createInvoiceExport: async (params: { customerId: string; periodStart: string; periodEnd: string }): Promise<{ success: boolean; data: { exportId: string; totalHours: number; totalAmount: number } }> => {
+    return authFetch('/sevdesk/create-export', {
+      method: 'POST',
+      body: JSON.stringify(params),
     });
   },
 
