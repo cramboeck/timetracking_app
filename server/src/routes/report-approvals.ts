@@ -233,7 +233,7 @@ router.get('/saved', authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.userId!;
 
     const result = await pool.query(
-      `SELECT id, token, recipient_name as customer_name, status, sent_at as saved_at,
+      `SELECT id, token, recipient_name as customer_name, status, sent_at as created_at,
               reviewed_at, expires_at, comment as notes, report_data
        FROM report_approvals
        WHERE user_id = $1 AND status = 'saved'
@@ -242,15 +242,22 @@ router.get('/saved', authenticateToken, async (req: AuthRequest, res) => {
     );
 
     res.json({
-      reports: result.rows.map(row => ({
-        id: row.id,
-        token: row.token,
-        customerName: row.customer_name,
-        status: row.status,
-        savedAt: row.saved_at,
-        notes: row.notes,
-        reportData: row.report_data
-      }))
+      reports: result.rows.map(row => {
+        const reportData = row.report_data || {};
+        return {
+          id: row.id,
+          customer_id: reportData.customerId || '',
+          customer_name: reportData.customerName || row.customer_name || 'Unbekannt',
+          report_title: reportData.reportTitle || 'Dienstleistungsnachweis',
+          start_date: reportData.startDate || '',
+          end_date: reportData.endDate || '',
+          total_hours: reportData.totalHours || 0,
+          entry_count: reportData.entryCount || 0,
+          project_count: reportData.projectCount || 0,
+          created_at: row.created_at,
+          notes: row.notes
+        };
+      })
     });
   } catch (error) {
     console.error('Get saved reports error:', error);

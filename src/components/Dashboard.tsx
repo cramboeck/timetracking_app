@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText, PieChart as PieChartIcon, ChevronDown, ChevronRight } from 'lucide-react';
+import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText, PieChart as PieChartIcon, ChevronDown, ChevronRight, Archive, Trash2, X, Loader2 } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import { useAuth } from '../contexts/AuthContext';
@@ -44,6 +44,25 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
 
+  // Saved reports state
+  interface SavedReport {
+    id: string;
+    customer_id: string;
+    customer_name: string;
+    report_title: string;
+    start_date: string;
+    end_date: string;
+    total_hours: number;
+    entry_count: number;
+    project_count: number;
+    created_at: string;
+    notes: string | null;
+  }
+  const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+  const [showSavedReports, setShowSavedReports] = useState(false);
+  const [isLoadingSavedReports, setIsLoadingSavedReports] = useState(false);
+  const [savedReportsFilter, setSavedReportsFilter] = useState<string>('all');
+
   // Load company info from API
   useEffect(() => {
     const loadCompanyInfo = async () => {
@@ -56,6 +75,63 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
     };
     loadCompanyInfo();
   }, []);
+
+  // Saved reports functions
+  const loadSavedReports = async () => {
+    setIsLoadingSavedReports(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/report-approvals/saved', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSavedReports(data.reports || []);
+      }
+    } catch (error) {
+      console.error('Error loading saved reports:', error);
+    } finally {
+      setIsLoadingSavedReports(false);
+    }
+  };
+
+  const openSavedReports = () => {
+    setShowSavedReports(true);
+    loadSavedReports();
+  };
+
+  const deleteSavedReport = async (reportId: string) => {
+    if (!confirm('Report wirklich löschen?')) return;
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/report-approvals/saved/${reportId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setSavedReports(prev => prev.filter(r => r.id !== reportId));
+      }
+    } catch (error) {
+      console.error('Error deleting report:', error);
+    }
+  };
+
+  // Get unique customers from saved reports for filter
+  const savedReportCustomers = useMemo(() => {
+    const uniqueCustomers = new Map<string, string>();
+    savedReports.forEach(r => {
+      if (r.customer_id && r.customer_name) {
+        uniqueCustomers.set(r.customer_id, r.customer_name);
+      }
+    });
+    return Array.from(uniqueCustomers.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [savedReports]);
+
+  // Filter saved reports by selected customer
+  const filteredSavedReports = useMemo(() => {
+    if (savedReportsFilter === 'all') return savedReports;
+    return savedReports.filter(r => r.customer_id === savedReportsFilter);
+  }, [savedReports, savedReportsFilter]);
 
   const getProjectById = (id: string) => projects.find(p => p.id === id);
   const getCustomerById = (id: string) => customers.find(c => c.id === id);
@@ -507,6 +583,13 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
               <FileText size={18} />
               Report-Assistent
             </button>
+            <button
+              onClick={openSavedReports}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <Archive size={18} />
+              Gespeicherte Reports
+            </button>
             {filteredEntries.length > 0 && (
               <button
                 onClick={generatePDF}
@@ -863,6 +946,118 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
         customers={customers}
         activities={activities}
       />
+
+      {/* Saved Reports Modal */}
+      {showSavedReports && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[85vh] flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Archive size={24} className="text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Gespeicherte Reports
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowSavedReports(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Filter */}
+            {savedReportCustomers.length > 0 && (
+              <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm text-gray-600 dark:text-gray-400">Kunde:</label>
+                  <select
+                    value={savedReportsFilter}
+                    onChange={(e) => setSavedReportsFilter(e.target.value)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  >
+                    <option value="all">Alle Kunden</option>
+                    {savedReportCustomers.map(([id, name]) => (
+                      <option key={id} value={id}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Content */}
+            <div className="flex-1 overflow-auto p-6">
+              {isLoadingSavedReports ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 size={32} className="animate-spin text-blue-600" />
+                </div>
+              ) : filteredSavedReports.length === 0 ? (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  <Archive size={48} className="mx-auto mb-4 opacity-50" />
+                  <p>{savedReportsFilter === 'all' ? 'Keine gespeicherten Reports vorhanden' : 'Keine Reports für diesen Kunden'}</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredSavedReports.map((report) => (
+                    <div
+                      key={report.id}
+                      className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 flex items-center justify-between"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-1">
+                          <h4 className="font-semibold text-gray-900 dark:text-white">
+                            {report.customer_name}
+                          </h4>
+                          <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">
+                            {report.report_title}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                          <span className="flex items-center gap-1">
+                            <Calendar size={14} />
+                            {new Date(report.start_date).toLocaleDateString('de-DE')} - {new Date(report.end_date).toLocaleDateString('de-DE')}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock size={14} />
+                            {report.total_hours.toFixed(2)}h
+                          </span>
+                          <span>{report.entry_count} Einträge</span>
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                          Gespeichert am {new Date(report.created_at).toLocaleDateString('de-DE', {
+                            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                          })}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteSavedReport(report.id)}
+                        className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                        title="Report löschen"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {filteredSavedReports.length} von {savedReports.length} Report(s)
+              </span>
+              <button
+                onClick={() => setShowSavedReports(false)}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
