@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2 } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import { useAuth } from '../contexts/AuthContext';
@@ -117,6 +117,23 @@ export const ReportAssistant = ({
     totalCount: number;
   }>({ show: false, pdfUrl: null, customerName: '', currentIndex: 0, totalCount: 0 });
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+
+  // Saved reports state
+  interface SavedReport {
+    id: string;
+    customer_name: string;
+    report_title: string;
+    start_date: string;
+    end_date: string;
+    total_hours: number;
+    entry_count: number;
+    project_count: number;
+    created_at: string;
+    notes: string | null;
+  }
+  const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+  const [showSavedReports, setShowSavedReports] = useState(false);
+  const [isLoadingSavedReports, setIsLoadingSavedReports] = useState(false);
 
   // Calculate effective date range
   const dateRange = useMemo(() => {
@@ -774,17 +791,25 @@ export const ReportAssistant = ({
   // PDF Preview functions
   const openPreview = async (index: number = 0) => {
     const selectedIds = Array.from(selectedCustomers);
-    if (selectedIds.length === 0) return;
+    console.log('Opening preview, selectedIds:', selectedIds, 'index:', index);
+    if (selectedIds.length === 0) {
+      console.log('No customers selected for preview');
+      return;
+    }
 
     setIsGeneratingPreview(true);
 
     try {
       const customerId = selectedIds[index];
       const customerData = reportData.find(d => d.customer.id === customerId);
+      console.log('Customer data for preview:', customerData?.customer.name);
 
       if (customerData) {
+        console.log('Generating PDF...');
         const doc = await generateModernPDF(customerData);
+        console.log('PDF generated, creating blob URL...');
         const pdfUrl = doc.output('bloburl');
+        console.log('Blob URL created:', pdfUrl);
 
         // Revoke previous URL to prevent memory leaks
         if (pdfPreview.pdfUrl) {
@@ -798,9 +823,13 @@ export const ReportAssistant = ({
           currentIndex: index,
           totalCount: selectedIds.length
         });
+        console.log('Preview state updated');
+      } else {
+        console.log('No customer data found for id:', customerId);
       }
     } catch (error) {
       console.error('Preview generation error:', error);
+      alert('Fehler bei PDF-Vorschau: ' + (error as Error).message);
     } finally {
       setIsGeneratingPreview(false);
     }
@@ -820,6 +849,49 @@ export const ReportAssistant = ({
 
     if (newIndex >= 0 && newIndex < pdfPreview.totalCount) {
       await openPreview(newIndex);
+    }
+  };
+
+  // Load saved reports
+  const loadSavedReports = async () => {
+    setIsLoadingSavedReports(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/report-approvals/saved', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSavedReports(data.reports || []);
+      } else {
+        console.error('Failed to load saved reports');
+      }
+    } catch (error) {
+      console.error('Error loading saved reports:', error);
+    } finally {
+      setIsLoadingSavedReports(false);
+    }
+  };
+
+  const openSavedReports = () => {
+    setShowSavedReports(true);
+    loadSavedReports();
+  };
+
+  const deleteSavedReport = async (reportId: string) => {
+    if (!confirm('Report wirklich löschen?')) return;
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/report-approvals/saved/${reportId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setSavedReports(prev => prev.filter(r => r.id !== reportId));
+      }
+    } catch (error) {
+      console.error('Error deleting report:', error);
     }
   };
 
@@ -1312,6 +1384,13 @@ ${companyInfo?.phone || ''}`;
                 Schließen
               </button>
               <button
+                onClick={openSavedReports}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"
+              >
+                <Archive size={18} />
+                Gespeicherte Reports
+              </button>
+              <button
                 onClick={() => openPreview()}
                 disabled={selectedCustomers.size === 0 || isGeneratingPreview}
                 className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1351,6 +1430,99 @@ ${companyInfo?.phone || ''}`;
                 <Download size={18} />
                 PDFs exportieren ({selectedCustomers.size})
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Saved Reports Modal */}
+        {showSavedReports && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[85vh] flex flex-col">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Archive size={24} className="text-accent-primary" />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Gespeicherte Reports
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowSavedReports(false)}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-auto p-6">
+                {isLoadingSavedReports ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 size={32} className="animate-spin text-accent-primary" />
+                  </div>
+                ) : savedReports.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <Archive size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Keine gespeicherten Reports vorhanden</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {savedReports.map((report) => (
+                      <div
+                        key={report.id}
+                        className="bg-gray-50 dark:bg-dark-200 rounded-lg p-4 flex items-center justify-between"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <h4 className="font-semibold text-gray-900 dark:text-white">
+                              {report.customer_name}
+                            </h4>
+                            <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">
+                              {report.report_title}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                            <span className="flex items-center gap-1">
+                              <Calendar size={14} />
+                              {new Date(report.start_date).toLocaleDateString('de-DE')} - {new Date(report.end_date).toLocaleDateString('de-DE')}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock size={14} />
+                              {report.total_hours.toFixed(2)}h
+                            </span>
+                            <span>{report.entry_count} Einträge</span>
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                            Gespeichert am {new Date(report.created_at).toLocaleDateString('de-DE', {
+                              day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                            })}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => deleteSavedReport(report.id)}
+                          className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                          title="Report löschen"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-200 flex justify-between items-center">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {savedReports.length} Report(s) gespeichert
+                </span>
+                <button
+                  onClick={() => setShowSavedReports(false)}
+                  className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
+                >
+                  Schließen
+                </button>
+              </div>
             </div>
           </div>
         )}
