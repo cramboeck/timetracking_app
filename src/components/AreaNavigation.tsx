@@ -4,7 +4,6 @@ import {
   BarChart3, Wallet, FileText, FileSignature, Share2,
   Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo
 } from 'lucide-react';
-import { useFeatures } from '../contexts/FeaturesContext';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { DesktopSidebar } from './DesktopSidebar';
 
@@ -67,15 +66,10 @@ export const AreaNavigation = ({
   onAreaChange,
   onSubViewChange
 }: AreaNavigationProps) => {
-  const { hasPackage } = useFeatures();
   const isDesktop = useIsDesktop();
 
-  // Determine which areas to show
-  const visibleAreas: Area[] = [
-    'arbeiten', // Always visible
-    ...(hasPackage('support') ? ['support' as Area] : []),
-    ...(hasPackage('business') ? ['business' as Area] : []),
-  ];
+  // Show all areas - swipe navigation allows access to all
+  const visibleAreas: Area[] = ['arbeiten', 'support', 'business'];
 
   const currentAreaConfig = areaConfig[currentArea];
 
