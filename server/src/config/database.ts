@@ -2637,6 +2637,71 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Social media autopilot settings
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_autopilot_settings (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        organization_id TEXT UNIQUE NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        enabled BOOLEAN DEFAULT false,
+        posts_per_week INTEGER DEFAULT 5,
+        content_themes TEXT[] DEFAULT '{}',
+        target_audience TEXT,
+        brand_voice TEXT DEFAULT 'professional',
+        approval_mode TEXT DEFAULT 'review' CHECK(approval_mode IN ('auto', 'review')),
+        platforms TEXT[] DEFAULT ARRAY['linkedin'],
+        content_mix JSONB DEFAULT '{"educational": 40, "promotional": 20, "behindTheScenes": 20, "trending": 20}',
+        last_generated TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Social media competitors for tracking
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_competitors (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        profiles JSONB DEFAULT '{}',
+        notes TEXT,
+        last_analyzed TIMESTAMP,
+        analysis_data JSONB,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Social media engagement bot settings
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_engagement_settings (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        organization_id TEXT UNIQUE NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        enabled BOOLEAN DEFAULT false,
+        platforms TEXT[] DEFAULT '{}',
+        target_keywords TEXT[] DEFAULT '{}',
+        target_accounts TEXT[] DEFAULT '{}',
+        response_style TEXT DEFAULT 'thoughtful' CHECK(response_style IN ('thoughtful', 'supportive', 'inquisitive', 'expert')),
+        daily_limit INTEGER DEFAULT 10,
+        exclude_keywords TEXT[] DEFAULT '{}',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Social media engagement history
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_engagement_history (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        platform TEXT NOT NULL,
+        post_url TEXT,
+        author_name TEXT,
+        original_content TEXT,
+        response_content TEXT,
+        response_type TEXT DEFAULT 'comment' CHECK(response_type IN ('comment', 'like', 'share', 'reply')),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
     // Create indexes for social media tables
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_accounts_user ON social_media_accounts(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_accounts_org ON social_media_accounts(organization_id)');
@@ -2647,6 +2712,8 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_post_platforms_post ON social_media_post_platforms(post_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_templates_user ON social_media_templates(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_hashtags_user ON social_media_hashtag_groups(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_competitors_org ON social_media_competitors(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_engagement_history_org ON social_media_engagement_history(organization_id)');
 
     console.log('✅ Social Media Manager tables created');
 

@@ -4,7 +4,8 @@ import {
   ChevronLeft, ChevronRight, Edit2, Trash2, Copy, Clock, Check,
   Linkedin, Twitter, Facebook, Instagram, X, Loader2, AlertCircle,
   Layers, Lightbulb, ListOrdered, Zap, Upload, BarChart3, TrendingUp,
-  Recycle, Search, RefreshCw
+  Recycle, Search, RefreshCw, Rocket, Globe, FileCode, Users, MessageCircle,
+  Play, Pause, ThumbsUp, ThumbsDown, ExternalLink
 } from 'lucide-react';
 import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount } from '../services/api';
 import { Customer } from '../types';
@@ -14,7 +15,7 @@ interface SocialMediaManagerProps {
   customers?: Customer[];
 }
 
-type ViewMode = 'calendar' | 'list' | 'templates' | 'hashtags' | 'accounts' | 'queue' | 'batch' | 'analytics' | 'evergreen';
+type ViewMode = 'calendar' | 'list' | 'templates' | 'hashtags' | 'accounts' | 'queue' | 'batch' | 'analytics' | 'evergreen' | 'autopilot' | 'trends' | 'remix' | 'competitors' | 'engagement';
 type Platform = 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
@@ -140,6 +141,65 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
   const [hashtagGroupName, setHashtagGroupName] = useState('');
   const [hashtagGroupTags, setHashtagGroupTags] = useState('');
+
+  // Autopilot state
+  const [autopilotSettings, setAutopilotSettings] = useState({
+    enabled: false,
+    postsPerWeek: 5,
+    contentThemes: [] as string[],
+    targetAudience: '',
+    brandVoice: 'professional',
+    approvalMode: 'review' as 'auto' | 'review',
+    platforms: ['linkedin'] as string[],
+    contentMix: { educational: 40, promotional: 20, behindTheScenes: 20, trending: 20 },
+    lastGenerated: null as string | null
+  });
+  const [autopilotPending, setAutopilotPending] = useState<SocialMediaPost[]>([]);
+  const [autopilotGenerating, setAutopilotGenerating] = useState(false);
+  const [newTheme, setNewTheme] = useState('');
+
+  // Trends state
+  const [trends, setTrends] = useState<Array<{ topic: string; description: string; relevance: 'high' | 'medium' | 'low'; suggestedAngles: string[] }>>([]);
+  const [trendsLoading, setTrendsLoading] = useState(false);
+  const [trendsIndustry, setTrendsIndustry] = useState('IT & Technologie');
+  const [selectedTrend, setSelectedTrend] = useState<{ topic: string; description: string } | null>(null);
+  const [trendPostContent, setTrendPostContent] = useState('');
+  const [trendGenerating, setTrendGenerating] = useState(false);
+
+  // Remix state
+  const [remixSourceContent, setRemixSourceContent] = useState('');
+  const [remixSourceType, setRemixSourceType] = useState<'blog' | 'transcript' | 'article' | 'newsletter'>('blog');
+  const [remixOutputs, setRemixOutputs] = useState<Array<{ platform: string; posts: Array<{ content: string; hashtags: string[] }> }>>([]);
+  const [remixPlatforms, setRemixPlatforms] = useState<Array<{ platform: string; count: number }>>([
+    { platform: 'linkedin', count: 5 },
+    { platform: 'twitter', count: 10 }
+  ]);
+  const [remixing, setRemixing] = useState(false);
+
+  // Competitors state
+  const [competitors, setCompetitors] = useState<Array<{ id: string; name: string; profiles: any; notes?: string; lastAnalyzed?: string }>>([]);
+  const [showAddCompetitor, setShowAddCompetitor] = useState(false);
+  const [newCompetitorName, setNewCompetitorName] = useState('');
+  const [newCompetitorProfiles, setNewCompetitorProfiles] = useState({ linkedin: '', twitter: '', website: '' });
+  const [selectedCompetitor, setSelectedCompetitor] = useState<string | null>(null);
+  const [competitorSamplePosts, setCompetitorSamplePosts] = useState('');
+  const [competitorAnalysis, setCompetitorAnalysis] = useState<any>(null);
+  const [analyzingCompetitor, setAnalyzingCompetitor] = useState(false);
+
+  // Engagement state
+  const [engagementSettings, setEngagementSettings] = useState({
+    enabled: false,
+    platforms: [] as string[],
+    targetKeywords: [] as string[],
+    targetAccounts: [] as string[],
+    responseStyle: 'thoughtful' as 'thoughtful' | 'supportive' | 'inquisitive' | 'expert',
+    dailyLimit: 10,
+    excludeKeywords: [] as string[]
+  });
+  const [engagementPosts, setEngagementPosts] = useState('');
+  const [engagementResponses, setEngagementResponses] = useState<Array<{ originalPost: string; author: string; response: string; responseType: string }>>([]);
+  const [generatingEngagement, setGeneratingEngagement] = useState(false);
+  const [newKeyword, setNewKeyword] = useState('');
 
   // Load data
   useEffect(() => {
@@ -368,7 +428,188 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   useEffect(() => {
     if (viewMode === 'analytics') loadAnalytics();
     if (viewMode === 'evergreen') loadEvergreen();
+    if (viewMode === 'autopilot') loadAutopilot();
+    if (viewMode === 'trends') loadTrends();
+    if (viewMode === 'competitors') loadCompetitors();
+    if (viewMode === 'engagement') loadEngagementSettings();
   }, [viewMode]);
+
+  // Load Autopilot data
+  const loadAutopilot = async () => {
+    try {
+      const [settings, pending] = await Promise.all([
+        socialMediaApi.getAutopilotSettings(),
+        socialMediaApi.getAutopilotPending()
+      ]);
+      setAutopilotSettings(settings);
+      setAutopilotPending(pending);
+    } catch (err) {
+      console.error('Failed to load autopilot settings:', err);
+    }
+  };
+
+  const handleGenerateAutopilot = async () => {
+    setAutopilotGenerating(true);
+    try {
+      const result = await socialMediaApi.generateAutopilotContent();
+      setAutopilotPending(result.posts);
+      alert(result.message);
+    } catch (err: any) {
+      setError(err.message || 'Autopilot-Generierung fehlgeschlagen');
+    } finally {
+      setAutopilotGenerating(false);
+    }
+  };
+
+  const handleApproveAutopilot = async (postIds: string[], action: 'approve' | 'reject') => {
+    try {
+      await socialMediaApi.approveAutopilotPosts(postIds, action);
+      setAutopilotPending(prev => prev.filter(p => !postIds.includes(p.id)));
+      if (action === 'approve') {
+        loadData(); // Reload posts
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Genehmigen/Ablehnen');
+    }
+  };
+
+  const saveAutopilotSettings = async () => {
+    try {
+      await socialMediaApi.updateAutopilotSettings(autopilotSettings);
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Speichern der Einstellungen');
+    }
+  };
+
+  // Load Trends
+  const loadTrends = async () => {
+    setTrendsLoading(true);
+    try {
+      const result = await socialMediaApi.getTrends(trendsIndustry);
+      setTrends(result.trends);
+    } catch (err) {
+      console.error('Failed to load trends:', err);
+    } finally {
+      setTrendsLoading(false);
+    }
+  };
+
+  const handleGenerateTrendPost = async () => {
+    if (!selectedTrend) return;
+    setTrendGenerating(true);
+    try {
+      const result = await socialMediaApi.generateTrendContent({
+        trend: selectedTrend.topic,
+        platform: 'linkedin',
+        tone: 'professional',
+        angle: 'informative'
+      });
+      setTrendPostContent(result.content);
+    } catch (err: any) {
+      setError(err.message || 'Trend-Content-Generierung fehlgeschlagen');
+    } finally {
+      setTrendGenerating(false);
+    }
+  };
+
+  // Remix functions
+  const handleRemix = async () => {
+    if (!remixSourceContent.trim()) return;
+    setRemixing(true);
+    try {
+      const result = await socialMediaApi.remixContent({
+        sourceContent: remixSourceContent,
+        sourceType: remixSourceType,
+        outputFormats: remixPlatforms,
+        preserveLinks: true,
+        includeHashtags: true
+      });
+      setRemixOutputs(result.outputs);
+    } catch (err: any) {
+      setError(err.message || 'Content-Remix fehlgeschlagen');
+    } finally {
+      setRemixing(false);
+    }
+  };
+
+  const handleSaveRemixedPosts = async (posts: Array<{ content: string; hashtags: string[] }>) => {
+    try {
+      await socialMediaApi.saveRemixedPosts({ posts, autoSchedule: true, postsPerDay: 2 });
+      loadData();
+      setRemixOutputs([]);
+      setRemixSourceContent('');
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Speichern');
+    }
+  };
+
+  // Competitors functions
+  const loadCompetitors = async () => {
+    try {
+      const data = await socialMediaApi.getCompetitors();
+      setCompetitors(data);
+    } catch (err) {
+      console.error('Failed to load competitors:', err);
+    }
+  };
+
+  const handleAddCompetitor = async () => {
+    if (!newCompetitorName.trim()) return;
+    try {
+      await socialMediaApi.addCompetitor({
+        name: newCompetitorName,
+        profiles: newCompetitorProfiles
+      });
+      setNewCompetitorName('');
+      setNewCompetitorProfiles({ linkedin: '', twitter: '', website: '' });
+      setShowAddCompetitor(false);
+      loadCompetitors();
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Hinzufügen');
+    }
+  };
+
+  const handleAnalyzeCompetitor = async () => {
+    if (!selectedCompetitor || !competitorSamplePosts.trim()) return;
+    setAnalyzingCompetitor(true);
+    try {
+      const samplePosts = competitorSamplePosts.split('\n---\n').filter(p => p.trim());
+      const result = await socialMediaApi.analyzeCompetitor(selectedCompetitor, { samplePosts });
+      setCompetitorAnalysis(result);
+    } catch (err: any) {
+      setError(err.message || 'Analyse fehlgeschlagen');
+    } finally {
+      setAnalyzingCompetitor(false);
+    }
+  };
+
+  // Engagement functions
+  const loadEngagementSettings = async () => {
+    try {
+      const settings = await socialMediaApi.getEngagementSettings();
+      setEngagementSettings(settings);
+    } catch (err) {
+      console.error('Failed to load engagement settings:', err);
+    }
+  };
+
+  const handleGenerateEngagement = async () => {
+    if (!engagementPosts.trim()) return;
+    setGeneratingEngagement(true);
+    try {
+      const postsArray = engagementPosts.split('\n---\n').filter(p => p.trim()).map(p => ({
+        author: 'Unbekannt',
+        content: p,
+        platform: 'linkedin'
+      }));
+      const result = await socialMediaApi.generateEngagementResponses(postsArray);
+      setEngagementResponses(result.responses);
+    } catch (err: any) {
+      setError(err.message || 'Engagement-Generierung fehlgeschlagen');
+    } finally {
+      setGeneratingEngagement(false);
+    }
+  };
 
   // Calendar helpers
   const calendarDays = useMemo(() => {
@@ -599,6 +840,11 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         {[
           { id: 'calendar', label: 'Kalender', icon: Calendar },
           { id: 'list', label: 'Posts', icon: List },
+          { id: 'autopilot', label: 'Autopilot', icon: Rocket },
+          { id: 'trends', label: 'Trends', icon: Globe },
+          { id: 'remix', label: 'Remix', icon: FileCode },
+          { id: 'competitors', label: 'Konkurrenz', icon: Users },
+          { id: 'engagement', label: 'Engagement', icon: MessageCircle },
           { id: 'queue', label: 'Queue', icon: ListOrdered },
           { id: 'batch', label: 'Batch', icon: Layers },
           { id: 'evergreen', label: 'Evergreen', icon: Recycle },
@@ -1383,6 +1629,653 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   )}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Autopilot View */}
+      {viewMode === 'autopilot' && (
+        <div className="space-y-6">
+          {/* Autopilot Header */}
+          <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl p-6 text-white">
+            <div className="flex items-center gap-3 mb-2">
+              <Rocket size={28} />
+              <h2 className="text-xl font-bold">Social Media Autopilot</h2>
+            </div>
+            <p className="opacity-90">Lass die KI automatisch Content für dich generieren und planen.</p>
+          </div>
+
+          {/* Settings */}
+          <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+            <h3 className="font-semibold dark:text-white mb-4 flex items-center gap-2">
+              <Settings size={18} />
+              Einstellungen
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                <span className="dark:text-white">Autopilot aktiviert</span>
+                <button
+                  onClick={() => setAutopilotSettings(s => ({ ...s, enabled: !s.enabled }))}
+                  className={`w-12 h-6 rounded-full transition-colors ${autopilotSettings.enabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <div className={`w-5 h-5 rounded-full bg-white shadow transform transition-transform ${autopilotSettings.enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium dark:text-gray-300 mb-1">Posts pro Woche</label>
+                <input
+                  type="number"
+                  value={autopilotSettings.postsPerWeek}
+                  onChange={(e) => setAutopilotSettings(s => ({ ...s, postsPerWeek: parseInt(e.target.value) || 5 }))}
+                  min={1}
+                  max={21}
+                  className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium dark:text-gray-300 mb-1">Modus</label>
+                <select
+                  value={autopilotSettings.approvalMode}
+                  onChange={(e) => setAutopilotSettings(s => ({ ...s, approvalMode: e.target.value as 'auto' | 'review' }))}
+                  className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                >
+                  <option value="review">Zur Genehmigung erstellen</option>
+                  <option value="auto">Automatisch planen</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium dark:text-gray-300 mb-1">Zielgruppe</label>
+                <input
+                  type="text"
+                  value={autopilotSettings.targetAudience}
+                  onChange={(e) => setAutopilotSettings(s => ({ ...s, targetAudience: e.target.value }))}
+                  placeholder="z.B. IT-Entscheider, KMUs"
+                  className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                />
+              </div>
+            </div>
+
+            {/* Content Themes */}
+            <div className="mt-4">
+              <label className="block text-sm font-medium dark:text-gray-300 mb-2">Content-Themen</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {autopilotSettings.contentThemes.map((theme, idx) => (
+                  <span key={idx} className="flex items-center gap-1 px-3 py-1 bg-accent-primary/10 text-accent-primary rounded-full text-sm">
+                    {theme}
+                    <button onClick={() => setAutopilotSettings(s => ({ ...s, contentThemes: s.contentThemes.filter((_, i) => i !== idx) }))}>
+                      <X size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newTheme}
+                  onChange={(e) => setNewTheme(e.target.value)}
+                  placeholder="Neues Thema..."
+                  className="flex-1 px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newTheme.trim()) {
+                      setAutopilotSettings(s => ({ ...s, contentThemes: [...s.contentThemes, newTheme.trim()] }));
+                      setNewTheme('');
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    if (newTheme.trim()) {
+                      setAutopilotSettings(s => ({ ...s, contentThemes: [...s.contentThemes, newTheme.trim()] }));
+                      setNewTheme('');
+                    }
+                  }}
+                  className="px-4 py-2 bg-accent-primary text-white rounded-lg"
+                >
+                  <Plus size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={saveAutopilotSettings}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 rounded-lg dark:text-white"
+              >
+                <Check size={18} />
+                Speichern
+              </button>
+              <button
+                onClick={handleGenerateAutopilot}
+                disabled={autopilotGenerating || !autopilotSettings.enabled || autopilotSettings.contentThemes.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg disabled:opacity-50"
+              >
+                {autopilotGenerating ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                Jetzt generieren
+              </button>
+            </div>
+          </div>
+
+          {/* Pending Posts for Review */}
+          {autopilotPending.length > 0 && (
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+              <h3 className="font-semibold dark:text-white mb-4 flex items-center justify-between">
+                <span>Zur Genehmigung ({autopilotPending.length})</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleApproveAutopilot(autopilotPending.map(p => p.id), 'approve')}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-sm"
+                  >
+                    <ThumbsUp size={14} />
+                    Alle genehmigen
+                  </button>
+                  <button
+                    onClick={() => handleApproveAutopilot(autopilotPending.map(p => p.id), 'reject')}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm"
+                  >
+                    <ThumbsDown size={14} />
+                    Alle ablehnen
+                  </button>
+                </div>
+              </h3>
+              <div className="space-y-3">
+                {autopilotPending.map(post => (
+                  <div key={post.id} className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                    <p className="dark:text-white text-sm whitespace-pre-wrap">{post.content}</p>
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-xs text-gray-500">
+                        {post.scheduledAt && new Date(post.scheduledAt).toLocaleString('de-DE')}
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleApproveAutopilot([post.id], 'approve')}
+                          className="p-1.5 bg-green-100 dark:bg-green-900/30 text-green-600 rounded hover:bg-green-200"
+                        >
+                          <ThumbsUp size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleApproveAutopilot([post.id], 'reject')}
+                          className="p-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 rounded hover:bg-red-200"
+                        >
+                          <ThumbsDown size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Trends View */}
+      {viewMode === 'trends' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl p-6 text-white">
+            <div className="flex items-center gap-3 mb-2">
+              <Globe size={28} />
+              <h2 className="text-xl font-bold">Trend-Surfer</h2>
+            </div>
+            <p className="opacity-90">Entdecke aktuelle Trends und erstelle zeitnahen Content.</p>
+          </div>
+
+          <div className="flex gap-4">
+            <input
+              type="text"
+              value={trendsIndustry}
+              onChange={(e) => setTrendsIndustry(e.target.value)}
+              placeholder="Branche eingeben..."
+              className="flex-1 px-4 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-100 dark:text-white"
+            />
+            <button
+              onClick={loadTrends}
+              disabled={trendsLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg disabled:opacity-50"
+            >
+              {trendsLoading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+              Trends laden
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Trends List */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+              <h3 className="font-semibold dark:text-white mb-4">Aktuelle Trends</h3>
+              {trends.length === 0 ? (
+                <p className="text-gray-500 text-sm">Klicke auf "Trends laden" um aktuelle Trends zu sehen.</p>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {trends.map((trend, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedTrend(trend)}
+                      className={`w-full text-left p-3 rounded-lg transition-colors ${
+                        selectedTrend?.topic === trend.topic
+                          ? 'bg-accent-primary/10 border border-accent-primary'
+                          : 'bg-gray-50 dark:bg-dark-200 hover:bg-gray-100 dark:hover:bg-dark-300'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <span className="font-medium dark:text-white">{trend.topic}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          trend.relevance === 'high' ? 'bg-green-100 text-green-700' :
+                          trend.relevance === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {trend.relevance}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">{trend.description}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Content Generator */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+              <h3 className="font-semibold dark:text-white mb-4">Content generieren</h3>
+              {selectedTrend ? (
+                <div className="space-y-4">
+                  <div className="p-3 bg-accent-primary/10 rounded-lg">
+                    <p className="text-sm text-accent-primary font-medium">Ausgewählter Trend:</p>
+                    <p className="dark:text-white">{selectedTrend.topic}</p>
+                  </div>
+                  <button
+                    onClick={handleGenerateTrendPost}
+                    disabled={trendGenerating}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg disabled:opacity-50"
+                  >
+                    {trendGenerating ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                    Post generieren
+                  </button>
+                  {trendPostContent && (
+                    <div className="p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                      <p className="dark:text-white text-sm whitespace-pre-wrap">{trendPostContent}</p>
+                      <button
+                        onClick={() => {
+                          setPostContent(trendPostContent);
+                          setShowPostEditor(true);
+                        }}
+                        className="mt-3 flex items-center gap-1 text-sm text-accent-primary"
+                      >
+                        <Edit2 size={14} />
+                        Als Post bearbeiten
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">Wähle links einen Trend aus, um Content zu generieren.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remix View */}
+      {viewMode === 'remix' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-orange-500 to-pink-600 rounded-xl p-6 text-white">
+            <div className="flex items-center gap-3 mb-2">
+              <FileCode size={28} />
+              <h2 className="text-xl font-bold">Content-Remix-Engine</h2>
+            </div>
+            <p className="opacity-90">Wandle Blogposts, Artikel oder Video-Transkripte in Social Media Posts um.</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Source Content */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+              <h3 className="font-semibold dark:text-white mb-4">Quell-Content</h3>
+              <select
+                value={remixSourceType}
+                onChange={(e) => setRemixSourceType(e.target.value as any)}
+                className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white mb-3"
+              >
+                <option value="blog">Blogpost</option>
+                <option value="article">Artikel</option>
+                <option value="transcript">Video-Transkript</option>
+                <option value="newsletter">Newsletter</option>
+              </select>
+              <textarea
+                value={remixSourceContent}
+                onChange={(e) => setRemixSourceContent(e.target.value)}
+                placeholder="Füge hier deinen Langform-Content ein..."
+                rows={12}
+                className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white text-sm"
+              />
+              <p className="text-xs text-gray-500 mt-2">{remixSourceContent.length} Zeichen</p>
+            </div>
+
+            {/* Output Settings & Results */}
+            <div className="space-y-4">
+              <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                <h3 className="font-semibold dark:text-white mb-4">Output-Einstellungen</h3>
+                {remixPlatforms.map((p, idx) => (
+                  <div key={idx} className="flex items-center gap-3 mb-2">
+                    <span className="w-24 dark:text-white capitalize">{p.platform}</span>
+                    <input
+                      type="number"
+                      value={p.count}
+                      onChange={(e) => {
+                        const newPlatforms = [...remixPlatforms];
+                        newPlatforms[idx].count = parseInt(e.target.value) || 1;
+                        setRemixPlatforms(newPlatforms);
+                      }}
+                      min={1}
+                      max={20}
+                      className="w-20 px-2 py-1 border dark:border-dark-200 rounded dark:bg-dark-200 dark:text-white"
+                    />
+                    <span className="text-sm text-gray-500">Posts</span>
+                  </div>
+                ))}
+                <button
+                  onClick={handleRemix}
+                  disabled={remixing || !remixSourceContent.trim()}
+                  className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-pink-600 text-white rounded-lg disabled:opacity-50"
+                >
+                  {remixing ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                  Content remixen
+                </button>
+              </div>
+
+              {/* Results */}
+              {remixOutputs.length > 0 && (
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                  <h3 className="font-semibold dark:text-white mb-4">Generierte Posts</h3>
+                  {remixOutputs.map((output, idx) => (
+                    <div key={idx} className="mb-4">
+                      <h4 className="text-sm font-medium text-accent-primary capitalize mb-2">{output.platform}</h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {output.posts.map((post, pIdx) => (
+                          <div key={pIdx} className="p-2 bg-gray-50 dark:bg-dark-200 rounded text-sm">
+                            <p className="dark:text-white line-clamp-3">{post.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => handleSaveRemixedPosts(output.posts)}
+                        className="mt-2 text-sm text-accent-primary hover:underline"
+                      >
+                        Alle {output.posts.length} Posts speichern
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Competitors View */}
+      {viewMode === 'competitors' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-red-500 to-orange-600 rounded-xl p-6 text-white">
+            <div className="flex items-center gap-3 mb-2">
+              <Users size={28} />
+              <h2 className="text-xl font-bold">Konkurrenz-Analyse</h2>
+            </div>
+            <p className="opacity-90">Analysiere Wettbewerber und generiere inspirierten Content.</p>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowAddCompetitor(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg"
+            >
+              <Plus size={18} />
+              Konkurrent hinzufügen
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {competitors.map(comp => (
+              <div
+                key={comp.id}
+                onClick={() => setSelectedCompetitor(comp.id)}
+                className={`bg-white dark:bg-dark-100 rounded-xl shadow-sm border p-4 cursor-pointer transition-colors ${
+                  selectedCompetitor === comp.id ? 'border-accent-primary' : 'border-gray-200 dark:border-dark-200'
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <h4 className="font-medium dark:text-white">{comp.name}</h4>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      socialMediaApi.deleteCompetitor(comp.id).then(loadCompetitors);
+                    }}
+                    className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  {comp.profiles?.linkedin && <Linkedin size={14} className="text-blue-600" />}
+                  {comp.profiles?.twitter && <Twitter size={14} className="text-sky-500" />}
+                  {comp.profiles?.website && <ExternalLink size={14} className="text-gray-500" />}
+                </div>
+                {comp.lastAnalyzed && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Zuletzt analysiert: {new Date(comp.lastAnalyzed).toLocaleDateString('de-DE')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {selectedCompetitor && (
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+              <h3 className="font-semibold dark:text-white mb-4">Konkurrenten-Posts analysieren</h3>
+              <p className="text-sm text-gray-500 mb-3">Füge Beispiel-Posts des Konkurrenten ein (getrennt durch ---)</p>
+              <textarea
+                value={competitorSamplePosts}
+                onChange={(e) => setCompetitorSamplePosts(e.target.value)}
+                placeholder="Post 1 hier einfügen...&#10;---&#10;Post 2 hier einfügen...&#10;---&#10;Post 3 hier einfügen..."
+                rows={6}
+                className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white text-sm"
+              />
+              <button
+                onClick={handleAnalyzeCompetitor}
+                disabled={analyzingCompetitor || !competitorSamplePosts.trim()}
+                className="mt-3 flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg disabled:opacity-50"
+              >
+                {analyzingCompetitor ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                Analysieren & Content generieren
+              </button>
+
+              {competitorAnalysis && (
+                <div className="mt-6 space-y-4">
+                  <div className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                    <h4 className="font-medium dark:text-white mb-2">Erkenntnisse</h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div><span className="text-gray-500">Posting-Frequenz:</span> <span className="dark:text-white">{competitorAnalysis.insights.postingFrequency}</span></div>
+                      <div><span className="text-gray-500">Stärken:</span> <span className="dark:text-white">{competitorAnalysis.insights.strengths.join(', ')}</span></div>
+                      <div><span className="text-gray-500">Themen:</span> <span className="dark:text-white">{competitorAnalysis.insights.topTopics.join(', ')}</span></div>
+                      <div><span className="text-gray-500">Chancen:</span> <span className="dark:text-white">{competitorAnalysis.insights.opportunities.join(', ')}</span></div>
+                    </div>
+                  </div>
+                  <h4 className="font-medium dark:text-white">Generierte Posts (inspiriert)</h4>
+                  <div className="space-y-2">
+                    {competitorAnalysis.generatedPosts.map((post: any, idx: number) => (
+                      <div key={idx} className="p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                        <p className="dark:text-white text-sm">{post.content}</p>
+                        <p className="text-xs text-gray-500 mt-2">Inspiration: {post.inspiration}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Add Competitor Modal */}
+          {showAddCompetitor && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-dark-100 rounded-xl p-6 w-full max-w-md">
+                <h3 className="font-semibold dark:text-white mb-4">Konkurrent hinzufügen</h3>
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={newCompetitorName}
+                    onChange={(e) => setNewCompetitorName(e.target.value)}
+                    placeholder="Firmenname"
+                    className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                  />
+                  <input
+                    type="text"
+                    value={newCompetitorProfiles.linkedin}
+                    onChange={(e) => setNewCompetitorProfiles(p => ({ ...p, linkedin: e.target.value }))}
+                    placeholder="LinkedIn URL"
+                    className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                  />
+                  <input
+                    type="text"
+                    value={newCompetitorProfiles.website}
+                    onChange={(e) => setNewCompetitorProfiles(p => ({ ...p, website: e.target.value }))}
+                    placeholder="Website"
+                    className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                  />
+                </div>
+                <div className="flex justify-end gap-3 mt-4">
+                  <button onClick={() => setShowAddCompetitor(false)} className="px-4 py-2 bg-gray-100 dark:bg-dark-200 rounded-lg dark:text-white">
+                    Abbrechen
+                  </button>
+                  <button onClick={handleAddCompetitor} className="px-4 py-2 bg-accent-primary text-white rounded-lg">
+                    Hinzufügen
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Engagement View */}
+      {viewMode === 'engagement' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-green-500 to-teal-600 rounded-xl p-6 text-white">
+            <div className="flex items-center gap-3 mb-2">
+              <MessageCircle size={28} />
+              <h2 className="text-xl font-bold">Smart Engagement Bot</h2>
+            </div>
+            <p className="opacity-90">Generiere authentische Kommentare zu Posts in deiner Branche.</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Settings */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+              <h3 className="font-semibold dark:text-white mb-4">Einstellungen</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium dark:text-gray-300 mb-1">Antwort-Stil</label>
+                  <select
+                    value={engagementSettings.responseStyle}
+                    onChange={(e) => setEngagementSettings(s => ({ ...s, responseStyle: e.target.value as any }))}
+                    className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                  >
+                    <option value="thoughtful">Nachdenklich</option>
+                    <option value="supportive">Unterstützend</option>
+                    <option value="inquisitive">Neugierig/Fragend</option>
+                    <option value="expert">Experte</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium dark:text-gray-300 mb-2">Keywords zum Verfolgen</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {engagementSettings.targetKeywords.map((kw, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-sm">
+                        {kw}
+                        <button onClick={() => setEngagementSettings(s => ({ ...s, targetKeywords: s.targetKeywords.filter((_, i) => i !== idx) }))}>
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newKeyword}
+                      onChange={(e) => setNewKeyword(e.target.value)}
+                      placeholder="Keyword..."
+                      className="flex-1 px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newKeyword.trim()) {
+                          setEngagementSettings(s => ({ ...s, targetKeywords: [...s.targetKeywords, newKeyword.trim()] }));
+                          setNewKeyword('');
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (newKeyword.trim()) {
+                          setEngagementSettings(s => ({ ...s, targetKeywords: [...s.targetKeywords, newKeyword.trim()] }));
+                          setNewKeyword('');
+                        }
+                      }}
+                      className="px-3 py-2 bg-accent-primary text-white rounded-lg"
+                    >
+                      <Plus size={18} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Generate Responses */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+              <h3 className="font-semibold dark:text-white mb-4">Antworten generieren</h3>
+              <p className="text-sm text-gray-500 mb-3">Füge Posts ein, auf die du antworten möchtest (getrennt durch ---)</p>
+              <textarea
+                value={engagementPosts}
+                onChange={(e) => setEngagementPosts(e.target.value)}
+                placeholder="Post 1...&#10;---&#10;Post 2...&#10;---&#10;Post 3..."
+                rows={6}
+                className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white text-sm"
+              />
+              <button
+                onClick={handleGenerateEngagement}
+                disabled={generatingEngagement || !engagementPosts.trim()}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-lg disabled:opacity-50"
+              >
+                {generatingEngagement ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                Antworten generieren
+              </button>
+            </div>
+          </div>
+
+          {/* Generated Responses */}
+          {engagementResponses.length > 0 && (
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+              <h3 className="font-semibold dark:text-white mb-4">Generierte Antworten</h3>
+              <div className="space-y-4">
+                {engagementResponses.map((resp, idx) => (
+                  <div key={idx} className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                    <div className="text-xs text-gray-500 mb-2">
+                      <span className="font-medium">Original:</span> {resp.originalPost}
+                    </div>
+                    <p className="dark:text-white">{resp.response}</p>
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded capitalize">
+                        {resp.responseType}
+                      </span>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(resp.response)}
+                        className="flex items-center gap-1 text-sm text-accent-primary"
+                      >
+                        <Copy size={14} />
+                        Kopieren
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

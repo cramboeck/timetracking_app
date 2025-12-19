@@ -1501,4 +1501,681 @@ router.get('/analytics/performance', authenticateToken, attachOrganization, asyn
   }
 });
 
+// ============================================
+// AUTOPILOT MODE
+// ============================================
+
+const autopilotSettingsSchema = z.object({
+  enabled: z.boolean(),
+  postsPerWeek: z.number().min(1).max(21),
+  contentThemes: z.array(z.string()).min(1).max(10),
+  targetAudience: z.string().optional(),
+  brandVoice: z.string().optional(),
+  approvalMode: z.enum(['auto', 'review']), // auto = publish directly, review = need approval
+  platforms: z.array(z.enum(['linkedin', 'twitter', 'facebook', 'instagram'])),
+  contentMix: z.object({
+    educational: z.number().min(0).max(100),
+    promotional: z.number().min(0).max(100),
+    behindTheScenes: z.number().min(0).max(100),
+    trending: z.number().min(0).max(100)
+  }).optional()
+});
+
+// GET /api/social-media/autopilot/settings - Get autopilot settings
+router.get('/autopilot/settings', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await pool.query(
+      `SELECT * FROM social_media_autopilot_settings WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      // Return default settings
+      res.json({
+        enabled: false,
+        postsPerWeek: 5,
+        contentThemes: [],
+        targetAudience: '',
+        brandVoice: 'professional',
+        approvalMode: 'review',
+        platforms: ['linkedin'],
+        contentMix: { educational: 40, promotional: 20, behindTheScenes: 20, trending: 20 },
+        generatedQueue: [],
+        lastGenerated: null
+      });
+      return;
+    }
+
+    res.json(transformRow(result.rows[0]));
+  } catch (error) {
+    console.error('Get autopilot settings error:', error);
+    res.status(500).json({ error: 'Failed to get autopilot settings' });
+  }
+});
+
+// PUT /api/social-media/autopilot/settings - Update autopilot settings
+router.put('/autopilot/settings', authenticateToken, attachOrganization, requireOrgRole('member'), validate(autopilotSettingsSchema), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { enabled, postsPerWeek, contentThemes, targetAudience, brandVoice, approvalMode, platforms, contentMix } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO social_media_autopilot_settings
+       (organization_id, enabled, posts_per_week, content_themes, target_audience, brand_voice, approval_mode, platforms, content_mix)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (organization_id)
+       DO UPDATE SET
+         enabled = $2, posts_per_week = $3, content_themes = $4, target_audience = $5,
+         brand_voice = $6, approval_mode = $7, platforms = $8, content_mix = $9, updated_at = NOW()
+       RETURNING *`,
+      [organizationId, enabled, postsPerWeek, contentThemes, targetAudience, brandVoice, approvalMode, platforms, JSON.stringify(contentMix)]
+    );
+
+    res.json(transformRow(result.rows[0]));
+  } catch (error) {
+    console.error('Update autopilot settings error:', error);
+    res.status(500).json({ error: 'Failed to update autopilot settings' });
+  }
+});
+
+// POST /api/social-media/autopilot/generate - Generate autopilot content for the next period
+router.post('/autopilot/generate', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+
+    // Get autopilot settings
+    const settingsResult = await pool.query(
+      `SELECT * FROM social_media_autopilot_settings WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    if (settingsResult.rows.length === 0 || !settingsResult.rows[0].enabled) {
+      res.status(400).json({ error: 'Autopilot is not configured or enabled' });
+      return;
+    }
+
+    const settings = transformRow(settingsResult.rows[0]);
+
+    // Get successful past posts for style learning
+    const pastPostsResult = await pool.query(
+      `SELECT content, hashtags FROM social_media_posts
+       WHERE organization_id = $1 AND status = 'published'
+       ORDER BY created_at DESC LIMIT 20`,
+      [organizationId]
+    );
+
+    const pastPosts = pastPostsResult.rows.map(r => r.content);
+
+    // Generate content using AI
+    const generatedPosts = await aiService.generateAutopilotContent(userId, {
+      themes: settings.contentThemes,
+      targetAudience: settings.targetAudience,
+      brandVoice: settings.brandVoice,
+      platforms: settings.platforms,
+      postsCount: settings.postsPerWeek,
+      contentMix: settings.contentMix,
+      pastPosts: pastPosts.slice(0, 10)
+    });
+
+    // Schedule posts across the week
+    const now = new Date();
+    const createdPosts = [];
+    const preferredHours = [9, 12, 15, 17]; // Best posting hours
+
+    for (let i = 0; i < generatedPosts.length; i++) {
+      const post = generatedPosts[i];
+      const daysAhead = Math.floor(i / 2) + 1; // Spread across days
+      const hourIndex = i % preferredHours.length;
+
+      const scheduledDate = new Date(now);
+      scheduledDate.setDate(scheduledDate.getDate() + daysAhead);
+      scheduledDate.setHours(preferredHours[hourIndex], 0, 0, 0);
+
+      // Skip weekends if not desired (can be made configurable)
+      while (scheduledDate.getDay() === 0 || scheduledDate.getDay() === 6) {
+        scheduledDate.setDate(scheduledDate.getDate() + 1);
+      }
+
+      const status = settings.approvalMode === 'auto' ? 'scheduled' : 'draft';
+
+      const result = await pool.query(
+        `INSERT INTO social_media_posts
+         (id, user_id, organization_id, content, hashtags, status, scheduled_at, ai_generated, ai_prompt, content_category)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9)
+         RETURNING *`,
+        [
+          crypto.randomUUID(),
+          userId,
+          organizationId,
+          post.content,
+          post.hashtags,
+          status,
+          scheduledDate.toISOString(),
+          `Autopilot: ${post.theme}`,
+          post.category
+        ]
+      );
+
+      createdPosts.push(transformRow(result.rows[0]));
+    }
+
+    // Update last generated timestamp
+    await pool.query(
+      `UPDATE social_media_autopilot_settings SET last_generated = NOW() WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    res.json({
+      success: true,
+      generated: createdPosts.length,
+      posts: createdPosts,
+      message: settings.approvalMode === 'auto'
+        ? `${createdPosts.length} Posts wurden automatisch geplant.`
+        : `${createdPosts.length} Posts wurden als Entwürfe erstellt und warten auf Genehmigung.`
+    });
+  } catch (error) {
+    console.error('Autopilot generate error:', error);
+    res.status(500).json({ error: 'Failed to generate autopilot content' });
+  }
+});
+
+// POST /api/social-media/autopilot/approve - Approve/reject autopilot drafts
+router.post('/autopilot/approve', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { postIds, action } = req.body; // action: 'approve' | 'reject'
+
+    if (action === 'approve') {
+      await pool.query(
+        `UPDATE social_media_posts SET status = 'scheduled'
+         WHERE id = ANY($1) AND organization_id = $2 AND status = 'draft'`,
+        [postIds, organizationId]
+      );
+    } else {
+      await pool.query(
+        `DELETE FROM social_media_posts WHERE id = ANY($1) AND organization_id = $2 AND status = 'draft'`,
+        [postIds, organizationId]
+      );
+    }
+
+    res.json({ success: true, action, count: postIds.length });
+  } catch (error) {
+    console.error('Autopilot approve error:', error);
+    res.status(500).json({ error: 'Failed to process approval' });
+  }
+});
+
+// GET /api/social-media/autopilot/pending - Get pending autopilot posts for review
+router.get('/autopilot/pending', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await pool.query(
+      `SELECT * FROM social_media_posts
+       WHERE organization_id = $1 AND status = 'draft' AND ai_generated = true AND ai_prompt LIKE 'Autopilot:%'
+       ORDER BY scheduled_at`,
+      [organizationId]
+    );
+
+    res.json(transformRows(result.rows));
+  } catch (error) {
+    console.error('Get autopilot pending error:', error);
+    res.status(500).json({ error: 'Failed to get pending posts' });
+  }
+});
+
+// ============================================
+// TREND-SURFER
+// ============================================
+
+// GET /api/social-media/trends - Get current trends
+router.get('/trends', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const userId = req.user!.id;
+    const { industry } = req.query;
+
+    // Get trending topics using AI
+    const trends = await aiService.getTrendingTopics(userId, industry as string || 'technology');
+
+    res.json({ trends });
+  } catch (error) {
+    console.error('Get trends error:', error);
+    res.status(500).json({ error: 'Failed to get trends' });
+  }
+});
+
+// POST /api/social-media/trends/generate - Generate content from a trend
+router.post('/trends/generate', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const { trend, platform, tone, angle } = req.body;
+
+    // Get company context from past posts
+    const pastPostsResult = await pool.query(
+      `SELECT content FROM social_media_posts
+       WHERE organization_id = $1 AND status = 'published'
+       ORDER BY created_at DESC LIMIT 5`,
+      [organizationId]
+    );
+
+    const companyContext = pastPostsResult.rows.map(r => r.content).join('\n');
+
+    // Generate trend-based content
+    const result = await aiService.generateTrendContent(userId, {
+      trend,
+      platform: platform || 'linkedin',
+      tone: tone || 'professional',
+      angle: angle || 'informative', // 'opinion', 'analysis', 'how-to', 'news'
+      companyContext
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Generate trend content error:', error);
+    res.status(500).json({ error: 'Failed to generate trend content' });
+  }
+});
+
+// ============================================
+// CONTENT-REMIX-ENGINE
+// ============================================
+
+const remixContentSchema = z.object({
+  sourceContent: z.string().min(100).max(50000), // Long-form content (blog post, video transcript)
+  sourceType: z.enum(['blog', 'transcript', 'article', 'newsletter']),
+  outputFormats: z.array(z.object({
+    platform: z.enum(['linkedin', 'twitter', 'facebook', 'instagram', 'newsletter']),
+    count: z.number().min(1).max(20)
+  })),
+  preserveLinks: z.boolean().optional(),
+  includeHashtags: z.boolean().optional()
+});
+
+// POST /api/social-media/remix - Remix long-form content into social posts
+router.post('/remix', authenticateToken, attachOrganization, requireOrgRole('member'), validate(remixContentSchema), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const { sourceContent, sourceType, outputFormats, preserveLinks, includeHashtags } = req.body;
+
+    // Generate remixed content for each platform
+    const remixedContent = await aiService.remixContent(userId, {
+      sourceContent,
+      sourceType,
+      outputFormats,
+      preserveLinks: preserveLinks ?? true,
+      includeHashtags: includeHashtags ?? true
+    });
+
+    res.json({
+      success: true,
+      sourceLength: sourceContent.length,
+      sourceType,
+      outputs: remixedContent
+    });
+  } catch (error) {
+    console.error('Content remix error:', error);
+    res.status(500).json({ error: 'Failed to remix content' });
+  }
+});
+
+// POST /api/social-media/remix/save - Save remixed content as posts
+router.post('/remix/save', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const { posts, autoSchedule, startDate, postsPerDay } = req.body;
+
+    const createdPosts = [];
+    const now = new Date(startDate || new Date());
+    const preferredHours = [9, 12, 15, 17];
+    let dayOffset = 0;
+    let postsToday = 0;
+
+    for (const post of posts) {
+      let scheduledAt = null;
+
+      if (autoSchedule) {
+        const scheduledDate = new Date(now);
+        scheduledDate.setDate(scheduledDate.getDate() + dayOffset);
+        scheduledDate.setHours(preferredHours[postsToday % preferredHours.length], 0, 0, 0);
+
+        // Skip weekends
+        while (scheduledDate.getDay() === 0 || scheduledDate.getDay() === 6) {
+          scheduledDate.setDate(scheduledDate.getDate() + 1);
+        }
+
+        scheduledAt = scheduledDate.toISOString();
+        postsToday++;
+
+        if (postsToday >= (postsPerDay || 2)) {
+          postsToday = 0;
+          dayOffset++;
+        }
+      }
+
+      const result = await pool.query(
+        `INSERT INTO social_media_posts
+         (id, user_id, organization_id, content, hashtags, status, scheduled_at, ai_generated, ai_prompt)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true, 'Content Remix')
+         RETURNING *`,
+        [
+          crypto.randomUUID(),
+          userId,
+          organizationId,
+          post.content,
+          post.hashtags || [],
+          scheduledAt ? 'scheduled' : 'draft',
+          scheduledAt
+        ]
+      );
+
+      createdPosts.push(transformRow(result.rows[0]));
+    }
+
+    res.json({
+      success: true,
+      created: createdPosts.length,
+      posts: createdPosts
+    });
+  } catch (error) {
+    console.error('Save remixed posts error:', error);
+    res.status(500).json({ error: 'Failed to save remixed posts' });
+  }
+});
+
+// ============================================
+// COMPETITOR ANALYSIS
+// ============================================
+
+const competitorSchema = z.object({
+  name: z.string().min(1).max(200),
+  profiles: z.object({
+    linkedin: z.string().optional(),
+    twitter: z.string().optional(),
+    instagram: z.string().optional(),
+    facebook: z.string().optional(),
+    website: z.string().optional()
+  }),
+  notes: z.string().optional()
+});
+
+// GET /api/social-media/competitors - Get tracked competitors
+router.get('/competitors', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await pool.query(
+      `SELECT * FROM social_media_competitors WHERE organization_id = $1 ORDER BY created_at DESC`,
+      [organizationId]
+    );
+
+    res.json(transformRows(result.rows));
+  } catch (error) {
+    console.error('Get competitors error:', error);
+    res.status(500).json({ error: 'Failed to get competitors' });
+  }
+});
+
+// POST /api/social-media/competitors - Add a competitor to track
+router.post('/competitors', authenticateToken, attachOrganization, requireOrgRole('member'), validate(competitorSchema), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { name, profiles, notes } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO social_media_competitors (id, organization_id, name, profiles, notes)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [crypto.randomUUID(), organizationId, name, JSON.stringify(profiles), notes]
+    );
+
+    res.json(transformRow(result.rows[0]));
+  } catch (error) {
+    console.error('Add competitor error:', error);
+    res.status(500).json({ error: 'Failed to add competitor' });
+  }
+});
+
+// DELETE /api/social-media/competitors/:id - Delete a competitor
+router.delete('/competitors/:id', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+
+    await pool.query(
+      `DELETE FROM social_media_competitors WHERE id = $1 AND organization_id = $2`,
+      [id, organizationId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete competitor error:', error);
+    res.status(500).json({ error: 'Failed to delete competitor' });
+  }
+});
+
+// POST /api/social-media/competitors/:id/analyze - Analyze competitor and generate similar content
+router.post('/competitors/:id/analyze', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const { samplePosts, platform } = req.body; // User provides sample posts from competitor
+
+    // Get competitor info
+    const competitorResult = await pool.query(
+      `SELECT * FROM social_media_competitors WHERE id = $1 AND organization_id = $2`,
+      [id, organizationId]
+    );
+
+    if (competitorResult.rows.length === 0) {
+      res.status(404).json({ error: 'Competitor not found' });
+      return;
+    }
+
+    const competitor = transformRow(competitorResult.rows[0]);
+
+    // Get our own posts for brand voice
+    const ourPostsResult = await pool.query(
+      `SELECT content FROM social_media_posts
+       WHERE organization_id = $1 AND status = 'published'
+       ORDER BY created_at DESC LIMIT 10`,
+      [organizationId]
+    );
+
+    const ourBrandVoice = ourPostsResult.rows.map(r => r.content);
+
+    // Analyze competitor posts and generate inspired content
+    const analysis = await aiService.analyzeCompetitorAndGenerate(userId, {
+      competitorName: competitor.name,
+      competitorPosts: samplePosts,
+      ourBrandVoice,
+      platform: platform || 'linkedin',
+      generateCount: 5
+    });
+
+    // Save analysis
+    await pool.query(
+      `UPDATE social_media_competitors SET last_analyzed = NOW(), analysis_data = $1 WHERE id = $2`,
+      [JSON.stringify(analysis.insights), id]
+    );
+
+    res.json(analysis);
+  } catch (error) {
+    console.error('Competitor analysis error:', error);
+    res.status(500).json({ error: 'Failed to analyze competitor' });
+  }
+});
+
+// ============================================
+// SMART ENGAGEMENT BOT
+// ============================================
+
+const engagementSettingsSchema = z.object({
+  enabled: z.boolean(),
+  platforms: z.array(z.enum(['linkedin', 'twitter'])),
+  targetKeywords: z.array(z.string()).min(1).max(20),
+  targetAccounts: z.array(z.string()).max(50), // Accounts to engage with
+  responseStyle: z.enum(['thoughtful', 'supportive', 'inquisitive', 'expert']),
+  dailyLimit: z.number().min(1).max(50),
+  excludeKeywords: z.array(z.string()).optional()
+});
+
+// GET /api/social-media/engagement/settings - Get engagement bot settings
+router.get('/engagement/settings', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await pool.query(
+      `SELECT * FROM social_media_engagement_settings WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      res.json({
+        enabled: false,
+        platforms: [],
+        targetKeywords: [],
+        targetAccounts: [],
+        responseStyle: 'thoughtful',
+        dailyLimit: 10,
+        excludeKeywords: []
+      });
+      return;
+    }
+
+    res.json(transformRow(result.rows[0]));
+  } catch (error) {
+    console.error('Get engagement settings error:', error);
+    res.status(500).json({ error: 'Failed to get engagement settings' });
+  }
+});
+
+// PUT /api/social-media/engagement/settings - Update engagement bot settings
+router.put('/engagement/settings', authenticateToken, attachOrganization, requireOrgRole('member'), validate(engagementSettingsSchema), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { enabled, platforms, targetKeywords, targetAccounts, responseStyle, dailyLimit, excludeKeywords } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO social_media_engagement_settings
+       (organization_id, enabled, platforms, target_keywords, target_accounts, response_style, daily_limit, exclude_keywords)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (organization_id)
+       DO UPDATE SET
+         enabled = $2, platforms = $3, target_keywords = $4, target_accounts = $5,
+         response_style = $6, daily_limit = $7, exclude_keywords = $8, updated_at = NOW()
+       RETURNING *`,
+      [organizationId, enabled, platforms, targetKeywords, targetAccounts, responseStyle, dailyLimit, excludeKeywords || []]
+    );
+
+    res.json(transformRow(result.rows[0]));
+  } catch (error) {
+    console.error('Update engagement settings error:', error);
+    res.status(500).json({ error: 'Failed to update engagement settings' });
+  }
+});
+
+// POST /api/social-media/engagement/generate - Generate engagement responses
+router.post('/engagement/generate', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const { posts } = req.body; // Array of posts to generate responses for
+
+    // Get engagement settings
+    const settingsResult = await pool.query(
+      `SELECT * FROM social_media_engagement_settings WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    const settings = settingsResult.rows.length > 0
+      ? transformRow(settingsResult.rows[0])
+      : { responseStyle: 'thoughtful' };
+
+    // Get our brand voice from past posts
+    const ourPostsResult = await pool.query(
+      `SELECT content FROM social_media_posts
+       WHERE organization_id = $1 AND status = 'published'
+       ORDER BY created_at DESC LIMIT 10`,
+      [organizationId]
+    );
+
+    const brandVoice = ourPostsResult.rows.map(r => r.content);
+
+    // Generate responses
+    const responses = await aiService.generateEngagementResponses(userId, {
+      posts,
+      style: settings.responseStyle,
+      brandVoice
+    });
+
+    res.json({ responses });
+  } catch (error) {
+    console.error('Generate engagement responses error:', error);
+    res.status(500).json({ error: 'Failed to generate engagement responses' });
+  }
+});
+
+// GET /api/social-media/engagement/history - Get engagement history
+router.get('/engagement/history', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await pool.query(
+      `SELECT * FROM social_media_engagement_history
+       WHERE organization_id = $1
+       ORDER BY created_at DESC LIMIT 100`,
+      [organizationId]
+    );
+
+    res.json(transformRows(result.rows));
+  } catch (error) {
+    console.error('Get engagement history error:', error);
+    res.status(500).json({ error: 'Failed to get engagement history' });
+  }
+});
+
+// POST /api/social-media/engagement/log - Log an engagement action
+router.post('/engagement/log', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { platform, postUrl, authorName, originalContent, responseContent, responseType } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO social_media_engagement_history
+       (id, organization_id, platform, post_url, author_name, original_content, response_content, response_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [crypto.randomUUID(), organizationId, platform, postUrl, authorName, originalContent, responseContent, responseType]
+    );
+
+    res.json(transformRow(result.rows[0]));
+  } catch (error) {
+    console.error('Log engagement error:', error);
+    res.status(500).json({ error: 'Failed to log engagement' });
+  }
+});
+
 export default router;

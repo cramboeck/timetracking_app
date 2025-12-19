@@ -1468,3 +1468,484 @@ Keine weiteren Erklärungen, nur das JSON.`;
     throw new Error('Fehler beim Generieren der Content-Ideen');
   }
 }
+
+// ============================================
+// AUTOPILOT MODE
+// ============================================
+
+interface AutopilotOptions {
+  themes: string[];
+  targetAudience?: string;
+  brandVoice?: string;
+  platforms: string[];
+  postsCount: number;
+  contentMix?: { educational: number; promotional: number; behindTheScenes: number; trending: number };
+  pastPosts?: string[];
+}
+
+interface AutopilotPost {
+  content: string;
+  hashtags: string[];
+  theme: string;
+  category: string;
+}
+
+export async function generateAutopilotContent(
+  userId: string,
+  options: AutopilotOptions
+): Promise<AutopilotPost[]> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const contentMix = options.contentMix || { educational: 40, promotional: 20, behindTheScenes: 20, trending: 20 };
+  const pastPostsContext = options.pastPosts?.length
+    ? `\n\nBeispiele bisheriger Posts (lerne den Stil daraus):\n${options.pastPosts.slice(0, 5).join('\n---\n')}`
+    : '';
+
+  const prompt = `Du bist ein Social Media Manager für ein IT-Unternehmen. Generiere ${options.postsCount} einzigartige Social Media Posts.
+
+Themen: ${options.themes.join(', ')}
+Zielgruppe: ${options.targetAudience || 'Unternehmen und IT-Entscheider'}
+Markenstimme: ${options.brandVoice || 'professionell, kompetent, hilfreich'}
+Plattformen: ${options.platforms.join(', ')}
+
+Content-Mix (Verteilung in %):
+- Educational/Tipps: ${contentMix.educational}%
+- Promotional/Services: ${contentMix.promotional}%
+- Behind-the-scenes: ${contentMix.behindTheScenes}%
+- Trends/News: ${contentMix.trending}%
+${pastPostsContext}
+
+Anforderungen:
+- Jeder Post muss einzigartig und wertvoll sein
+- Passende Hashtags integrieren (3-5 pro Post)
+- Verschiedene Content-Typen gemäß Mix verteilen
+- Posts müssen zur Markenstimme passen
+- Auf Deutsch schreiben
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "posts": [
+    { "content": "Post-Inhalt mit #Hashtags", "theme": "Thema", "category": "educational|promotional|behindTheScenes|trending" }
+  ]
+}`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(config.apiKey, config.model, prompt, 6000, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
+  } else {
+    result = await callOpenAI(config.apiKey, config.model, prompt, 6000, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    const parsed = JSON.parse(jsonStr) as { posts: Array<{ content: string; theme: string; category: string }> };
+    const hashtagRegex = /#[\wäöüÄÖÜß]+/g;
+
+    return parsed.posts.map(post => ({
+      content: post.content,
+      hashtags: (post.content.match(hashtagRegex) || []) as string[],
+      theme: post.theme,
+      category: post.category
+    }));
+  } catch (error) {
+    console.error('Failed to parse autopilot response:', error);
+    throw new Error('Fehler beim Generieren der Autopilot-Inhalte');
+  }
+}
+
+// ============================================
+// TREND-SURFER
+// ============================================
+
+interface TrendTopic {
+  topic: string;
+  description: string;
+  relevance: 'high' | 'medium' | 'low';
+  suggestedAngles: string[];
+}
+
+export async function getTrendingTopics(userId: string, industry: string): Promise<TrendTopic[]> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const prompt = `Du bist ein Trend-Analyst für Social Media im Bereich ${industry}. Identifiziere aktuelle Trends und Themen, die gerade relevant sind.
+
+Analysiere:
+- Aktuelle technologische Entwicklungen
+- Branchenspezifische News
+- Saisonale Themen
+- Wiederkehrende Diskussionen in der Community
+
+Generiere 8-10 aktuelle Trends mit:
+- Kurzer Beschreibung
+- Relevanz-Bewertung
+- Vorgeschlagenen Blickwinkeln für Content
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "trends": [
+    {
+      "topic": "Trend-Name",
+      "description": "Kurze Beschreibung",
+      "relevance": "high|medium|low",
+      "suggestedAngles": ["Blickwinkel 1", "Blickwinkel 2"]
+    }
+  ]
+}`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(config.apiKey, config.model, prompt, 3000, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
+  } else {
+    result = await callOpenAI(config.apiKey, config.model, prompt, 3000, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    const parsed = JSON.parse(jsonStr) as { trends: TrendTopic[] };
+    return parsed.trends;
+  } catch (error) {
+    console.error('Failed to parse trends response:', error);
+    throw new Error('Fehler beim Abrufen der Trends');
+  }
+}
+
+interface TrendContentOptions {
+  trend: string;
+  platform: string;
+  tone: string;
+  angle: string;
+  companyContext?: string;
+}
+
+export async function generateTrendContent(
+  userId: string,
+  options: TrendContentOptions
+): Promise<{ content: string; hashtags: string[] }> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const contextInfo = options.companyContext
+    ? `\n\nKontext des Unternehmens (basierend auf bisherigen Posts):\n${options.companyContext}`
+    : '';
+
+  const prompt = `Erstelle einen Social Media Post zu einem aktuellen Trend.
+
+Trend: ${options.trend}
+Plattform: ${options.platform}
+Tonalität: ${options.tone}
+Blickwinkel: ${options.angle} (z.B. Meinung, Analyse, How-to, News-Kommentar)
+${contextInfo}
+
+Der Post sollte:
+- Aktuell und relevant wirken
+- Den Trend aus Sicht eines IT-Unternehmens kommentieren
+- Mehrwert bieten
+- Passende Hashtags enthalten
+- Zur Diskussion anregen
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "content": "Der Post-Inhalt mit #Hashtags",
+  "hashtags": ["#hashtag1", "#hashtag2"]
+}`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(config.apiKey, config.model, prompt, 1500, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
+  } else {
+    result = await callOpenAI(config.apiKey, config.model, prompt, 1500, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    return JSON.parse(jsonStr);
+  } catch (error) {
+    console.error('Failed to parse trend content:', error);
+    throw new Error('Fehler beim Generieren des Trend-Contents');
+  }
+}
+
+// ============================================
+// CONTENT-REMIX-ENGINE
+// ============================================
+
+interface RemixOptions {
+  sourceContent: string;
+  sourceType: 'blog' | 'transcript' | 'article' | 'newsletter';
+  outputFormats: Array<{ platform: string; count: number }>;
+  preserveLinks: boolean;
+  includeHashtags: boolean;
+}
+
+interface RemixedOutput {
+  platform: string;
+  posts: Array<{ content: string; hashtags: string[] }>;
+}
+
+export async function remixContent(userId: string, options: RemixOptions): Promise<RemixedOutput[]> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const outputs: RemixedOutput[] = [];
+
+  for (const format of options.outputFormats) {
+    const platformLimits: Record<string, number> = {
+      linkedin: 3000,
+      twitter: 280,
+      facebook: 63206,
+      instagram: 2200,
+      newsletter: 5000
+    };
+
+    const limit = platformLimits[format.platform] || 2000;
+
+    const prompt = `Du bist ein Content-Repurposing-Experte. Wandle den folgenden ${options.sourceType} in ${format.count} ${format.platform}-Posts um.
+
+QUELL-CONTENT:
+"""
+${options.sourceContent.substring(0, 8000)}
+"""
+
+Anforderungen für ${format.platform}:
+- Maximale Länge: ${limit} Zeichen
+- Extrahiere die wichtigsten Punkte/Insights
+- Jeder Post muss eigenständig wertvoll sein
+- ${options.includeHashtags ? 'Füge relevante Hashtags hinzu' : 'Keine Hashtags'}
+- ${options.preserveLinks ? 'Behalte wichtige Links bei' : 'Keine Links'}
+- Passe Ton und Stil an ${format.platform} an
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "posts": [
+    { "content": "Post-Inhalt", "hashtags": ["#tag1", "#tag2"] }
+  ]
+}`;
+
+    let result: { content: string; tokensUsed: number };
+    if (config.provider === 'anthropic') {
+      result = await callAnthropic(config.apiKey, config.model, prompt, 4000, 0.6, SOCIAL_MEDIA_SYSTEM_PROMPT);
+    } else {
+      result = await callOpenAI(config.apiKey, config.model, prompt, 4000, 0.6, SOCIAL_MEDIA_SYSTEM_PROMPT);
+    }
+
+    try {
+      let jsonStr = result.content.trim();
+      if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+      const parsed = JSON.parse(jsonStr) as { posts: Array<{ content: string; hashtags?: string[] }> };
+      outputs.push({
+        platform: format.platform,
+        posts: parsed.posts.map(p => ({
+          content: p.content,
+          hashtags: p.hashtags || []
+        }))
+      });
+    } catch (error) {
+      console.error(`Failed to parse remix for ${format.platform}:`, error);
+      outputs.push({ platform: format.platform, posts: [] });
+    }
+  }
+
+  return outputs;
+}
+
+// ============================================
+// COMPETITOR ANALYSIS
+// ============================================
+
+interface CompetitorAnalysisOptions {
+  competitorName: string;
+  competitorPosts: string[];
+  ourBrandVoice: string[];
+  platform: string;
+  generateCount: number;
+}
+
+interface CompetitorAnalysis {
+  insights: {
+    postingFrequency: string;
+    contentTypes: string[];
+    topTopics: string[];
+    engagementTactics: string[];
+    strengths: string[];
+    opportunities: string[];
+  };
+  generatedPosts: Array<{ content: string; hashtags: string[]; inspiration: string }>;
+}
+
+export async function analyzeCompetitorAndGenerate(
+  userId: string,
+  options: CompetitorAnalysisOptions
+): Promise<CompetitorAnalysis> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const ourPostsContext = options.ourBrandVoice.length
+    ? `\n\nUnsere bisherigen Posts (Markenstimme):\n${options.ourBrandVoice.slice(0, 5).join('\n---\n')}`
+    : '';
+
+  const prompt = `Analysiere die Social Media Strategie eines Konkurrenten und generiere inspirierten (aber einzigartigen) Content.
+
+KONKURRENT: ${options.competitorName}
+
+KONKURRENTEN-POSTS:
+"""
+${options.competitorPosts.join('\n---\n')}
+"""
+${ourPostsContext}
+
+AUFGABE:
+1. Analysiere die Posts des Konkurrenten:
+   - Häufigkeit und Timing
+   - Content-Typen (Educational, Promotional, etc.)
+   - Top-Themen
+   - Engagement-Taktiken
+   - Stärken und Schwächen
+
+2. Generiere ${options.generateCount} Posts für ${options.platform}:
+   - Inspiriert von erfolgreichen Elementen des Konkurrenten
+   - Aber einzigartig und in unserer Markenstimme
+   - Nicht kopieren, sondern besser machen!
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "insights": {
+    "postingFrequency": "Beschreibung",
+    "contentTypes": ["Typ1", "Typ2"],
+    "topTopics": ["Topic1", "Topic2"],
+    "engagementTactics": ["Taktik1", "Taktik2"],
+    "strengths": ["Stärke1", "Stärke2"],
+    "opportunities": ["Chance1", "Chance2"]
+  },
+  "generatedPosts": [
+    { "content": "Post mit #Hashtags", "hashtags": ["#tag"], "inspiration": "Was wir übernommen haben" }
+  ]
+}`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(config.apiKey, config.model, prompt, 5000, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
+  } else {
+    result = await callOpenAI(config.apiKey, config.model, prompt, 5000, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    return JSON.parse(jsonStr);
+  } catch (error) {
+    console.error('Failed to parse competitor analysis:', error);
+    throw new Error('Fehler bei der Konkurrenzanalyse');
+  }
+}
+
+// ============================================
+// SMART ENGAGEMENT BOT
+// ============================================
+
+interface EngagementOptions {
+  posts: Array<{ author: string; content: string; platform: string }>;
+  style: 'thoughtful' | 'supportive' | 'inquisitive' | 'expert';
+  brandVoice: string[];
+}
+
+interface EngagementResponse {
+  originalPost: string;
+  author: string;
+  response: string;
+  responseType: 'comment' | 'compliment' | 'question' | 'insight';
+}
+
+export async function generateEngagementResponses(
+  userId: string,
+  options: EngagementOptions
+): Promise<EngagementResponse[]> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const styleDescriptions: Record<string, string> = {
+    thoughtful: 'Nachdenklich und tiefgründig, füge wertvolle Perspektiven hinzu',
+    supportive: 'Unterstützend und ermutigend, zeige echte Wertschätzung',
+    inquisitive: 'Neugierig und fragend, stelle interessante Follow-up-Fragen',
+    expert: 'Kompetent und fachlich, teile relevantes Expertenwissen'
+  };
+
+  const brandContext = options.brandVoice.length
+    ? `\n\nUnsere Markenstimme (basierend auf bisherigen Posts):\n${options.brandVoice.slice(0, 3).join('\n---\n')}`
+    : '';
+
+  const postsJson = options.posts.map(p => `Autor: ${p.author}\nPlattform: ${p.platform}\nPost: ${p.content}`).join('\n\n---\n\n');
+
+  const prompt = `Du bist ein Social Media Engagement-Spezialist. Generiere authentische, wertvolle Kommentare zu den folgenden Posts.
+
+STIL: ${styleDescriptions[options.style]}
+${brandContext}
+
+POSTS ZUM KOMMENTIEREN:
+${postsJson}
+
+REGELN:
+- Keine generischen Kommentare ("Toller Post!")
+- Beziehe dich konkret auf den Inhalt
+- Füge echten Mehrwert hinzu
+- Bleibe authentisch und menschlich
+- Keine Eigenwerbung, aber subtile Expertise zeigen
+- Auf Deutsch antworten
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "responses": [
+    {
+      "originalPost": "Kurze Zusammenfassung des Posts",
+      "author": "Autor-Name",
+      "response": "Der Kommentar-Text",
+      "responseType": "comment|compliment|question|insight"
+    }
+  ]
+}`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(config.apiKey, config.model, prompt, 3000, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
+  } else {
+    result = await callOpenAI(config.apiKey, config.model, prompt, 3000, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    const parsed = JSON.parse(jsonStr) as { responses: EngagementResponse[] };
+    return parsed.responses;
+  } catch (error) {
+    console.error('Failed to parse engagement responses:', error);
+    throw new Error('Fehler beim Generieren der Engagement-Antworten');
+  }
+}

@@ -3977,6 +3977,247 @@ export const socialMediaApi = {
   }> => {
     return authFetch(`/social-media/analytics/performance${period ? `?period=${period}` : ''}`);
   },
+
+  // ============================================
+  // AUTOPILOT MODE
+  // ============================================
+
+  getAutopilotSettings: async (): Promise<{
+    enabled: boolean;
+    postsPerWeek: number;
+    contentThemes: string[];
+    targetAudience: string;
+    brandVoice: string;
+    approvalMode: 'auto' | 'review';
+    platforms: string[];
+    contentMix: { educational: number; promotional: number; behindTheScenes: number; trending: number };
+    lastGenerated: string | null;
+  }> => {
+    return authFetch('/social-media/autopilot/settings');
+  },
+
+  updateAutopilotSettings: async (settings: {
+    enabled: boolean;
+    postsPerWeek: number;
+    contentThemes: string[];
+    targetAudience?: string;
+    brandVoice?: string;
+    approvalMode: 'auto' | 'review';
+    platforms: string[];
+    contentMix?: { educational: number; promotional: number; behindTheScenes: number; trending: number };
+  }): Promise<any> => {
+    return authFetch('/social-media/autopilot/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  },
+
+  generateAutopilotContent: async (): Promise<{
+    success: boolean;
+    generated: number;
+    posts: SocialMediaPost[];
+    message: string;
+  }> => {
+    return authFetch('/social-media/autopilot/generate', { method: 'POST' });
+  },
+
+  getAutopilotPending: async (): Promise<SocialMediaPost[]> => {
+    return authFetch('/social-media/autopilot/pending');
+  },
+
+  approveAutopilotPosts: async (postIds: string[], action: 'approve' | 'reject'): Promise<{ success: boolean; action: string; count: number }> => {
+    return authFetch('/social-media/autopilot/approve', {
+      method: 'POST',
+      body: JSON.stringify({ postIds, action }),
+    });
+  },
+
+  // ============================================
+  // TREND-SURFER
+  // ============================================
+
+  getTrends: async (industry?: string): Promise<{
+    trends: Array<{
+      topic: string;
+      description: string;
+      relevance: 'high' | 'medium' | 'low';
+      suggestedAngles: string[];
+    }>;
+  }> => {
+    return authFetch(`/social-media/trends${industry ? `?industry=${encodeURIComponent(industry)}` : ''}`);
+  },
+
+  generateTrendContent: async (options: {
+    trend: string;
+    platform?: string;
+    tone?: string;
+    angle?: string;
+  }): Promise<{ content: string; hashtags: string[] }> => {
+    return authFetch('/social-media/trends/generate', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  // ============================================
+  // CONTENT-REMIX-ENGINE
+  // ============================================
+
+  remixContent: async (options: {
+    sourceContent: string;
+    sourceType: 'blog' | 'transcript' | 'article' | 'newsletter';
+    outputFormats: Array<{ platform: string; count: number }>;
+    preserveLinks?: boolean;
+    includeHashtags?: boolean;
+  }): Promise<{
+    success: boolean;
+    sourceLength: number;
+    sourceType: string;
+    outputs: Array<{
+      platform: string;
+      posts: Array<{ content: string; hashtags: string[] }>;
+    }>;
+  }> => {
+    return authFetch('/social-media/remix', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  saveRemixedPosts: async (options: {
+    posts: Array<{ content: string; hashtags?: string[] }>;
+    autoSchedule?: boolean;
+    startDate?: string;
+    postsPerDay?: number;
+  }): Promise<{ success: boolean; created: number; posts: SocialMediaPost[] }> => {
+    return authFetch('/social-media/remix/save', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  // ============================================
+  // COMPETITOR ANALYSIS
+  // ============================================
+
+  getCompetitors: async (): Promise<Array<{
+    id: string;
+    name: string;
+    profiles: { linkedin?: string; twitter?: string; instagram?: string; facebook?: string; website?: string };
+    notes?: string;
+    lastAnalyzed?: string;
+    analysisData?: any;
+    createdAt: string;
+  }>> => {
+    return authFetch('/social-media/competitors');
+  },
+
+  addCompetitor: async (data: {
+    name: string;
+    profiles: { linkedin?: string; twitter?: string; instagram?: string; facebook?: string; website?: string };
+    notes?: string;
+  }): Promise<any> => {
+    return authFetch('/social-media/competitors', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteCompetitor: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/competitors/${id}`, { method: 'DELETE' });
+  },
+
+  analyzeCompetitor: async (id: string, options: {
+    samplePosts: string[];
+    platform?: string;
+  }): Promise<{
+    insights: {
+      postingFrequency: string;
+      contentTypes: string[];
+      topTopics: string[];
+      engagementTactics: string[];
+      strengths: string[];
+      opportunities: string[];
+    };
+    generatedPosts: Array<{ content: string; hashtags: string[]; inspiration: string }>;
+  }> => {
+    return authFetch(`/social-media/competitors/${id}/analyze`, {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  // ============================================
+  // SMART ENGAGEMENT BOT
+  // ============================================
+
+  getEngagementSettings: async (): Promise<{
+    enabled: boolean;
+    platforms: string[];
+    targetKeywords: string[];
+    targetAccounts: string[];
+    responseStyle: 'thoughtful' | 'supportive' | 'inquisitive' | 'expert';
+    dailyLimit: number;
+    excludeKeywords: string[];
+  }> => {
+    return authFetch('/social-media/engagement/settings');
+  },
+
+  updateEngagementSettings: async (settings: {
+    enabled: boolean;
+    platforms: string[];
+    targetKeywords: string[];
+    targetAccounts?: string[];
+    responseStyle: 'thoughtful' | 'supportive' | 'inquisitive' | 'expert';
+    dailyLimit: number;
+    excludeKeywords?: string[];
+  }): Promise<any> => {
+    return authFetch('/social-media/engagement/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  },
+
+  generateEngagementResponses: async (posts: Array<{ author: string; content: string; platform: string }>): Promise<{
+    responses: Array<{
+      originalPost: string;
+      author: string;
+      response: string;
+      responseType: 'comment' | 'compliment' | 'question' | 'insight';
+    }>;
+  }> => {
+    return authFetch('/social-media/engagement/generate', {
+      method: 'POST',
+      body: JSON.stringify({ posts }),
+    });
+  },
+
+  getEngagementHistory: async (): Promise<Array<{
+    id: string;
+    platform: string;
+    postUrl?: string;
+    authorName?: string;
+    originalContent?: string;
+    responseContent?: string;
+    responseType: string;
+    createdAt: string;
+  }>> => {
+    return authFetch('/social-media/engagement/history');
+  },
+
+  logEngagement: async (data: {
+    platform: string;
+    postUrl?: string;
+    authorName?: string;
+    originalContent?: string;
+    responseContent?: string;
+    responseType: string;
+  }): Promise<any> => {
+    return authFetch('/social-media/engagement/log', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 export default {
