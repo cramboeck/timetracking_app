@@ -5,6 +5,8 @@ import { Modal } from './Modal';
 
 interface PreviewData {
   rowCount: number;
+  skippedCount: number;
+  skippedRows: Array<{ line: number; reason: string; data: string }>;
   totalDuration: number;
   totalHours: string;
   customers: Array<{ name: string; nummer: string; matchedId?: string }>;
@@ -197,11 +199,17 @@ export const ClockodoImport = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
             <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3">
               <div className="text-2xl font-bold text-accent-primary">{previewData.rowCount}</div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">Einträge</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Gültige Einträge</div>
             </div>
+            {previewData.skippedCount > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
+                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{previewData.skippedCount}</div>
+                <div className="text-sm text-amber-700 dark:text-amber-300">Übersprungen</div>
+              </div>
+            )}
             <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3">
               <div className="text-2xl font-bold text-accent-primary">{previewData.totalHours}h</div>
               <div className="text-sm text-gray-500 dark:text-gray-400">Stunden gesamt</div>
@@ -215,6 +223,27 @@ export const ClockodoImport = () => {
               <div className="text-sm text-gray-500 dark:text-gray-400">Projekte</div>
             </div>
           </div>
+
+          {/* Skipped Rows Warning */}
+          {previewData.skippedRows && previewData.skippedRows.length > 0 && (
+            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <h4 className="font-medium text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-2">
+                <AlertCircle size={18} />
+                {previewData.skippedCount} Zeilen übersprungen
+              </h4>
+              <div className="space-y-1 max-h-32 overflow-y-auto text-sm">
+                {previewData.skippedRows.map((row, idx) => (
+                  <div key={idx} className="flex gap-2 text-amber-700 dark:text-amber-400">
+                    <span className="font-mono text-xs bg-amber-100 dark:bg-amber-900/50 px-1 rounded">
+                      Zeile {row.line}
+                    </span>
+                    <span>{row.reason}</span>
+                    <span className="text-amber-600 dark:text-amber-500 truncate">({row.data})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Customer Matching Status */}
           <div className="mb-4">
@@ -240,22 +269,28 @@ export const ClockodoImport = () => {
 
           {/* Sample Rows */}
           <div className="mb-6">
-            <h4 className="font-medium mb-2 dark:text-white">Vorschau (erste 5 Zeilen)</h4>
-            <div className="overflow-x-auto">
+            <h4 className="font-medium mb-2 dark:text-white">
+              Vorschau ({Math.min(previewData.sampleRows.length, 20)} von {previewData.rowCount} Zeilen)
+            </h4>
+            <div className="overflow-x-auto max-h-80 overflow-y-auto border dark:border-dark-200 rounded-lg">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 bg-gray-50 dark:bg-dark-200">
                   <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-dark-200">
+                    <th className="py-2 px-2">#</th>
                     <th className="py-2 px-2">Datum</th>
                     <th className="py-2 px-2">Kunde</th>
+                    <th className="py-2 px-2">Projekt</th>
                     <th className="py-2 px-2">Beschreibung</th>
                     <th className="py-2 px-2">Stunden</th>
                   </tr>
                 </thead>
                 <tbody>
                   {previewData.sampleRows.map((row, idx) => (
-                    <tr key={idx} className="border-b dark:border-dark-200">
+                    <tr key={idx} className="border-b dark:border-dark-200 hover:bg-gray-50 dark:hover:bg-dark-200">
+                      <td className="py-2 px-2 text-gray-400 dark:text-gray-500 text-xs">{idx + 1}</td>
                       <td className="py-2 px-2 dark:text-gray-300">{row.tag}</td>
                       <td className="py-2 px-2 dark:text-gray-300">{row.kunde}</td>
+                      <td className="py-2 px-2 dark:text-gray-300 text-gray-500">{row.projekt || '-'}</td>
                       <td className="py-2 px-2 dark:text-gray-300 truncate max-w-[200px]">{row.beschreibung}</td>
                       <td className="py-2 px-2 dark:text-gray-300">{row.stunden}</td>
                     </tr>

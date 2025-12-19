@@ -29,9 +29,9 @@ function parseDurationToSeconds(durationStr: string): number {
 }
 
 // Parse CSV with semicolon separator and quoted fields
-function parseClockodoCsv(csvContent: string): ClockodoRow[] {
+function parseClockodoCsv(csvContent: string): { rows: ClockodoRow[]; skippedRows: Array<{ line: number; reason: string; data: string }> } {
   const lines = csvContent.trim().split('\n');
-  if (lines.length < 2) return [];
+  if (lines.length < 2) return { rows: [], skippedRows: [] };
 
   // Parse header to get column indices
   const headerLine = lines[0];
@@ -59,6 +59,8 @@ function parseClockodoCsv(csvContent: string): ClockodoRow[] {
   });
 
   const rows: ClockodoRow[] = [];
+  const skippedRows: Array<{ line: number; reason: string; data: string }> = [];
+
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
@@ -77,13 +79,36 @@ function parseClockodoCsv(csvContent: string): ClockodoRow[] {
       umsatz: values[headerIndices.umsatz ?? -1] || ''
     };
 
-    // Only add rows with valid date and duration
-    if (row.tag && row.stunden && row.kunde) {
-      rows.push(row);
+    // Check for required fields and track why rows are skipped
+    const missingFields: string[] = [];
+    if (!row.tag) missingFields.push('Datum');
+    if (!row.stunden) missingFields.push('Stunden');
+    if (!row.kunde) missingFields.push('Kunde');
+
+    if (missingFields.length > 0) {
+      skippedRows.push({
+        line: i + 1,
+        reason: `Fehlende Felder: ${missingFields.join(', ')}`,
+        data: `${row.kunde || '?'} | ${row.tag || '?'} | ${row.stunden || '?'}`
+      });
+      continue;
     }
+
+    // Check if duration is valid
+    const durationSeconds = parseDurationToSeconds(row.stunden);
+    if (durationSeconds <= 0) {
+      skippedRows.push({
+        line: i + 1,
+        reason: `Ungültige Dauer: "${row.stunden}"`,
+        data: `${row.kunde} | ${row.tag} | ${row.stunden}`
+      });
+      continue;
+    }
+
+    rows.push(row);
   }
 
-  return rows;
+  return { rows, skippedRows };
 }
 
 // Parse a single CSV line handling quoted fields
@@ -127,10 +152,13 @@ router.post('/clockodo/preview', authenticateToken, attachOrganization, requireO
     }
 
     // Parse CSV
-    const rows = parseClockodoCsv(csvContent);
+    const { rows, skippedRows } = parseClockodoCsv(csvContent);
 
     if (rows.length === 0) {
-      return res.status(400).json({ error: 'No valid entries found in CSV' });
+      return res.status(400).json({
+        error: 'No valid entries found in CSV',
+        skippedRows: skippedRows.slice(0, 20)
+      });
     }
 
     // Get existing customers and projects
@@ -193,11 +221,13 @@ router.post('/clockodo/preview', authenticateToken, attachOrganization, requireO
       success: true,
       data: {
         rowCount: rows.length,
+        skippedCount: skippedRows.length,
+        skippedRows: skippedRows.slice(0, 20), // Show first 20 skipped rows
         totalDuration,
         totalHours: (totalDuration / 3600).toFixed(2),
         customers: Array.from(uniqueCustomers.values()),
         projects: Array.from(uniqueProjects.values()),
-        sampleRows: rows.slice(0, 5),
+        sampleRows: rows.slice(0, 20), // Show first 20 rows instead of 5
         existingCustomers: customers.map(c => ({ id: c.id, name: c.name })),
         existingProjects: projects.map(p => ({ id: p.id, name: p.name, customerName: p.customer_name, customerId: p.customer_id }))
       }
@@ -225,7 +255,7 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
     }
 
     // Parse CSV
-    const rows = parseClockodoCsv(csvContent);
+    const { rows } = parseClockodoCsv(csvContent);
 
     if (rows.length === 0) {
       return res.status(400).json({ error: 'No valid entries found in CSV' });
