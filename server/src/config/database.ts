@@ -2495,6 +2495,109 @@ export async function initializeDatabase() {
 
     console.log('✅ Invoice Export tables created');
 
+    // ============================================
+    // Social Media Manager
+    // ============================================
+
+    // Social media accounts - connected platform accounts
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_accounts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        platform TEXT NOT NULL CHECK(platform IN ('linkedin', 'twitter', 'facebook', 'instagram')),
+        account_name TEXT NOT NULL,
+        account_id TEXT,
+        access_token TEXT,
+        refresh_token TEXT,
+        token_expires_at TIMESTAMP,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Social media posts - planned and published posts
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_posts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+        title TEXT,
+        content TEXT NOT NULL,
+        media_urls TEXT[],
+        hashtags TEXT[],
+        status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'scheduled', 'published', 'failed')),
+        scheduled_at TIMESTAMP,
+        published_at TIMESTAMP,
+        ai_generated BOOLEAN DEFAULT false,
+        ai_prompt TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Social media post platforms - which platforms each post targets
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_post_platforms (
+        id TEXT PRIMARY KEY,
+        post_id TEXT NOT NULL REFERENCES social_media_posts(id) ON DELETE CASCADE,
+        account_id TEXT NOT NULL REFERENCES social_media_accounts(id) ON DELETE CASCADE,
+        platform_post_id TEXT,
+        platform_content TEXT,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'published', 'failed')),
+        error_message TEXT,
+        published_at TIMESTAMP,
+        engagement_likes INTEGER DEFAULT 0,
+        engagement_comments INTEGER DEFAULT 0,
+        engagement_shares INTEGER DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Social media templates - reusable content templates
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_templates (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        content TEXT NOT NULL,
+        platform TEXT CHECK(platform IN ('linkedin', 'twitter', 'facebook', 'instagram', 'all')),
+        category TEXT,
+        hashtags TEXT[],
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Social media hashtag groups - collections of hashtags
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_hashtag_groups (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        hashtags TEXT[] NOT NULL,
+        category TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Create indexes for social media tables
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_accounts_user ON social_media_accounts(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_accounts_org ON social_media_accounts(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_posts_user ON social_media_posts(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_posts_org ON social_media_posts(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_posts_status ON social_media_posts(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_posts_scheduled ON social_media_posts(scheduled_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_post_platforms_post ON social_media_post_platforms(post_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_templates_user ON social_media_templates(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_hashtags_user ON social_media_hashtag_groups(user_id)');
+
+    console.log('✅ Social Media Manager tables created');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

@@ -1,7 +1,7 @@
 import {
   Clock, List, Calendar,
   Ticket, Monitor, Bell, Wrench,
-  BarChart3, Wallet, FileText, FileSignature,
+  BarChart3, Wallet, FileText, FileSignature, Share2,
   Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo
 } from 'lucide-react';
 import { useFeatures } from '../contexts/FeaturesContext';
@@ -16,7 +16,7 @@ export type SubView =
   // Support
   | 'tickets' | 'devices' | 'alerts' | 'maintenance'
   // Business
-  | 'dashboard' | 'billing' | 'reports' | 'contracts'
+  | 'dashboard' | 'billing' | 'reports' | 'contracts' | 'social-media'
   // Settings (special)
   | 'settings';
 
@@ -55,6 +55,7 @@ const areaConfig = {
       { view: 'dashboard' as SubView, icon: BarChart3, label: 'Dashboard' },
       { view: 'contracts' as SubView, icon: FileSignature, label: 'Verträge' },
       { view: 'billing' as SubView, icon: Wallet, label: 'Finanzen' },
+      { view: 'social-media' as SubView, icon: Share2, label: 'Social Media' },
       { view: 'reports' as SubView, icon: FileText, label: 'Berichte' },
     ],
   },
@@ -183,7 +184,7 @@ export const AreaNavigation = ({
 export const getAreaFromSubView = (subView: SubView): Area => {
   if (['stopwatch', 'list', 'calendar', 'manual', 'tasks'].includes(subView)) return 'arbeiten';
   if (['tickets', 'devices', 'alerts', 'maintenance'].includes(subView)) return 'support';
-  if (['dashboard', 'billing', 'reports', 'contracts'].includes(subView)) return 'business';
+  if (['dashboard', 'billing', 'reports', 'contracts', 'social-media'].includes(subView)) return 'business';
   return 'arbeiten'; // Default
 };
 

@@ -3585,6 +3585,220 @@ export const importApi = {
   },
 };
 
+// ============================================
+// Social Media API
+// ============================================
+
+export interface SocialMediaPost {
+  id: string;
+  userId: string;
+  organizationId: string;
+  customerId?: string;
+  customerName?: string;
+  title?: string;
+  content: string;
+  mediaUrls: string[];
+  hashtags: string[];
+  status: 'draft' | 'scheduled' | 'published' | 'failed';
+  scheduledAt?: string;
+  publishedAt?: string;
+  aiGenerated: boolean;
+  aiPrompt?: string;
+  platforms?: SocialMediaPostPlatform[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialMediaPostPlatform {
+  id: string;
+  postId: string;
+  accountId: string;
+  platform: string;
+  accountName: string;
+  platformPostId?: string;
+  platformContent?: string;
+  status: 'pending' | 'published' | 'failed';
+  errorMessage?: string;
+  publishedAt?: string;
+  engagementLikes: number;
+  engagementComments: number;
+  engagementShares: number;
+}
+
+export interface SocialMediaAccount {
+  id: string;
+  platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram';
+  accountName: string;
+  accountId?: string;
+  isActive: boolean;
+  tokenExpired: boolean;
+  createdAt: string;
+}
+
+export interface SocialMediaTemplate {
+  id: string;
+  name: string;
+  content: string;
+  platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+  category?: string;
+  hashtags: string[];
+  createdAt: string;
+}
+
+export interface SocialMediaHashtagGroup {
+  id: string;
+  name: string;
+  hashtags: string[];
+  category?: string;
+  createdAt: string;
+}
+
+export const socialMediaApi = {
+  // Posts
+  getPosts: async (filters?: { status?: string; customerId?: string; startDate?: string; endDate?: string }): Promise<SocialMediaPost[]> => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.customerId) params.append('customerId', filters.customerId);
+    if (filters?.startDate) params.append('startDate', filters.startDate);
+    if (filters?.endDate) params.append('endDate', filters.endDate);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return authFetch(`/social-media/posts${query}`);
+  },
+
+  getPost: async (id: string): Promise<SocialMediaPost> => {
+    return authFetch(`/social-media/posts/${id}`);
+  },
+
+  createPost: async (data: {
+    title?: string;
+    content: string;
+    mediaUrls?: string[];
+    hashtags?: string[];
+    scheduledAt?: string;
+    customerId?: string;
+    platforms?: string[];
+    aiGenerated?: boolean;
+    aiPrompt?: string;
+  }): Promise<SocialMediaPost> => {
+    return authFetch('/social-media/posts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updatePost: async (id: string, data: {
+    title?: string;
+    content?: string;
+    mediaUrls?: string[];
+    hashtags?: string[];
+    scheduledAt?: string | null;
+    status?: 'draft' | 'scheduled' | 'published' | 'failed';
+  }): Promise<SocialMediaPost> => {
+    return authFetch(`/social-media/posts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deletePost: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/posts/${id}`, { method: 'DELETE' });
+  },
+
+  // Templates
+  getTemplates: async (): Promise<SocialMediaTemplate[]> => {
+    return authFetch('/social-media/templates');
+  },
+
+  createTemplate: async (data: {
+    name: string;
+    content: string;
+    platform?: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+    category?: string;
+    hashtags?: string[];
+  }): Promise<SocialMediaTemplate> => {
+    return authFetch('/social-media/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteTemplate: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/templates/${id}`, { method: 'DELETE' });
+  },
+
+  // Hashtag Groups
+  getHashtagGroups: async (): Promise<SocialMediaHashtagGroup[]> => {
+    return authFetch('/social-media/hashtags');
+  },
+
+  createHashtagGroup: async (data: {
+    name: string;
+    hashtags: string[];
+    category?: string;
+  }): Promise<SocialMediaHashtagGroup> => {
+    return authFetch('/social-media/hashtags', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteHashtagGroup: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/hashtags/${id}`, { method: 'DELETE' });
+  },
+
+  // Accounts
+  getAccounts: async (): Promise<SocialMediaAccount[]> => {
+    return authFetch('/social-media/accounts');
+  },
+
+  createAccount: async (data: {
+    platform: string;
+    accountName: string;
+    accountId?: string;
+    accessToken?: string;
+    refreshToken?: string;
+    tokenExpiresAt?: string;
+  }): Promise<SocialMediaAccount> => {
+    return authFetch('/social-media/accounts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteAccount: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/accounts/${id}`, { method: 'DELETE' });
+  },
+
+  // AI Generation
+  generateContent: async (data: {
+    topic: string;
+    platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+    tone?: 'professional' | 'casual' | 'humorous' | 'informative';
+    includeHashtags?: boolean;
+    includeEmoji?: boolean;
+    customerId?: string;
+  }): Promise<{ content: string; hashtags: string[]; platform: string; prompt: string }> => {
+    return authFetch('/social-media/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Calendar
+  getCalendar: async (month: number, year: number): Promise<SocialMediaPost[]> => {
+    return authFetch(`/social-media/calendar?month=${month}&year=${year}`);
+  },
+
+  // Statistics
+  getStats: async (): Promise<{
+    posts: { drafts: number; scheduled: number; published: number; total: number };
+    platforms: Array<{ platform: string; postCount: number }>;
+    upcomingScheduled: number;
+  }> => {
+    return authFetch('/social-media/stats');
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -3601,4 +3815,5 @@ export default {
   tasks: tasksApi,
   contracts: contractsApi,
   import: importApi,
+  socialMedia: socialMediaApi,
 };
