@@ -486,11 +486,11 @@ export const ReportAssistant = ({
       const projectData = Array.from(projectBreakdown.values()).sort((a, b) => b.hours - a.hours);
 
       if (projectData.length > 0) {
-        // Donut chart configuration
-        const centerX = margin + 35;
-        const centerY = y + 32;
-        const outerRadius = 30;
-        const innerRadius = 15; // Creates donut hole
+        // Donut chart configuration (compact size to avoid overlap)
+        const centerX = margin + 30;
+        const centerY = y + 25;
+        const outerRadius = 22;
+        const innerRadius = 10; // Creates donut hole
 
         // Draw chart title
         doc.setFont('helvetica', 'bold');
@@ -559,9 +559,9 @@ export const ReportAssistant = ({
         }
 
         // Draw legend on the right side
-        const legendX = margin + 75;
-        let legendY = y + 12;
-        const legendItemHeight = 14;
+        const legendX = margin + 65;
+        let legendY = y + 10;
+        const legendItemHeight = 12;
         const maxLegendItems = 5;
 
         const displayProjects = projectData.slice(0, maxLegendItems);
@@ -600,8 +600,8 @@ export const ReportAssistant = ({
         }
       }
 
-      // Signature section
-      y = 265;
+      // Signature section (positioned below donut chart)
+      y = 270;
       doc.setDrawColor(200, 200, 200);
       doc.setLineWidth(0.5);
 
