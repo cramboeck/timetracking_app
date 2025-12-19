@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Loader2, Sparkles } from 'lucide-react';
+import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Loader2, Sparkles, LayoutGrid, List } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
@@ -49,6 +49,17 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [filterDescription, setFilterDescription] = useState<string>('');
+
+  // View mode state
+  const [compactView, setCompactView] = useState<boolean>(() => {
+    const saved = localStorage.getItem('timeEntriesCompactView');
+    return saved === 'true';
+  });
+
+  // Persist compact view preference
+  useEffect(() => {
+    localStorage.setItem('timeEntriesCompactView', String(compactView));
+  }, [compactView]);
 
   // AI state
   const [aiConfigured, setAiConfigured] = useState(false);
@@ -394,6 +405,14 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
             </div>
           </div>
           <div className="flex gap-2">
+            {/* View Toggle */}
+            <button
+              onClick={() => setCompactView(!compactView)}
+              className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              title={compactView ? 'Normale Ansicht' : 'Kompakte Ansicht'}
+            >
+              {compactView ? <LayoutGrid size={18} /> : <List size={18} />}
+            </button>
             <button
               onClick={toggleSelectionMode}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
@@ -569,89 +588,165 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           </div>
         ) : (
           Object.entries(groupedEntries).map(([date, dateEntries]) => (
-            <div key={date} className="mb-6">
-              <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3">{date}</h2>
-              <div className="space-y-3">
-                {dateEntries.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className={`bg-white dark:bg-gray-800 rounded-lg border p-4 shadow-sm transition-colors ${
-                      selectedEntries.has(entry.id)
-                        ? 'border-accent-primary ring-2 ring-accent-primary/20'
-                        : 'border-gray-200 dark:border-gray-700'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-start gap-3 flex-1">
+            <div key={date} className={compactView ? 'mb-3' : 'mb-6'}>
+              <h2 className={`font-semibold text-gray-600 dark:text-gray-400 ${compactView ? 'text-xs mb-1.5' : 'text-sm mb-3'}`}>{date}</h2>
+              <div className={compactView ? 'space-y-1' : 'space-y-3'}>
+                {dateEntries.map((entry) => {
+                  const project = getProjectById(entry.projectId);
+                  const customer = project ? getCustomerById(project.customerId) : null;
+
+                  // Compact View
+                  if (compactView) {
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`bg-white dark:bg-gray-800 rounded border px-3 py-1.5 transition-colors flex items-center gap-2 ${
+                          selectedEntries.has(entry.id)
+                            ? 'border-accent-primary ring-1 ring-accent-primary/20'
+                            : 'border-gray-200 dark:border-gray-700'
+                        }`}
+                      >
                         {selectionMode && (
                           <button
                             onClick={() => toggleEntrySelection(entry.id)}
-                            className="mt-1 text-gray-400 hover:text-accent-primary transition-colors"
+                            className="text-gray-400 hover:text-accent-primary transition-colors flex-shrink-0"
                           >
                             {selectedEntries.has(entry.id) ? (
-                              <CheckSquare size={20} className="text-accent-primary" />
+                              <CheckSquare size={16} className="text-accent-primary" />
                             ) : (
-                              <Square size={20} />
+                              <Square size={16} />
                             )}
                           </button>
                         )}
-                        {(() => {
-                          const project = getProjectById(entry.projectId);
-                          const customer = project ? getCustomerById(project.customerId) : null;
-                          return customer ? (
+                        {customer && (
+                          <div
+                            className="w-3 h-3 rounded flex-shrink-0"
+                            style={{ backgroundColor: customer.color }}
+                          />
+                        )}
+                        <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-shrink-0 max-w-[200px]">
+                          {getProjectDisplay(entry)}
+                        </span>
+                        {entry.description && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex-1 min-w-0">
+                            {entry.description}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 ml-auto">
+                          {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
+                        </span>
+                        <span className="font-semibold text-sm text-accent-primary flex-shrink-0 w-16 text-right">
+                          {formatDuration(entry.duration)}
+                        </span>
+                        {!selectionMode && (
+                          <div className="flex gap-0.5 flex-shrink-0">
+                            {onRepeatEntry && !entry.isRunning && (
+                              <button
+                                onClick={() => setRepeatConfirm({ isOpen: true, entry })}
+                                className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                title="Wiederholen"
+                              >
+                                <RotateCcw size={14} />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openEditModal(entry)}
+                              className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                              title="Bearbeiten"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteClick(entry)}
+                              className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                              title="Löschen"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // Normal View
+                  return (
+                    <div
+                      key={entry.id}
+                      className={`bg-white dark:bg-gray-800 rounded-lg border p-4 shadow-sm transition-colors ${
+                        selectedEntries.has(entry.id)
+                          ? 'border-accent-primary ring-2 ring-accent-primary/20'
+                          : 'border-gray-200 dark:border-gray-700'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-start gap-3 flex-1">
+                          {selectionMode && (
+                            <button
+                              onClick={() => toggleEntrySelection(entry.id)}
+                              className="mt-1 text-gray-400 hover:text-accent-primary transition-colors"
+                            >
+                              {selectedEntries.has(entry.id) ? (
+                                <CheckSquare size={20} className="text-accent-primary" />
+                              ) : (
+                                <Square size={20} />
+                              )}
+                            </button>
+                          )}
+                          {customer && (
                             <div
                               className="w-10 h-10 rounded-lg flex-shrink-0"
                               style={{ backgroundColor: customer.color }}
                             />
-                          ) : null;
-                        })()}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-gray-900 dark:text-white">{getProjectDisplay(entry)}</h3>
-                          {entry.description && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{entry.description}</p>
                           )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">{getProjectDisplay(entry)}</h3>
+                            {entry.description && (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{entry.description}</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      {!selectionMode && (
-                        <div className="flex gap-2">
-                          {onRepeatEntry && !entry.isRunning && (
+                        {!selectionMode && (
+                          <div className="flex gap-2">
+                            {onRepeatEntry && !entry.isRunning && (
+                              <button
+                                onClick={() => setRepeatConfirm({ isOpen: true, entry })}
+                                className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors touch-manipulation"
+                                aria-label="Wiederholen"
+                                title="Eintrag wiederholen"
+                              >
+                                <RotateCcw size={18} />
+                              </button>
+                            )}
                             <button
-                              onClick={() => setRepeatConfirm({ isOpen: true, entry })}
-                              className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors touch-manipulation"
-                              aria-label="Wiederholen"
-                              title="Eintrag wiederholen"
+                              onClick={() => openEditModal(entry)}
+                              className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors touch-manipulation"
+                              aria-label="Bearbeiten"
                             >
-                              <RotateCcw size={18} />
+                              <Edit2 size={18} />
                             </button>
-                          )}
-                          <button
-                            onClick={() => openEditModal(entry)}
-                            className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors touch-manipulation"
-                            aria-label="Bearbeiten"
-                          >
-                            <Edit2 size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteClick(entry)}
-                            className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors touch-manipulation"
-                            aria-label="Löschen"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      )}
+                            <button
+                              onClick={() => handleDeleteClick(entry)}
+                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors touch-manipulation"
+                              aria-label="Löschen"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                        <span>
+                          {formatTime(entry.startTime, use24Hour)}
+                          {entry.endTime && ` - ${formatTime(entry.endTime, use24Hour)}`}
+                        </span>
+                        <span className="font-semibold text-accent-primary">
+                          {formatDuration(entry.duration)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                      <span>
-                        {formatTime(entry.startTime, use24Hour)}
-                        {entry.endTime && ` - ${formatTime(entry.endTime, use24Hour)}`}
-                      </span>
-                      <span className="font-semibold text-accent-primary">
-                        {formatDuration(entry.duration)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))
