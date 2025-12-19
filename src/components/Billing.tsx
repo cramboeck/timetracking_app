@@ -81,6 +81,8 @@ export const Billing = ({ onBack }: BillingProps) => {
 
       // Check config
       const configResponse = await sevdeskApi.getConfig();
+      console.log('[Billing] Config response:', configResponse.data);
+      console.log('[Billing] Setting hasConfig to:', !!configResponse.data?.hasToken);
       setHasConfig(!!configResponse.data?.hasToken);
 
       // Get billing summary for selected month
@@ -91,6 +93,11 @@ export const Billing = ({ onBack }: BillingProps) => {
         startDate.toISOString().split('T')[0],
         endDate.toISOString().split('T')[0]
       );
+      console.log('[Billing] Summary response:', summaryResponse.data?.map((c: any) => ({
+        name: c.customerName,
+        sevdeskId: c.sevdeskCustomerId,
+        isBilled: c.isBilled
+      })));
       setBillingSummary(summaryResponse.data);
 
       // Get recent exports
@@ -135,11 +142,15 @@ export const Billing = ({ onBack }: BillingProps) => {
   };
 
   const handleCreateInvoice = (customer: BillingSummaryItem) => {
+    console.log('[Billing] handleCreateInvoice called for:', customer.customerName);
+    console.log('[Billing] hasConfig:', hasConfig, 'sevdeskCustomerId:', customer.sevdeskCustomerId);
+
     if (!customer.sevdeskCustomerId) {
       setError(`${customer.customerName} ist nicht mit sevDesk verknüpft`);
       return;
     }
     // Open dialog instead of directly creating invoice
+    console.log('[Billing] Opening invoice dialog');
     setInvoiceDialogCustomer(customer);
   };
 
