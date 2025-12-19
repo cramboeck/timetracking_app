@@ -1,10 +1,35 @@
-import { useState } from 'react';
-import { Save } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Save, Clock } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { calculateDuration } from '../utils/time';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { TimePicker } from './TimePicker';
+
+// Helper to format duration as H:MM
+const formatDurationDisplay = (seconds: number): string => {
+  if (seconds <= 0) return '0:00';
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.round((seconds % 3600) / 60);
+  return `${hours}:${minutes.toString().padStart(2, '0')}`;
+};
+
+// Helper to format date as DD.MM.YYYY
+const formatDateGerman = (isoDate: string): string => {
+  if (!isoDate) return '';
+  const [year, month, day] = isoDate.split('-');
+  return `${day}.${month}.${year}`;
+};
+
+// Helper to parse German date to ISO
+const parseDateGerman = (germanDate: string): string => {
+  const match = germanDate.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (match) {
+    const [, day, month, year] = match;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  return germanDate;
+};
 
 interface ManualEntryProps {
   onSave: (entry: TimeEntry) => void;
@@ -28,13 +53,43 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
   const startDefault = oneHourAgo.getHours() < 8 ? '08:00' : oneHourAgo.toTimeString().slice(0, 5);
 
   const [date, setDate] = useState(today);
+  const [dateDisplay, setDateDisplay] = useState(formatDateGerman(today));
   const [startTime, setStartTime] = useState(startDefault);
   const [endTime, setEndTime] = useState(currentTime);
   const [projectId, setProjectId] = useState('');
   const [activityId, setActivityId] = useState('');
   const [description, setDescription] = useState('');
 
+  // Live duration calculation
+  const calculatedDuration = useMemo(() => {
+    if (!date || !startTime || !endTime) return 0;
+    try {
+      const startDateTime = new Date(`${date}T${startTime}`).toISOString();
+      const endDateTime = new Date(`${date}T${endTime}`).toISOString();
+      return calculateDuration(startDateTime, endDateTime);
+    } catch {
+      return 0;
+    }
+  }, [date, startTime, endTime]);
+
   const activeProjects = projects.filter(p => p.isActive);
+
+  // Handle German date input
+  const handleDateChange = (value: string) => {
+    setDateDisplay(value);
+    // Try to parse as German date
+    const isoDate = parseDateGerman(value);
+    if (isoDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      setDate(isoDate);
+    }
+  };
+
+  // Handle native date picker change
+  const handleNativeDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isoDate = e.target.value;
+    setDate(isoDate);
+    setDateDisplay(formatDateGerman(isoDate));
+  };
 
   const getProjectDisplay = (project: Project) => {
     const customer = customers.find(c => c.id === project.customerId);
@@ -95,16 +150,26 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
         <div className="space-y-4 flex-1">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Datum
             </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={dateDisplay}
+                onChange={(e) => handleDateChange(e.target.value)}
+                placeholder="TT.MM.JJJJ"
+                required
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                type="date"
+                value={date}
+                onChange={handleNativeDateChange}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                tabIndex={-1}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -128,6 +193,23 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
                 required
               />
             </div>
+          </div>
+
+          {/* Live Duration Display */}
+          <div className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg ${
+            calculatedDuration > 0
+              ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+              : 'bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-gray-400'
+          }`}>
+            <Clock size={18} />
+            <span className="font-medium">
+              Dauer: {formatDurationDisplay(calculatedDuration)} h
+            </span>
+            {calculatedDuration <= 0 && startTime && endTime && (
+              <span className="text-sm text-red-500 dark:text-red-400 ml-2">
+                (Endzeit muss nach Startzeit liegen)
+              </span>
+            )}
           </div>
 
           <div>
