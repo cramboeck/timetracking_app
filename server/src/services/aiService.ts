@@ -1070,3 +1070,139 @@ export async function suggestTimeEntryDescription(
 
   return result.content.trim();
 }
+
+// ============================================
+// Invoice Text Generation with AI
+// ============================================
+
+const INVOICE_SYSTEM_PROMPT = `Du bist ein erfahrener Rechnungsschreiber für einen IT-Dienstleister.
+Deine Aufgabe ist es, professionelle, klare und freundliche Rechnungstexte zu erstellen.
+Die Texte sollen:
+- Professionell und geschäftsmäßig klingen
+- Den Stil bisheriger Rechnungen an diesen Kunden beibehalten
+- Klar und präzise sein
+- Auf Deutsch verfasst sein
+- Keine übertriebenen Floskeln enthalten
+- Die erbrachten Leistungen angemessen beschreiben`;
+
+export interface InvoiceTextContext {
+  customerName: string;
+  periodStart: string;
+  periodEnd: string;
+  totalHours: number;
+  entries: Array<{
+    description: string;
+    hours: number;
+    projectName?: string;
+  }>;
+  previousInvoices?: Array<{
+    header: string;
+    headText: string;
+    footText: string;
+    positions: Array<{ name: string }>;
+  }>;
+}
+
+export interface GeneratedInvoiceTexts {
+  header: string;
+  headText: string;
+  footText: string;
+  positionTexts: string[];
+}
+
+export async function generateInvoiceTexts(
+  userId: string,
+  context: InvoiceTextContext
+): Promise<GeneratedInvoiceTexts> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  // Build context from previous invoices
+  let previousInvoiceContext = '';
+  if (context.previousInvoices && context.previousInvoices.length > 0) {
+    previousInvoiceContext = `\n\nBISHERIGE RECHNUNGEN AN DIESEN KUNDEN (Stil beibehalten/verbessern):
+${context.previousInvoices.slice(0, 5).map((inv, i) => `
+Rechnung ${i + 1}:
+- Betreff: ${inv.header}
+- Einleitungstext: ${inv.headText || '(keiner)'}
+- Schlusstext: ${inv.footText || '(keiner)'}
+- Positionen: ${inv.positions.slice(0, 5).map(p => p.name).join('; ')}`).join('\n')}`;
+  }
+
+  // Build entries summary
+  const entriesSummary = context.entries.slice(0, 20).map(e =>
+    `- ${e.description}${e.projectName ? ` (${e.projectName})` : ''}: ${e.hours.toFixed(2)}h`
+  ).join('\n');
+
+  const prompt = `Erstelle Rechnungstexte für folgende Situation:
+
+KUNDE: ${context.customerName}
+ZEITRAUM: ${context.periodStart} bis ${context.periodEnd}
+GESAMTSTUNDEN: ${context.totalHours.toFixed(2)} Stunden
+
+ERBRACHTE LEISTUNGEN:
+${entriesSummary}
+${context.entries.length > 20 ? `... und ${context.entries.length - 20} weitere Einträge` : ''}
+${previousInvoiceContext}
+
+Erstelle folgende Texte im JSON-Format:
+{
+  "header": "Kurzer Betreff für die Rechnung (z.B. 'IT-Dienstleistungen November 2024')",
+  "headText": "Einleitungstext der Rechnung (1-2 Sätze)",
+  "footText": "Schlusstext mit Dank (1 Satz)",
+  "positionTexts": ["Verbesserter Text für Position 1", "Text für Position 2", ...]
+}
+
+Gib NUR das JSON zurück, ohne Erklärungen oder Markdown-Formatierung.`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      INVOICE_SYSTEM_PROMPT
+    );
+  } else {
+    result = await callOpenAI(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      INVOICE_SYSTEM_PROMPT
+    );
+  }
+
+  // Parse the JSON response
+  try {
+    // Remove potential markdown code blocks
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) {
+      jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    } else if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+    }
+
+    const parsed = JSON.parse(jsonStr);
+    return {
+      header: parsed.header || `Leistungen ${context.periodStart} - ${context.periodEnd}`,
+      headText: parsed.headText || '',
+      footText: parsed.footText || 'Vielen Dank für Ihr Vertrauen.',
+      positionTexts: parsed.positionTexts || [],
+    };
+  } catch (error) {
+    console.error('Failed to parse AI invoice response:', error, result.content);
+    // Return defaults if parsing fails
+    return {
+      header: `IT-Dienstleistungen ${context.periodStart} - ${context.periodEnd}`,
+      headText: `Abrechnung der erbrachten Leistungen für den Zeitraum ${context.periodStart} bis ${context.periodEnd}.`,
+      footText: 'Vielen Dank für Ihr Vertrauen.',
+      positionTexts: [],
+    };
+  }
+}

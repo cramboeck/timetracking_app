@@ -1950,6 +1950,29 @@ export const sevdeskApi = {
     });
   },
 
+  // Generate AI-enhanced invoice texts
+  generateInvoiceTexts: async (params: {
+    customerId: string;
+    sevdeskContactId?: string;
+    periodStart: string;
+    periodEnd: string;
+    entries: Array<{ description: string; hours?: number; duration?: number; projectName?: string }>;
+  }): Promise<{
+    success: boolean;
+    data: {
+      header: string;
+      headText: string;
+      footText: string;
+      positionTexts: string[];
+      previousInvoicesCount: number;
+    };
+  }> => {
+    return authFetch('/sevdesk/generate-invoice-texts', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  },
+
   // Create invoice export - marks all unbilled entries for customer/period as billed
   createInvoiceExport: async (params: { customerId: string; periodStart: string; periodEnd: string }): Promise<{ success: boolean; data: { exportId: string; totalHours: number; totalAmount: number } }> => {
     return authFetch('/sevdesk/create-export', {

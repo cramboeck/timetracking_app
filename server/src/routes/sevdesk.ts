@@ -2,6 +2,7 @@ import express, { Response } from 'express';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { query } from '../config/database';
 import * as sevdeskService from '../services/sevdeskService';
+import * as aiService from '../services/aiService';
 
 const router = express.Router();
 
@@ -319,6 +320,71 @@ router.post('/record-export', authenticateToken, requireBillingFeature, async (r
     });
   } catch (error: any) {
     console.error('Record export error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/generate-invoice-texts - Generate AI-enhanced invoice texts
+router.post('/generate-invoice-texts', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { customerId, sevdeskContactId, periodStart, periodEnd, entries } = req.body;
+
+    if (!customerId || !periodStart || !periodEnd || !entries) {
+      return res.status(400).json({
+        success: false,
+        error: 'customerId, periodStart, periodEnd, and entries are required',
+      });
+    }
+
+    // Get customer name
+    const customerResult = await query(
+      'SELECT name FROM customers WHERE id = $1 AND user_id = $2',
+      [customerId, userId]
+    );
+    const customerName = customerResult.rows[0]?.name || 'Kunde';
+
+    // Get previous invoices for this customer from local DB
+    let previousInvoices: any[] = [];
+    if (sevdeskContactId) {
+      previousInvoices = await sevdeskService.getPreviousInvoicesForContact(
+        userId,
+        sevdeskContactId,
+        5
+      );
+    }
+
+    // Calculate total hours
+    const totalHours = entries.reduce((sum: number, e: any) => sum + (e.hours || e.duration / 3600 || 0), 0);
+
+    // Generate AI texts
+    const generatedTexts = await aiService.generateInvoiceTexts(userId, {
+      customerName,
+      periodStart,
+      periodEnd,
+      totalHours,
+      entries: entries.map((e: any) => ({
+        description: e.description || '',
+        hours: e.hours || e.duration / 3600 || 0,
+        projectName: e.projectName || '',
+      })),
+      previousInvoices: previousInvoices.map(inv => ({
+        header: inv.header,
+        headText: inv.headText,
+        footText: inv.footText,
+        positions: inv.positions,
+      })),
+    });
+
+    res.json({
+      success: true,
+      data: {
+        ...generatedTexts,
+        previousInvoicesCount: previousInvoices.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Generate invoice texts error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

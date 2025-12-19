@@ -1466,3 +1466,41 @@ export async function createQuote(
     quoteNumber,
   };
 }
+
+// Get previous invoices for a contact (from local DB)
+export async function getPreviousInvoicesForContact(
+  userId: string,
+  contactId: string,
+  limit: number = 10
+): Promise<Array<{
+  documentNumber: string;
+  documentDate: string;
+  header: string;
+  headText: string;
+  footText: string;
+  positions: Array<{ name: string; quantity: number; price: number }>;
+}>> {
+  const result = await query(
+    `SELECT document_number, document_date, header, head_text, foot_text, positions_json
+     FROM sevdesk_documents
+     WHERE user_id = $1
+       AND contact_id = $2
+       AND document_type = 'invoice'
+     ORDER BY document_date DESC
+     LIMIT $3`,
+    [userId, contactId, limit]
+  );
+
+  return result.rows.map(row => ({
+    documentNumber: row.document_number,
+    documentDate: row.document_date,
+    header: row.header || '',
+    headText: row.head_text || '',
+    footText: row.foot_text || '',
+    positions: (row.positions_json || []).map((p: any) => ({
+      name: p.name || '',
+      quantity: parseFloat(p.quantity) || 0,
+      price: parseFloat(p.price) || 0,
+    })),
+  }));
+}
