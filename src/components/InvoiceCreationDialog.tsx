@@ -71,10 +71,11 @@ export const InvoiceCreationDialog = ({
     return `Dienstleistungsnachweis_${customerSlug}_${year}_${month}.pdf`;
   };
 
-  // Calculate payment due date (14 days from now)
+  // Calculate payment due date based on customer's payment terms
   const calculateDueDate = () => {
+    const paymentTermsDays = customer.paymentTermsDays || 14;
     const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 14);
+    dueDate.setDate(dueDate.getDate() + paymentTermsDays);
     return dueDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
@@ -142,8 +143,9 @@ export const InvoiceCreationDialog = ({
     setHeadText(`Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!\nHiermit stelle ich Ihnen die folgenden Leistungen in Rechnung:`);
 
     // Default footer with payment terms and due date
+    const paymentTermsDays = customer.paymentTermsDays || 14;
     const dueDate = calculateDueDate();
-    setFootText(`Zahlungsbedingungen: Zahlung innerhalb von 14 Tagen ab Rechnungseingang ohne Abzüge.\nBitte überweisen Sie den Rechnungsbetrag unter Angabe der Rechnungsnummer auf das unten angegebene Konto.\nDer Rechnungsbetrag ist zum ${dueDate} fällig.`);
+    setFootText(`Zahlungsbedingungen: Zahlung innerhalb von ${paymentTermsDays} Tagen ab Rechnungseingang ohne Abzüge.\nBitte überweisen Sie den Rechnungsbetrag unter Angabe der Rechnungsnummer auf das unten angegebene Konto.\nDer Rechnungsbetrag ist zum ${dueDate} fällig.`);
   }, [isOpen, customer, periodStart, periodEnd]);
 
   const totalHours = useMemo(() =>

@@ -1849,6 +1849,7 @@ export interface BillingSummaryItem {
   hourlyRate: number | null;
   sevdeskCustomerId: string | null;
   timeRoundingInterval: number;
+  paymentTermsDays: number;
   totalSeconds: number;
   totalHours: number;
   roundedSeconds: number;

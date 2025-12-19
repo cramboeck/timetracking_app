@@ -290,6 +290,7 @@ export async function getBillingSummary(
   hourlyRate: number | null;
   sevdeskCustomerId: string | null;
   timeRoundingInterval: number;
+  paymentTermsDays: number;
   totalSeconds: number;
   totalHours: number;
   roundedSeconds: number;
@@ -305,7 +306,7 @@ export async function getBillingSummary(
   // Get ALL entries (billed and unbilled) grouped by customer
   const result = await query(
     `SELECT c.id as customer_id, c.name as customer_name, c.hourly_rate, c.sevdesk_customer_id,
-            c.time_rounding_interval,
+            c.time_rounding_interval, c.payment_terms_days,
             te.id as entry_id, te.duration, te.description, te.start_time,
             te.invoice_export_id,
             t.ticket_number, t.title as ticket_title,
@@ -328,6 +329,7 @@ export async function getBillingSummary(
     hourlyRate: number | null;
     sevdeskCustomerId: string | null;
     timeRoundingInterval: number;
+    paymentTermsDays: number;
     totalSeconds: number;
     roundedSeconds: number;
     isBilled: boolean;
@@ -338,6 +340,7 @@ export async function getBillingSummary(
     const isBilled = row.invoice_export_id !== null;
     const key = `${row.customer_id}_${isBilled ? 'billed' : 'unbilled'}`;
     const roundingInterval = row.time_rounding_interval || 15; // Default 15 minutes
+    const paymentTermsDays = row.payment_terms_days || 14; // Default 14 days
 
     if (!customerMap.has(key)) {
       customerMap.set(key, {
@@ -346,6 +349,7 @@ export async function getBillingSummary(
         hourlyRate: row.hourly_rate ? parseFloat(row.hourly_rate) : null,
         sevdeskCustomerId: row.sevdesk_customer_id,
         timeRoundingInterval: roundingInterval,
+        paymentTermsDays: paymentTermsDays,
         totalSeconds: 0,
         roundedSeconds: 0,
         isBilled,

@@ -555,6 +555,19 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add payment_terms_days to customers (for invoicing)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'payment_terms_days'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN payment_terms_days INTEGER DEFAULT 14;
+        END IF;
+      END $$;
+    `);
+
     // Migration: Add missing columns to ninjarmm_alerts
     await client.query(`
       DO $$

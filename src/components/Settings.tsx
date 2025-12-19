@@ -106,6 +106,7 @@ export const Settings = ({
   const [customerReportTitle, setCustomerReportTitle] = useState('');
   const [customerHourlyRate, setCustomerHourlyRate] = useState('');
   const [customerTimeRoundingInterval, setCustomerTimeRoundingInterval] = useState('15');
+  const [customerPaymentTermsDays, setCustomerPaymentTermsDays] = useState('14');
   const [customerNinjarmmOrgId, setCustomerNinjarmmOrgId] = useState('');
 
   // CSV Import
@@ -184,6 +185,7 @@ export const Settings = ({
       setCustomerReportTitle(customer.reportTitle || '');
       setCustomerHourlyRate(customer.hourlyRate?.toString() || '');
       setCustomerTimeRoundingInterval(customer.timeRoundingInterval?.toString() || '15');
+      setCustomerPaymentTermsDays(customer.paymentTermsDays?.toString() || '14');
       setCustomerNinjarmmOrgId(customer.ninjarmmOrganizationId || '');
     } else {
       setEditingCustomer(null);
@@ -196,6 +198,7 @@ export const Settings = ({
       setCustomerReportTitle('');
       setCustomerHourlyRate('');
       setCustomerTimeRoundingInterval('15');
+      setCustomerPaymentTermsDays('14');
       setCustomerNinjarmmOrgId('');
     }
     setCustomerModalOpen(true);
@@ -312,6 +315,7 @@ export const Settings = ({
 
     const hourlyRateValue = customerHourlyRate.trim() ? parseFloat(customerHourlyRate) : undefined;
     const timeRoundingIntervalValue = customerTimeRoundingInterval.trim() ? parseInt(customerTimeRoundingInterval) : 15;
+    const paymentTermsDaysValue = customerPaymentTermsDays.trim() ? parseInt(customerPaymentTermsDays) : 14;
 
     if (editingCustomer) {
       onUpdateCustomer(editingCustomer.id, {
@@ -324,6 +328,7 @@ export const Settings = ({
         reportTitle: customerReportTitle.trim() || undefined,
         hourlyRate: hourlyRateValue,
         timeRoundingInterval: timeRoundingIntervalValue,
+        paymentTermsDays: paymentTermsDaysValue,
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined
       });
     } else {
@@ -339,6 +344,7 @@ export const Settings = ({
         reportTitle: customerReportTitle.trim() || undefined,
         hourlyRate: hourlyRateValue,
         timeRoundingInterval: timeRoundingIntervalValue,
+        paymentTermsDays: paymentTermsDaysValue,
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
         createdAt: new Date().toISOString()
       });
@@ -2770,6 +2776,27 @@ export const Settings = ({
               </select>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Zeiteinträge werden auf dieses Intervall aufgerundet (z.B. 7 Min. → 15 Min.)
+              </p>
+            </div>
+          )}
+
+          {/* Payment Terms - only show if billing is enabled */}
+          {billingEnabled && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Zahlungsziel (Tage)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="365"
+                value={customerPaymentTermsDays}
+                onChange={(e) => setCustomerPaymentTermsDays(e.target.value)}
+                placeholder="14"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Zahlungsfrist in Tagen ab Rechnungsdatum (Standard: 14 Tage)
               </p>
             </div>
           )}
