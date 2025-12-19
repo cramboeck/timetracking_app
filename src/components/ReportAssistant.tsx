@@ -466,8 +466,151 @@ export const ReportAssistant = ({
       doc.setTextColor(dark.r, dark.g, dark.b);
       doc.text(customerData.projectCount.toString(), margin + (cardWidth + 8) * 2 + 10, y + 35);
 
+      // ============ PIE CHART SECTION ============
+      y = 210;
+
+      // Calculate project breakdown
+      const projectBreakdown = new Map<string, { name: string; hours: number; color: string }>();
+      customerEntries.forEach(entry => {
+        const existing = projectBreakdown.get(entry.project.id);
+        if (existing) {
+          existing.hours += entry.hours;
+        } else {
+          projectBreakdown.set(entry.project.id, {
+            name: entry.project.name,
+            hours: entry.hours,
+            color: entry.project.color || '#6366f1'
+          });
+        }
+      });
+
+      const projectData = Array.from(projectBreakdown.values()).sort((a, b) => b.hours - a.hours);
+
+      if (projectData.length > 0) {
+        // Pie chart configuration
+        const centerX = margin + 35;
+        const centerY = y + 30;
+        const radius = 28;
+
+        // Draw pie chart title
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        doc.text('Zeitverteilung nach Projekten', margin, y);
+
+        // Calculate total hours
+        const totalHours = projectData.reduce((sum, p) => sum + p.hours, 0);
+
+        // Draw pie segments
+        let startAngle = -Math.PI / 2; // Start at 12 o'clock
+
+        // Default colors if project colors are not set
+        const defaultColors = [
+          '#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444',
+          '#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#6366f1'
+        ];
+
+        projectData.forEach((project, index) => {
+          const percentage = project.hours / totalHours;
+          const sweepAngle = percentage * 2 * Math.PI;
+          const endAngle = startAngle + sweepAngle;
+
+          // Parse color or use default
+          let color = project.color;
+          if (!color || color === '#000000') {
+            color = defaultColors[index % defaultColors.length];
+          }
+
+          // Convert hex to RGB
+          const hexToRgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+              r: parseInt(result[1], 16),
+              g: parseInt(result[2], 16),
+              b: parseInt(result[3], 16)
+            } : { r: 99, g: 102, b: 241 }; // Default indigo
+          };
+
+          const rgb = hexToRgb(color);
+          doc.setFillColor(rgb.r, rgb.g, rgb.b);
+
+          // Draw pie segment using triangle fan approach
+          const steps = Math.max(20, Math.floor(sweepAngle * 20));
+          const angleStep = sweepAngle / steps;
+
+          // Draw the sector using triangle fan method
+          doc.setFillColor(rgb.r, rgb.g, rgb.b);
+
+          // Fill in the arc with triangles for smooth appearance
+          for (let i = 0; i < steps; i++) {
+            const a1 = startAngle + angleStep * i;
+            const a2 = startAngle + angleStep * (i + 1);
+            doc.triangle(
+              centerX, centerY,
+              centerX + radius * Math.cos(a1), centerY + radius * Math.sin(a1),
+              centerX + radius * Math.cos(a2), centerY + radius * Math.sin(a2),
+              'F'
+            );
+          }
+
+          startAngle = endAngle;
+        });
+
+        // Draw legend on the right side
+        const legendX = margin + 80;
+        let legendY = y + 10;
+        const legendItemHeight = 12;
+        const maxLegendItems = 5;
+
+        const displayProjects = projectData.slice(0, maxLegendItems);
+        const hasMore = projectData.length > maxLegendItems;
+
+        displayProjects.forEach((project, index) => {
+          const percentage = (project.hours / totalHours * 100).toFixed(1);
+
+          // Parse color
+          let color = project.color;
+          if (!color || color === '#000000') {
+            color = defaultColors[index % defaultColors.length];
+          }
+          const hexToRgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+              r: parseInt(result[1], 16),
+              g: parseInt(result[2], 16),
+              b: parseInt(result[3], 16)
+            } : { r: 99, g: 102, b: 241 };
+          };
+          const rgb = hexToRgb(color);
+
+          // Color box
+          doc.setFillColor(rgb.r, rgb.g, rgb.b);
+          doc.rect(legendX, legendY - 3, 4, 4, 'F');
+
+          // Project name and percentage
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.setTextColor(dark.r, dark.g, dark.b);
+          const nameText = project.name.length > 25 ? project.name.substring(0, 22) + '...' : project.name;
+          doc.text(nameText, legendX + 7, legendY);
+
+          // Hours and percentage
+          doc.setTextColor(gray.r, gray.g, gray.b);
+          doc.text(`${formatHoursMinutes(project.hours)} (${percentage}%)`, legendX + 7, legendY + 5);
+
+          legendY += legendItemHeight;
+        });
+
+        if (hasMore) {
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(8);
+          doc.setTextColor(gray.r, gray.g, gray.b);
+          doc.text(`+ ${projectData.length - maxLegendItems} weitere Projekte`, legendX + 7, legendY);
+        }
+      }
+
       // Signature section
-      y = 230;
+      y = 265;
       doc.setDrawColor(200, 200, 200);
       doc.setLineWidth(0.5);
 
