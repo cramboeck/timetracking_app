@@ -331,6 +331,13 @@ export const entriesApi = {
       method: 'DELETE',
     });
   },
+
+  bulkUpdate: async (entryIds: string[], updates: { projectId?: string; description?: string }): Promise<{ success: boolean; data: { updatedCount: number } }> => {
+    return authFetch('/entries/bulk-update', {
+      method: 'PUT',
+      body: JSON.stringify({ entryIds, updates }),
+    });
+  },
 };
 
 // Projects API
@@ -590,6 +597,12 @@ export const ticketsApi = {
     isPrimary?: boolean;
     canCreateTickets?: boolean;
     canViewAllTickets?: boolean;
+    canViewDevices?: boolean;
+    canViewInvoices?: boolean;
+    canViewQuotes?: boolean;
+    notifyTicketCreated?: boolean;
+    notifyTicketStatusChanged?: boolean;
+    notifyTicketReply?: boolean;
   }): Promise<{ success: boolean; data: CustomerContact }> => {
     return authFetch(`/customers/${customerId}/contacts`, {
       method: 'POST',
@@ -603,6 +616,12 @@ export const ticketsApi = {
     isPrimary?: boolean;
     canCreateTickets?: boolean;
     canViewAllTickets?: boolean;
+    canViewDevices?: boolean;
+    canViewInvoices?: boolean;
+    canViewQuotes?: boolean;
+    notifyTicketCreated?: boolean;
+    notifyTicketStatusChanged?: boolean;
+    notifyTicketReply?: boolean;
   }): Promise<{ success: boolean; data: CustomerContact }> => {
     return authFetch(`/customers/${customerId}/contacts/${contactId}`, {
       method: 'PUT',
@@ -1547,6 +1566,75 @@ export const customerPortalApi = {
   removeAllTrustedDevices: async (): Promise<{ success: boolean; count: number }> => {
     return portalAuthFetch('/customer-portal/mfa/trusted-devices', { method: 'DELETE' });
   },
+
+  // Notification Preferences
+  getNotificationPreferences: async (): Promise<{
+    notifyTicketCreated: boolean;
+    notifyTicketStatusChanged: boolean;
+    notifyTicketReply: boolean;
+  }> => {
+    return portalAuthFetch('/customer-portal/notification-preferences');
+  },
+
+  updateNotificationPreferences: async (prefs: {
+    notifyTicketCreated?: boolean;
+    notifyTicketStatusChanged?: boolean;
+    notifyTicketReply?: boolean;
+  }): Promise<{ success: boolean; message: string }> => {
+    return portalAuthFetch('/customer-portal/notification-preferences', {
+      method: 'PUT',
+      body: JSON.stringify(prefs),
+    });
+  },
+
+  // Push notification methods for portal
+  push: {
+    getVapidPublicKey: async (): Promise<{ success: boolean; publicKey: string; configured: boolean }> => {
+      const response = await fetch(`${API_BASE_URL}/customer-portal/push/vapid-public-key`);
+      return handleResponse(response);
+    },
+
+    subscribe: async (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }, deviceName?: string): Promise<{ success: boolean; id?: string }> => {
+      return portalAuthFetch('/customer-portal/push/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ subscription, deviceName }),
+      });
+    },
+
+    unsubscribe: async (endpoint: string): Promise<{ success: boolean }> => {
+      return portalAuthFetch('/customer-portal/push/unsubscribe', {
+        method: 'POST',
+        body: JSON.stringify({ endpoint }),
+      });
+    },
+
+    getSubscriptions: async (): Promise<{ success: boolean; data: Array<{ id: string; endpoint: string; device_name: string | null; created_at: string; last_used_at: string | null }> }> => {
+      return portalAuthFetch('/customer-portal/push/subscriptions');
+    },
+
+    deleteSubscription: async (id: string): Promise<{ success: boolean }> => {
+      return portalAuthFetch(`/customer-portal/push/subscriptions/${id}`, {
+        method: 'DELETE',
+      });
+    },
+
+    getPreferences: async (): Promise<{ success: boolean; data: { push_enabled: boolean; push_on_ticket_reply: boolean; push_on_status_change: boolean } }> => {
+      return portalAuthFetch('/customer-portal/push/preferences');
+    },
+
+    updatePreferences: async (prefs: { push_enabled?: boolean; push_on_ticket_reply?: boolean; push_on_status_change?: boolean }): Promise<{ success: boolean }> => {
+      return portalAuthFetch('/customer-portal/push/preferences', {
+        method: 'PUT',
+        body: JSON.stringify(prefs),
+      });
+    },
+
+    sendTest: async (): Promise<{ success: boolean; sent: number; failed: number }> => {
+      return portalAuthFetch('/customer-portal/push/test', {
+        method: 'POST',
+      });
+    },
+  },
 };
 
 // Push Notifications API
@@ -1760,8 +1848,11 @@ export interface BillingSummaryItem {
   customerName: string;
   hourlyRate: number | null;
   sevdeskCustomerId: string | null;
+  timeRoundingInterval: number;
   totalSeconds: number;
   totalHours: number;
+  roundedSeconds: number;
+  roundedHours: number;
   totalAmount: number | null;
   isBilled?: boolean;
   entries: Array<{
@@ -1851,11 +1942,19 @@ export const sevdeskApi = {
     });
   },
 
-  // Record export without sevDesk
+  // Record export without sevDesk (with explicit entry IDs)
   recordExport: async (customerId: string, entryIds: string[], periodStart: string, periodEnd: string, totalHours: number, totalAmount: number): Promise<{ success: boolean; data: { exportId: string } }> => {
     return authFetch('/sevdesk/record-export', {
       method: 'POST',
       body: JSON.stringify({ customerId, entryIds, periodStart, periodEnd, totalHours, totalAmount }),
+    });
+  },
+
+  // Create invoice export - marks all unbilled entries for customer/period as billed
+  createInvoiceExport: async (params: { customerId: string; periodStart: string; periodEnd: string }): Promise<{ success: boolean; data: { exportId: string; totalHours: number; totalAmount: number } }> => {
+    return authFetch('/sevdesk/create-export', {
+      method: 'POST',
+      body: JSON.stringify(params),
     });
   },
 
@@ -2011,6 +2110,7 @@ export interface NinjaDevice {
   offline: boolean;
   lastContact: string | null;
   publicIp: string | null;
+  privateIp: string | null;
   osName: string | null;
   osVersion?: string | null;
   osBuild?: string | null;
@@ -2023,6 +2123,31 @@ export interface NinjaDevice {
   processorCores?: number | null;
   memoryGb?: number | null;
   syncedAt: string;
+}
+
+export interface NinjaDeviceSoftware {
+  id: string;
+  deviceId: string;
+  name: string;
+  publisher: string | null;
+  version: string | null;
+  installDate: string | null;
+  sizeBytes: number | null;
+}
+
+export interface NinjaDeviceOSPatch {
+  id: string;
+  deviceId: string;
+  patchType: 'installed' | 'pending' | 'failed' | 'rejected';
+  kbNumber: string | null;
+  name: string;
+  description: string | null;
+  severity: string | null;
+  category: string | null;
+  installDate: string | null;
+  installedOn: string | null;
+  sizeBytes: number | null;
+  status: string | null;
 }
 
 export interface NinjaAlert {
@@ -2205,7 +2330,7 @@ export const ninjaApi = {
   // Generate new webhook secret
   generateWebhookSecret: async (): Promise<{
     success: boolean;
-    data: { webhookSecret: string };
+    data: { secret: string; webhookUrl: string };
     message: string;
   }> => {
     return authFetch('/ninjarmm/webhook-config/generate-secret', { method: 'POST' });
@@ -2237,7 +2362,169 @@ export const ninjaApi = {
     const queryString = params.toString();
     return authFetch(`/ninjarmm/webhook-events${queryString ? `?${queryString}` : ''}`);
   },
+
+  // Get raw payload for a webhook event
+  getWebhookEventPayload: async (eventId: string): Promise<{
+    success: boolean;
+    data: {
+      id: string;
+      eventType: string;
+      payload: any;
+      createdAt: string;
+    };
+  }> => {
+    return authFetch(`/ninjarmm/webhook-events/${eventId}/payload`);
+  },
+
+  // Backfill device names for existing webhook events
+  backfillWebhookDeviceNames: async (): Promise<{
+    success: boolean;
+    data: {
+      processedCount: number;
+      updatedCount: number;
+    };
+    message: string;
+  }> => {
+    return authFetch('/ninjarmm/webhook-events/backfill-device-names', {
+      method: 'POST',
+    });
+  },
+
+  // ============================================
+  // Alert Exclusions
+  // ============================================
+
+  // Get all exclusions
+  getExclusions: async (): Promise<{
+    success: boolean;
+    data: NinjaAlertExclusion[];
+  }> => {
+    return authFetch('/ninjarmm/exclusions');
+  },
+
+  // Create new exclusion
+  createExclusion: async (data: {
+    name: string;
+    description?: string;
+    matchType: 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex';
+    matchField: 'message' | 'source_name' | 'condition_name' | 'device_name' | 'severity';
+    matchValue: string;
+    isActive?: boolean;
+  }): Promise<{ success: boolean; data: { id: string }; message: string }> => {
+    return authFetch('/ninjarmm/exclusions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update exclusion
+  updateExclusion: async (id: string, data: {
+    name?: string;
+    description?: string;
+    matchType?: 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex';
+    matchField?: 'message' | 'source_name' | 'condition_name' | 'device_name' | 'severity';
+    matchValue?: string;
+    isActive?: boolean;
+  }): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/ninjarmm/exclusions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete exclusion
+  deleteExclusion: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return authFetch(`/ninjarmm/exclusions/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Create exclusion from webhook event
+  createExclusionFromEvent: async (eventId: string, options?: {
+    matchField?: 'message' | 'source_name' | 'condition_name' | 'device_name' | 'severity';
+    matchType?: 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex';
+  }): Promise<{
+    success: boolean;
+    data: { id: string; name: string; matchValue: string };
+    message: string;
+  }> => {
+    return authFetch(`/ninjarmm/exclusions/from-event/${eventId}`, {
+      method: 'POST',
+      body: JSON.stringify(options || {}),
+    });
+  },
+
+  // ============================================
+  // Software Inventory
+  // ============================================
+
+  // Get cached software for a device
+  getDeviceSoftware: async (deviceId: string): Promise<{
+    success: boolean;
+    data: {
+      software: NinjaDeviceSoftware[];
+      lastFetched: string | null;
+      count: number;
+    };
+  }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}/software`);
+  },
+
+  // Refresh software for a device (fetch from NinjaRMM)
+  refreshDeviceSoftware: async (deviceId: string): Promise<{
+    success: boolean;
+    data: {
+      software: NinjaDeviceSoftware[];
+      lastFetched: string;
+      count: number;
+    };
+  }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}/software/refresh`, { method: 'POST' });
+  },
+
+  // Get OS patches for a device (Windows Updates)
+  getDeviceOSPatches: async (deviceId: string): Promise<{
+    success: boolean;
+    data: {
+      installed: NinjaDeviceOSPatch[];
+      pending: NinjaDeviceOSPatch[];
+      lastFetched: string | null;
+      installedCount: number;
+      pendingCount: number;
+    };
+  }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}/os-patches`);
+  },
+
+  // Refresh OS patches for a device (fetch from NinjaRMM)
+  refreshDeviceOSPatches: async (deviceId: string): Promise<{
+    success: boolean;
+    data: {
+      installed: NinjaDeviceOSPatch[];
+      pending: NinjaDeviceOSPatch[];
+      lastFetched: string;
+      installedCount: number;
+      pendingCount: number;
+    };
+  }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}/os-patches/refresh`, { method: 'POST' });
+  },
 };
+
+// Alert Exclusion type
+export interface NinjaAlertExclusion {
+  id: string;
+  name: string;
+  description: string | null;
+  matchType: 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex';
+  matchField: 'message' | 'source_name' | 'condition_name' | 'device_name' | 'severity';
+  matchValue: string;
+  isActive: boolean;
+  hitCount: number;
+  lastHitAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // Feature Packages API
 export interface UserFeatures {
@@ -2846,6 +3133,368 @@ export const tasksApi = {
   },
 };
 
+// ============================================
+// AI Assistant API
+// ============================================
+
+export interface AIConfig {
+  id: string;
+  userId: string;
+  provider: 'openai' | 'anthropic';
+  apiKey: string | null;
+  hasApiKey: boolean;
+  model: string;
+  enabled: boolean;
+  maxTokens: number;
+  temperature: number;
+  systemPrompt: string | null;
+  promptTemplates: Record<string, string>;
+}
+
+// Default system prompts (mirrors server defaults)
+export const DEFAULT_SYSTEM_PROMPTS: Record<string, string> = {
+  default: 'Du bist ein hilfreicher IT-Support-Assistent, der Technikern bei der Lösung von Problemen hilft. Antworte immer auf Deutsch.',
+  solution: 'Du bist ein erfahrener IT-Support-Spezialist. Analysiere Support-Tickets und schlage konkrete, praxiserprobte Lösungsschritte vor. Antworte immer auf Deutsch.',
+  category: 'Du bist ein IT-Ticket-Klassifizierer. Analysiere Tickets und ordne sie der passendsten Kategorie zu. Antworte nur mit dem Kategorienamen, ohne weitere Erklärung.',
+  priority: 'Du bist ein IT-Support-Experte für Priorisierung. Bewerte die Dringlichkeit von Tickets basierend auf Geschäftsauswirkungen und technischer Komplexität. Antworte auf Deutsch.',
+  response: 'Du bist ein freundlicher IT-Support-Mitarbeiter. Verfasse professionelle, kundenfreundliche Antworten auf Support-Anfragen. Antworte immer auf Deutsch.',
+};
+
+export interface AISuggestion {
+  id: string;
+  ticketId: string;
+  suggestionType: 'solution' | 'category' | 'priority' | 'response';
+  content: string;
+  confidence: number | null;
+  modelUsed: string;
+  tokensUsed: number | null;
+  createdAt: string;
+}
+
+export const aiApi = {
+  // Get AI configuration
+  getConfig: async (): Promise<{ success: boolean; data: AIConfig | null }> => {
+    return authFetch('/ai/config');
+  },
+
+  // Save AI configuration
+  saveConfig: async (config: {
+    provider?: 'openai' | 'anthropic';
+    apiKey?: string;
+    model?: string;
+    enabled?: boolean;
+    maxTokens?: number;
+    temperature?: number;
+  }): Promise<{ success: boolean; data: AIConfig }> => {
+    return authFetch('/ai/config', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  },
+
+  // Test AI connection
+  testConnection: async (
+    provider: 'openai' | 'anthropic',
+    apiKey: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    return authFetch('/ai/test-connection', {
+      method: 'POST',
+      body: JSON.stringify({ provider, apiKey }),
+    });
+  },
+
+  // Generate AI suggestion for ticket
+  generateSuggestion: async (
+    ticketId: string,
+    suggestionType: 'solution' | 'category' | 'priority' | 'response' = 'solution'
+  ): Promise<{ success: boolean; data: AISuggestion }> => {
+    return authFetch(`/ai/tickets/${ticketId}/suggest`, {
+      method: 'POST',
+      body: JSON.stringify({ suggestionType }),
+    });
+  },
+
+  // Get suggestion history for ticket
+  getSuggestions: async (ticketId: string): Promise<{ success: boolean; data: AISuggestion[] }> => {
+    return authFetch(`/ai/tickets/${ticketId}/suggestions`);
+  },
+
+  // Mark suggestion as helpful/not helpful
+  markSuggestionFeedback: async (
+    suggestionId: string,
+    isHelpful: boolean
+  ): Promise<{ success: boolean }> => {
+    return authFetch(`/ai/suggestions/${suggestionId}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify({ isHelpful }),
+    });
+  },
+
+  // Mark suggestion as applied
+  markSuggestionApplied: async (suggestionId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/ai/suggestions/${suggestionId}/apply`, {
+      method: 'POST',
+    });
+  },
+
+  // Generate quote text (head/foot text)
+  generateQuoteText: async (
+    type: 'head' | 'foot',
+    context: {
+      customerName?: string;
+      header?: string;
+      positions?: Array<{ name: string; price: number }>;
+    }
+  ): Promise<{ success: boolean; data: { text: string } }> => {
+    return authFetch('/ai/quote/generate-text', {
+      method: 'POST',
+      body: JSON.stringify({ type, context }),
+    });
+  },
+
+  // Research price for a product/service
+  researchPrice: async (
+    productName: string,
+    context?: string
+  ): Promise<{ success: boolean; data: { result: string; suggestedPrice?: number; marketRange?: { min: number; max: number } } }> => {
+    return authFetch('/ai/quote/research-price', {
+      method: 'POST',
+      body: JSON.stringify({ productName, context }),
+    });
+  },
+
+  // Generate time entry description suggestion
+  suggestTimeEntryDescription: async (
+    context: {
+      projectName?: string;
+      customerName?: string;
+      activityName?: string;
+      ticketTitle?: string;
+      ticketDescription?: string;
+      existingDescription?: string;
+    }
+  ): Promise<{ success: boolean; data: { suggestion: string } }> => {
+    return authFetch('/ai/time-entry/suggest-description', {
+      method: 'POST',
+      body: JSON.stringify(context),
+    });
+  },
+
+  // Generate KB article from ticket
+  generateKBArticleFromTicket: async (
+    ticketId: string
+  ): Promise<{
+    success: boolean;
+    data: {
+      title: string;
+      content: string;
+      excerpt: string;
+      suggestedCategory?: string;
+    };
+  }> => {
+    return authFetch('/ai/kb/generate-from-ticket', {
+      method: 'POST',
+      body: JSON.stringify({ ticketId }),
+    });
+  },
+};
+
+// ============================================
+// Contracts API
+// ============================================
+
+export interface Contract {
+  id: string;
+  organizationId: string;
+  customerId: string;
+  contractNumber: string;
+  name: string;
+  description: string | null;
+  contractType: 'service' | 'support' | 'maintenance' | 'project' | 'subscription' | 'framework' | 'other';
+  status: 'draft' | 'active' | 'paused' | 'expiring' | 'expired' | 'cancelled' | 'terminated';
+  startDate: string;
+  endDate: string | null;
+  isIndefinite: boolean;
+  noticePeriodDays: number;
+  autoRenew: boolean;
+  renewalPeriodMonths: number;
+  billingCycle: 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'one_time' | 'per_call';
+  basePrice: number | null;
+  currency: string;
+  includedHoursMonthly: number | null;
+  hourlyRate: number | null;
+  overageRate: number | null;
+  slaResponseHours: number | null;
+  slaResolutionHours: number | null;
+  supportHours: string | null;
+  documentUrl: string | null;
+  internalNotes: string | null;
+  projectId: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customerName?: string;
+  projectName?: string;
+}
+
+export interface ContractPosition {
+  id: string;
+  contractId: string;
+  positionNumber: number;
+  name: string;
+  description: string | null;
+  quantity: number;
+  unit: string;
+  unitPrice: number | null;
+  totalPrice: number | null;
+  positionType: 'service' | 'product' | 'license' | 'hours' | 'flat_fee' | 'other';
+  isRecurring: boolean;
+  billingCycle: 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'one_time';
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface ContractHourlyTracking {
+  id: string;
+  contractId: string;
+  year: number;
+  month: number;
+  includedHours: number;
+  usedHours: number;
+  overageHours: number;
+  rolloverHours: number;
+  overageAmount: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContractSummary {
+  totalContracts: number;
+  activeContracts: number;
+  expiringContracts: number;
+  totalMonthlyRevenue: number;
+  totalIncludedHours: number;
+}
+
+export const contractsApi = {
+  // Get all contracts
+  getContracts: async (filters?: {
+    customerId?: string;
+    status?: string;
+    contractType?: string;
+    search?: string;
+  }): Promise<{ success: boolean; data: Contract[] }> => {
+    const params = new URLSearchParams();
+    if (filters?.customerId) params.append('customerId', filters.customerId);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.contractType) params.append('contractType', filters.contractType);
+    if (filters?.search) params.append('search', filters.search);
+
+    const queryString = params.toString();
+    return authFetch(`/contracts${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get single contract
+  getContract: async (id: string): Promise<{ success: boolean; data: Contract }> => {
+    return authFetch(`/contracts/${id}`);
+  },
+
+  // Get contract summary
+  getSummary: async (): Promise<{ success: boolean; data: ContractSummary }> => {
+    return authFetch('/contracts/summary');
+  },
+
+  // Get expiring contracts
+  getExpiringContracts: async (days?: number): Promise<{ success: boolean; data: Contract[] }> => {
+    return authFetch(`/contracts/expiring${days ? `?days=${days}` : ''}`);
+  },
+
+  // Get next contract number
+  getNextContractNumber: async (): Promise<{ success: boolean; data: string }> => {
+    return authFetch('/contracts/next-number');
+  },
+
+  // Get contracts by customer
+  getContractsByCustomer: async (customerId: string): Promise<{ success: boolean; data: Contract[] }> => {
+    return authFetch(`/contracts/customer/${customerId}`);
+  },
+
+  // Create contract
+  createContract: async (data: Partial<Contract>): Promise<{ success: boolean; data: Contract }> => {
+    return authFetch('/contracts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update contract
+  updateContract: async (id: string, data: Partial<Contract>): Promise<{ success: boolean; data: Contract }> => {
+    return authFetch(`/contracts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete contract
+  deleteContract: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/contracts/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get contract positions
+  getPositions: async (contractId: string): Promise<{ success: boolean; data: ContractPosition[] }> => {
+    return authFetch(`/contracts/${contractId}/positions`);
+  },
+
+  // Create contract position
+  createPosition: async (contractId: string, data: Partial<ContractPosition>): Promise<{ success: boolean; data: ContractPosition }> => {
+    return authFetch(`/contracts/${contractId}/positions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update contract position
+  updatePosition: async (contractId: string, positionId: string, data: Partial<ContractPosition>): Promise<{ success: boolean; data: ContractPosition }> => {
+    return authFetch(`/contracts/${contractId}/positions/${positionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete contract position
+  deletePosition: async (contractId: string, positionId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/contracts/${contractId}/positions/${positionId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get hourly tracking
+  getHourlyTracking: async (contractId: string, year?: number, month?: number): Promise<{ success: boolean; data: ContractHourlyTracking[] }> => {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+
+    const queryString = params.toString();
+    return authFetch(`/contracts/${contractId}/hours${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Update hourly tracking
+  updateHourlyTracking: async (contractId: string, year: number, month: number, usedHours: number): Promise<{ success: boolean; data: ContractHourlyTracking }> => {
+    return authFetch(`/contracts/${contractId}/hours`, {
+      method: 'PUT',
+      body: JSON.stringify({ year, month, usedHours }),
+    });
+  },
+
+  // Get activity log
+  getActivityLog: async (contractId: string): Promise<{ success: boolean; data: Array<{ id: string; userId: string; action: string; details: any; createdAt: string }> }> => {
+    return authFetch(`/contracts/${contractId}/activity`);
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -2860,4 +3509,5 @@ export default {
   features: featuresApi,
   organizations: organizationsApi,
   tasks: tasksApi,
+  contracts: contractsApi,
 };

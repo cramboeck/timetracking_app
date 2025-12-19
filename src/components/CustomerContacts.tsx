@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, Mail, Send, Trash2, Edit2, Check, UserCheck, UserX, Users } from 'lucide-react';
+import { X, Plus, Mail, Send, Trash2, Edit2, Check, UserCheck, UserX, Users, Bell } from 'lucide-react';
 import { Customer, CustomerContact } from '../types';
 import { ticketsApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -26,6 +26,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
   const [formCanViewDevices, setFormCanViewDevices] = useState(false);
   const [formCanViewInvoices, setFormCanViewInvoices] = useState(false);
   const [formCanViewQuotes, setFormCanViewQuotes] = useState(false);
+  const [formNotifyTicketCreated, setFormNotifyTicketCreated] = useState(true);
+  const [formNotifyTicketStatusChanged, setFormNotifyTicketStatusChanged] = useState(true);
+  const [formNotifyTicketReply, setFormNotifyTicketReply] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Delete confirmation
@@ -67,6 +70,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       setFormCanViewDevices(contact.canViewDevices ?? false);
       setFormCanViewInvoices(contact.canViewInvoices ?? false);
       setFormCanViewQuotes(contact.canViewQuotes ?? false);
+      setFormNotifyTicketCreated(contact.notifyTicketCreated ?? true);
+      setFormNotifyTicketStatusChanged(contact.notifyTicketStatusChanged ?? true);
+      setFormNotifyTicketReply(contact.notifyTicketReply ?? true);
     } else {
       setEditingContact(null);
       setFormName('');
@@ -77,6 +83,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       setFormCanViewDevices(false);
       setFormCanViewInvoices(false);
       setFormCanViewQuotes(false);
+      setFormNotifyTicketCreated(true);
+      setFormNotifyTicketStatusChanged(true);
+      setFormNotifyTicketReply(true);
     }
     setShowForm(true);
   };
@@ -105,6 +114,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
           canViewDevices: formCanViewDevices,
           canViewInvoices: formCanViewInvoices,
           canViewQuotes: formCanViewQuotes,
+          notifyTicketCreated: formNotifyTicketCreated,
+          notifyTicketStatusChanged: formNotifyTicketStatusChanged,
+          notifyTicketReply: formNotifyTicketReply,
         });
         setContacts(prev => prev.map(c => c.id === editingContact.id ? response.data : c));
       } else {
@@ -118,6 +130,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
           canViewDevices: formCanViewDevices,
           canViewInvoices: formCanViewInvoices,
           canViewQuotes: formCanViewQuotes,
+          notifyTicketCreated: formNotifyTicketCreated,
+          notifyTicketStatusChanged: formNotifyTicketStatusChanged,
+          notifyTicketReply: formNotifyTicketReply,
         });
         setContacts(prev => [...prev, response.data]);
       }
@@ -338,6 +353,62 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                     </div>
                   </label>
                 )}
+              </div>
+
+              {/* Email Notification Preferences */}
+              <div className="border-t border-gray-200 dark:border-gray-600 pt-4 mt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Bell size={16} className="text-gray-500 dark:text-gray-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    E-Mail-Benachrichtigungen
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formNotifyTicketCreated}
+                      onChange={(e) => setFormNotifyTicketCreated(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300"
+                    />
+                    <div>
+                      <span className="text-gray-900 dark:text-white font-medium">Ticket erstellt</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Bestätigung bei Ticket-Erstellung
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formNotifyTicketStatusChanged}
+                      onChange={(e) => setFormNotifyTicketStatusChanged(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300"
+                    />
+                    <div>
+                      <span className="text-gray-900 dark:text-white font-medium">Status geändert</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Bei Statusänderungen des Tickets
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formNotifyTicketReply}
+                      onChange={(e) => setFormNotifyTicketReply(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300"
+                    />
+                    <div>
+                      <span className="text-gray-900 dark:text-white font-medium">Neue Antwort</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Bei neuen Antworten auf das Ticket
+                      </p>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4">

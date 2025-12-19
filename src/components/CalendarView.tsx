@@ -101,6 +101,15 @@ export const CalendarView = ({
   const [editStartTime, setEditStartTime] = useState('');
   const [editEndTime, setEditEndTime] = useState('');
 
+  // Create entry modal state (for slot selection)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createSlotInfo, setCreateSlotInfo] = useState<SlotInfo | null>(null);
+  const [createProjectId, setCreateProjectId] = useState('');
+  const [createActivityId, setCreateActivityId] = useState('');
+  const [createDescription, setCreateDescription] = useState('');
+  const [createStartTime, setCreateStartTime] = useState('');
+  const [createEndTime, setCreateEndTime] = useState('');
+
   // Convert time entries to calendar events
   const timeEntryEvents: CalendarEvent[] = useMemo(() => {
     if (!showTimeEntries) return [];
@@ -347,23 +356,76 @@ export const CalendarView = ({
       return;
     }
 
-    // Use first active project as default
-    const defaultProject = activeProjects[0];
-    const duration = Math.floor((slotInfo.end.getTime() - slotInfo.start.getTime()) / 1000);
+    // Open create modal instead of directly creating entry
+    setCreateSlotInfo(slotInfo);
+    setCreateProjectId('');
+    setCreateActivityId('');
+    setCreateDescription('');
+    setCreateStartTime(format(slotInfo.start, 'HH:mm'));
+    setCreateEndTime(format(slotInfo.end, 'HH:mm'));
+    setIsCreateModalOpen(true);
+  };
 
-    // Create entry and open edit modal
+  // Handle create entry from modal
+  const handleCreateEntry = () => {
+    if (!onCreateEntry || !createSlotInfo || !createProjectId) return;
+
+    // Use the potentially edited times
+    const startDate = createSlotInfo.start;
+    const startDateTime = new Date(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+      parseInt(createStartTime.split(':')[0]),
+      parseInt(createStartTime.split(':')[1])
+    );
+    const endDateTime = new Date(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+      parseInt(createEndTime.split(':')[0]),
+      parseInt(createEndTime.split(':')[1])
+    );
+
+    const duration = Math.floor((endDateTime.getTime() - startDateTime.getTime()) / 1000);
+
+    if (duration <= 0) {
+      alert('Die Endzeit muss nach der Startzeit liegen!');
+      return;
+    }
+
     const newEntry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'> = {
-      projectId: defaultProject.id,
-      activityId: activities.length > 0 ? activities[0].id : undefined,
-      startTime: slotInfo.start.toISOString(),
-      endTime: slotInfo.end.toISOString(),
+      projectId: createProjectId,
+      activityId: createActivityId || undefined,
+      startTime: startDateTime.toISOString(),
+      endTime: endDateTime.toISOString(),
       duration,
-      description: '',
+      description: createDescription,
       isRunning: false
     };
 
     onCreateEntry(newEntry);
+    setIsCreateModalOpen(false);
+    setCreateSlotInfo(null);
   };
+
+  // Helper to format duration display
+  const formatDurationDisplay = (seconds: number): string => {
+    if (seconds <= 0) return '0:00';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.round((seconds % 3600) / 60);
+    return `${hours}:${minutes.toString().padStart(2, '0')}`;
+  };
+
+  // Calculate duration for create modal
+  const createDuration = useMemo(() => {
+    if (!createStartTime || !createEndTime) return 0;
+    const [startH, startM] = createStartTime.split(':').map(Number);
+    const [endH, endM] = createEndTime.split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+    return Math.max(0, (endMinutes - startMinutes) * 60);
+  }, [createStartTime, createEndTime]);
 
   // Style weekends differently
   const dayPropGetter = (date: Date) => {
@@ -608,6 +670,144 @@ export const CalendarView = ({
               <button
                 onClick={handleSaveEdit}
                 className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              >
+                Speichern
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Create Entry Modal (from slot selection) */}
+      {isCreateModalOpen && createSlotInfo && (
+        <Modal
+          isOpen={true}
+          onClose={() => {
+            setIsCreateModalOpen(false);
+            setCreateSlotInfo(null);
+          }}
+          title="Neuen Zeiteintrag erstellen"
+        >
+          <div className="space-y-4">
+            {/* Date display */}
+            <div className="text-center py-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+              <span className="text-lg font-medium text-blue-900 dark:text-blue-200">
+                {format(createSlotInfo.start, 'EEEE, dd.MM.yyyy', { locale: de })}
+              </span>
+            </div>
+
+            {/* Time selection */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Von *
+                </label>
+                <TimePicker
+                  value={createStartTime}
+                  onChange={setCreateStartTime}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Bis *
+                </label>
+                <TimePicker
+                  value={createEndTime}
+                  onChange={setCreateEndTime}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Live Duration Display */}
+            <div className={`flex items-center justify-center gap-2 py-2 px-4 rounded-lg ${
+              createDuration > 0
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+            }`}>
+              <Clock size={18} />
+              <span className="font-medium">
+                Dauer: {formatDurationDisplay(createDuration)} h
+              </span>
+              {createDuration <= 0 && createStartTime && createEndTime && (
+                <span className="text-sm text-red-500 dark:text-red-400 ml-2">
+                  (Endzeit muss nach Startzeit liegen)
+                </span>
+              )}
+            </div>
+
+            {/* Project selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Projekt *
+              </label>
+              <select
+                value={createProjectId}
+                onChange={(e) => setCreateProjectId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                required
+              >
+                <option value="">Projekt wählen...</option>
+                {projects.filter(p => p.isActive).map(project => {
+                  const customer = customers.find(c => c.id === project.customerId);
+                  return (
+                    <option key={project.id} value={project.id}>
+                      {customer?.name} - {project.name}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Activity selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Tätigkeit
+              </label>
+              <select
+                value={createActivityId}
+                onChange={(e) => setCreateActivityId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">Keine Tätigkeit</option>
+                {activities.map(activity => (
+                  <option key={activity.id} value={activity.id}>
+                    {activity.name} {activity.pricingType === 'flat' && activity.flatRate ? `(Pauschale: ${activity.flatRate.toFixed(2)}€)` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Beschreibung
+              </label>
+              <textarea
+                value={createDescription}
+                onChange={(e) => setCreateDescription(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="Was wurde gemacht?"
+              />
+            </div>
+
+            {/* Buttons */}
+            <div className="flex justify-end gap-2 pt-4">
+              <button
+                onClick={() => {
+                  setIsCreateModalOpen(false);
+                  setCreateSlotInfo(null);
+                }}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleCreateEntry}
+                disabled={!createProjectId || createDuration <= 0}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Speichern
               </button>

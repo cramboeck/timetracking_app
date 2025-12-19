@@ -158,7 +158,7 @@ EMAIL_FROM=noreply@deine-domain.de
 
 # URLs
 FRONTEND_URL=https://deine-domain.de
-BACKEND_URL=https://deine-domain.de/api
+BACKEND_URL=https://deine-domain.de
 ```
 
 **Passwort generieren:**

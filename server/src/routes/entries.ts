@@ -52,6 +52,88 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
   }
 });
 
+// PUT /api/entries/bulk-update - Bulk update multiple entries (requires member role)
+// IMPORTANT: This route must be defined BEFORE /:id routes to avoid matching "bulk-update" as an ID
+router.put('/bulk-update', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { entryIds, updates } = req.body;
+
+    if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
+      return res.status(400).json({ error: 'Entry IDs are required' });
+    }
+
+    if (!updates || Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'Updates are required' });
+    }
+
+    // Verify all entries belong to organization
+    const placeholders = entryIds.map((_, i) => `$${i + 2}`).join(', ');
+    const verifyResult = await pool.query(
+      `SELECT id FROM time_entries WHERE id IN (${placeholders}) AND organization_id = $1`,
+      [organizationId, ...entryIds]
+    );
+
+    if (verifyResult.rows.length !== entryIds.length) {
+      return res.status(400).json({ error: 'Some entries were not found or do not belong to your organization' });
+    }
+
+    // If updating projectId, verify project belongs to organization
+    if (updates.projectId) {
+      const projectResult = await pool.query(
+        'SELECT * FROM projects WHERE id = $1 AND organization_id = $2',
+        [updates.projectId, organizationId]
+      );
+      if (projectResult.rows.length === 0) {
+        return res.status(400).json({ error: 'Project not found or does not belong to your organization' });
+      }
+    }
+
+    // Build dynamic update query
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    if (updates.projectId !== undefined) {
+      fields.push(`project_id = $${paramCount++}`);
+      values.push(updates.projectId);
+    }
+    if (updates.description !== undefined) {
+      fields.push(`description = $${paramCount++}`);
+      values.push(updates.description);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    // Create placeholders for entry IDs
+    const idPlaceholders = entryIds.map((_, i) => `$${paramCount + i}`).join(', ');
+    values.push(...entryIds);
+
+    const updateQuery = `UPDATE time_entries SET ${fields.join(', ')} WHERE id IN (${idPlaceholders})`;
+    await pool.query(updateQuery, values);
+
+    auditLog.log({
+      userId,
+      action: 'time_entry.bulk_update',
+      details: JSON.stringify({ entryIds, updates }),
+      ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      data: { updatedCount: entryIds.length }
+    });
+  } catch (error) {
+    console.error('Bulk update entries error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/entries/:id - Get single entry
 router.get('/:id', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {

@@ -30,6 +30,8 @@ import mfaRoutes from './routes/mfa';
 import organizationsRoutes from './routes/organizations';
 import leadsRoutes from './routes/leads';
 import tasksRoutes from './routes/tasks';
+import aiRoutes from './routes/ai';
+import contractsRoutes from './routes/contracts';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -102,6 +104,8 @@ app.use('/api/mfa', mfaRoutes);
 app.use('/api/organizations', organizationsRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/tasks', tasksRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/contracts', contractsRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
@@ -110,15 +114,63 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use('/api/uploads', express.static(uploadsDir));
 
-// Health check
-app.get('/health', (req, res) => {
+// Health check - Basic liveness probe (is the server running?)
+// Available at both /health (direct) and /api/health (via nginx)
+const healthHandler = (req: any, res: any) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
     environment: process.env.NODE_ENV || 'development',
-    emailTestMode: process.env.EMAIL_TEST_MODE === 'true'
   });
-});
+};
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
+
+// Ready check - Full readiness probe (is the server ready to accept requests?)
+// Available at both /ready (direct) and /api/ready (via nginx)
+const readyHandler = async (req: any, res: any) => {
+  const checks: Record<string, { status: string; latency?: number; error?: string }> = {};
+  let allHealthy = true;
+
+  // Check database connection
+  try {
+    const dbStart = Date.now();
+    const { pool } = await import('./config/database');
+    await pool.query('SELECT 1');
+    checks.database = { status: 'ok', latency: Date.now() - dbStart };
+  } catch (error: any) {
+    checks.database = { status: 'error', error: error.message };
+    allHealthy = false;
+  }
+
+  // Check disk space for uploads (basic check)
+  try {
+    const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
+    fs.accessSync(uploadsDir, fs.constants.W_OK);
+    checks.uploads = { status: 'ok' };
+  } catch (error: any) {
+    checks.uploads = { status: 'error', error: 'Uploads directory not writable' };
+    allHealthy = false;
+  }
+
+  // Memory usage
+  const memUsage = process.memoryUsage();
+  checks.memory = {
+    status: 'ok',
+    latency: Math.round(memUsage.heapUsed / 1024 / 1024), // MB used
+  };
+
+  res.status(allHealthy ? 200 : 503).json({
+    status: allHealthy ? 'ready' : 'degraded',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    version: process.env.npm_package_version || '1.0.0',
+    checks,
+  });
+};
+app.get('/ready', readyHandler);
+app.get('/api/ready', readyHandler);
 
 // Start notification jobs
 startNotificationJobs();

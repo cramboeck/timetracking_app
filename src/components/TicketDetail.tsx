@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb, Pencil, Check } from 'lucide-react';
+import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb, Pencil, Check, Sparkles, ThumbsUp, ThumbsDown, RefreshCw, Bot, Loader2, Copy, ArrowRight } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl, organizationsApi } from '../services/api';
+import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl, organizationsApi, aiApi, AISuggestion } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SlaStatus } from './SlaStatus';
 import { TicketMergeDialog } from './TicketMergeDialog';
@@ -115,6 +115,13 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskTitle, setEditingTaskTitle] = useState('');
 
+  // AI Assistant
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
+  const [showAiPanel, setShowAiPanel] = useState(false);
+  const [loadingAiSuggestion, setLoadingAiSuggestion] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiConfigured, setAiConfigured] = useState(false);
+
   useEffect(() => {
     loadTicket();
     loadTags();
@@ -122,6 +129,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     loadCannedResponses();
     loadTasks();
     loadUserRole();
+    checkAiConfig();
   }, [ticketId]);
 
   // Load user role for permission checks
@@ -134,6 +142,109 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     } catch (err) {
       // Non-critical, just hide merge button
       console.error('Failed to load user role:', err);
+    }
+  };
+
+  // Check if AI is configured
+  const checkAiConfig = async () => {
+    try {
+      const response = await aiApi.getConfig();
+      setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
+    } catch (err) {
+      console.error('Failed to check AI config:', err);
+      setAiConfigured(false);
+    }
+  };
+
+  // Load existing AI suggestions for ticket
+  const loadAiSuggestions = async () => {
+    try {
+      const response = await aiApi.getSuggestions(ticketId);
+      setAiSuggestions(response.data || []);
+    } catch (err) {
+      console.error('Failed to load AI suggestions:', err);
+    }
+  };
+
+  // Generate new AI suggestion
+  const generateAiSuggestion = async (suggestionType: 'solution' | 'category' | 'priority' | 'response' = 'solution') => {
+    setLoadingAiSuggestion(true);
+    setAiError(null);
+    try {
+      const response = await aiApi.generateSuggestion(ticketId, suggestionType);
+      if (response.success && response.data) {
+        setAiSuggestions(prev => [response.data, ...prev]);
+      }
+    } catch (err: any) {
+      setAiError(err.message || 'Fehler beim Generieren des Vorschlags');
+    } finally {
+      setLoadingAiSuggestion(false);
+    }
+  };
+
+  // Mark suggestion feedback
+  const handleSuggestionFeedback = async (suggestionId: string, isHelpful: boolean) => {
+    try {
+      await aiApi.markSuggestionFeedback(suggestionId, isHelpful);
+      // Reload suggestions to update UI
+      loadAiSuggestions();
+    } catch (err) {
+      console.error('Failed to mark feedback:', err);
+    }
+  };
+
+  // Apply response suggestion to comment field
+  const applyResponseSuggestion = (content: string) => {
+    setNewComment(prev => prev ? `${prev}\n\n${content}` : content);
+    // Scroll to comment field
+    document.querySelector('textarea[placeholder*="Kommentar"]')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Apply priority suggestion by extracting priority from content
+  const applyPrioritySuggestion = async (content: string) => {
+    if (!ticket) return;
+
+    // Try to extract priority from AI response
+    const priorities: Record<string, TicketPriority> = {
+      'kritisch': 'critical',
+      'critical': 'critical',
+      'hoch': 'high',
+      'high': 'high',
+      'normal': 'normal',
+      'medium': 'normal',
+      'mittel': 'normal',
+      'niedrig': 'low',
+      'low': 'low',
+      'gering': 'low',
+    };
+
+    const lowerContent = content.toLowerCase();
+    let detectedPriority: TicketPriority | null = null;
+
+    for (const [keyword, priority] of Object.entries(priorities)) {
+      if (lowerContent.includes(keyword)) {
+        detectedPriority = priority;
+        break;
+      }
+    }
+
+    if (detectedPriority) {
+      try {
+        const response = await ticketsApi.update(ticket.id, { priority: detectedPriority });
+        setTicket(response.data);
+        setEditPriority(detectedPriority);
+      } catch (err) {
+        console.error('Failed to update priority:', err);
+      }
+    }
+  };
+
+  // Copy suggestion to clipboard
+  const copySuggestionToClipboard = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
     }
   };
 
@@ -985,6 +1096,197 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
           <Play size={20} />
           Timer für dieses Ticket starten
         </button>
+
+        {/* AI Assistant Button */}
+        {aiConfigured && (
+          <button
+            onClick={() => {
+              if (!showAiPanel) {
+                loadAiSuggestions();
+              }
+              setShowAiPanel(!showAiPanel);
+            }}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors ${
+              showAiPanel
+                ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                : 'bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300'
+            }`}
+          >
+            <Bot size={20} />
+            KI-Assistent {showAiPanel ? 'ausblenden' : 'anzeigen'}
+          </button>
+        )}
+
+        {/* AI Assistant Panel */}
+        {showAiPanel && aiConfigured && (
+          <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="text-purple-600 dark:text-purple-400" size={18} />
+              <h3 className="text-sm font-medium text-purple-800 dark:text-purple-300">
+                KI-Assistent
+              </h3>
+            </div>
+
+            {/* AI Assistant Type Buttons */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <button
+                onClick={() => generateAiSuggestion('solution')}
+                disabled={loadingAiSuggestion}
+                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg transition-colors"
+              >
+                <Lightbulb size={14} />
+                Lösung vorschlagen
+              </button>
+              <button
+                onClick={() => generateAiSuggestion('category')}
+                disabled={loadingAiSuggestion}
+                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
+              >
+                <Tag size={14} />
+                Kategorie analysieren
+              </button>
+              <button
+                onClick={() => generateAiSuggestion('priority')}
+                disabled={loadingAiSuggestion}
+                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white rounded-lg transition-colors"
+              >
+                <ChevronDown size={14} />
+                Priorität bewerten
+              </button>
+              <button
+                onClick={() => generateAiSuggestion('response')}
+                disabled={loadingAiSuggestion}
+                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg transition-colors"
+              >
+                <MessageSquare size={14} />
+                Antwort generieren
+              </button>
+            </div>
+
+            {loadingAiSuggestion && (
+              <div className="flex items-center justify-center gap-2 py-4 text-purple-600 dark:text-purple-400">
+                <Loader2 size={18} className="animate-spin" />
+                <span className="text-sm">KI analysiert das Ticket...</span>
+              </div>
+            )}
+
+            {aiError && (
+              <div className="mb-3 p-2 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">
+                {aiError}
+              </div>
+            )}
+
+            {aiSuggestions.length === 0 && !loadingAiSuggestion && (
+              <p className="text-sm text-purple-600 dark:text-purple-400 italic">
+                Wähle eine der Optionen oben, um KI-basierte Vorschläge zu erhalten.
+              </p>
+            )}
+
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {aiSuggestions.map((suggestion) => {
+                const typeConfig = {
+                  solution: { label: 'Lösung', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300', icon: Lightbulb },
+                  category: { label: 'Kategorie', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300', icon: Tag },
+                  priority: { label: 'Priorität', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300', icon: ChevronDown },
+                  response: { label: 'Antwort', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300', icon: MessageSquare },
+                };
+                const config = typeConfig[suggestion.suggestionType] || typeConfig.solution;
+                const TypeIcon = config.icon;
+
+                return (
+                  <div
+                    key={suggestion.id}
+                    className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-purple-100 dark:border-purple-800"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+                        <TypeIcon size={12} />
+                        {config.label}
+                      </span>
+                      {suggestion.confidence && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {Math.round(suggestion.confidence * 100)}% Konfidenz
+                        </span>
+                      )}
+                    </div>
+                    <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+                      {suggestion.content}
+                    </div>
+
+                    {/* Action Buttons based on type */}
+                    <div className="flex flex-wrap items-center gap-2 mt-3 pt-2 border-t border-purple-100 dark:border-purple-800">
+                      {/* Type-specific actions */}
+                      {suggestion.suggestionType === 'response' && (
+                        <button
+                          onClick={() => applyResponseSuggestion(suggestion.content)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 rounded transition-colors"
+                          title="In Kommentar übernehmen"
+                        >
+                          <ArrowRight size={12} />
+                          In Kommentar
+                        </button>
+                      )}
+                      {suggestion.suggestionType === 'priority' && (
+                        <button
+                          onClick={() => applyPrioritySuggestion(suggestion.content)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 dark:text-orange-400 rounded transition-colors"
+                          title="Priorität übernehmen"
+                        >
+                          <ArrowRight size={12} />
+                          Übernehmen
+                        </button>
+                      )}
+                      {suggestion.suggestionType === 'solution' && (
+                        <button
+                          onClick={() => {
+                            setSolutionText(suggestion.content);
+                            setShowSolutionModal(true);
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors"
+                          title="Als Lösung übernehmen"
+                        >
+                          <ArrowRight size={12} />
+                          Als Lösung
+                        </button>
+                      )}
+
+                      {/* Copy button for all types */}
+                      <button
+                        onClick={() => copySuggestionToClipboard(suggestion.content)}
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-400 rounded transition-colors"
+                        title="In Zwischenablage kopieren"
+                      >
+                        <Copy size={12} />
+                        Kopieren
+                      </button>
+
+                      <div className="flex-1" />
+
+                      {/* Feedback buttons */}
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {new Date(suggestion.createdAt).toLocaleString('de-DE')}
+                      </span>
+                      <button
+                        onClick={() => handleSuggestionFeedback(suggestion.id, true)}
+                        className="p-1 text-gray-400 hover:text-green-500 transition-colors"
+                        title="Hilfreich"
+                      >
+                        <ThumbsUp size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleSuggestionFeedback(suggestion.id, false)}
+                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                        title="Nicht hilfreich"
+                      >
+                        <ThumbsDown size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Description */}
         {isEditing ? (

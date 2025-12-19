@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -8,6 +8,7 @@ import { TicketSettings } from './TicketSettings';
 import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { NinjaRMMSettings } from './NinjaRMMSettings';
 import { PushNotificationSettings } from './PushNotificationSettings';
+import { AISettings } from './AISettings';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 import { CustomerNinjaRMMLink } from './CustomerNinjaRMMLink';
 import { IOSSwitch } from './IOSSwitch';
@@ -64,7 +65,7 @@ export const Settings = ({
   onDeleteActivity
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'ai'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
   const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
@@ -103,6 +104,7 @@ export const Settings = ({
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerReportTitle, setCustomerReportTitle] = useState('');
   const [customerHourlyRate, setCustomerHourlyRate] = useState('');
+  const [customerTimeRoundingInterval, setCustomerTimeRoundingInterval] = useState('15');
   const [customerNinjarmmOrgId, setCustomerNinjarmmOrgId] = useState('');
 
   // CSV Import
@@ -180,6 +182,7 @@ export const Settings = ({
       setCustomerAddress(customer.address || '');
       setCustomerReportTitle(customer.reportTitle || '');
       setCustomerHourlyRate(customer.hourlyRate?.toString() || '');
+      setCustomerTimeRoundingInterval(customer.timeRoundingInterval?.toString() || '15');
       setCustomerNinjarmmOrgId(customer.ninjarmmOrganizationId || '');
     } else {
       setEditingCustomer(null);
@@ -191,6 +194,7 @@ export const Settings = ({
       setCustomerAddress('');
       setCustomerReportTitle('');
       setCustomerHourlyRate('');
+      setCustomerTimeRoundingInterval('15');
       setCustomerNinjarmmOrgId('');
     }
     setCustomerModalOpen(true);
@@ -306,6 +310,7 @@ export const Settings = ({
     if (!customerName.trim()) return;
 
     const hourlyRateValue = customerHourlyRate.trim() ? parseFloat(customerHourlyRate) : undefined;
+    const timeRoundingIntervalValue = customerTimeRoundingInterval.trim() ? parseInt(customerTimeRoundingInterval) : 15;
 
     if (editingCustomer) {
       onUpdateCustomer(editingCustomer.id, {
@@ -317,6 +322,7 @@ export const Settings = ({
         address: customerAddress.trim() || undefined,
         reportTitle: customerReportTitle.trim() || undefined,
         hourlyRate: hourlyRateValue,
+        timeRoundingInterval: timeRoundingIntervalValue,
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined
       });
     } else {
@@ -331,6 +337,7 @@ export const Settings = ({
         address: customerAddress.trim() || undefined,
         reportTitle: customerReportTitle.trim() || undefined,
         hourlyRate: hourlyRateValue,
+        timeRoundingInterval: timeRoundingIntervalValue,
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
         createdAt: new Date().toISOString()
       });
@@ -904,7 +911,8 @@ export const Settings = ({
       items: [
         { id: 'tickets', label: 'Ticket-System', icon: Ticket, desc: 'Tags & Textbausteine' },
         { id: 'portal', label: 'Kundenportal', icon: Book, desc: 'KB & Branding' },
-        { id: 'ninjarmm', label: 'NinjaRMM', icon: Server, desc: 'Geräte & Alerts' }
+        { id: 'ninjarmm', label: 'NinjaRMM', icon: Server, desc: 'Geräte & Alerts' },
+        { id: 'ai', label: 'KI-Assistent', icon: Bot, desc: 'Lösungsvorschläge' }
       ]
     }
   ];
@@ -937,7 +945,7 @@ export const Settings = ({
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
                         isActive
                           ? 'bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-medium'
-                          : 'text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
                       }`}
                     >
                       <Icon size={20} className={isActive ? 'text-accent-primary' : 'text-gray-400'} />
@@ -1552,13 +1560,13 @@ export const Settings = ({
                               <div className="flex items-center gap-2">
                                 <h3 className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</h3>
                                 {customer.customerNumber && (
-                                  <span className="text-xs bg-gray-100 dark:bg-dark-50 text-gray-600 dark:text-dark-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                  <span className="text-xs bg-gray-100 dark:bg-dark-50 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full whitespace-nowrap">
                                     #{customer.customerNumber}
                                   </span>
                                 )}
                               </div>
                               {customer.reportTitle && (
-                                <p className="text-sm text-gray-600 dark:text-dark-300 mt-0.5 truncate">
+                                <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5 truncate">
                                   {customer.reportTitle}
                                 </p>
                               )}
@@ -1603,7 +1611,7 @@ export const Settings = ({
                                 className={`p-2 rounded-lg transition-colors ${
                                   customer.sevdeskCustomerId
                                     ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
-                                    : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
                                 }`}
                                 title={customer.sevdeskCustomerId ? 'sevDesk verknüpft' : 'Mit sevDesk verknüpfen'}
                               >
@@ -1615,7 +1623,7 @@ export const Settings = ({
                                 className={`p-2 rounded-lg transition-colors ${
                                   customer.ninjarmmOrganizationId
                                     ? 'text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'
-                                    : 'text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
                                 }`}
                                 title={customer.ninjarmmOrganizationId ? 'NinjaRMM verknüpft' : 'Mit NinjaRMM verknüpfen'}
                               >
@@ -1624,7 +1632,7 @@ export const Settings = ({
                             {currentUser?.hasTicketAccess && (
                               <button
                                 onClick={() => setContactsCustomer(customer)}
-                                className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
                                 title="Kontakte verwalten"
                               >
                                 <UserCog size={18} />
@@ -1633,7 +1641,7 @@ export const Settings = ({
                             {canEdit && (
                               <button
                                 onClick={() => openCustomerModal(customer)}
-                                className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
                                 title="Bearbeiten"
                               >
                                 <Edit2 size={18} />
@@ -1721,7 +1729,7 @@ export const Settings = ({
                           {canEdit && (
                             <button
                               onClick={() => openProjectModal(project)}
-                              className="p-2 text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                              className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
                             >
                               <Edit2 size={18} />
                             </button>
@@ -1801,7 +1809,7 @@ export const Settings = ({
                             {canEdit && (
                               <button
                                 onClick={() => openActivityModal(activity)}
-                                className="p-2 text-gray-600 dark:text-dark-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                                 title="Bearbeiten"
                               >
                                 <Edit2 size={18} />
@@ -1810,7 +1818,7 @@ export const Settings = ({
                             {canDelete && (
                               <button
                                 onClick={() => handleDeleteActivity(activity)}
-                                className="p-2 text-gray-600 dark:text-dark-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                 title="Löschen"
                               >
                                 <Trash2 size={18} />
@@ -2402,6 +2410,30 @@ export const Settings = ({
           </div>
         )}
 
+        {activeTab === 'ai' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+                  <Bot size={28} className="text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">KI-Assistent</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    Konfiguriere OpenAI oder Anthropic für automatische Lösungsvorschläge
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Settings Component */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <AISettings />
+            </div>
+          </div>
+        )}
+
         {/* Billing tab removed - now in Finanzen section */}
 
         {activeTab === 'appearance' && (
@@ -2683,6 +2715,31 @@ export const Settings = ({
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Kundenspezifischer Stundensatz für Abrechnungen (überschreibt den Standard)
+              </p>
+            </div>
+          )}
+
+          {/* Time Rounding Interval - only show if billing is enabled */}
+          {billingEnabled && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Zeitaufrundung (Minuten)
+              </label>
+              <select
+                value={customerTimeRoundingInterval}
+                onChange={(e) => setCustomerTimeRoundingInterval(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                <option value="1">1 Minute (keine Rundung)</option>
+                <option value="5">5 Minuten</option>
+                <option value="6">6 Minuten (0,1h)</option>
+                <option value="10">10 Minuten</option>
+                <option value="15">15 Minuten (0,25h)</option>
+                <option value="30">30 Minuten (0,5h)</option>
+                <option value="60">60 Minuten (1h)</option>
+              </select>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Zeiteinträge werden auf dieses Intervall aufgerundet (z.B. 7 Min. → 15 Min.)
               </p>
             </div>
           )}
@@ -3173,7 +3230,7 @@ export const Settings = ({
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Benutzername
             </label>
             <input
@@ -3186,7 +3243,7 @@ export const Settings = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               E-Mail
             </label>
             <input
@@ -3239,7 +3296,7 @@ export const Settings = ({
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Aktuelles Passwort
             </label>
             <input
@@ -3252,7 +3309,7 @@ export const Settings = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Neues Passwort
             </label>
             <input
@@ -3265,7 +3322,7 @@ export const Settings = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Passwort bestätigen
             </label>
             <input

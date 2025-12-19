@@ -5,7 +5,7 @@ import { authenticateToken } from '../middleware/auth';
 import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { emailService } from '../services/emailService';
-import { sendTicketNotification } from '../services/pushNotifications';
+import { sendTicketNotification, sendPortalTicketNotification } from '../services/pushNotifications';
 import { auditLog } from '../services/auditLog';
 
 const router = express.Router();
@@ -491,6 +491,28 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       WHERE t.id = $1
     `, [id]);
 
+    // Send push notifications to organization members (async, non-blocking)
+    (async () => {
+      try {
+        // Get all organization members except the creator
+        const members = await query(
+          `SELECT user_id FROM organization_members WHERE organization_id = $1 AND user_id != $2`,
+          [organizationId, userId]
+        );
+
+        for (const member of members.rows) {
+          sendTicketNotification(
+            member.user_id,
+            { id, ticketNumber, title },
+            'push_on_new_ticket',
+            `Neues Ticket erstellt: ${title}`
+          ).catch(err => console.error('Push notification error:', err));
+        }
+      } catch (err) {
+        console.error('Error sending push notifications:', err);
+      }
+    })();
+
     res.status(201).json({ success: true, data: transformTicket(ticketResult.rows[0]) });
   } catch (error) {
     console.error('Error creating ticket:', error);
@@ -619,16 +641,16 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
         details: JSON.stringify({ ticketId: id, oldStatus: oldValues.status, newStatus: status }),
       });
 
-      // Send email notification for status change (except archived)
+      // Send email and push notification for status change (except archived)
       if (status !== 'archived') {
         const contactInfo = await query(`
-          SELECT t.title, t.ticket_number, cc.email, cc.name
+          SELECT t.title, t.ticket_number, t.contact_id, cc.email, cc.name, cc.notify_ticket_status_changed
           FROM tickets t
           LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
           WHERE t.id = $1
         `, [id]);
 
-        if (contactInfo.rows.length > 0 && contactInfo.rows[0].email) {
+        if (contactInfo.rows.length > 0 && contactInfo.rows[0].email && contactInfo.rows[0].notify_ticket_status_changed !== false) {
           const ticket = contactInfo.rows[0];
           const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${id}`;
           emailService.sendTicketStatusChangeNotification({
@@ -640,6 +662,23 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
             newStatus: status,
             portalUrl: portalTicketUrl,
           }).catch(err => console.error('Failed to send status change notification:', err));
+
+          // Send push notification for status change
+          if (ticket.contact_id) {
+            const statusNames: Record<string, string> = {
+              'open': 'Offen',
+              'in_progress': 'In Bearbeitung',
+              'waiting': 'Wartend',
+              'resolved': 'Gelöst',
+              'closed': 'Geschlossen',
+            };
+            sendPortalTicketNotification(
+              ticket.contact_id,
+              { id, ticketNumber: ticket.ticket_number, title: ticket.title },
+              'push_on_status_change',
+              `Status geändert: ${statusNames[status] || status}`
+            ).catch(err => console.error('Failed to send portal status change push:', err));
+          }
         }
       }
     }
@@ -998,15 +1037,15 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
       // Send email notification to customer (async, non-blocking)
       try {
         const ticketInfo = await query(`
-          SELECT t.title, t.ticket_number, cc.email as contact_email, cc.name as contact_name,
-                 COALESCE(u.display_name, u.username) as replier_name
+          SELECT t.title, t.ticket_number, t.contact_id, cc.email as contact_email, cc.name as contact_name,
+                 cc.notify_ticket_reply, COALESCE(u.display_name, u.username) as replier_name
           FROM tickets t
           LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
           LEFT JOIN users u ON u.id = $2
           WHERE t.id = $1
         `, [ticketId, userId]);
 
-        if (ticketInfo.rows.length > 0 && ticketInfo.rows[0].contact_email) {
+        if (ticketInfo.rows.length > 0 && ticketInfo.rows[0].contact_email && ticketInfo.rows[0].notify_ticket_reply !== false) {
           const ticket = ticketInfo.rows[0];
           const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${ticketId}`;
           emailService.sendTicketReplyNotification({
@@ -1018,6 +1057,16 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
             replierName: ticket.replier_name || 'Support',
             portalUrl: portalTicketUrl,
           }).catch(err => console.error('Failed to send ticket reply notification:', err));
+
+          // Send push notification to customer (async, non-blocking)
+          if (ticketInfo.rows[0].contact_id) {
+            sendPortalTicketNotification(
+              ticketInfo.rows[0].contact_id,
+              { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
+              'push_on_ticket_reply',
+              `Neue Antwort von ${ticket.replier_name || 'Support'}`
+            ).catch(err => console.error('Failed to send portal push notification:', err));
+          }
         }
       } catch (emailErr) {
         console.error('Error preparing ticket notification email:', emailErr);
@@ -1319,7 +1368,9 @@ router.get('/contacts/:customerId', authenticateToken, attachOrganization, async
     }
 
     const result = await query(`
-      SELECT id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets, last_login, created_at
+      SELECT id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+             notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply,
+             last_login, created_at
       FROM customer_contacts
       WHERE customer_id = $1
       ORDER BY is_primary DESC, name ASC
@@ -1337,7 +1388,11 @@ router.post('/contacts', authenticateToken, attachOrganization, async (req, res)
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { customerId, name, email, canCreateTickets = true, canViewAllTickets = false } = req.body;
+    const {
+      customerId, name, email,
+      canCreateTickets = true, canViewAllTickets = false,
+      notifyTicketCreated = true, notifyTicketStatusChanged = true, notifyTicketReply = true
+    } = req.body;
 
     if (!customerId || !name || !email) {
       return res.status(400).json({ success: false, error: 'Customer ID, name and email are required' });
@@ -1363,10 +1418,13 @@ router.post('/contacts', authenticateToken, attachOrganization, async (req, res)
     const isPrimary = parseInt(existingContacts.rows[0].count) === 0;
 
     const result = await query(`
-      INSERT INTO customer_contacts (id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets, created_at
-    `, [id, customerId, name, email, isPrimary, canCreateTickets, canViewAllTickets]);
+      INSERT INTO customer_contacts (id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+                                     notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+                notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply, created_at
+    `, [id, customerId, name, email, isPrimary, canCreateTickets, canViewAllTickets,
+        notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply]);
 
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error: any) {
@@ -1375,6 +1433,53 @@ router.post('/contacts', authenticateToken, attachOrganization, async (req, res)
     }
     console.error('Error creating contact:', error);
     res.status(500).json({ success: false, error: 'Failed to create contact' });
+  }
+});
+
+// PUT /api/tickets/contacts/:id - Update customer contact
+router.put('/contacts/:id', authenticateToken, attachOrganization, async (req, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+    const {
+      name, email, canCreateTickets, canViewAllTickets,
+      notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply
+    } = req.body;
+
+    // Verify contact belongs to organization through customer
+    const contactCheck = await query(`
+      SELECT cc.id FROM customer_contacts cc
+      JOIN customers c ON cc.customer_id = c.id
+      WHERE cc.id = $1 AND c.organization_id = $2
+    `, [id, organizationId]);
+
+    if (contactCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Contact not found' });
+    }
+
+    const result = await query(`
+      UPDATE customer_contacts SET
+        name = COALESCE($1, name),
+        email = COALESCE($2, email),
+        can_create_tickets = COALESCE($3, can_create_tickets),
+        can_view_all_tickets = COALESCE($4, can_view_all_tickets),
+        notify_ticket_created = COALESCE($5, notify_ticket_created),
+        notify_ticket_status_changed = COALESCE($6, notify_ticket_status_changed),
+        notify_ticket_reply = COALESCE($7, notify_ticket_reply)
+      WHERE id = $8
+      RETURNING id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+                notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply, created_at
+    `, [name, email, canCreateTickets, canViewAllTickets,
+        notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply, id]);
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    if (error.code === '23505') {
+      return res.status(400).json({ success: false, error: 'Email already exists for this customer' });
+    }
+    console.error('Error updating contact:', error);
+    res.status(500).json({ success: false, error: 'Failed to update contact' });
   }
 });
 

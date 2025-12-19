@@ -757,11 +757,79 @@ function parseNinjaTimestamp(value: string | number | null | undefined): Date | 
   return isNaN(date.getTime()) ? null : date;
 }
 
+// Helper function to extract private IP from device data
+function extractPrivateIp(device: NinjaRMMDevice): string | null {
+  const deviceName = device.systemName || device.displayName || `Device-${device.id}`;
+
+  // First check if there's a direct privateIp field on the device
+  const directIp = (device as any).privateIp || (device as any).internalIp || (device as any).localIp || (device as any).ipAddress;
+  if (typeof directIp === 'string' && directIp) {
+    // Verify it's a private IP
+    if (directIp.startsWith('10.') || directIp.startsWith('192.168.') ||
+        (directIp.startsWith('172.') && parseInt(directIp.split('.')[1]) >= 16 && parseInt(directIp.split('.')[1]) <= 31)) {
+      console.log(`[IP-Extract] ${deviceName}: Found direct private IP: ${directIp}`);
+      return directIp;
+    }
+  }
+
+  // Search through NICs
+  const nics = device.nics || [];
+
+  // Debug: Log the NICs structure for first few devices
+  if (nics.length > 0) {
+    console.log(`[IP-Extract] ${deviceName}: Found ${nics.length} NICs`);
+  } else {
+    console.log(`[IP-Extract] ${deviceName}: No NICs found in device data`);
+  }
+
+  if (Array.isArray(nics)) {
+    for (const nic of nics) {
+      if (!nic) continue;
+
+      // Handle various NinjaRMM NIC data structures
+      let ip: any = nic.ipAddress || (nic as any).ip || (nic as any).ipv4 || (nic as any).address || '';
+
+      // Debug: Show what we're getting from the NIC
+      if (nics.indexOf(nic) === 0) {
+        console.log(`[IP-Extract] ${deviceName}: First NIC data:`, JSON.stringify(nic).substring(0, 200));
+      }
+
+      // If ip is an array, take the first element
+      if (Array.isArray(ip)) {
+        ip = ip[0] || '';
+      }
+
+      // Ensure ip is a string
+      if (typeof ip !== 'string' || !ip) {
+        continue;
+      }
+
+      // Skip loopback and link-local addresses
+      if (ip.startsWith('127.') || ip.startsWith('169.254.') || ip.startsWith('::') || ip === '0.0.0.0') {
+        continue;
+      }
+
+      // Check if it's a private IP range (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
+      if (ip.startsWith('10.') || ip.startsWith('192.168.') ||
+          (ip.startsWith('172.') && parseInt(ip.split('.')[1]) >= 16 && parseInt(ip.split('.')[1]) <= 31)) {
+        console.log(`[IP-Extract] ${deviceName}: Found private IP in NICs: ${ip}`);
+        return ip;
+      }
+    }
+  }
+
+  console.log(`[IP-Extract] ${deviceName}: No private IP found`);
+  return null;
+}
+
 export async function syncDevices(userId: string): Promise<SyncResult> {
   let synced = 0;
   let errors = 0;
 
   try {
+    const config = await getConfig(userId);
+    if (!config) throw new Error('NinjaRMM not configured');
+
     // Use getDevicesDetailed to get full hardware info (OS, system, processor, memory)
     const devices = await getDevicesDetailed(userId);
     console.log(`Syncing ${devices.length} devices with detailed info for user ${userId}`);
@@ -770,18 +838,65 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
       try {
         const lastContact = parseNinjaTimestamp(device.lastContact);
 
+        // The bulk /devices-detailed endpoint might not include NICs data
+        // Fetch network interfaces separately if needed
+        let deviceWithNics = device;
+        if (!device.nics || device.nics.length === 0) {
+          try {
+            const nics = await ninjaFetch(config, `/device/${device.id}/network-interfaces`);
+            if (nics && Array.isArray(nics)) {
+              deviceWithNics = { ...device, nics };
+              console.log(`[Sync] ${device.systemName}: Fetched ${nics.length} NICs separately`);
+            }
+          } catch (nicErr) {
+            // Network interface fetch failed - not critical, continue without
+            console.log(`[Sync] ${device.systemName}: Could not fetch NICs: ${(nicErr as Error).message}`);
+          }
+        }
+
+        const privateIp = extractPrivateIp(deviceWithNics);
+
+        // Get current device to check for IP changes (for history tracking)
+        const existingDevice = await query(
+          'SELECT private_ip, public_ip FROM ninjarmm_devices WHERE user_id = $1 AND ninja_device_id = $2',
+          [userId, String(device.id)]
+        );
+
+        // Track IP changes in history
+        if (existingDevice.rows.length > 0) {
+          const oldPrivateIp = existingDevice.rows[0].private_ip;
+          const oldPublicIp = existingDevice.rows[0].public_ip;
+
+          if (privateIp && oldPrivateIp && privateIp !== oldPrivateIp) {
+            await query(
+              `INSERT INTO ninjarmm_device_ip_history (id, device_id, ip_type, old_ip, new_ip)
+               VALUES ($1, $2, 'private', $3, $4)`,
+              [uuidv4(), `${userId}_${device.id}`, oldPrivateIp, privateIp]
+            );
+            console.log(`📝 IP change logged for ${device.systemName}: ${oldPrivateIp} → ${privateIp}`);
+          }
+
+          if (device.publicIP && oldPublicIp && device.publicIP !== oldPublicIp) {
+            await query(
+              `INSERT INTO ninjarmm_device_ip_history (id, device_id, ip_type, old_ip, new_ip)
+               VALUES ($1, $2, 'public', $3, $4)`,
+              [uuidv4(), `${userId}_${device.id}`, oldPublicIp, device.publicIP]
+            );
+          }
+        }
+
         // Note: UNIQUE constraint is on (user_id, ninja_device_id) where ninja_device_id is TEXT
         // Organization lookup uses ninja_org_id (TEXT) to match the organization
         await query(
           `INSERT INTO ninjarmm_devices (
             id, user_id, ninja_device_id, ninja_id, organization_id, ninja_org_id,
             system_name, display_name, dns_name, node_class,
-            offline, last_contact, public_ip, os_name,
+            offline, last_contact, public_ip, private_ip, os_name,
             manufacturer, model, serial_number, last_logged_in_user, device_data, synced_at
           ) VALUES (
             $1, $2, $3, $4,
             (SELECT id FROM ninjarmm_organizations WHERE user_id = $2 AND ninja_org_id = $5),
-            $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW()
+            $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW()
           )
           ON CONFLICT (user_id, ninja_device_id)
           DO UPDATE SET
@@ -794,6 +909,7 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
             offline = EXCLUDED.offline,
             last_contact = EXCLUDED.last_contact,
             public_ip = EXCLUDED.public_ip,
+            private_ip = EXCLUDED.private_ip,
             os_name = EXCLUDED.os_name,
             manufacturer = EXCLUDED.manufacturer,
             model = EXCLUDED.model,
@@ -814,15 +930,17 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
             device.offline,
             lastContact,
             device.publicIP || null,
+            privateIp,              // Now saving private IP
             device.os?.name || null,
             device.system?.manufacturer || null,
             device.system?.model || null,
             device.system?.serialNumber || null,
             device.lastLoggedInUser || null,
-            JSON.stringify(device),
+            JSON.stringify(deviceWithNics),  // Save device with NICs included
           ]
         );
         synced++;
+        console.log(`[Sync] ${device.systemName}: Saved with privateIp=${privateIp || 'null'}`);
       } catch (err) {
         console.error(`Error syncing device ${device.id}:`, err);
         errors++;
@@ -994,12 +1112,13 @@ export async function getLocalDevices(
   processorName: string | null;
   processorCores: number | null;
   memoryGb: number | null;
+  privateIp: string | null;
   syncedAt: Date;
 }>> {
   let sql = `
     SELECT
       d.id, d.ninja_id, d.system_name, d.display_name, d.node_class,
-      d.offline, d.last_contact, d.public_ip, d.os_name,
+      d.offline, d.last_contact, d.public_ip, d.private_ip, d.os_name,
       d.manufacturer, d.model, d.serial_number, d.last_logged_in_user, d.synced_at,
       d.device_data,
       o.name as organization_name, c.name as customer_name
@@ -1065,11 +1184,39 @@ export async function getLocalDevices(
     const systemInfo = deviceData.system || {};
     const processorInfo = deviceData.processor || (deviceData.processors?.[0]) || {};
     const memoryInfo = deviceData.memory || {};
+    const nicsInfo = deviceData.nics || [];
 
     // Build full OS version string
     let osVersion = osInfo.name || row.os_name || '';
     if (osInfo.buildNumber) {
       osVersion = `${osVersion} (Build ${osInfo.buildNumber})`;
+    }
+
+    // Use private_ip from database (saved during sync)
+    // If not in DB, fall back to extracting from device_data for backwards compatibility
+    let privateIp: string | null = row.private_ip;
+
+    if (!privateIp) {
+      // Fallback: extract from device_data for devices synced before private_ip was saved
+      const directIp = deviceData.privateIp || deviceData.internalIp || deviceData.localIp || deviceData.ipAddress;
+      if (typeof directIp === 'string' && directIp) {
+        privateIp = directIp;
+      }
+
+      if (!privateIp && nicsInfo && Array.isArray(nicsInfo)) {
+        for (const nic of nicsInfo) {
+          if (!nic) continue;
+          let ip: any = nic.ipAddress || nic.ip || nic.ipv4 || nic.address || '';
+          if (Array.isArray(ip)) ip = ip[0] || '';
+          if (typeof ip !== 'string' || !ip) continue;
+          if (ip.startsWith('127.') || ip.startsWith('169.254.') || ip.startsWith('::') || ip === '0.0.0.0') continue;
+          if (ip.startsWith('10.') || ip.startsWith('192.168.') ||
+              (ip.startsWith('172.') && parseInt(ip.split('.')[1]) >= 16 && parseInt(ip.split('.')[1]) <= 31)) {
+            privateIp = ip;
+            break;
+          }
+        }
+      }
     }
 
     return {
@@ -1083,6 +1230,7 @@ export async function getLocalDevices(
       offline: row.offline,
       lastContact: row.last_contact ? new Date(row.last_contact) : null,
       publicIp: row.public_ip,
+      privateIp,
       osName: row.os_name,
       osVersion: osVersion || null,
       osBuild: osInfo.buildNumber || null,
@@ -1097,6 +1245,388 @@ export async function getLocalDevices(
       syncedAt: new Date(row.synced_at),
     };
   });
+}
+
+// ============================================
+// Software Inventory
+// ============================================
+
+export interface DeviceSoftware {
+  id: string;
+  deviceId: string;
+  name: string;
+  publisher: string | null;
+  version: string | null;
+  installDate: string | null;
+  sizeBytes: number | null;
+}
+
+// Fetch software from NinjaRMM API and store in database
+export async function fetchAndStoreDeviceSoftware(
+  userId: string,
+  deviceId: string
+): Promise<DeviceSoftware[]> {
+  const config = await getConfig(userId);
+  if (!config) throw new Error('NinjaRMM not configured');
+
+  // Get the ninja device ID from our database
+  const deviceResult = await query(
+    'SELECT ninja_id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+    [deviceId, userId]
+  );
+
+  if (deviceResult.rows.length === 0) {
+    throw new Error('Device not found');
+  }
+
+  const ninjaDeviceId = deviceResult.rows[0].ninja_id;
+
+  // Fetch software from NinjaRMM API
+  console.log(`[Software] Fetching software for device ${deviceId} (ninja_id: ${ninjaDeviceId})`);
+  let softwareList: any[] = [];
+
+  try {
+    softwareList = await ninjaFetch(config, `/device/${ninjaDeviceId}/software`);
+    if (!Array.isArray(softwareList)) {
+      softwareList = [];
+    }
+    console.log(`[Software] Found ${softwareList.length} software entries`);
+  } catch (err) {
+    console.error(`[Software] Failed to fetch software: ${(err as Error).message}`);
+    throw new Error('Could not fetch software from NinjaRMM');
+  }
+
+  // Delete old software entries for this device
+  await query('DELETE FROM ninjarmm_device_software WHERE device_id = $1', [deviceId]);
+
+  // Insert new software entries
+  const result: DeviceSoftware[] = [];
+
+  for (const sw of softwareList) {
+    const id = uuidv4();
+    const name = sw.name || sw.displayName || 'Unknown';
+    const publisher = sw.publisher || sw.vendor || null;
+    const version = sw.version || sw.displayVersion || null;
+    const installDate = sw.installDate || sw.installedOn || null;
+    const sizeBytes = sw.size || sw.estimatedSize ? (sw.estimatedSize * 1024) : null;
+
+    try {
+      await query(
+        `INSERT INTO ninjarmm_device_software (id, device_id, name, publisher, version, install_date, size_bytes, ninja_software_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (device_id, name, version) DO UPDATE SET
+           publisher = EXCLUDED.publisher,
+           install_date = EXCLUDED.install_date,
+           size_bytes = EXCLUDED.size_bytes`,
+        [id, deviceId, name, publisher, version, installDate, sizeBytes, sw.id || null]
+      );
+
+      result.push({
+        id,
+        deviceId,
+        name,
+        publisher,
+        version,
+        installDate,
+        sizeBytes,
+      });
+    } catch (err) {
+      console.error(`[Software] Failed to insert software "${name}":`, err);
+    }
+  }
+
+  console.log(`[Software] Stored ${result.length} software entries for device ${deviceId}`);
+  return result;
+}
+
+// Get cached software from database
+export async function getDeviceSoftware(
+  userId: string,
+  deviceId: string
+): Promise<{ software: DeviceSoftware[]; lastFetched: Date | null }> {
+  // Verify device belongs to user
+  const deviceResult = await query(
+    'SELECT id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+    [deviceId, userId]
+  );
+
+  if (deviceResult.rows.length === 0) {
+    throw new Error('Device not found');
+  }
+
+  const result = await query(
+    `SELECT id, device_id, name, publisher, version, install_date, size_bytes, created_at
+     FROM ninjarmm_device_software
+     WHERE device_id = $1
+     ORDER BY name ASC`,
+    [deviceId]
+  );
+
+  const software = result.rows.map(row => ({
+    id: row.id,
+    deviceId: row.device_id,
+    name: row.name,
+    publisher: row.publisher,
+    version: row.version,
+    installDate: row.install_date,
+    sizeBytes: row.size_bytes ? parseInt(row.size_bytes) : null,
+  }));
+
+  // Get the most recent fetch time
+  const lastFetched = result.rows.length > 0 ? new Date(result.rows[0].created_at) : null;
+
+  return { software, lastFetched };
+}
+
+// ============================================
+// OS Patches (Windows Updates)
+// ============================================
+
+export interface DeviceOSPatch {
+  id: string;
+  deviceId: string;
+  patchType: 'installed' | 'pending' | 'failed' | 'rejected';
+  kbNumber: string | null;
+  name: string;
+  description: string | null;
+  severity: string | null;
+  category: string | null;
+  installDate: Date | null;
+  installedOn: string | null;
+  sizeBytes: number | null;
+  status: string | null;
+}
+
+// Fetch OS patches from NinjaRMM API and store in database
+export async function fetchAndStoreDeviceOSPatches(
+  userId: string,
+  deviceId: string
+): Promise<{ installed: DeviceOSPatch[]; pending: DeviceOSPatch[] }> {
+  const config = await getConfig(userId);
+  if (!config) throw new Error('NinjaRMM not configured');
+
+  // Get the ninja device ID from our database
+  const deviceResult = await query(
+    'SELECT ninja_id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+    [deviceId, userId]
+  );
+
+  if (deviceResult.rows.length === 0) {
+    throw new Error('Device not found');
+  }
+
+  const ninjaDeviceId = deviceResult.rows[0].ninja_id;
+
+  console.log(`[OS Patches] Fetching patches for device ${deviceId} (ninja_id: ${ninjaDeviceId})`);
+
+  // Fetch installed and pending patches in parallel
+  // Note: /device/{id}/os-patch-installs returns installed patches
+  //       /device/{id}/os-patches returns pending/failed/rejected patches
+  const [installedPatches, pendingPatches] = await Promise.all([
+    ninjaFetch(config, `/device/${ninjaDeviceId}/os-patch-installs`).catch((err) => {
+      console.log(`[OS Patches] Could not fetch installed patches from os-patch-installs: ${err.message}`);
+      // Try alternative endpoint names
+      return ninjaFetch(config, `/device/${ninjaDeviceId}/os-patches/installed`).catch(() => {
+        console.log(`[OS Patches] Could not fetch installed patches from alternative endpoint`);
+        return [];
+      });
+    }),
+    ninjaFetch(config, `/device/${ninjaDeviceId}/os-patches`).catch((err) => {
+      console.log(`[OS Patches] Could not fetch pending patches: ${err.message}`);
+      return [];
+    }),
+  ]);
+
+  // Delete old patch entries for this device
+  await query('DELETE FROM ninjarmm_device_os_patches WHERE device_id = $1', [deviceId]);
+
+  const result = {
+    installed: [] as DeviceOSPatch[],
+    pending: [] as DeviceOSPatch[],
+  };
+
+  // Process installed patches
+  const installedList = Array.isArray(installedPatches) ? installedPatches : [];
+  console.log(`[OS Patches] Found ${installedList.length} installed patches`);
+
+  for (const patch of installedList) {
+    const id = uuidv4();
+    const name = patch.name || patch.title || 'Unknown Update';
+    const kbNumber = patch.kbNumber || patch.kb || extractKBNumber(name) || null;
+    const description = patch.description || patch.details || null;
+    const severity = patch.severity || patch.criticality || null;
+    const category = patch.category || patch.type || patch.classification || null;
+    const installDate = patch.installedOn || patch.installDate || patch.installedAt || null;
+    const sizeBytes = patch.size || patch.sizeInBytes || null;
+
+    try {
+      await query(
+        `INSERT INTO ninjarmm_device_os_patches
+         (id, device_id, patch_type, kb_number, name, description, severity, category, install_date, installed_on, size_bytes, status, ninja_patch_id)
+         VALUES ($1, $2, 'installed', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ON CONFLICT (device_id, patch_type, name, kb_number) DO UPDATE SET
+           description = EXCLUDED.description,
+           severity = EXCLUDED.severity,
+           category = EXCLUDED.category,
+           install_date = EXCLUDED.install_date`,
+        [id, deviceId, kbNumber, name, description, severity, category,
+         installDate ? new Date(installDate) : null, installDate, sizeBytes,
+         patch.status || 'installed', patch.id || null]
+      );
+
+      result.installed.push({
+        id,
+        deviceId,
+        patchType: 'installed',
+        kbNumber,
+        name,
+        description,
+        severity,
+        category,
+        installDate: installDate ? new Date(installDate) : null,
+        installedOn: installDate,
+        sizeBytes,
+        status: patch.status || 'installed',
+      });
+    } catch (err) {
+      console.error(`[OS Patches] Failed to insert installed patch "${name}":`, err);
+    }
+  }
+
+  // Process pending patches
+  const pendingList = Array.isArray(pendingPatches) ? pendingPatches : [];
+  console.log(`[OS Patches] Found ${pendingList.length} pending patches`);
+
+  for (const patch of pendingList) {
+    const id = uuidv4();
+    const name = patch.name || patch.title || 'Unknown Update';
+    const kbNumber = patch.kbNumber || patch.kb || extractKBNumber(name) || null;
+    const description = patch.description || patch.details || null;
+    const severity = patch.severity || patch.criticality || null;
+    const category = patch.category || patch.type || patch.classification || null;
+    const sizeBytes = patch.size || patch.sizeInBytes || null;
+    const status = patch.status || 'pending';
+
+    // Determine patch type based on status
+    let patchType: 'pending' | 'failed' | 'rejected' = 'pending';
+    if (status.toLowerCase().includes('fail')) {
+      patchType = 'failed';
+    } else if (status.toLowerCase().includes('reject')) {
+      patchType = 'rejected';
+    }
+
+    try {
+      await query(
+        `INSERT INTO ninjarmm_device_os_patches
+         (id, device_id, patch_type, kb_number, name, description, severity, category, size_bytes, status, ninja_patch_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (device_id, patch_type, name, kb_number) DO UPDATE SET
+           description = EXCLUDED.description,
+           severity = EXCLUDED.severity,
+           category = EXCLUDED.category,
+           status = EXCLUDED.status`,
+        [id, deviceId, patchType, kbNumber, name, description, severity, category,
+         sizeBytes, status, patch.id || null]
+      );
+
+      result.pending.push({
+        id,
+        deviceId,
+        patchType,
+        kbNumber,
+        name,
+        description,
+        severity,
+        category,
+        installDate: null,
+        installedOn: null,
+        sizeBytes,
+        status,
+      });
+    } catch (err) {
+      console.error(`[OS Patches] Failed to insert pending patch "${name}":`, err);
+    }
+  }
+
+  console.log(`[OS Patches] Stored ${result.installed.length} installed, ${result.pending.length} pending patches for device ${deviceId}`);
+  return result;
+}
+
+// Helper function to extract KB number from patch name
+function extractKBNumber(name: string): string | null {
+  const match = name.match(/KB\d+/i);
+  return match ? match[0].toUpperCase() : null;
+}
+
+// Get cached OS patches from database
+export async function getDeviceOSPatches(
+  userId: string,
+  deviceId: string
+): Promise<{ installed: DeviceOSPatch[]; pending: DeviceOSPatch[]; lastFetched: Date | null }> {
+  // Verify device belongs to user
+  const deviceResult = await query(
+    'SELECT id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+    [deviceId, userId]
+  );
+
+  if (deviceResult.rows.length === 0) {
+    throw new Error('Device not found');
+  }
+
+  const result = await query(
+    `SELECT id, device_id, patch_type, kb_number, name, description, severity, category,
+            install_date, installed_on, size_bytes, status, created_at
+     FROM ninjarmm_device_os_patches
+     WHERE device_id = $1
+     ORDER BY
+       CASE patch_type
+         WHEN 'pending' THEN 1
+         WHEN 'failed' THEN 2
+         WHEN 'rejected' THEN 3
+         ELSE 4
+       END,
+       CASE severity
+         WHEN 'Critical' THEN 1
+         WHEN 'Important' THEN 2
+         WHEN 'Moderate' THEN 3
+         ELSE 4
+       END,
+       name ASC`,
+    [deviceId]
+  );
+
+  const installed: DeviceOSPatch[] = [];
+  const pending: DeviceOSPatch[] = [];
+  let lastFetched: Date | null = null;
+
+  for (const row of result.rows) {
+    if (!lastFetched) {
+      lastFetched = new Date(row.created_at);
+    }
+
+    const patch: DeviceOSPatch = {
+      id: row.id,
+      deviceId: row.device_id,
+      patchType: row.patch_type,
+      kbNumber: row.kb_number,
+      name: row.name,
+      description: row.description,
+      severity: row.severity,
+      category: row.category,
+      installDate: row.install_date ? new Date(row.install_date) : null,
+      installedOn: row.installed_on,
+      sizeBytes: row.size_bytes ? parseInt(row.size_bytes) : null,
+      status: row.status,
+    };
+
+    if (row.patch_type === 'installed') {
+      installed.push(patch);
+    } else {
+      pending.push(patch);
+    }
+  }
+
+  return { installed, pending, lastFetched };
 }
 
 // Get synced alerts from local DB

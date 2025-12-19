@@ -426,6 +426,22 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_report_approvals_token ON report_approvals(token)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_report_approvals_status ON report_approvals(status)');
 
+    // Migration: Extend report_approvals to support 'saved' status and nullable recipient_email
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Drop and recreate the status check constraint to include 'saved'
+        ALTER TABLE report_approvals DROP CONSTRAINT IF EXISTS report_approvals_status_check;
+        ALTER TABLE report_approvals ADD CONSTRAINT report_approvals_status_check
+          CHECK(status IN ('pending', 'approved', 'rejected', 'saved'));
+
+        -- Make recipient_email nullable for saved reports
+        ALTER TABLE report_approvals ALTER COLUMN recipient_email DROP NOT NULL;
+      EXCEPTION
+        WHEN others THEN NULL;
+      END $$;
+    `);
+
     // ============================================
     // NinjaRMM Integration Tables
     // ============================================
@@ -522,6 +538,19 @@ export async function initializeDatabase() {
           WHERE table_name = 'customers' AND column_name = 'ninjarmm_organization_id'
         ) THEN
           ALTER TABLE customers ADD COLUMN ninjarmm_organization_id TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Add time_rounding_interval to customers (for billing)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'time_rounding_interval'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN time_rounding_interval INTEGER DEFAULT 15;
         END IF;
       END $$;
     `);
@@ -669,15 +698,29 @@ export async function initializeDatabase() {
       END $$;
     `);
 
-    // Create indexes for NinjaRMM tables
+    // Create indexes for NinjaRMM tables (with conditional checks for optional columns)
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_user_id ON ninjarmm_devices(user_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_org_id ON ninjarmm_devices(organization_id)');
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ninjarmm_devices' AND column_name = 'organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_org_id ON ninjarmm_devices(organization_id)';
+        END IF;
+      END $$;
+    `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_devices_ninja_org_id ON ninjarmm_devices(ninja_org_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_organizations_user_id ON ninjarmm_organizations(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_organizations_customer_id ON ninjarmm_organizations(customer_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_user_id ON ninjarmm_alerts(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_device_id ON ninjarmm_alerts(device_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_customers_ninjarmm_org ON customers(ninjarmm_organization_id)');
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'customers' AND column_name = 'ninjarmm_organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_customers_ninjarmm_org ON customers(ninjarmm_organization_id)';
+        END IF;
+      END $$;
+    `);
 
     // Migration: Add webhook columns to ninjarmm_config
     await client.query(`
@@ -736,6 +779,132 @@ export async function initializeDatabase() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_webhook_events_user ON ninjarmm_webhook_events(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_webhook_events_created ON ninjarmm_webhook_events(created_at DESC)');
+
+    // Add message and device_name columns to webhook events for better display
+    await client.query(`
+      DO $$ BEGIN
+        ALTER TABLE ninjarmm_webhook_events ADD COLUMN IF NOT EXISTS message TEXT;
+        ALTER TABLE ninjarmm_webhook_events ADD COLUMN IF NOT EXISTS device_name TEXT;
+      EXCEPTION WHEN others THEN NULL;
+      END $$
+    `);
+
+    // NinjaRMM alert exclusions - rules to ignore certain alerts
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_alert_exclusions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        match_type TEXT NOT NULL DEFAULT 'contains' CHECK(match_type IN ('contains', 'equals', 'regex', 'starts_with', 'ends_with')),
+        match_field TEXT NOT NULL DEFAULT 'message' CHECK(match_field IN ('message', 'source_name', 'condition_name', 'device_name', 'severity')),
+        match_value TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        hit_count INTEGER DEFAULT 0,
+        last_hit_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alert_exclusions_user ON ninjarmm_alert_exclusions(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alert_exclusions_active ON ninjarmm_alert_exclusions(user_id, is_active)');
+
+    // ============================================
+    // NinjaRMM Device IP History
+    // Tracks IP address changes for 30 days
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_device_ip_history (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL REFERENCES ninjarmm_devices(id) ON DELETE CASCADE,
+        ip_type TEXT NOT NULL CHECK(ip_type IN ('private', 'public')),
+        old_ip TEXT NOT NULL,
+        new_ip TEXT NOT NULL,
+        changed_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_ip_history_device ON ninjarmm_device_ip_history(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_ip_history_changed ON ninjarmm_device_ip_history(changed_at)');
+
+    // Auto-cleanup old IP history entries (older than 30 days)
+    // This is done via scheduled job, but we can also add trigger
+    await client.query(`
+      CREATE OR REPLACE FUNCTION cleanup_old_ip_history() RETURNS trigger AS $$
+      BEGIN
+        DELETE FROM ninjarmm_device_ip_history WHERE changed_at < NOW() - INTERVAL '30 days';
+        RETURN NULL;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    // Create trigger if not exists (only fires occasionally to avoid performance impact)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_cleanup_ip_history'
+        ) THEN
+          CREATE TRIGGER trigger_cleanup_ip_history
+          AFTER INSERT ON ninjarmm_device_ip_history
+          FOR EACH STATEMENT
+          EXECUTE FUNCTION cleanup_old_ip_history();
+        END IF;
+      END $$;
+    `);
+
+    console.log('✅ Device IP history table created with 30-day retention');
+
+    // ============================================
+    // NinjaRMM Device Software Inventory
+    // Stores installed software for devices (loaded on-demand)
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_device_software (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL REFERENCES ninjarmm_devices(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        publisher TEXT,
+        version TEXT,
+        install_date TEXT,
+        size_bytes BIGINT,
+        ninja_software_id TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(device_id, name, version)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_software_device ON ninjarmm_device_software(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_software_name ON ninjarmm_device_software(name)');
+
+    console.log('✅ Device software inventory table created');
+
+    // ============================================
+    // NinjaRMM Device OS Patches (Windows Updates)
+    // Stores installed and pending OS patches for devices
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_device_os_patches (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL REFERENCES ninjarmm_devices(id) ON DELETE CASCADE,
+        patch_type TEXT NOT NULL CHECK(patch_type IN ('installed', 'pending', 'failed', 'rejected')),
+        kb_number TEXT,
+        name TEXT NOT NULL,
+        description TEXT,
+        severity TEXT,
+        category TEXT,
+        install_date TIMESTAMP,
+        installed_on TEXT,
+        size_bytes BIGINT,
+        status TEXT,
+        ninja_patch_id TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(device_id, patch_type, name, kb_number)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_os_patches_device ON ninjarmm_device_os_patches(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_os_patches_type ON ninjarmm_device_os_patches(device_id, patch_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_device_os_patches_kb ON ninjarmm_device_os_patches(kb_number)');
+
+    console.log('✅ Device OS patches table created');
 
     // ============================================
     // Feature Flags System
@@ -877,6 +1046,7 @@ export async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS tickets (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
         customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
         device_id TEXT REFERENCES ninjarmm_devices(id) ON DELETE SET NULL,
         portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL,
@@ -898,37 +1068,61 @@ export async function initializeDatabase() {
     `);
 
     // Migration: Add new columns to existing tickets table if they don't exist
+    // Use DO $$ blocks with EXCEPTION handling to avoid transaction abort
+    // Note: Foreign keys are NOT added here because referenced tables might not exist yet
+    // The CREATE TABLE statement handles foreign keys for new installations
     await client.query(`
       DO $$
       BEGIN
-        -- Add device_id if not exists
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'tickets' AND column_name = 'device_id'
-        ) THEN
-          ALTER TABLE tickets ADD COLUMN device_id TEXT REFERENCES ninjarmm_devices(id) ON DELETE SET NULL;
-        END IF;
-        -- Add portal_user_id if not exists
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'tickets' AND column_name = 'portal_user_id'
-        ) THEN
-          ALTER TABLE tickets ADD COLUMN portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL;
-        END IF;
-        -- Add source if not exists
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'tickets' AND column_name = 'source'
-        ) THEN
-          ALTER TABLE tickets ADD COLUMN source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'portal', 'email', 'ninja_alert'));
-        END IF;
-        -- Add ninja_alert_id if not exists
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'tickets' AND column_name = 'ninja_alert_id'
-        ) THEN
-          ALTER TABLE tickets ADD COLUMN ninja_alert_id TEXT;
-        END IF;
+        ALTER TABLE tickets ADD COLUMN organization_id TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN device_id TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN portal_user_id TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN source TEXT DEFAULT 'manual';
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN ninja_alert_id TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN category TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
       END $$;
     `);
 
@@ -973,8 +1167,25 @@ export async function initializeDatabase() {
 
     // Create indexes for Tickets
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id)');
+    // Create index on organization_id only if column exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'tickets' AND column_name = 'organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_tickets_org ON tickets(organization_id)';
+        END IF;
+      END $$;
+    `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_customer ON tickets(customer_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_device ON tickets(device_id)');
+    // Create index on device_id only if column exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'tickets' AND column_name = 'device_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_tickets_device ON tickets(device_id)';
+        END IF;
+      END $$;
+    `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_number ON tickets(ticket_number)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_id)');
@@ -995,6 +1206,132 @@ export async function initializeDatabase() {
     `);
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_ticket ON ninjarmm_alerts(ticket_id)');
+
+    // ============================================
+    // Canned Responses (for quick ticket replies)
+    // ============================================
+    // Note: canned_responses and ticket_tags are created WITHOUT foreign keys here
+    // because organizations table may not exist yet. Foreign keys added later.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS canned_responses (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        shortcut TEXT,
+        category TEXT,
+        usage_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'canned_responses' AND column_name = 'organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_canned_responses_org ON canned_responses(organization_id)';
+        END IF;
+      END $$;
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_canned_responses_user ON canned_responses(user_id)');
+
+    // ============================================
+    // Ticket Tags
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_tags (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT,
+        name TEXT NOT NULL,
+        color TEXT DEFAULT '#3B82F6',
+        description TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ticket_tags' AND column_name = 'organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_ticket_tags_org ON ticket_tags(organization_id)';
+        END IF;
+      END $$;
+    `);
+
+    // Ticket-Tag junction table (many-to-many)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_tag_assignments (
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        tag_id TEXT NOT NULL REFERENCES ticket_tags(id) ON DELETE CASCADE,
+        assigned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        assigned_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        PRIMARY KEY (ticket_id, tag_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_ticket ON ticket_tag_assignments(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_tag ON ticket_tag_assignments(tag_id)');
+
+    // ============================================
+    // AI Configuration & Ticket Suggestions
+    // ============================================
+
+    // AI Provider Configuration (per user)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ai_config (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL DEFAULT 'openai' CHECK(provider IN ('openai', 'anthropic')),
+        api_key TEXT,
+        model TEXT DEFAULT 'gpt-4o-mini',
+        enabled BOOLEAN DEFAULT false,
+        max_tokens INTEGER DEFAULT 1000,
+        temperature NUMERIC(3,2) DEFAULT 0.7,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id)
+      )
+    `);
+
+    // AI Suggestions for Tickets (internal only)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_ai_suggestions (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        suggestion_type TEXT NOT NULL DEFAULT 'solution' CHECK(suggestion_type IN ('solution', 'category', 'priority', 'response')),
+        content TEXT NOT NULL,
+        confidence NUMERIC(3,2),
+        context_used JSONB,
+        model_used TEXT,
+        tokens_used INTEGER,
+        is_helpful BOOLEAN,
+        applied BOOLEAN DEFAULT false,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ai_config_user ON ai_config(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_ai_suggestions_ticket ON ticket_ai_suggestions(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_ai_suggestions_user ON ticket_ai_suggestions(user_id)');
+
+    // Migration: Add system_prompt and assistant_type columns to ai_config
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT FROM information_schema.columns
+          WHERE table_name = 'ai_config' AND column_name = 'system_prompt'
+        ) THEN
+          ALTER TABLE ai_config ADD COLUMN system_prompt TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT FROM information_schema.columns
+          WHERE table_name = 'ai_config' AND column_name = 'prompt_templates'
+        ) THEN
+          ALTER TABLE ai_config ADD COLUMN prompt_templates JSONB DEFAULT '{}';
+        END IF;
+      END $$;
+    `);
 
     // Feature subscriptions for add-on packages
     await client.query(`
@@ -1181,6 +1518,32 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add email notification preferences to customer_contacts
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'notify_ticket_created'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN notify_ticket_created BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'notify_ticket_status_changed'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN notify_ticket_status_changed BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'notify_ticket_reply'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN notify_ticket_reply BOOLEAN DEFAULT true;
+        END IF;
+      END $$;
+    `);
+    console.log('✅ Customer contact notification preferences added');
+
     // Portal trusted devices table
     await client.query(`
       CREATE TABLE IF NOT EXISTS portal_trusted_devices (
@@ -1199,6 +1562,53 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_portal_trusted_devices_contact ON portal_trusted_devices(contact_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_portal_trusted_devices_token ON portal_trusted_devices(device_token)');
+
+    // ============================================
+    // Portal Push Subscriptions Table
+    // ============================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS portal_push_subscriptions (
+        id TEXT PRIMARY KEY,
+        contact_id TEXT NOT NULL REFERENCES customer_contacts(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        device_name TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_used_at TIMESTAMP
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_push_subs_contact ON portal_push_subscriptions(contact_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_push_subs_endpoint ON portal_push_subscriptions(endpoint)');
+
+    // Migration: Add push notification preferences to customer_contacts
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'push_enabled'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN push_enabled BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'push_on_ticket_reply'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN push_on_ticket_reply BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'push_on_status_change'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN push_on_status_change BOOLEAN DEFAULT true;
+        END IF;
+      END $$;
+    `);
+
+    console.log('✅ Portal push subscriptions table created');
 
     // ============================================
     // Security Alerts Table
@@ -1528,6 +1938,22 @@ export async function initializeDatabase() {
 
     console.log('✅ Multi-tenant organization migration completed');
 
+    // Migration: Add organization_id to sla_policies if not exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'sla_policies' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE sla_policies ADD COLUMN organization_id TEXT;
+        END IF;
+      EXCEPTION
+        WHEN undefined_table THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+
     // ============================================
     // Fix ticket_sequences - migrate from user_id to organization_id based
     // ============================================
@@ -1646,8 +2072,15 @@ export async function initializeDatabase() {
       )
     `);
 
-    await client.query('CREATE INDEX IF NOT EXISTS idx_leads_org ON leads(organization_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(organization_id, status)');
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'organization_id') THEN
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_leads_org ON leads(organization_id)';
+          EXECUTE 'CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(organization_id, status)';
+        END IF;
+      END $$;
+    `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_to)');
     console.log('✅ Leads table created');
 
@@ -1828,6 +2261,226 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_task ON time_entries(task_id)');
 
     console.log('✅ Unified Task Hub tables created');
+
+    // ============================================
+    // Contract Management System
+    // ============================================
+
+    // Main contracts table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contracts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+
+        -- Contract details
+        contract_number TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+
+        -- Contract type and category
+        contract_type TEXT NOT NULL CHECK(contract_type IN ('service', 'support', 'maintenance', 'project', 'subscription', 'framework', 'other')),
+
+        -- Status and lifecycle
+        status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'active', 'paused', 'expiring', 'expired', 'cancelled', 'terminated')),
+
+        -- Contract period
+        start_date DATE NOT NULL,
+        end_date DATE,
+        is_indefinite BOOLEAN DEFAULT false,
+
+        -- Termination/Notice
+        notice_period_days INTEGER DEFAULT 30,
+        auto_renew BOOLEAN DEFAULT false,
+        renewal_period_months INTEGER DEFAULT 12,
+
+        -- Financial
+        billing_cycle TEXT DEFAULT 'monthly' CHECK(billing_cycle IN ('monthly', 'quarterly', 'semi_annual', 'annual', 'one_time', 'per_call')),
+        base_price DECIMAL(12, 2),
+        currency TEXT DEFAULT 'EUR',
+
+        -- Included hours (for service contracts)
+        included_hours_monthly DECIMAL(6, 2),
+        hourly_rate DECIMAL(10, 2),
+        overage_rate DECIMAL(10, 2),
+
+        -- SLA
+        sla_response_hours INTEGER,
+        sla_resolution_hours INTEGER,
+        support_hours TEXT, -- e.g., "Mo-Fr 08:00-18:00"
+
+        -- Documents and attachments
+        document_url TEXT,
+
+        -- Notes and internal info
+        internal_notes TEXT,
+
+        -- Linked project (optional)
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+
+        -- Tracking
+        created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Contract positions/services
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contract_positions (
+        id TEXT PRIMARY KEY,
+        contract_id TEXT NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+
+        -- Position details
+        position_number INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+
+        -- Pricing
+        quantity DECIMAL(10, 2) DEFAULT 1,
+        unit TEXT DEFAULT 'Stück',
+        unit_price DECIMAL(12, 2),
+        total_price DECIMAL(12, 2),
+
+        -- Type
+        position_type TEXT DEFAULT 'service' CHECK(position_type IN ('service', 'product', 'license', 'hours', 'flat_fee', 'other')),
+
+        -- Recurrence
+        is_recurring BOOLEAN DEFAULT true,
+        billing_cycle TEXT DEFAULT 'monthly' CHECK(billing_cycle IN ('monthly', 'quarterly', 'semi_annual', 'annual', 'one_time')),
+
+        -- Ordering
+        sort_order INTEGER DEFAULT 0,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Contract hourly budget tracking (for tracking used hours per month)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contract_hourly_tracking (
+        id TEXT PRIMARY KEY,
+        contract_id TEXT NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+
+        -- Period
+        year INTEGER NOT NULL,
+        month INTEGER NOT NULL,
+
+        -- Hours
+        included_hours DECIMAL(6, 2) NOT NULL,
+        used_hours DECIMAL(8, 2) DEFAULT 0,
+        overage_hours DECIMAL(8, 2) DEFAULT 0,
+
+        -- Rollover from previous month
+        rollover_hours DECIMAL(6, 2) DEFAULT 0,
+
+        -- Financial
+        overage_amount DECIMAL(12, 2) DEFAULT 0,
+
+        -- Notes
+        notes TEXT,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+
+        UNIQUE(contract_id, year, month)
+      )
+    `);
+
+    // Contract activity log
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contract_activity_log (
+        id TEXT PRIMARY KEY,
+        contract_id TEXT NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+
+        action TEXT NOT NULL,
+        details JSONB,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Link time entries to contracts
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'contract_id'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN contract_id TEXT REFERENCES contracts(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Add user_id column to contracts if it doesn't exist (for existing tables with organization_id)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'contracts' AND column_name = 'user_id'
+        ) THEN
+          ALTER TABLE contracts ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+
+    // Create indexes for contracts
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_user ON contracts(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_customer ON contracts(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(user_id, status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_end_date ON contracts(end_date)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_number ON contracts(user_id, contract_number)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contract_positions_contract ON contract_positions(contract_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contract_hourly_tracking ON contract_hourly_tracking(contract_id, year, month)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contract_activity_contract ON contract_activity_log(contract_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_contract ON time_entries(contract_id)');
+
+    console.log('✅ Contract Management tables created');
+
+    // ============================================
+    // Invoice Export System (for Billing/Finanzen)
+    // ============================================
+
+    // Invoice exports table - tracks billing exports
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS invoice_exports (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        sevdesk_invoice_id TEXT,
+        sevdesk_invoice_number TEXT,
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        total_hours DECIMAL(10, 2) NOT NULL,
+        total_amount DECIMAL(12, 2) NOT NULL,
+        status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'sent', 'paid', 'cancelled')),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Migration: Add invoice_export_id to time_entries if not exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'invoice_export_id'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN invoice_export_id TEXT REFERENCES invoice_exports(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Create indexes for invoice_exports
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_exports_user ON invoice_exports(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_exports_customer ON invoice_exports(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_exports_period ON invoice_exports(period_start, period_end)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_export ON time_entries(invoice_export_id)');
+
+    console.log('✅ Invoice Export tables created');
 
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');

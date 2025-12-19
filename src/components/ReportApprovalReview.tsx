@@ -149,7 +149,7 @@ export const ReportApprovalReview = () => {
           {approval.comment && (
             <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-4 mb-6">
               <h3 className="font-medium text-gray-900 dark:text-white mb-2">Kommentar:</h3>
-              <p className="text-gray-700 dark:text-dark-300">{approval.comment}</p>
+              <p className="text-gray-700 dark:text-gray-300">{approval.comment}</p>
             </div>
           )}
 
@@ -287,7 +287,7 @@ export const ReportApprovalReview = () => {
                       <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">
                         {new Date(entry.startTime || entry.date).toLocaleDateString('de-DE')}
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-700 dark:text-dark-300">
+                      <td className="py-3 px-4 text-sm text-gray-700 dark:text-gray-300">
                         {entry.description || entry.activityName || '-'}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-900 dark:text-white text-right">

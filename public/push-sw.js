@@ -39,25 +39,37 @@ self.addEventListener('push', (event) => {
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
   console.log('[Push SW] Notification clicked', event);
+  console.log('[Push SW] Notification data:', event.notification.data);
 
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || '/';
+  // Get URL from notification data
+  const notificationData = event.notification.data || {};
+  const path = notificationData.url || '/';
+
+  // Build full URL
+  const urlToOpen = new URL(path, self.location.origin).href;
+  console.log('[Push SW] Opening URL:', urlToOpen);
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      console.log('[Push SW] Found clients:', windowClients.length);
+
       // Check if there's already a window open
       for (const client of windowClients) {
         if (client.url.includes(self.location.origin)) {
-          // Focus existing window and navigate
-          return client.focus().then((focusedClient) => {
-            if ('navigate' in focusedClient) {
-              return focusedClient.navigate(urlToOpen);
-            }
+          console.log('[Push SW] Focusing existing client and navigating');
+          // Post message to client to navigate (more reliable than navigate())
+          client.postMessage({
+            type: 'NAVIGATE_TO',
+            url: path
           });
+          return client.focus();
         }
       }
+
       // Open new window if none exists
+      console.log('[Push SW] Opening new window');
       return clients.openWindow(urlToOpen);
     })
   );

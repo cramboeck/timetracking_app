@@ -382,20 +382,30 @@ const BillingTab = () => {
                     <div>
                       <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
                         {item.customerName}
-                        {item.sevdeskContactId && (
+                        {item.sevdeskCustomerId && (
                           <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                             <ExternalLink size={10} /> sevDesk
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500">{formatHours(item.totalHours)}</div>
+                      <div className="text-sm text-gray-500">
+                        {formatHours(item.totalHours)}
+                        {item.roundedHours && item.roundedHours !== item.totalHours && (
+                          <span className="text-accent-primary ml-1">
+                            → {formatHours(item.roundedHours)} ({item.timeRoundingInterval || 15} Min.)
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <div className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</div>
+                      {item.roundedHours && item.roundedHours !== item.totalHours && (
+                        <div className="text-xs text-gray-400">aufgerundet</div>
+                      )}
                     </div>
-                    {item.sevdeskContactId && hasConfig ? (
+                    {item.sevdeskCustomerId && hasConfig ? (
                       <button
                         onClick={() => handleMarkAsBilled(item.customerId, item.customerName)}
                         disabled={processing === item.customerId}
@@ -454,7 +464,14 @@ const BillingTab = () => {
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500">{formatHours(item.totalHours)}</div>
+                      <div className="text-sm text-gray-500">
+                        {formatHours(item.totalHours)}
+                        {item.roundedHours && item.roundedHours !== item.totalHours && (
+                          <span className="text-accent-primary ml-1">
+                            → {formatHours(item.roundedHours)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

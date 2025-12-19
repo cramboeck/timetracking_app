@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   # =============================================================================
   # PostgreSQL Database
@@ -47,6 +45,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-604800}
       FRONTEND_URL: ${FRONTEND_URL}
+      BACKEND_URL: ${BACKEND_URL:-https://app.ramboeck.it}
       # Email
       EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-true}
       EMAIL_HOST: ${EMAIL_HOST}
@@ -55,6 +54,12 @@ services:
       EMAIL_USER: ${EMAIL_USER}
       EMAIL_PASSWORD: ${EMAIL_PASSWORD}
       EMAIL_FROM: ${EMAIL_FROM}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-auto}
+      # Microsoft Graph API (optional)
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+      GRAPH_MAIL_FROM: ${GRAPH_MAIL_FROM:-}
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # CORS
@@ -63,9 +68,14 @@ services:
       SECURITY_LOG_PATH: /app/logs/security.log
       SECURITY_ALERT_EMAIL: ${SECURITY_ALERT_EMAIL:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      # Push Notifications (VAPID)
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
     volumes:
       - backend_logs:/app/logs
       - backend_uploads:/app/uploads
+      - backend_backups:/app/backups
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
       interval: 30s
@@ -166,6 +176,11 @@ volumes:
   backend_uploads:
     external: true
     name: timetracking_app_backend_uploads
+
+  # Backend-Backups (database dumps)
+  backend_backups:
+    external: true
+    name: timetracking_app_backend_backups
 
   # Certbot Challenge-Dateien
   certbot_data:

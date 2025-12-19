@@ -1,5 +1,5 @@
 import { ReactNode, useMemo, useState } from 'react';
-import { Ticket, LogOut, User, Settings, Book, Monitor, FileText, Shield, Info, X } from 'lucide-react';
+import { Ticket, LogOut, User, Settings, Book, Monitor, FileText, Shield, Info, X, HelpCircle } from 'lucide-react';
 import { PortalContact, customerPortalApi, PortalSettings } from '../../services/api';
 
 interface PortalLayoutProps {
@@ -10,12 +10,13 @@ interface PortalLayoutProps {
   onShowDevices?: () => void;
   onShowInvoices?: () => void;
   onShowTickets?: () => void;
+  onShowHelp?: () => void;
   currentView?: string;
   portalSettings?: PortalSettings | null;
   children: ReactNode;
 }
 
-export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledgeBase, onShowDevices, onShowInvoices, onShowTickets, currentView, portalSettings, children }: PortalLayoutProps) => {
+export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledgeBase, onShowDevices, onShowInvoices, onShowTickets, onShowHelp, currentView, portalSettings, children }: PortalLayoutProps) => {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showLegal, setShowLegal] = useState(false);
 
@@ -177,6 +178,15 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
               Support-Portal powered by RamboFlow
             </div>
             <div className="flex items-center gap-4 text-sm">
+              {onShowHelp && (
+                <button
+                  onClick={onShowHelp}
+                  className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                >
+                  <HelpCircle size={16} />
+                  Einführung
+                </button>
+              )}
               <button
                 onClick={() => setShowPrivacy(true)}
                 className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"

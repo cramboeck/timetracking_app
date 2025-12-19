@@ -1,11 +1,17 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import { pool } from '../config/database';
+import { microsoftGraphService } from './microsoftGraphService';
 
 interface EmailOptions {
   to: string;
   subject: string;
   html: string;
   text: string;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer | string;
+    contentType?: string;
+  }>;
 }
 
 interface NotificationData {
@@ -14,39 +20,121 @@ interface NotificationData {
   [key: string]: any;
 }
 
+type EmailProvider = 'smtp' | 'graph' | 'auto';
+
 class EmailService {
   private transporter: Transporter | null = null;
   private testMode: boolean;
   private testRecipient: string;
+  private provider: EmailProvider;
 
   constructor() {
     this.testMode = process.env.EMAIL_TEST_MODE === 'true';
     this.testRecipient = process.env.EMAIL_TEST_RECIPIENT || '';
+    this.provider = (process.env.EMAIL_PROVIDER as EmailProvider) || 'auto';
 
     if (!this.testMode) {
       this.initializeTransporter();
     }
-  }
 
-  private initializeTransporter() {
-    try {
-      this.transporter = nodemailer.createTransport({
-        host: process.env.EMAIL_HOST,
-        port: parseInt(process.env.EMAIL_PORT || '587'),
-        secure: false,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASSWORD,
-        },
-      });
-
-      console.log('✅ Email transporter initialized');
-    } catch (error) {
-      console.error('❌ Failed to initialize email transporter:', error);
+    // Log which provider will be used
+    if (this.provider === 'graph' && microsoftGraphService.isAvailable()) {
+      console.log('📧 Email provider: Microsoft Graph API');
+    } else if (this.provider === 'auto' && microsoftGraphService.isAvailable()) {
+      console.log('📧 Email provider: Microsoft Graph API (auto-detected)');
+    } else if (this.transporter) {
+      console.log('📧 Email provider: SMTP');
     }
   }
 
+  private initializeTransporter() {
+    // Only initialize SMTP if not using Graph API exclusively
+    if (this.provider === 'graph' && microsoftGraphService.isAvailable()) {
+      console.log('ℹ️ Skipping SMTP initialization (using Graph API)');
+      return;
+    }
+
+    try {
+      const host = process.env.EMAIL_HOST;
+      const user = process.env.EMAIL_USER;
+      const pass = process.env.EMAIL_PASSWORD;
+
+      // Only initialize if SMTP credentials are provided
+      if (host && user && pass) {
+        this.transporter = nodemailer.createTransport({
+          host,
+          port: parseInt(process.env.EMAIL_PORT || '587'),
+          secure: process.env.EMAIL_SECURE === 'true',
+          auth: { user, pass },
+        });
+        console.log('✅ SMTP email transporter initialized');
+      } else {
+        console.log('ℹ️ SMTP not configured (missing EMAIL_HOST/USER/PASSWORD)');
+      }
+    } catch (error) {
+      console.error('❌ Failed to initialize SMTP transporter:', error);
+    }
+  }
+
+  /**
+   * Get the active email provider
+   */
+  getActiveProvider(): string {
+    if (this.provider === 'graph' && microsoftGraphService.isAvailable()) {
+      return 'graph';
+    }
+    if (this.provider === 'auto' && microsoftGraphService.isAvailable()) {
+      return 'graph';
+    }
+    if (this.transporter) {
+      return 'smtp';
+    }
+    return 'none';
+  }
+
+  /**
+   * Test the email configuration
+   */
+  async testConnection(): Promise<{ success: boolean; provider: string; error?: string; details?: any }> {
+    const activeProvider = this.getActiveProvider();
+
+    if (activeProvider === 'graph') {
+      const result = await microsoftGraphService.testConnection();
+      return {
+        success: result.success,
+        provider: 'Microsoft Graph API',
+        error: result.error,
+        details: result.userInfo,
+      };
+    }
+
+    if (activeProvider === 'smtp' && this.transporter) {
+      try {
+        await this.transporter.verify();
+        return {
+          success: true,
+          provider: 'SMTP',
+          details: { host: process.env.EMAIL_HOST },
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          provider: 'SMTP',
+          error: error.message,
+        };
+      }
+    }
+
+    return {
+      success: false,
+      provider: 'none',
+      error: 'No email provider configured',
+    };
+  }
+
   async sendEmail(options: EmailOptions): Promise<boolean> {
+    const originalTo = options.to;
+
     try {
       // In test mode, override recipient
       if (this.testMode) {
@@ -61,37 +149,78 @@ class EmailService {
         options.html = `
           <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 10px; margin-bottom: 20px; border-radius: 4px;">
             <strong>🧪 TEST MODE</strong><br>
-            Original recipient would have been: <strong>${options.to}</strong>
+            Original recipient would have been: <strong>${originalTo}</strong>
           </div>
           ${options.html}
         `;
       }
 
+      // Determine which provider to use
+      const useGraph = (this.provider === 'graph' || this.provider === 'auto') &&
+                       microsoftGraphService.isAvailable();
+
+      // Try Graph API first if configured
+      if (useGraph) {
+        try {
+          await microsoftGraphService.sendEmail({
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+            text: options.text,
+            attachments: options.attachments,
+          });
+          console.log('✅ Email sent via Graph API to:', options.to);
+          return true;
+        } catch (graphError: any) {
+          console.error('❌ Graph API email failed:', graphError.message);
+
+          // Fallback to SMTP if available and provider is 'auto'
+          if (this.provider === 'auto' && this.transporter) {
+            console.log('⚠️ Falling back to SMTP...');
+          } else {
+            throw graphError;
+          }
+        }
+      }
+
+      // Use SMTP
       if (!this.transporter && !this.testMode) {
-        console.error('❌ Email transporter not initialized');
+        console.error('❌ No email provider available');
         return false;
       }
 
-      // In test mode with no SMTP configured, just log
-      if (this.testMode && !this.transporter) {
-        console.log('📧 TEST MODE (No SMTP): Email simulation');
+      // In test mode with no provider configured, just log
+      if (this.testMode && !this.transporter && !useGraph) {
+        console.log('📧 TEST MODE (No Provider): Email simulation');
         console.log('To:', options.to);
         console.log('Subject:', options.subject);
-        console.log('HTML:', options.html);
-        console.log('Text:', options.text);
         return true;
       }
 
-      const info = await this.transporter!.sendMail({
-        from: process.env.EMAIL_FROM,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        text: options.text,
-      });
+      if (this.transporter) {
+        const mailOptions: any = {
+          from: process.env.EMAIL_FROM,
+          to: options.to,
+          subject: options.subject,
+          html: options.html,
+          text: options.text,
+        };
 
-      console.log('✅ Email sent successfully:', info.messageId);
-      return true;
+        // Add attachments if present
+        if (options.attachments && options.attachments.length > 0) {
+          mailOptions.attachments = options.attachments.map(att => ({
+            filename: att.filename,
+            content: att.content,
+            contentType: att.contentType,
+          }));
+        }
+
+        const info = await this.transporter.sendMail(mailOptions);
+        console.log('✅ Email sent via SMTP:', info.messageId);
+        return true;
+      }
+
+      return false;
     } catch (error) {
       console.error('❌ Failed to send email:', error);
       return false;
@@ -928,6 +1057,90 @@ RamboFlow - Professionelle Zeiterfassung
     return await this.sendEmail({
       to,
       subject: `🎫 Ticket #${ticketNumber} erstellt: ${ticketTitle}`,
+      html,
+      text
+    });
+  }
+
+  // Send notification to admin/service provider when customer creates a ticket
+  async sendNewTicketAdminNotification(data: {
+    to: string;
+    customerName: string;
+    contactName: string;
+    ticketNumber: string;
+    ticketTitle: string;
+    ticketDescription: string;
+    priority: string;
+    adminUrl: string;
+  }): Promise<boolean> {
+    const { to, customerName, contactName, ticketNumber, ticketTitle, ticketDescription, priority, adminUrl } = data;
+
+    const priorityLabels: Record<string, string> = {
+      low: 'Niedrig',
+      normal: 'Normal',
+      high: 'Hoch',
+      critical: 'Kritisch',
+    };
+    const priorityLabel = priorityLabels[priority] || priority;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Neues Ticket erstellt</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px 20px; text-align: center;">
+                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">🎫 Neues Ticket von Kunde</h1>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 30px;">
+                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Ein neues Ticket wurde erstellt:</p>
+
+                      <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                        <p style="margin: 0 0 10px 0;"><strong>Ticket:</strong> #${ticketNumber}</p>
+                        <p style="margin: 0 0 10px 0;"><strong>Kunde:</strong> ${customerName}</p>
+                        <p style="margin: 0 0 10px 0;"><strong>Erstellt von:</strong> ${contactName}</p>
+                        <p style="margin: 0 0 10px 0;"><strong>Priorität:</strong> ${priorityLabel}</p>
+                        <p style="margin: 0 0 10px 0;"><strong>Betreff:</strong> ${ticketTitle}</p>
+                        ${ticketDescription ? `<p style="margin: 0;"><strong>Beschreibung:</strong><br>${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}</p>` : ''}
+                      </div>
+
+                      <div style="text-align: center; margin: 30px 0;">
+                        <a href="${adminUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold;">
+                          Ticket öffnen
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+                      <p style="color: #6b7280; font-size: 12px; margin: 0;">
+                        Diese E-Mail wurde automatisch generiert.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `;
+
+    const text = `Neues Ticket von Kunde\n\nTicket: #${ticketNumber}\nKunde: ${customerName}\nErstellt von: ${contactName}\nPriorität: ${priorityLabel}\nBetreff: ${ticketTitle}\n${ticketDescription ? `\nBeschreibung: ${ticketDescription.substring(0, 500)}` : ''}\n\nTicket öffnen: ${adminUrl}`;
+
+    return await this.sendEmail({
+      to,
+      subject: `🎫 Neues Ticket #${ticketNumber} von ${customerName}: ${ticketTitle}`,
       html,
       text
     });

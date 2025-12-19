@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, Plus } from 'lucide-react';
+import { Play, Pause, Square, Plus, Sparkles, Loader2 } from 'lucide-react';
 import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
+import { aiApi } from '../services/api';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => void;
@@ -21,6 +22,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const { currentUser } = useAuth();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [customerId, setCustomerId] = useState('');
   const [projectId, setProjectId] = useState('');
   const [activityId, setActivityId] = useState('');
   const [ticketId, setTicketId] = useState<string | undefined>(undefined);
@@ -31,14 +33,69 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   // Ref to track if timer has been stopped - used to prevent stale debounced updates
   const isStoppedRef = useRef(false);
 
-  console.log('⏱️ [STOPWATCH] Received projects:', projects);
-  console.log('⏱️ [STOPWATCH] Received customers:', customers);
+  // AI state
+  const [aiConfigured, setAiConfigured] = useState(false);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
+
   const activeProjects = projects.filter(p => p.isActive);
-  console.log('⏱️ [STOPWATCH] Active projects after filter:', activeProjects);
+
+  // Check AI config on mount
+  useEffect(() => {
+    const checkAiConfig = async () => {
+      try {
+        const response = await aiApi.getConfig();
+        setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
+      } catch (err) {
+        setAiConfigured(false);
+      }
+    };
+    checkAiConfig();
+  }, []);
+
+  // Generate AI description
+  const generateAiDescription = async () => {
+    if (!aiConfigured) return;
+    setGeneratingDescription(true);
+    try {
+      const selectedProject = projects.find(p => p.id === projectId);
+      const selectedCustomer = customers.find(c => c.id === customerId);
+      const selectedActivity = activities.find(a => a.id === activityId);
+
+      const response = await aiApi.suggestTimeEntryDescription({
+        projectName: selectedProject?.name,
+        customerName: selectedCustomer?.name,
+        activityName: selectedActivity?.name,
+        existingDescription: description || undefined,
+      });
+
+      if (response.success && response.data.suggestion) {
+        setDescription(response.data.suggestion);
+      }
+    } catch (err) {
+      console.error('Failed to generate description:', err);
+    } finally {
+      setGeneratingDescription(false);
+    }
+  };
+
+  // Get customers that have active projects
+  const customersWithProjects = customers.filter(c =>
+    activeProjects.some(p => p.customerId === c.id)
+  );
+
+  // Get projects for selected customer
+  const projectsForCustomer = customerId
+    ? activeProjects.filter(p => p.customerId === customerId)
+    : [];
 
   // Handle prefilled entry (from repeat action or ticket)
   useEffect(() => {
     if (prefilledEntry && !isRunning) {
+      // Find the customer for this project
+      const project = projects.find(p => p.id === prefilledEntry.projectId);
+      if (project) {
+        setCustomerId(project.customerId);
+      }
       setProjectId(prefilledEntry.projectId);
       setActivityId(prefilledEntry.activityId || '');
       setDescription(prefilledEntry.description);
@@ -46,12 +103,17 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       // Clear the prefilled entry
       onPrefilledEntryUsed?.();
     }
-  }, [prefilledEntry, isRunning, onPrefilledEntryUsed]);
+  }, [prefilledEntry, isRunning, onPrefilledEntryUsed, projects]);
 
   useEffect(() => {
     if (runningEntry) {
       setIsRunning(true);
       startTimeRef.current = runningEntry.startTime;
+      // Find the customer for this project
+      const project = projects.find(p => p.id === runningEntry.projectId);
+      if (project) {
+        setCustomerId(project.customerId);
+      }
       setProjectId(runningEntry.projectId);
       setActivityId(runningEntry.activityId || '');
       setTicketId(runningEntry.ticketId);
@@ -60,7 +122,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       const elapsed = Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000);
       setElapsedSeconds(elapsed);
     }
-  }, [runningEntry]);
+  }, [runningEntry, projects]);
 
   useEffect(() => {
     if (isRunning) {
@@ -151,6 +213,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     setIsRunning(false);
     setElapsedSeconds(0);
     startTimeRef.current = null;
+    setCustomerId('');
     setProjectId('');
     setActivityId('');
     setTicketId(undefined);
@@ -213,6 +276,37 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
           {/* Form */}
           <div className="space-y-4 mb-8">
+            {/* Customer Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Kunde
+              </label>
+              <select
+                value={customerId}
+                onChange={(e) => {
+                  setCustomerId(e.target.value);
+                  setProjectId(''); // Reset project when customer changes
+                }}
+                disabled={isRunning || customersWithProjects.length === 0}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
+              >
+                <option value="">
+                  {customersWithProjects.length === 0 ? 'Keine Kunden vorhanden' : 'Kunde wählen...'}
+                </option>
+                {customersWithProjects.map(customer => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                  </option>
+                ))}
+              </select>
+              {customersWithProjects.length === 0 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                  Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
+                </p>
+              )}
+            </div>
+
+            {/* Project Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Projekt
@@ -220,23 +314,18 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                disabled={isRunning || activeProjects.length === 0}
+                disabled={isRunning || !customerId || projectsForCustomer.length === 0}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
               >
                 <option value="">
-                  {activeProjects.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
+                  {!customerId ? 'Erst Kunde wählen...' : projectsForCustomer.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
                 </option>
-                {activeProjects.map(project => (
+                {projectsForCustomer.map(project => (
                   <option key={project.id} value={project.id}>
-                    {getProjectDisplay(project)}
+                    {project.name}
                   </option>
                 ))}
               </select>
-              {activeProjects.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                  Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
-                </p>
-              )}
             </div>
 
             <div>
@@ -264,14 +353,31 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Beschreibung (optional)
-                {isRunning && (
-                  <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
-                    · editierbar während der Erfassung
-                  </span>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Beschreibung (optional)
+                  {isRunning && (
+                    <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
+                      · editierbar während der Erfassung
+                    </span>
+                  )}
+                </label>
+                {aiConfigured && (projectId || activityId) && (
+                  <button
+                    onClick={generateAiDescription}
+                    disabled={generatingDescription}
+                    className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                    title="KI-Vorschlag generieren"
+                  >
+                    {generatingDescription ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={12} />
+                    )}
+                    KI-Vorschlag
+                  </button>
                 )}
-              </label>
+              </div>
               <textarea
                 placeholder="Was wurde gemacht?"
                 value={description}
@@ -366,7 +472,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
         {/* Helper Text */}
         {!isRunning && elapsedSeconds === 0 && (
           <div className="text-center text-gray-500 dark:text-gray-400 text-sm max-w-md">
-            <p>Wähle ein Projekt aus und starte die Zeiterfassung mit einem Klick auf Start</p>
+            <p>Wähle einen Kunden und ein Projekt aus, dann starte die Zeiterfassung mit einem Klick auf Start</p>
           </div>
         )}
       </div>

@@ -206,7 +206,7 @@ cat > .env.production <<EOF
 # Domain
 DOMAIN=$DOMAIN
 FRONTEND_URL=https://$DOMAIN
-BACKEND_URL=https://$DOMAIN/api
+BACKEND_URL=https://$DOMAIN
 
 # Datenbank
 DB_PASSWORD=$DB_PASSWORD

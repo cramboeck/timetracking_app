@@ -3,9 +3,10 @@ import {
   Settings, Save, RefreshCw, Link2, Unlink, CheckCircle, XCircle,
   AlertTriangle, Server, Building, Clock, ExternalLink, Shield, Monitor,
   Wifi, WifiOff, Bell, Ticket, X, Cpu, HardDrive, Globe, User, Search,
-  Webhook, Copy, Key, Eye, EyeOff, Zap
+  Webhook, Copy, Key, Eye, EyeOff, Zap, Filter, Plus, Trash2, Edit3,
+  ToggleLeft, ToggleRight, Ban
 } from 'lucide-react';
-import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert } from '../services/api';
+import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert, NinjaAlertExclusion } from '../services/api';
 import { customersApi } from '../services/api';
 import { Customer } from '../types';
 
@@ -52,6 +53,25 @@ export const NinjaRMMSettings = () => {
   const [generatingSecret, setGeneratingSecret] = useState(false);
   const [showWebhookSecret, setShowWebhookSecret] = useState(false);
   const [webhookCopied, setWebhookCopied] = useState(false);
+  const [selectedPayload, setSelectedPayload] = useState<{ id: string; eventType: string; payload: any; createdAt: string } | null>(null);
+  const [loadingPayload, setLoadingPayload] = useState(false);
+  const [backfillingDeviceNames, setBackfillingDeviceNames] = useState(false);
+
+  // Exclusion state
+  const [exclusions, setExclusions] = useState<NinjaAlertExclusion[]>([]);
+  const [loadingExclusions, setLoadingExclusions] = useState(false);
+  const [showExclusionForm, setShowExclusionForm] = useState(false);
+  const [editingExclusion, setEditingExclusion] = useState<NinjaAlertExclusion | null>(null);
+  const [exclusionForm, setExclusionForm] = useState({
+    name: '',
+    description: '',
+    matchType: 'contains' as 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex',
+    matchField: 'message' as 'message' | 'source_name' | 'condition_name' | 'device_name' | 'severity',
+    matchValue: '',
+    isActive: true,
+  });
+  const [savingExclusion, setSavingExclusion] = useState(false);
+  const [creatingExclusionFromEvent, setCreatingExclusionFromEvent] = useState<string | null>(null);
 
   // Modal state
   const [selectedDevice, setSelectedDevice] = useState<NinjaDevice | null>(null);
@@ -364,6 +384,20 @@ export const NinjaRMMSettings = () => {
     }
   };
 
+  const loadWebhookPayload = async (eventId: string) => {
+    try {
+      setLoadingPayload(true);
+      const result = await ninjaApi.getWebhookEventPayload(eventId);
+      if (result.success) {
+        setSelectedPayload(result.data);
+      }
+    } catch (err: any) {
+      console.error('Fehler beim Laden des Payloads:', err);
+    } finally {
+      setLoadingPayload(false);
+    }
+  };
+
   const handleSaveWebhookConfig = async () => {
     if (!webhookConfig) return;
     try {
@@ -406,6 +440,136 @@ export const NinjaRMMSettings = () => {
     }
   };
 
+  const handleBackfillDeviceNames = async () => {
+    try {
+      setBackfillingDeviceNames(true);
+      setError('');
+      setSuccess('');
+      const result = await ninjaApi.backfillWebhookDeviceNames();
+      if (result.success) {
+        setSuccess(result.message || `${result.data.updatedCount} Gerätenamen nachgetragen`);
+        // Reload webhook events to show updated device names
+        loadWebhookData();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Aktualisieren der Gerätenamen');
+    } finally {
+      setBackfillingDeviceNames(false);
+    }
+  };
+
+  // Exclusion handlers
+  const loadExclusions = async () => {
+    try {
+      setLoadingExclusions(true);
+      const result = await ninjaApi.getExclusions();
+      if (result.success) {
+        setExclusions(result.data);
+      }
+    } catch (err: any) {
+      console.error('Fehler beim Laden der Ausnahmen:', err);
+    } finally {
+      setLoadingExclusions(false);
+    }
+  };
+
+  const resetExclusionForm = () => {
+    setExclusionForm({
+      name: '',
+      description: '',
+      matchType: 'contains',
+      matchField: 'message',
+      matchValue: '',
+      isActive: true,
+    });
+    setEditingExclusion(null);
+    setShowExclusionForm(false);
+  };
+
+  const handleEditExclusion = (exclusion: NinjaAlertExclusion) => {
+    setEditingExclusion(exclusion);
+    setExclusionForm({
+      name: exclusion.name,
+      description: exclusion.description || '',
+      matchType: exclusion.matchType,
+      matchField: exclusion.matchField,
+      matchValue: exclusion.matchValue,
+      isActive: exclusion.isActive,
+    });
+    setShowExclusionForm(true);
+  };
+
+  const handleSaveExclusion = async () => {
+    if (!exclusionForm.name || !exclusionForm.matchValue) {
+      setError('Name und Match-Wert sind erforderlich');
+      return;
+    }
+    try {
+      setSavingExclusion(true);
+      setError('');
+      if (editingExclusion) {
+        const result = await ninjaApi.updateExclusion(editingExclusion.id, exclusionForm);
+        if (result.success) {
+          setSuccess('Ausnahme aktualisiert');
+          loadExclusions();
+          resetExclusionForm();
+        }
+      } else {
+        const result = await ninjaApi.createExclusion(exclusionForm);
+        if (result.success) {
+          setSuccess('Ausnahme erstellt');
+          loadExclusions();
+          resetExclusionForm();
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Speichern der Ausnahme');
+    } finally {
+      setSavingExclusion(false);
+    }
+  };
+
+  const handleDeleteExclusion = async (id: string) => {
+    if (!confirm('Ausnahme wirklich löschen?')) return;
+    try {
+      const result = await ninjaApi.deleteExclusion(id);
+      if (result.success) {
+        setSuccess('Ausnahme gelöscht');
+        loadExclusions();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Löschen der Ausnahme');
+    }
+  };
+
+  const handleToggleExclusion = async (exclusion: NinjaAlertExclusion) => {
+    try {
+      const result = await ninjaApi.updateExclusion(exclusion.id, { isActive: !exclusion.isActive });
+      if (result.success) {
+        loadExclusions();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Ändern der Ausnahme');
+    }
+  };
+
+  const handleCreateExclusionFromEvent = async (eventId: string, matchField: 'message' | 'source_name' | 'condition_name' | 'device_name') => {
+    try {
+      setCreatingExclusionFromEvent(eventId);
+      setError('');
+      const result = await ninjaApi.createExclusionFromEvent(eventId, { matchField, matchType: 'contains' });
+      if (result.success) {
+        setSuccess(`Ausnahme erstellt: ${result.data.name}`);
+        loadExclusions();
+        loadWebhookData();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Erstellen der Ausnahme');
+    } finally {
+      setCreatingExclusionFromEvent(null);
+    }
+  };
+
   const copyWebhookUrl = async () => {
     if (!webhookConfig?.webhookUrl) return;
     try {
@@ -417,10 +581,11 @@ export const NinjaRMMSettings = () => {
     }
   };
 
-  // Load webhook data when switching to webhook section
+  // Load webhook data and exclusions when switching to webhook section
   useEffect(() => {
     if (activeSection === 'webhook' && config?.isConnected) {
       loadWebhookData();
+      loadExclusions();
     }
   }, [activeSection, config?.isConnected]);
 
@@ -509,7 +674,7 @@ export const NinjaRMMSettings = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Instance URL
                 </label>
                 <select
@@ -531,7 +696,7 @@ export const NinjaRMMSettings = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Client ID {config?.hasClientId && <span className="text-green-500">(gespeichert)</span>}
                 </label>
                 <input
@@ -555,7 +720,7 @@ export const NinjaRMMSettings = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Client Secret {config?.hasClientSecret && <span className="text-green-500">(gespeichert)</span>}
                 </label>
                 <input
@@ -643,12 +808,12 @@ export const NinjaRMMSettings = () => {
                   onChange={(e) => setAutoSyncDevices(e.target.checked)}
                   className="w-5 h-5 text-accent-primary rounded border-gray-300 focus:ring-accent-primary"
                 />
-                <span className="text-gray-700 dark:text-dark-300">Automatische Synchronisation aktivieren</span>
+                <span className="text-gray-700 dark:text-gray-300">Automatische Synchronisation aktivieren</span>
               </label>
 
               {autoSyncDevices && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Sync-Intervall (Minuten)
                   </label>
                   <input
@@ -849,7 +1014,7 @@ export const NinjaRMMSettings = () => {
                             <p className="text-sm text-gray-500 dark:text-dark-400">{device.systemName}</p>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-dark-300">
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                           {device.organizationName}
                           {device.customerName && (
                             <span className="text-sm text-gray-500 dark:text-dark-400 ml-1">
@@ -858,11 +1023,11 @@ export const NinjaRMMSettings = () => {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300">
                             {device.nodeClass?.replace(/_/g, ' ') || 'Unbekannt'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-dark-300">
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                           {device.osName || '-'}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-dark-400">
@@ -979,7 +1144,7 @@ export const NinjaRMMSettings = () => {
                             alert.severity === 'MAJOR' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
                             alert.severity === 'MODERATE' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
                             alert.severity === 'MINOR' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
-                            'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300'
+                            'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300'
                           }`}>
                             {alert.severity}
                           </span>
@@ -993,7 +1158,7 @@ export const NinjaRMMSettings = () => {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <p className="text-gray-700 dark:text-dark-300 max-w-md truncate" title={alert.message}>
+                          <p className="text-gray-700 dark:text-gray-300 max-w-md truncate" title={alert.message}>
                             {alert.message}
                           </p>
                           {alert.sourceName && (
@@ -1045,7 +1210,7 @@ export const NinjaRMMSettings = () => {
                 <div className="space-y-4">
                   {/* Webhook URL */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Webhook URL
                     </label>
                     <div className="flex gap-2">
@@ -1057,7 +1222,7 @@ export const NinjaRMMSettings = () => {
                       />
                       <button
                         onClick={copyWebhookUrl}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
                       >
                         {webhookCopied ? (
                           <>
@@ -1076,7 +1241,7 @@ export const NinjaRMMSettings = () => {
 
                   {/* Webhook Secret */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Sicherheit {webhookConfig?.hasSecret && <span className="text-green-500">(Secret aktiv)</span>}
                     </label>
                     <div className="flex items-center gap-3">
@@ -1129,7 +1294,7 @@ export const NinjaRMMSettings = () => {
                       className="w-5 h-5 text-accent-primary rounded border-gray-300 focus:ring-accent-primary"
                     />
                     <div>
-                      <span className="text-gray-700 dark:text-dark-300 font-medium">Webhook aktivieren</span>
+                      <span className="text-gray-700 dark:text-gray-300 font-medium">Webhook aktivieren</span>
                       <p className="text-sm text-gray-500 dark:text-dark-400">Eingehende Webhook-Events verarbeiten</p>
                     </div>
                   </label>
@@ -1143,7 +1308,7 @@ export const NinjaRMMSettings = () => {
                       className="w-5 h-5 text-accent-primary rounded border-gray-300 focus:ring-accent-primary"
                     />
                     <div>
-                      <span className="text-gray-700 dark:text-dark-300 font-medium">Automatische Ticket-Erstellung</span>
+                      <span className="text-gray-700 dark:text-gray-300 font-medium">Automatische Ticket-Erstellung</span>
                       <p className="text-sm text-gray-500 dark:text-dark-400">Erstelle automatisch Tickets für eingehende Alerts</p>
                     </div>
                   </label>
@@ -1151,7 +1316,7 @@ export const NinjaRMMSettings = () => {
                   {/* Min Severity */}
                   {webhookConfig?.autoCreateTickets && (
                     <div className="ml-8">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Mindest-Schweregrad für Ticket-Erstellung
                       </label>
                       <select
@@ -1177,7 +1342,7 @@ export const NinjaRMMSettings = () => {
                       className="w-5 h-5 text-accent-primary rounded border-gray-300 focus:ring-accent-primary"
                     />
                     <div>
-                      <span className="text-gray-700 dark:text-dark-300 font-medium">Automatisches Ticket-Schließen</span>
+                      <span className="text-gray-700 dark:text-gray-300 font-medium">Automatisches Ticket-Schließen</span>
                       <p className="text-sm text-gray-500 dark:text-dark-400">Schließe Tickets automatisch wenn der Alert in NinjaRMM gelöst wird</p>
                     </div>
                   </label>
@@ -1203,13 +1368,24 @@ export const NinjaRMMSettings = () => {
                     <h3 className="font-medium text-gray-900 dark:text-white">Webhook-Events</h3>
                     <p className="text-sm text-gray-500 dark:text-dark-400">Letzte eingehende Events</p>
                   </div>
-                  <button
-                    onClick={loadWebhookData}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
-                  >
-                    <RefreshCw size={14} />
-                    Aktualisieren
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleBackfillDeviceNames}
+                      disabled={backfillingDeviceNames}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50"
+                      title="Gerätenamen für bestehende Events aus synchronisierten Geräten nachtragen"
+                    >
+                      <Monitor size={14} />
+                      {backfillingDeviceNames ? 'Aktualisiere...' : 'Gerätenamen nachtragen'}
+                    </button>
+                    <button
+                      onClick={loadWebhookData}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+                    >
+                      <RefreshCw size={14} />
+                      Aktualisieren
+                    </button>
+                  </div>
                 </div>
                 {webhookEvents.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 dark:text-dark-400">
@@ -1222,10 +1398,12 @@ export const NinjaRMMSettings = () => {
                       <thead className="bg-gray-50 dark:bg-dark-50 text-left text-sm text-gray-500 dark:text-dark-400">
                         <tr>
                           <th className="px-4 py-3 font-medium">Status</th>
-                          <th className="px-4 py-3 font-medium">Event-Typ</th>
+                          <th className="px-4 py-3 font-medium">Event / Nachricht</th>
+                          <th className="px-4 py-3 font-medium">Gerät</th>
                           <th className="px-4 py-3 font-medium">Schweregrad</th>
                           <th className="px-4 py-3 font-medium">Ticket</th>
                           <th className="px-4 py-3 font-medium">Zeit</th>
+                          <th className="px-4 py-3 font-medium">Aktion</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-dark-200">
@@ -1235,14 +1413,24 @@ export const NinjaRMMSettings = () => {
                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                 event.status === 'processed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
                                 event.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-                                event.status === 'ignored' ? 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300' :
+                                event.status === 'ignored' ? 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300' :
                                 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                               }`}>
                                 {event.status}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-gray-900 dark:text-white">
-                              {event.eventType}
+                            <td className="px-4 py-3">
+                              <div className="text-gray-900 dark:text-white font-medium">
+                                {event.message || event.eventType}
+                              </div>
+                              {event.message && (
+                                <div className="text-xs text-gray-500 dark:text-dark-400">
+                                  {event.eventType}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                              {event.deviceName || '-'}
                             </td>
                             <td className="px-4 py-3">
                               {event.severity && (
@@ -1256,7 +1444,7 @@ export const NinjaRMMSettings = () => {
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-gray-700 dark:text-dark-300">
+                            <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                               {event.ticketId ? (
                                 <span className="flex items-center gap-1 text-accent-primary">
                                   <Ticket size={14} />
@@ -1267,10 +1455,229 @@ export const NinjaRMMSettings = () => {
                             <td className="px-4 py-3 text-sm text-gray-500 dark:text-dark-400 whitespace-nowrap">
                               {new Date(event.createdAt).toLocaleString('de-DE')}
                             </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => loadWebhookPayload(event.id)}
+                                  disabled={loadingPayload}
+                                  className="px-2 py-1 text-xs bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50"
+                                  title="Raw Payload anzeigen"
+                                >
+                                  {loadingPayload ? '...' : 'Payload'}
+                                </button>
+                                {event.status !== 'ignored' && event.message && (
+                                  <button
+                                    onClick={() => handleCreateExclusionFromEvent(event.id, 'message')}
+                                    disabled={creatingExclusionFromEvent === event.id}
+                                    className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded hover:bg-orange-200 dark:hover:bg-orange-900/50 disabled:opacity-50"
+                                    title="Ähnliche Alerts künftig ignorieren"
+                                  >
+                                    {creatingExclusionFromEvent === event.id ? '...' : (
+                                      <Ban size={12} />
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Alert Exclusions */}
+              <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 overflow-hidden">
+                <div className="p-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                      <Filter size={18} />
+                      Alert-Ausnahmen
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Regeln zum Ignorieren bestimmter Alerts</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={loadExclusions}
+                      disabled={loadingExclusions}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+                    >
+                      <RefreshCw size={14} className={loadingExclusions ? 'animate-spin' : ''} />
+                    </button>
+                    <button
+                      onClick={() => setShowExclusionForm(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-dark"
+                    >
+                      <Plus size={14} />
+                      Neue Ausnahme
+                    </button>
+                  </div>
+                </div>
+
+                {/* Exclusion Form */}
+                {showExclusionForm && (
+                  <div className="p-4 bg-gray-50 dark:bg-dark-50 border-b border-gray-200 dark:border-dark-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
+                        <input
+                          type="text"
+                          value={exclusionForm.name}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, name: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-200 rounded-lg text-gray-900 dark:text-white"
+                          placeholder="z.B. Veeam VSS Backup ignorieren"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Beschreibung</label>
+                        <input
+                          type="text"
+                          value={exclusionForm.description}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, description: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-200 rounded-lg text-gray-900 dark:text-white"
+                          placeholder="Optional"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Feld</label>
+                        <select
+                          value={exclusionForm.matchField}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, matchField: e.target.value as any })}
+                          className="w-full px-3 py-2 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-200 rounded-lg text-gray-900 dark:text-white"
+                        >
+                          <option value="message">Nachricht</option>
+                          <option value="condition_name">Condition Name</option>
+                          <option value="source_name">Quelle</option>
+                          <option value="device_name">Gerätename</option>
+                          <option value="severity">Schweregrad</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Match-Typ</label>
+                        <select
+                          value={exclusionForm.matchType}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, matchType: e.target.value as any })}
+                          className="w-full px-3 py-2 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-200 rounded-lg text-gray-900 dark:text-white"
+                        >
+                          <option value="contains">Enthält</option>
+                          <option value="equals">Ist gleich</option>
+                          <option value="starts_with">Beginnt mit</option>
+                          <option value="ends_with">Endet mit</option>
+                          <option value="regex">Regex</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Wert *</label>
+                        <input
+                          type="text"
+                          value={exclusionForm.matchValue}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, matchValue: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-200 rounded-lg text-gray-900 dark:text-white"
+                          placeholder="z.B. VSS Writer"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={exclusionForm.isActive}
+                          onChange={(e) => setExclusionForm({ ...exclusionForm, isActive: e.target.checked })}
+                          className="rounded border-gray-300 dark:border-dark-200"
+                        />
+                        Aktiv
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={resetExclusionForm}
+                          className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
+                        >
+                          Abbrechen
+                        </button>
+                        <button
+                          onClick={handleSaveExclusion}
+                          disabled={savingExclusion}
+                          className="flex items-center gap-2 px-4 py-2 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+                        >
+                          <Save size={14} />
+                          {savingExclusion ? 'Speichern...' : editingExclusion ? 'Aktualisieren' : 'Erstellen'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Exclusions List */}
+                {exclusions.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-dark-400">
+                    <Ban size={32} className="mx-auto mb-2 opacity-50" />
+                    <p>Keine Ausnahmen definiert</p>
+                    <p className="text-sm mt-1">Erstelle eine Ausnahme, um bestimmte Alerts zu ignorieren</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-200 dark:divide-dark-200">
+                    {exclusions.map(exclusion => (
+                      <div key={exclusion.id} className={`p-4 flex items-center justify-between ${!exclusion.isActive ? 'opacity-50' : ''}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 dark:text-white">{exclusion.name}</span>
+                            {!exclusion.isActive && (
+                              <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400 rounded">Deaktiviert</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+                            <span className="inline-flex items-center gap-1">
+                              <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-dark-200 rounded text-xs">
+                                {exclusion.matchField === 'message' ? 'Nachricht' :
+                                 exclusion.matchField === 'condition_name' ? 'Condition' :
+                                 exclusion.matchField === 'source_name' ? 'Quelle' :
+                                 exclusion.matchField === 'device_name' ? 'Gerät' : 'Severity'}
+                              </code>
+                              <span className="text-gray-400">
+                                {exclusion.matchType === 'contains' ? 'enthält' :
+                                 exclusion.matchType === 'equals' ? '=' :
+                                 exclusion.matchType === 'starts_with' ? 'beginnt mit' :
+                                 exclusion.matchType === 'ends_with' ? 'endet mit' : 'regex'}
+                              </span>
+                              <code className="px-1.5 py-0.5 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 rounded text-xs max-w-xs truncate">
+                                {exclusion.matchValue}
+                              </code>
+                            </span>
+                          </div>
+                          {exclusion.hitCount > 0 && (
+                            <div className="text-xs text-gray-400 dark:text-dark-500 mt-1">
+                              {exclusion.hitCount}x getroffen • Zuletzt: {exclusion.lastHitAt ? new Date(exclusion.lastHitAt).toLocaleString('de-DE') : '-'}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <button
+                            onClick={() => handleToggleExclusion(exclusion)}
+                            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-dark-300"
+                            title={exclusion.isActive ? 'Deaktivieren' : 'Aktivieren'}
+                          >
+                            {exclusion.isActive ? <ToggleRight size={20} className="text-green-500" /> : <ToggleLeft size={20} />}
+                          </button>
+                          <button
+                            onClick={() => handleEditExclusion(exclusion)}
+                            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-dark-300"
+                            title="Bearbeiten"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteExclusion(exclusion.id)}
+                            className="p-2 text-gray-400 hover:text-red-500"
+                            title="Löschen"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -1532,7 +1939,7 @@ export const NinjaRMMSettings = () => {
               </div>
               <button
                 onClick={() => setSelectedDevice(null)}
-                className="px-4 py-2 text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
               >
                 Schließen
               </button>
@@ -1590,7 +1997,7 @@ export const NinjaRMMSettings = () => {
               {/* Alert Message */}
               <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4 mb-4">
                 <h4 className="font-medium text-gray-900 dark:text-white mb-2">Nachricht</h4>
-                <p className="text-gray-700 dark:text-dark-300 whitespace-pre-wrap">{selectedAlert.message}</p>
+                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{selectedAlert.message}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1609,7 +2016,7 @@ export const NinjaRMMSettings = () => {
                           selectedAlert.severity === 'MAJOR' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
                           selectedAlert.severity === 'MODERATE' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
                           selectedAlert.severity === 'MINOR' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
-                          'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-300'
+                          'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300'
                         }`}>
                           {selectedAlert.severity}
                         </span>
@@ -1703,7 +2110,44 @@ export const NinjaRMMSettings = () => {
               </div>
               <button
                 onClick={() => setSelectedAlert(null)}
-                className="px-4 py-2 text-gray-700 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payload Modal */}
+      {selectedPayload && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Webhook Payload
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-dark-400">
+                  Event: {selectedPayload.eventType} - {new Date(selectedPayload.createdAt).toLocaleString('de-DE')}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedPayload(null)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg text-gray-500"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              <pre className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                {JSON.stringify(selectedPayload.payload, null, 2)}
+              </pre>
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-dark-200 flex justify-end">
+              <button
+                onClick={() => setSelectedPayload(null)}
+                className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
               >
                 Schließen
               </button>

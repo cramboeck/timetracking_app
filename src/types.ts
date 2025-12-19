@@ -10,6 +10,7 @@ export interface Customer {
   reportTitle?: string; // Custom report title for this customer (e.g., "Stundenzettel" or "Tätigkeitsnachweis")
   sevdeskCustomerId?: string; // Link to sevDesk contact
   hourlyRate?: number; // Customer-specific hourly rate (Business feature)
+  timeRoundingInterval?: number; // Time rounding interval in minutes for billing (e.g., 15 = round up to nearest 15 min)
   ninjarmmOrganizationId?: string; // Link to NinjaRMM organization (Support feature)
   createdAt: string;
 }
@@ -421,6 +422,9 @@ export interface CustomerContact {
   canViewDevices: boolean; // View NinjaRMM devices (Support feature)
   canViewInvoices: boolean; // View sevDesk invoices (Business feature)
   canViewQuotes: boolean; // View sevDesk quotes (Business feature)
+  notifyTicketCreated?: boolean; // Email on ticket created
+  notifyTicketStatusChanged?: boolean; // Email on status change
+  notifyTicketReply?: boolean; // Email on new reply
   isActivated?: boolean; // Computed: has set password
   lastLogin?: string;
   createdAt: string;

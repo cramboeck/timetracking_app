@@ -323,6 +323,92 @@ router.post('/record-export', authenticateToken, requireBillingFeature, async (r
   }
 });
 
+// Helper function to round up seconds to nearest interval (in minutes)
+function roundUpToInterval(seconds: number, intervalMinutes: number): number {
+  if (intervalMinutes <= 0) return seconds;
+  const intervalSeconds = intervalMinutes * 60;
+  return Math.ceil(seconds / intervalSeconds) * intervalSeconds;
+}
+
+// POST /api/sevdesk/create-export - Simple export: mark all unbilled entries for customer/period as billed
+router.post('/create-export', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { customerId, periodStart, periodEnd } = req.body;
+
+    if (!customerId || !periodStart || !periodEnd) {
+      return res.status(400).json({
+        success: false,
+        error: 'customerId, periodStart, and periodEnd are required',
+      });
+    }
+
+    // Get customer info for hourly rate and rounding interval
+    const customerResult = await query(
+      'SELECT id, name, hourly_rate, time_rounding_interval FROM customers WHERE id = $1 AND user_id = $2',
+      [customerId, userId]
+    );
+
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Customer not found' });
+    }
+
+    const customer = customerResult.rows[0];
+    const roundingInterval = customer.time_rounding_interval || 15; // Default 15 minutes
+
+    // Get config for default hourly rate
+    const config = await sevdeskService.getConfig(userId);
+    const hourlyRate = customer.hourly_rate ? parseFloat(customer.hourly_rate) : (config?.defaultHourlyRate || 95);
+
+    // Get all unbilled entries for this customer in the period
+    const entries = await sevdeskService.getUnbilledTimeEntries(userId, customerId, periodStart, periodEnd);
+
+    if (entries.length === 0) {
+      return res.status(400).json({ success: false, error: 'Keine offenen Zeiteinträge für diesen Zeitraum gefunden' });
+    }
+
+    const entryIds = entries.map(e => e.id);
+
+    // Calculate totals with rounding
+    const totalSeconds = entries.reduce((sum, e) => sum + e.duration, 0);
+    // Round up each entry individually, then sum
+    const roundedSeconds = entries.reduce((sum, e) => sum + roundUpToInterval(e.duration, roundingInterval), 0);
+
+    const totalHours = Math.round((totalSeconds / 3600) * 100) / 100;
+    const roundedHours = Math.round((roundedSeconds / 3600) * 100) / 100;
+    // Amount is calculated based on ROUNDED hours
+    const totalAmount = Math.round(roundedHours * hourlyRate * 100) / 100;
+
+    // Record the export (marks entries as billed) - store rounded hours as the billing hours
+    const exportId = await sevdeskService.recordInvoiceExport(
+      userId,
+      customerId,
+      entryIds,
+      null, // no sevDesk invoice ID
+      null, // no sevDesk invoice number
+      periodStart,
+      periodEnd,
+      roundedHours, // Use rounded hours for the export record
+      totalAmount
+    );
+
+    res.json({
+      success: true,
+      data: {
+        exportId,
+        totalHours,
+        roundedHours,
+        totalAmount,
+        entriesCount: entries.length,
+        roundingInterval,
+      },
+    });
+  } catch (error: any) {
+    console.error('Create export error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/sevdesk/invoice-exports - Get invoice export history
 router.get('/invoice-exports', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {

@@ -11,6 +11,7 @@ import { CustomerAuthRequest, authenticateCustomerToken } from '../middleware/cu
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { z } from 'zod';
 import { sendTicketNotification } from '../services/pushNotifications';
+import { emailService } from '../services/emailService';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import { UAParser } from 'ua-parser-js';
@@ -440,13 +441,78 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
 
     const ticket = ticketResult.rows[0];
 
-    // Send push notification to ticket owner (async, non-blocking)
-    sendTicketNotification(
-      userId,
-      { id: ticketId, ticketNumber, title },
-      'push_on_new_ticket',
-      `Neues Ticket von ${customerName}`
-    ).catch(err => console.error('Failed to send push notification:', err));
+    // Send push notifications to all organization members (async, non-blocking)
+    (async () => {
+      try {
+        // Get all organization members
+        const members = await pool.query(
+          `SELECT user_id FROM organization_members WHERE organization_id = $1`,
+          [organizationId]
+        );
+
+        for (const member of members.rows) {
+          sendTicketNotification(
+            member.user_id,
+            { id: ticketId, ticketNumber, title },
+            'push_on_new_ticket',
+            `Neues Portal-Ticket von ${customerName}: ${title}`
+          ).catch(err => console.error('Push notification error:', err));
+        }
+      } catch (err) {
+        console.error('Error sending push notifications:', err);
+      }
+    })();
+
+    // Send email confirmation to customer contact (async, non-blocking)
+    try {
+      const contactInfo = await pool.query(
+        'SELECT email, name, notify_ticket_created FROM customer_contacts WHERE id = $1',
+        [req.contactId]
+      );
+      if (contactInfo.rows.length > 0 && contactInfo.rows[0].email && contactInfo.rows[0].notify_ticket_created !== false) {
+        const contact = contactInfo.rows[0];
+        const portalUrl = `${process.env.FRONTEND_URL || 'https://app.ramboeck.it'}/portal/tickets/${ticketId}`;
+        emailService.sendTicketCreatedNotification({
+          to: contact.email,
+          customerName: contact.name || customerName,
+          ticketNumber,
+          ticketTitle: title,
+          ticketDescription: description || '',
+          portalUrl,
+        }).catch(err => console.error('Failed to send ticket created notification:', err));
+      }
+    } catch (emailErr) {
+      console.error('Error preparing ticket created notification:', emailErr);
+    }
+
+    // Send email notification to admin/service provider (async, non-blocking)
+    try {
+      const adminInfo = await pool.query(
+        'SELECT email, display_name, username FROM users WHERE id = $1',
+        [userId]
+      );
+      const contactInfo = await pool.query(
+        'SELECT name FROM customer_contacts WHERE id = $1',
+        [req.contactId]
+      );
+      if (adminInfo.rows.length > 0 && adminInfo.rows[0].email) {
+        const admin = adminInfo.rows[0];
+        const contactName = contactInfo.rows[0]?.name || 'Unbekannt';
+        const adminUrl = `${process.env.FRONTEND_URL || 'https://app.ramboeck.it'}/?ticket=${ticketId}`;
+        emailService.sendNewTicketAdminNotification({
+          to: admin.email,
+          customerName,
+          contactName,
+          ticketNumber,
+          ticketTitle: title,
+          ticketDescription: description || '',
+          priority,
+          adminUrl,
+        }).catch(err => console.error('Failed to send admin notification:', err));
+      }
+    } catch (emailErr) {
+      console.error('Error preparing admin notification:', emailErr);
+    }
 
     res.status(201).json({
       id: ticket.id,
@@ -893,6 +959,56 @@ router.post('/change-password', authenticateCustomerToken, async (req: CustomerA
 });
 
 // ============================================================================
+// NOTIFICATION PREFERENCES
+// ============================================================================
+
+// Get notification preferences
+router.get('/notification-preferences', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply
+       FROM customer_contacts WHERE id = $1`,
+      [req.contactId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const prefs = result.rows[0];
+    res.json({
+      notifyTicketCreated: prefs.notify_ticket_created ?? true,
+      notifyTicketStatusChanged: prefs.notify_ticket_status_changed ?? true,
+      notifyTicketReply: prefs.notify_ticket_reply ?? true,
+    });
+  } catch (error) {
+    console.error('Get notification preferences error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update notification preferences
+router.put('/notification-preferences', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply } = req.body;
+
+    await pool.query(
+      `UPDATE customer_contacts SET
+        notify_ticket_created = COALESCE($1, notify_ticket_created),
+        notify_ticket_status_changed = COALESCE($2, notify_ticket_status_changed),
+        notify_ticket_reply = COALESCE($3, notify_ticket_reply)
+       WHERE id = $4`,
+      [notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply, req.contactId]
+    );
+
+    res.json({ success: true, message: 'Notification preferences updated' });
+  } catch (error) {
+    console.error('Update notification preferences error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
 // SATISFACTION RATING
 // ============================================================================
 
@@ -1028,7 +1144,7 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
         lastBoot: lastBoot,
         lastContact: row.last_contact,
         lastLoggedInUser: row.last_logged_in_user,
-        publicIp: row.public_ip,
+        // Only show private IP to customers (they know their external IP)
         privateIp: row.private_ip,
         offline: row.offline,
         notes: row.notes,
@@ -1116,6 +1232,254 @@ router.get('/devices/:deviceId/alerts', authenticateCustomerToken, async (req: C
     res.json({ success: true, data: alerts });
   } catch (error) {
     console.error('Get device alerts error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get software for a specific device
+router.get('/devices/:deviceId/software', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    const { deviceId } = req.params;
+
+    // Verify the device belongs to this customer's organization
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer?.ninjarmm_organization_id) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get device and verify ownership
+    const deviceResult = await pool.query(
+      `SELECT id, system_name FROM ninjarmm_devices
+       WHERE id = $1 AND user_id = $2 AND organization_id = $3`,
+      [deviceId, customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get software for this device
+    const softwareResult = await pool.query(
+      `SELECT id, name, publisher, version, install_date, size_bytes, created_at
+       FROM ninjarmm_device_software
+       WHERE device_id = $1
+       ORDER BY name ASC`,
+      [deviceId]
+    );
+
+    const software = softwareResult.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      publisher: row.publisher,
+      version: row.version,
+      installDate: row.install_date,
+      sizeBytes: row.size_bytes ? parseInt(row.size_bytes) : null,
+    }));
+
+    const lastFetched = softwareResult.rows.length > 0 ? softwareResult.rows[0].created_at : null;
+
+    res.json({
+      success: true,
+      data: {
+        deviceName: deviceResult.rows[0].system_name,
+        software,
+        lastFetched,
+        count: software.length,
+      },
+    });
+  } catch (error) {
+    console.error('Get device software error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Refresh software for a specific device (fetch from NinjaRMM)
+router.post('/devices/:deviceId/software/refresh', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    const { deviceId } = req.params;
+
+    // Verify the device belongs to this customer's organization
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer?.ninjarmm_organization_id) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get device and verify ownership
+    const deviceResult = await pool.query(
+      `SELECT id, ninja_id, system_name FROM ninjarmm_devices
+       WHERE id = $1 AND user_id = $2 AND organization_id = $3`,
+      [deviceId, customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Import the service function dynamically to avoid circular dependencies
+    const { fetchAndStoreDeviceSoftware } = await import('../services/ninjarmmService');
+    const software = await fetchAndStoreDeviceSoftware(customer.user_id, deviceId);
+
+    res.json({
+      success: true,
+      data: {
+        deviceName: deviceResult.rows[0].system_name,
+        software,
+        lastFetched: new Date(),
+        count: software.length,
+      },
+    });
+  } catch (error) {
+    console.error('Refresh device software error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================================================
+// DEVICE OS PATCHES (Windows Updates)
+// ========================================================================
+
+// Get OS patches for a specific device
+router.get('/devices/:deviceId/os-patches', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    const { deviceId } = req.params;
+
+    // Verify the device belongs to this customer's organization
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer?.ninjarmm_organization_id) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get device and verify ownership
+    const deviceResult = await pool.query(
+      `SELECT id, ninja_id, system_name FROM ninjarmm_devices
+       WHERE id = $1 AND user_id = $2 AND organization_id = $3`,
+      [deviceId, customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Import the service function
+    const { getDeviceOSPatches } = await import('../services/ninjarmmService');
+    const { installed, pending, lastFetched } = await getDeviceOSPatches(customer.user_id, deviceId);
+
+    res.json({
+      success: true,
+      data: {
+        deviceName: deviceResult.rows[0].system_name,
+        installed,
+        pending,
+        lastFetched,
+        installedCount: installed.length,
+        pendingCount: pending.length,
+      },
+    });
+  } catch (error) {
+    console.error('Get device OS patches error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Refresh OS patches for a specific device (fetch from NinjaRMM)
+router.post('/devices/:deviceId/os-patches/refresh', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const contactResult = await pool.query(
+      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
+      [req.contactId]
+    );
+
+    if (!contactResult.rows[0]?.can_view_devices) {
+      return res.status(403).json({ error: 'No permission to view devices' });
+    }
+
+    const { deviceId } = req.params;
+
+    // Verify the device belongs to this customer's organization
+    const customerResult = await pool.query(
+      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      [req.customerId]
+    );
+
+    const customer = customerResult.rows[0];
+    if (!customer?.ninjarmm_organization_id) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Get device and verify ownership
+    const deviceResult = await pool.query(
+      `SELECT id, ninja_id, system_name FROM ninjarmm_devices
+       WHERE id = $1 AND user_id = $2 AND organization_id = $3`,
+      [deviceId, customer.user_id, customer.ninjarmm_organization_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Import the service function
+    const { fetchAndStoreDeviceOSPatches } = await import('../services/ninjarmmService');
+    const { installed, pending } = await fetchAndStoreDeviceOSPatches(customer.user_id, deviceId);
+
+    res.json({
+      success: true,
+      data: {
+        deviceName: deviceResult.rows[0].system_name,
+        installed,
+        pending,
+        lastFetched: new Date(),
+        installedCount: installed.length,
+        pendingCount: pending.length,
+      },
+    });
+  } catch (error) {
+    console.error('Refresh device OS patches error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1719,6 +2083,224 @@ router.delete('/mfa/trusted-devices', authenticateCustomerToken, async (req: Cus
   } catch (error) {
     console.error('Remove all trusted devices error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// PUSH NOTIFICATIONS
+// ============================================================================
+
+// Get VAPID public key
+router.get('/push/vapid-public-key', (_req, res) => {
+  const publicKey = process.env.VAPID_PUBLIC_KEY || '';
+  const configured = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+  res.json({ success: true, publicKey, configured });
+});
+
+// Subscribe to push notifications
+router.post('/push/subscribe', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { subscription, deviceName } = req.body;
+    const contactId = req.contactId;
+
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({ error: 'Invalid subscription data' });
+    }
+
+    // Check if subscription already exists
+    const existing = await pool.query(
+      'SELECT id FROM portal_push_subscriptions WHERE endpoint = $1',
+      [subscription.endpoint]
+    );
+
+    if (existing.rows.length > 0) {
+      // Update existing subscription
+      await pool.query(
+        `UPDATE portal_push_subscriptions
+         SET contact_id = $1, p256dh = $2, auth = $3, device_name = $4, last_used_at = NOW()
+         WHERE endpoint = $5`,
+        [contactId, subscription.keys.p256dh, subscription.keys.auth, deviceName, subscription.endpoint]
+      );
+      return res.json({ success: true, id: existing.rows[0].id });
+    }
+
+    // Create new subscription
+    const id = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO portal_push_subscriptions (id, contact_id, endpoint, p256dh, auth, device_name)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, contactId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, deviceName]
+    );
+
+    // Update contact's push enabled preference
+    await pool.query(
+      'UPDATE customer_contacts SET push_enabled = true WHERE id = $1',
+      [contactId]
+    );
+
+    res.json({ success: true, id });
+  } catch (error) {
+    console.error('Portal push subscribe error:', error);
+    res.status(500).json({ error: 'Failed to subscribe' });
+  }
+});
+
+// Unsubscribe from push notifications
+router.post('/push/unsubscribe', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { endpoint } = req.body;
+
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Endpoint is required' });
+    }
+
+    await pool.query('DELETE FROM portal_push_subscriptions WHERE endpoint = $1', [endpoint]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Portal push unsubscribe error:', error);
+    res.status(500).json({ error: 'Failed to unsubscribe' });
+  }
+});
+
+// Get user's push subscriptions
+router.get('/push/subscriptions', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, endpoint, device_name, created_at, last_used_at
+       FROM portal_push_subscriptions WHERE contact_id = $1
+       ORDER BY last_used_at DESC NULLS LAST`,
+      [req.contactId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Get portal push subscriptions error:', error);
+    res.status(500).json({ error: 'Failed to get subscriptions' });
+  }
+});
+
+// Delete a specific subscription
+router.delete('/push/subscriptions/:id', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Verify subscription belongs to this contact
+    const result = await pool.query(
+      'DELETE FROM portal_push_subscriptions WHERE id = $1 AND contact_id = $2',
+      [id, req.contactId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete portal push subscription error:', error);
+    res.status(500).json({ error: 'Failed to delete subscription' });
+  }
+});
+
+// Get push notification preferences
+router.get('/push/preferences', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT push_enabled, push_on_ticket_reply, push_on_status_change
+       FROM customer_contacts WHERE id = $1`,
+      [req.contactId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const prefs = result.rows[0];
+    res.json({
+      success: true,
+      data: {
+        push_enabled: prefs.push_enabled ?? true,
+        push_on_ticket_reply: prefs.push_on_ticket_reply ?? true,
+        push_on_status_change: prefs.push_on_status_change ?? true,
+      }
+    });
+  } catch (error) {
+    console.error('Get portal push preferences error:', error);
+    res.status(500).json({ error: 'Failed to get preferences' });
+  }
+});
+
+// Update push notification preferences
+router.put('/push/preferences', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const { push_enabled, push_on_ticket_reply, push_on_status_change } = req.body;
+
+    await pool.query(
+      `UPDATE customer_contacts SET
+        push_enabled = COALESCE($1, push_enabled),
+        push_on_ticket_reply = COALESCE($2, push_on_ticket_reply),
+        push_on_status_change = COALESCE($3, push_on_status_change)
+       WHERE id = $4`,
+      [push_enabled, push_on_ticket_reply, push_on_status_change, req.contactId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update portal push preferences error:', error);
+    res.status(500).json({ error: 'Failed to update preferences' });
+  }
+});
+
+// Send test push notification
+router.post('/push/test', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const webpush = await import('web-push');
+    const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
+    const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+    const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
+
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+      return res.status(500).json({ error: 'Push notifications not configured' });
+    }
+
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
+    const result = await pool.query(
+      'SELECT endpoint, p256dh, auth FROM portal_push_subscriptions WHERE contact_id = $1',
+      [req.contactId]
+    );
+
+    let sent = 0;
+    let failed = 0;
+
+    for (const row of result.rows) {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: row.endpoint,
+            keys: { p256dh: row.p256dh, auth: row.auth }
+          },
+          JSON.stringify({
+            title: 'Test Benachrichtigung',
+            body: 'Push-Benachrichtigungen funktionieren!',
+            icon: '/pwa-192x192.png',
+            data: { url: '/portal' }
+          })
+        );
+        sent++;
+      } catch (error: any) {
+        if (error.statusCode === 404 || error.statusCode === 410) {
+          // Remove expired subscription
+          await pool.query('DELETE FROM portal_push_subscriptions WHERE endpoint = $1', [row.endpoint]);
+        }
+        failed++;
+      }
+    }
+
+    res.json({ success: true, sent, failed });
+  } catch (error) {
+    console.error('Send portal test push error:', error);
+    res.status(500).json({ error: 'Failed to send test notification' });
   }
 });
 

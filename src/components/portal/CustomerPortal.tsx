@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { customerPortalApi, PortalContact, PortalTicket, publicKbApi, PortalSettings } from '../../services/api';
 import { PortalLogin } from './PortalLogin';
 import { PortalLayout } from './PortalLayout';
@@ -10,8 +10,12 @@ import { PortalProfile } from './PortalProfile';
 import { PortalKnowledgeBase } from './PortalKnowledgeBase';
 import { PortalDevices } from './PortalDevices';
 import { PortalInvoices } from './PortalInvoices';
+import { PortalWelcomeGuide } from './PortalWelcomeGuide';
 
 type PortalView = 'tickets' | 'ticket-detail' | 'profile' | 'kb' | 'devices' | 'invoices';
+
+// LocalStorage key for welcome guide preference
+const WELCOME_GUIDE_KEY = 'portal_welcome_guide_seen';
 
 export const CustomerPortal = () => {
   const [contact, setContact] = useState<PortalContact | null>(null);
@@ -20,11 +24,59 @@ export const CustomerPortal = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [currentView, setCurrentView] = useState<PortalView>('tickets');
   const [portalSettings, setPortalSettings] = useState<PortalSettings | null>(null);
+  const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
+  const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
 
   // Check for activation token in URL
   const urlParams = new URLSearchParams(window.location.search);
   const activationToken = urlParams.get('token');
   const isActivation = window.location.pathname.includes('/portal/activate');
+
+  // Check for deep link to ticket: /portal/tickets/{id}
+  useEffect(() => {
+    const path = window.location.pathname;
+    const ticketMatch = path.match(/\/portal\/tickets\/([a-f0-9-]+)/i);
+    if (ticketMatch) {
+      const ticketId = ticketMatch[1];
+      setPendingTicketId(ticketId);
+    }
+  }, []);
+
+  // Listen for navigation messages from Service Worker (push notification clicks)
+  useEffect(() => {
+    if (!contact || !('serviceWorker' in navigator)) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      console.log('📬 [Portal SW Message] Received:', event.data);
+
+      if (event.data?.type === 'NAVIGATE_TO') {
+        const url = event.data.url;
+        console.log('📬 [Portal SW Message] Navigating to:', url);
+
+        // Handle portal ticket URLs: /portal/tickets/{id}
+        if (url?.startsWith('/portal/tickets/')) {
+          const ticketId = url.replace('/portal/tickets/', '').split('?')[0];
+          console.log('📬 [Portal SW Message] Opening ticket:', ticketId);
+          setSelectedTicketId(ticketId);
+          setCurrentView('ticket-detail');
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, [contact]);
+
+  // Navigate to pending ticket after login
+  useEffect(() => {
+    if (contact && pendingTicketId) {
+      setSelectedTicketId(pendingTicketId);
+      setCurrentView('ticket-detail');
+      setPendingTicketId(null);
+      // Clean up URL
+      window.history.replaceState({}, '', '/portal');
+    }
+  }, [contact, pendingTicketId]);
 
   useEffect(() => {
     // Don't check session if on activation page
@@ -71,6 +123,28 @@ export const CustomerPortal = () => {
     } catch (err) {
       console.error('Failed to load portal settings:', err);
     }
+
+    // Show welcome guide on first login (if not disabled)
+    const guideSeen = localStorage.getItem(WELCOME_GUIDE_KEY);
+    if (!guideSeen) {
+      setShowWelcomeGuide(true);
+    }
+  };
+
+  const handleCloseWelcomeGuide = () => {
+    setShowWelcomeGuide(false);
+    // Mark as seen (but can be shown again via profile)
+    localStorage.setItem(WELCOME_GUIDE_KEY, 'seen');
+  };
+
+  const handleNeverShowWelcomeGuide = () => {
+    setShowWelcomeGuide(false);
+    // Mark as permanently dismissed
+    localStorage.setItem(WELCOME_GUIDE_KEY, 'never');
+  };
+
+  const handleShowWelcomeGuide = () => {
+    setShowWelcomeGuide(true);
   };
 
   const handleLogout = () => {
@@ -161,6 +235,7 @@ export const CustomerPortal = () => {
       onShowDevices={contact.canViewDevices ? handleShowDevices : undefined}
       onShowInvoices={(contact.canViewInvoices || contact.canViewQuotes) ? handleShowInvoices : undefined}
       onShowTickets={handleShowTickets}
+      onShowHelp={handleShowWelcomeGuide}
       currentView={currentView}
       portalSettings={portalSettings}
     >
@@ -190,6 +265,14 @@ export const CustomerPortal = () => {
         onClose={() => setShowCreateDialog(false)}
         onCreated={handleTicketCreated}
       />
+
+      {showWelcomeGuide && (
+        <PortalWelcomeGuide
+          onClose={handleCloseWelcomeGuide}
+          onNeverShowAgain={handleNeverShowWelcomeGuide}
+          companyName={portalSettings?.companyName || undefined}
+        />
+      )}
     </PortalLayout>
   );
 };

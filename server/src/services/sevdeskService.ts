@@ -273,6 +273,13 @@ export async function getUnbilledTimeEntries(
 }
 
 // Get billing summary by customer
+// Helper function to round up seconds to nearest interval (in minutes)
+function roundUpToInterval(seconds: number, intervalMinutes: number): number {
+  if (intervalMinutes <= 0) return seconds;
+  const intervalSeconds = intervalMinutes * 60;
+  return Math.ceil(seconds / intervalSeconds) * intervalSeconds;
+}
+
 export async function getBillingSummary(
   userId: string,
   startDate: string,
@@ -282,8 +289,11 @@ export async function getBillingSummary(
   customerName: string;
   hourlyRate: number | null;
   sevdeskCustomerId: string | null;
+  timeRoundingInterval: number;
   totalSeconds: number;
   totalHours: number;
+  roundedSeconds: number;
+  roundedHours: number;
   totalAmount: number | null;
   isBilled: boolean;
   entries: TimeEntryForBilling[];
@@ -295,6 +305,7 @@ export async function getBillingSummary(
   // Get ALL entries (billed and unbilled) grouped by customer
   const result = await query(
     `SELECT c.id as customer_id, c.name as customer_name, c.hourly_rate, c.sevdesk_customer_id,
+            c.time_rounding_interval,
             te.id as entry_id, te.duration, te.description, te.start_time,
             te.invoice_export_id,
             t.ticket_number, t.title as ticket_title,
@@ -316,7 +327,9 @@ export async function getBillingSummary(
     customerName: string;
     hourlyRate: number | null;
     sevdeskCustomerId: string | null;
+    timeRoundingInterval: number;
     totalSeconds: number;
+    roundedSeconds: number;
     isBilled: boolean;
     entries: TimeEntryForBilling[];
   }>();
@@ -324,6 +337,7 @@ export async function getBillingSummary(
   for (const row of result.rows) {
     const isBilled = row.invoice_export_id !== null;
     const key = `${row.customer_id}_${isBilled ? 'billed' : 'unbilled'}`;
+    const roundingInterval = row.time_rounding_interval || 15; // Default 15 minutes
 
     if (!customerMap.has(key)) {
       customerMap.set(key, {
@@ -331,17 +345,22 @@ export async function getBillingSummary(
         customerName: row.customer_name,
         hourlyRate: row.hourly_rate ? parseFloat(row.hourly_rate) : null,
         sevdeskCustomerId: row.sevdesk_customer_id,
+        timeRoundingInterval: roundingInterval,
         totalSeconds: 0,
+        roundedSeconds: 0,
         isBilled,
         entries: [],
       });
     }
 
     const customer = customerMap.get(key)!;
-    customer.totalSeconds += row.duration;
+    const duration = row.duration || 0;
+    customer.totalSeconds += duration;
+    // Round up each entry individually to the nearest interval
+    customer.roundedSeconds += roundUpToInterval(duration, roundingInterval);
     customer.entries.push({
       id: row.entry_id,
-      duration: row.duration,
+      duration: duration,
       description: row.description,
       ticketNumber: row.ticket_number,
       ticketTitle: row.ticket_title,
@@ -354,10 +373,13 @@ export async function getBillingSummary(
   return Array.from(customerMap.values()).map(customer => {
     const rate = customer.hourlyRate || defaultRate;
     const totalHours = customer.totalSeconds / 3600;
+    const roundedHours = customer.roundedSeconds / 3600;
     return {
       ...customer,
       totalHours: Math.round(totalHours * 100) / 100,
-      totalAmount: rate ? Math.round(totalHours * rate * 100) / 100 : null,
+      roundedHours: Math.round(roundedHours * 100) / 100,
+      // Amount is calculated based on ROUNDED hours
+      totalAmount: rate ? Math.round(roundedHours * rate * 100) / 100 : null,
     };
   });
 }
@@ -528,9 +550,9 @@ export async function deleteInvoiceExport(
   userId: string,
   exportId: string
 ): Promise<void> {
-  // First, get the export to find associated time entries
+  // First, verify the export exists and belongs to this user
   const exportResult = await query(
-    `SELECT entry_ids FROM invoice_exports WHERE id = $1 AND user_id = $2`,
+    `SELECT id FROM invoice_exports WHERE id = $1 AND user_id = $2`,
     [exportId, userId]
   );
 
@@ -538,19 +560,15 @@ export async function deleteInvoiceExport(
     throw new Error('Export not found');
   }
 
-  const entryIds = exportResult.rows[0].entry_ids;
-
   // Start transaction
   await query('BEGIN');
 
   try {
-    // Mark time entries as not billed
-    if (entryIds && entryIds.length > 0) {
-      await query(
-        `UPDATE time_entries SET billed = false WHERE id = ANY($1)`,
-        [entryIds]
-      );
-    }
+    // Unlink time entries from this export (set invoice_export_id to NULL)
+    await query(
+      `UPDATE time_entries SET invoice_export_id = NULL WHERE invoice_export_id = $1`,
+      [exportId]
+    );
 
     // Delete the export record
     await query(

@@ -99,7 +99,7 @@ export const NotificationPermissionRequest = ({ onClose }: NotificationPermissio
 
         {/* Content */}
         <div className="p-6">
-          <p className="text-gray-700 dark:text-dark-300 mb-4">
+          <p className="text-gray-700 dark:text-gray-300 mb-4">
             Aktiviere Benachrichtigungen, um rechtzeitig an wichtige Ereignisse erinnert zu werden:
           </p>
 
@@ -161,7 +161,7 @@ export const NotificationPermissionRequest = ({ onClose }: NotificationPermissio
             </button>
             <button
               onClick={handleLater}
-              className="w-full px-6 py-3 text-gray-700 dark:text-dark-300 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 rounded-lg font-medium transition-colors"
+              className="w-full px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 rounded-lg font-medium transition-colors"
             >
               Später entscheiden
             </button>

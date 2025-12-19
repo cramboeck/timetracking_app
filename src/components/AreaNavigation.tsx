@@ -1,11 +1,12 @@
-import { useState } from 'react';
 import {
   Clock, List, Calendar,
   Ticket, Monitor, Bell, Wrench,
-  BarChart3, Wallet, FileText,
+  BarChart3, Wallet, FileText, FileSignature,
   Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo
 } from 'lucide-react';
 import { useFeatures } from '../contexts/FeaturesContext';
+import { useIsDesktop } from '../hooks/useMediaQuery';
+import { DesktopSidebar } from './DesktopSidebar';
 
 // Area definitions
 export type Area = 'arbeiten' | 'support' | 'business';
@@ -15,7 +16,7 @@ export type SubView =
   // Support
   | 'tickets' | 'devices' | 'alerts' | 'maintenance'
   // Business
-  | 'dashboard' | 'billing' | 'reports'
+  | 'dashboard' | 'billing' | 'reports' | 'contracts'
   // Settings (special)
   | 'settings';
 
@@ -52,6 +53,7 @@ const areaConfig = {
     label: 'Business',
     subViews: [
       { view: 'dashboard' as SubView, icon: BarChart3, label: 'Dashboard' },
+      { view: 'contracts' as SubView, icon: FileSignature, label: 'Verträge' },
       { view: 'billing' as SubView, icon: Wallet, label: 'Finanzen' },
       { view: 'reports' as SubView, icon: FileText, label: 'Berichte' },
     ],
@@ -65,6 +67,7 @@ export const AreaNavigation = ({
   onSubViewChange
 }: AreaNavigationProps) => {
   const { hasPackage } = useFeatures();
+  const isDesktop = useIsDesktop();
 
   // Determine which areas to show
   const visibleAreas: Area[] = [
@@ -75,6 +78,19 @@ export const AreaNavigation = ({
 
   const currentAreaConfig = areaConfig[currentArea];
 
+  // Desktop: Show sidebar instead of mobile navigation
+  if (isDesktop) {
+    return (
+      <DesktopSidebar
+        currentArea={currentArea}
+        currentSubView={currentSubView}
+        onAreaChange={onAreaChange}
+        onSubViewChange={onSubViewChange}
+      />
+    );
+  }
+
+  // Mobile: Show original navigation
   return (
     <>
       {/* Sub-Navigation (Top) - iOS Glassmorphism */}
@@ -165,9 +181,9 @@ export const AreaNavigation = ({
 
 // Helper to get area from subView
 export const getAreaFromSubView = (subView: SubView): Area => {
-  if (['stopwatch', 'list', 'calendar', 'manual'].includes(subView)) return 'arbeiten';
+  if (['stopwatch', 'list', 'calendar', 'manual', 'tasks'].includes(subView)) return 'arbeiten';
   if (['tickets', 'devices', 'alerts', 'maintenance'].includes(subView)) return 'support';
-  if (['dashboard', 'billing', 'reports'].includes(subView)) return 'business';
+  if (['dashboard', 'billing', 'reports', 'contracts'].includes(subView)) return 'business';
   return 'arbeiten'; // Default
 };
 

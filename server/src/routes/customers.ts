@@ -61,15 +61,15 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { name, color, customerNumber, contactPerson, email, address, reportTitle, hourlyRate, ninjarmmOrganizationId } = req.body;
+    const { name, color, customerNumber, contactPerson, email, address, reportTitle, hourlyRate, timeRoundingInterval, ninjarmmOrganizationId } = req.body;
 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, contact_person, email, address, report_title, hourly_rate, ninjarmm_organization_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-      [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, ninjarmmOrganizationId || null, createdAt]
+      `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, contact_person, email, address, report_title, hourly_rate, time_rounding_interval, ninjarmm_organization_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, timeRoundingInterval || 15, ninjarmmOrganizationId || null, createdAt]
     );
 
     const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
@@ -144,6 +144,10 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (updates.hourlyRate !== undefined) {
       fields.push(`hourly_rate = $${paramCount++}`);
       values.push(updates.hourlyRate);
+    }
+    if (updates.timeRoundingInterval !== undefined) {
+      fields.push(`time_rounding_interval = $${paramCount++}`);
+      values.push(updates.timeRoundingInterval || 15);
     }
     if (updates.ninjarmmOrganizationId !== undefined) {
       fields.push(`ninjarmm_organization_id = $${paramCount++}`);
@@ -234,6 +238,9 @@ const createContactSchema = z.object({
   canViewDevices: z.boolean().optional().default(false),
   canViewInvoices: z.boolean().optional().default(false),
   canViewQuotes: z.boolean().optional().default(false),
+  notifyTicketCreated: z.boolean().optional().default(true),
+  notifyTicketStatusChanged: z.boolean().optional().default(true),
+  notifyTicketReply: z.boolean().optional().default(true),
 });
 
 const updateContactSchema = z.object({
@@ -245,6 +252,9 @@ const updateContactSchema = z.object({
   canViewDevices: z.boolean().optional(),
   canViewInvoices: z.boolean().optional(),
   canViewQuotes: z.boolean().optional(),
+  notifyTicketCreated: z.boolean().optional(),
+  notifyTicketStatusChanged: z.boolean().optional(),
+  notifyTicketReply: z.boolean().optional(),
 });
 
 // GET /api/customers/:customerId/contacts - Get all contacts for a customer
@@ -263,6 +273,7 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
     const result = await pool.query(
       `SELECT id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
               can_view_devices, can_view_invoices, can_view_quotes,
+              notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply,
               last_login, created_at, password_hash IS NOT NULL as is_activated
        FROM customer_contacts
        WHERE customer_id = $1
@@ -281,6 +292,9 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
       canViewDevices: row.can_view_devices ?? false,
       canViewInvoices: row.can_view_invoices ?? false,
       canViewQuotes: row.can_view_quotes ?? false,
+      notifyTicketCreated: row.notify_ticket_created ?? true,
+      notifyTicketStatusChanged: row.notify_ticket_status_changed ?? true,
+      notifyTicketReply: row.notify_ticket_reply ?? true,
       isActivated: row.is_activated,
       lastLogin: row.last_login,
       createdAt: row.created_at,
@@ -303,7 +317,11 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { customerId } = req.params;
-    const { name, email, isPrimary, canCreateTickets, canViewAllTickets, canViewDevices, canViewInvoices, canViewQuotes } = req.body;
+    const {
+      name, email, isPrimary, canCreateTickets, canViewAllTickets,
+      canViewDevices, canViewInvoices, canViewQuotes,
+      notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply
+    } = req.body;
 
     // Verify customer belongs to organization
     const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
@@ -327,9 +345,13 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
 
     const id = crypto.randomUUID();
     await pool.query(
-      `INSERT INTO customer_contacts (id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets, can_view_devices, can_view_invoices, can_view_quotes, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
-      [id, customerId, name, email, isPrimary, canCreateTickets, canViewAllTickets, canViewDevices ?? false, canViewInvoices ?? false, canViewQuotes ?? false]
+      `INSERT INTO customer_contacts (id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+        can_view_devices, can_view_invoices, can_view_quotes,
+        notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())`,
+      [id, customerId, name, email, isPrimary, canCreateTickets, canViewAllTickets,
+       canViewDevices ?? false, canViewInvoices ?? false, canViewQuotes ?? false,
+       notifyTicketCreated ?? true, notifyTicketStatusChanged ?? true, notifyTicketReply ?? true]
     );
 
     auditLog.log({
@@ -435,6 +457,18 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
       fields.push(`can_view_quotes = $${paramCount++}`);
       values.push(updates.canViewQuotes);
     }
+    if (updates.notifyTicketCreated !== undefined) {
+      fields.push(`notify_ticket_created = $${paramCount++}`);
+      values.push(updates.notifyTicketCreated);
+    }
+    if (updates.notifyTicketStatusChanged !== undefined) {
+      fields.push(`notify_ticket_status_changed = $${paramCount++}`);
+      values.push(updates.notifyTicketStatusChanged);
+    }
+    if (updates.notifyTicketReply !== undefined) {
+      fields.push(`notify_ticket_reply = $${paramCount++}`);
+      values.push(updates.notifyTicketReply);
+    }
 
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -447,6 +481,7 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
     const updatedResult = await pool.query(
       `SELECT id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
               can_view_devices, can_view_invoices, can_view_quotes,
+              notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply,
               last_login, created_at, password_hash IS NOT NULL as is_activated
        FROM customer_contacts WHERE id = $1`,
       [contactId]
@@ -466,6 +501,9 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
         canViewDevices: updated.can_view_devices ?? false,
         canViewInvoices: updated.can_view_invoices ?? false,
         canViewQuotes: updated.can_view_quotes ?? false,
+        notifyTicketCreated: updated.notify_ticket_created ?? true,
+        notifyTicketStatusChanged: updated.notify_ticket_status_changed ?? true,
+        notifyTicketReply: updated.notify_ticket_reply ?? true,
         isActivated: updated.is_activated,
         lastLogin: updated.last_login,
         createdAt: updated.created_at,

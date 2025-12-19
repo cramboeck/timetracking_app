@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { query } from '../config/database';
 import * as ninjaService from '../services/ninjarmmService';
+import { sendPushToUser } from '../services/pushNotifications';
 
 const router = express.Router();
 
@@ -474,11 +475,58 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
     const systemInfo = deviceData.system || {};
     const processorInfo = deviceData.processor || (deviceData.processors?.[0]) || {};
     const memoryInfo = deviceData.memory || {};
+    const nicsInfo = deviceData.nics || [];
 
     // Build full OS version string
     let osVersion = osInfo.name || row.os_name || '';
     if (osInfo.buildNumber) {
       osVersion = `${osVersion} (Build ${osInfo.buildNumber})`;
+    }
+
+    // Extract private IP - check multiple possible locations in NinjaRMM data
+    let privateIp: string | null = null;
+
+    // First check if there's a direct privateIp/internalIp field on the device
+    const directIp = deviceData.privateIp || deviceData.internalIp || deviceData.localIp || deviceData.ipAddress;
+    if (typeof directIp === 'string' && directIp) {
+      privateIp = directIp;
+    }
+
+    // If not found, search through NICs
+    if (!privateIp && nicsInfo && Array.isArray(nicsInfo)) {
+      for (const nic of nicsInfo) {
+        if (!nic) continue;
+
+        // Handle various NinjaRMM NIC data structures
+        let ip: any = nic.ipAddress || nic.ip || nic.ipv4 || nic.address || '';
+
+        // If ip is an array, take the first element
+        if (Array.isArray(ip)) {
+          ip = ip[0] || '';
+        }
+
+        // Ensure ip is a string
+        if (typeof ip !== 'string' || !ip) {
+          continue;
+        }
+
+        // Skip loopback and link-local addresses
+        if (ip.startsWith('127.') || ip.startsWith('169.254.') || ip.startsWith('::') || ip === '0.0.0.0') {
+          continue;
+        }
+
+        // Check if it's a private IP range (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
+        if (ip.startsWith('10.') || ip.startsWith('192.168.') ||
+            (ip.startsWith('172.') && parseInt(ip.split('.')[1]) >= 16 && parseInt(ip.split('.')[1]) <= 31)) {
+          privateIp = ip;
+          break;
+        }
+      }
+    }
+
+    // Debug: Log the structure if no private IP found
+    if (!privateIp && nicsInfo && nicsInfo.length > 0) {
+      console.log('[DEBUG] NICs data structure for device:', row.system_name, JSON.stringify(nicsInfo[0], null, 2));
     }
 
     res.json({
@@ -494,6 +542,7 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
         offline: row.offline,
         lastContact: row.last_contact ? new Date(row.last_contact).toISOString() : null,
         publicIp: row.public_ip,
+        privateIp,
         osName: row.os_name,
         osVersion: osVersion,
         osBuild: osInfo.buildNumber || null,
@@ -510,6 +559,106 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
     });
   } catch (error: any) {
     console.error('Refresh device details error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// Software Inventory
+// ============================================
+
+// GET /api/ninjarmm/devices/:id/software - Get cached software for a device
+router.get('/devices/:id/software', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const { software, lastFetched } = await ninjaService.getDeviceSoftware(userId, id);
+
+    res.json({
+      success: true,
+      data: {
+        software,
+        lastFetched,
+        count: software.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get device software error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/devices/:id/software/refresh - Fetch fresh software from NinjaRMM
+router.post('/devices/:id/software/refresh', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const software = await ninjaService.fetchAndStoreDeviceSoftware(userId, id);
+
+    res.json({
+      success: true,
+      data: {
+        software,
+        lastFetched: new Date(),
+        count: software.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Refresh device software error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// OS Patches (Windows Updates)
+// ============================================
+
+// GET /api/ninjarmm/devices/:id/os-patches - Get cached OS patches
+router.get('/devices/:id/os-patches', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const { installed, pending, lastFetched } = await ninjaService.getDeviceOSPatches(userId, id);
+
+    res.json({
+      success: true,
+      data: {
+        installed,
+        pending,
+        lastFetched,
+        installedCount: installed.length,
+        pendingCount: pending.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get device OS patches error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/devices/:id/os-patches/refresh - Fetch fresh OS patches from NinjaRMM
+router.post('/devices/:id/os-patches/refresh', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const { installed, pending } = await ninjaService.fetchAndStoreDeviceOSPatches(userId, id);
+
+    res.json({
+      success: true,
+      data: {
+        installed,
+        pending,
+        lastFetched: new Date(),
+        installedCount: installed.length,
+        pendingCount: pending.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Refresh device OS patches error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -647,6 +796,86 @@ router.post('/alerts/:id/create-ticket', authenticateToken, requireNinjaFeature,
 // Webhook Endpoints (Public - No Auth Required)
 // ============================================
 
+// Helper function to check if an alert matches any exclusion rules
+async function checkAlertExclusions(
+  userId: string,
+  alertData: {
+    message: string;
+    deviceName: string;
+    severity: string;
+    sourceName: string;
+    conditionName: string;
+  }
+): Promise<{ id: string; name: string } | null> {
+  try {
+    // Get all active exclusions for this user
+    const result = await query(
+      `SELECT id, name, match_type, match_field, match_value
+       FROM ninjarmm_alert_exclusions
+       WHERE user_id = $1 AND is_active = TRUE`,
+      [userId]
+    );
+
+    for (const exclusion of result.rows) {
+      // Get the field value to check
+      let fieldValue = '';
+      switch (exclusion.match_field) {
+        case 'message':
+          fieldValue = alertData.message || '';
+          break;
+        case 'device_name':
+          fieldValue = alertData.deviceName || '';
+          break;
+        case 'severity':
+          fieldValue = alertData.severity || '';
+          break;
+        case 'source_name':
+          fieldValue = alertData.sourceName || '';
+          break;
+        case 'condition_name':
+          fieldValue = alertData.conditionName || '';
+          break;
+      }
+
+      // Check if the value matches based on match_type
+      let matches = false;
+      const matchValue = exclusion.match_value || '';
+
+      switch (exclusion.match_type) {
+        case 'contains':
+          matches = fieldValue.toLowerCase().includes(matchValue.toLowerCase());
+          break;
+        case 'equals':
+          matches = fieldValue.toLowerCase() === matchValue.toLowerCase();
+          break;
+        case 'starts_with':
+          matches = fieldValue.toLowerCase().startsWith(matchValue.toLowerCase());
+          break;
+        case 'ends_with':
+          matches = fieldValue.toLowerCase().endsWith(matchValue.toLowerCase());
+          break;
+        case 'regex':
+          try {
+            const regex = new RegExp(matchValue, 'i');
+            matches = regex.test(fieldValue);
+          } catch (e) {
+            console.error(`Invalid regex in exclusion ${exclusion.id}: ${matchValue}`);
+          }
+          break;
+      }
+
+      if (matches) {
+        return { id: exclusion.id, name: exclusion.name };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error checking alert exclusions:', error);
+    return null; // On error, don't exclude the alert
+  }
+}
+
 // POST /api/ninjarmm/webhook/:userId - Receive NinjaRMM webhook events
 // This endpoint is called by NinjaRMM when alerts are triggered/reset
 router.post('/webhook/:userId', async (req: any, res: Response) => {
@@ -687,33 +916,150 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
 
     // Parse the webhook payload
     const payload = req.body;
-    console.log('📥 NinjaRMM Webhook received:', JSON.stringify(payload, null, 2));
+    console.log('📥 NinjaRMM Webhook received:');
+    console.log('   Raw payload:', JSON.stringify(payload, null, 2));
+    console.log('   Config - auto_create_tickets:', config.webhook_auto_create_tickets);
+    console.log('   Config - min_severity:', config.webhook_min_severity);
 
     // Extract alert information from NinjaRMM webhook payload
-    // NinjaRMM sends different event types: ALERT, ALERT_RESET, etc.
+    // NinjaRMM sends different event types with different structures:
+    // - CONDITION / CONDITION_TRIGGERED / CONDITION_CLEARED - monitoring conditions
+    // - ACTIONSET - automated actions/scripts
+    // - ALERT / ALERT_RESET - standard alerts
     const eventType = payload.activityType || payload.eventType || payload.type || 'UNKNOWN';
-    const ninjaAlertId = payload.id?.toString() || payload.alertId?.toString() || payload.uid;
-    const ninjaDeviceId = payload.deviceId?.toString() || payload.device?.id?.toString();
-    const severity = payload.severity || payload.priority || 'INFO';
-    const message = payload.message || payload.subject || payload.description || '';
-    const deviceName = payload.deviceName || payload.device?.systemName || payload.device?.displayName || '';
-    const orgId = payload.organizationId?.toString() || payload.device?.organizationId?.toString();
+    const ninjaAlertId = payload.id?.toString() || payload.alertId?.toString() || payload.uid || payload.activityId?.toString();
 
-    // Log the webhook event
+    // Extended device ID extraction - NinjaRMM uses various field names
+    const ninjaDeviceId = payload.deviceId?.toString()
+      || payload.device?.id?.toString()
+      || payload.nodeId?.toString()
+      || payload.node?.id?.toString()
+      || payload.targetNodeId?.toString()
+      || payload.device_id?.toString()
+      || payload.affected_entity?.id?.toString()
+      || payload.sourceDeviceId?.toString()
+      || payload.data?.deviceId?.toString()
+      || payload.data?.nodeId?.toString();
+
+    console.log('   Extracted ninjaDeviceId:', ninjaDeviceId);
+    console.log('   Available device fields:', {
+      deviceId: payload.deviceId,
+      'device.id': payload.device?.id,
+      nodeId: payload.nodeId,
+      'node.id': payload.node?.id,
+      targetNodeId: payload.targetNodeId,
+      sourceDeviceId: payload.sourceDeviceId,
+      'data.deviceId': payload.data?.deviceId,
+    });
+
+    // NinjaRMM severity mapping - they use different field names
+    let severity = payload.severity || payload.priority || 'INFO';
+    // Map NinjaRMM severity strings
+    if (payload.conditionSeverity) severity = payload.conditionSeverity;
+    if (payload.alertSeverity) severity = payload.alertSeverity;
+
+    // Extract message from various NinjaRMM payload formats
+    let message = '';
+    if (payload.message) message = payload.message;
+    else if (payload.subject) message = payload.subject;
+    else if (payload.description) message = payload.description;
+    else if (payload.conditionName) message = payload.conditionName;
+    else if (payload.name) message = payload.name;
+    else if (payload.activityDescription) message = payload.activityDescription;
+    else if (payload.statusText) message = payload.statusText;
+    else if (payload.data?.message) message = payload.data.message;
+    else if (payload.data?.name) message = payload.data.name;
+    // For CONDITION events, build a descriptive message
+    if (!message && eventType.includes('CONDITION')) {
+      message = payload.conditionDisplayName || payload.conditionName || payload.condition?.name || `Monitoring Condition ${eventType}`;
+    }
+    // For ACTIONSET events
+    if (!message && eventType === 'ACTIONSET') {
+      message = payload.actionsetName || payload.actionName || payload.scriptName || 'Script/Action ausgeführt';
+    }
+
+    // Extended device name extraction from payload
+    let deviceName = payload.deviceName
+      || payload.device?.systemName
+      || payload.device?.displayName
+      || payload.device?.name
+      || payload.nodeName
+      || payload.node?.name
+      || payload.node?.systemName
+      || payload.systemName
+      || payload.displayName
+      || payload.targetNodeName
+      || payload.affected_entity?.name
+      || payload.data?.deviceName
+      || payload.data?.nodeName
+      || '';
+
+    // If no device name in payload but we have a device ID, look it up in our synced devices
+    if (!deviceName && ninjaDeviceId) {
+      const deviceLookup = await query(
+        `SELECT system_name, display_name
+         FROM ninjarmm_devices
+         WHERE user_id = $1 AND (ninja_device_id = $2 OR ninja_id::TEXT = $2)`,
+        [userId, ninjaDeviceId]
+      );
+      if (deviceLookup.rows.length > 0) {
+        deviceName = deviceLookup.rows[0].display_name || deviceLookup.rows[0].system_name || '';
+        console.log('   Device name from DB lookup:', deviceName);
+      }
+    }
+
+    console.log('   Extracted deviceName:', deviceName);
+
+    const orgId = payload.organizationId?.toString()
+      || payload.device?.organizationId?.toString()
+      || payload.orgId?.toString()
+      || payload.org?.id?.toString()
+      || payload.organization?.id?.toString();
+
+    // Log the webhook event with extracted message and device name
     webhookEventId = uuidv4();
     await query(
       `INSERT INTO ninjarmm_webhook_events
-       (id, user_id, event_type, ninja_alert_id, ninja_device_id, severity, status, payload, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'received', $7, NOW())`,
-      [webhookEventId, userId, eventType, ninjaAlertId, ninjaDeviceId, severity, JSON.stringify(payload)]
+       (id, user_id, event_type, ninja_alert_id, ninja_device_id, severity, message, device_name, status, payload, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'received', $9, NOW())`,
+      [webhookEventId, userId, eventType, ninjaAlertId, ninjaDeviceId, severity, message, deviceName, JSON.stringify(payload)]
     );
 
     // Handle different event types
     // NinjaRMM sends various CONDITION_* types for alerts
-    const isAlertEvent = eventType.startsWith('CONDITION_') && !eventType.includes('CLEARED') && !eventType.includes('RESET')
+    // Also handles plain "CONDITION" events which are common in Windows Event Log alerts
+    const isAlertEvent = eventType === 'CONDITION'
+      || (eventType.startsWith('CONDITION_') && !eventType.includes('CLEARED') && !eventType.includes('RESET'))
+      || eventType === 'CONDITION_TRIGGERED'
       || eventType === 'ALERT' || eventType === 'alert';
     const isResetEvent = eventType === 'ALERT_RESET' || eventType === 'CONDITION_CLEARED'
+      || eventType === 'CONDITION_RESET'
       || eventType === 'reset' || eventType.includes('RESET');
+
+    // Check if this alert matches any exclusion rules
+    if (isAlertEvent) {
+      const exclusionMatch = await checkAlertExclusions(userId, {
+        message,
+        deviceName,
+        severity,
+        sourceName: payload.sourceName || payload.activitySourceName || '',
+        conditionName: payload.conditionName || payload.data?.message?.params?.conditionName || '',
+      });
+
+      if (exclusionMatch) {
+        console.log(`   Alert excluded by rule: ${exclusionMatch.name}`);
+        await query(
+          `UPDATE ninjarmm_webhook_events SET status = 'ignored', processing_time_ms = $1 WHERE id = $2`,
+          [Date.now() - startTime, webhookEventId]
+        );
+        // Update exclusion hit count
+        await query(
+          `UPDATE ninjarmm_alert_exclusions SET hit_count = hit_count + 1, last_hit_at = NOW() WHERE id = $1`,
+          [exclusionMatch.id]
+        );
+        return res.json({ success: true, eventId: webhookEventId, excluded: true, excludedBy: exclusionMatch.name });
+      }
+    }
 
     if (isAlertEvent) {
       // New alert - create or update alert record
@@ -782,6 +1128,9 @@ async function handleNewAlert(
   let deviceId: string | null = null;
   let customerId: string | null = null;
 
+  console.log('   handleNewAlert - ninjaDeviceId:', ninjaDeviceId);
+  console.log('   handleNewAlert - deviceName:', deviceName);
+
   if (ninjaDeviceId) {
     const deviceResult = await query(
       `SELECT d.id, o.customer_id
@@ -790,9 +1139,11 @@ async function handleNewAlert(
        WHERE d.user_id = $1 AND (d.ninja_device_id = $2 OR d.ninja_id::TEXT = $2)`,
       [userId, ninjaDeviceId]
     );
+    console.log('   Device lookup result:', deviceResult.rows.length, 'rows');
     if (deviceResult.rows.length > 0) {
       deviceId = deviceResult.rows[0].id;
       customerId = deviceResult.rows[0].customer_id;
+      console.log('   Found device:', deviceId, 'customer:', customerId);
     }
   }
 
@@ -835,11 +1186,16 @@ async function handleNewAlert(
 
   // Check if we should auto-create a ticket
   let ticketId: string | null = null;
+  console.log('   Auto-create tickets enabled:', config.webhook_auto_create_tickets);
+  console.log('   Is new alert:', isNew);
   if (config.webhook_auto_create_tickets && isNew) {
     // Check severity threshold
     const severityLevels: Record<string, number> = { 'CRITICAL': 4, 'MAJOR': 3, 'MODERATE': 2, 'MINOR': 1, 'INFO': 0 };
     const alertSeverityLevel = severityLevels[severity.toUpperCase()] || 0;
     const minSeverityLevel = severityLevels[config.webhook_min_severity?.toUpperCase()] || 0;
+    console.log('   Alert severity level:', alertSeverityLevel, '(', severity, ')');
+    console.log('   Min severity level:', minSeverityLevel, '(', config.webhook_min_severity, ')');
+    console.log('   Should create ticket:', alertSeverityLevel >= minSeverityLevel);
 
     if (alertSeverityLevel >= minSeverityLevel) {
       ticketId = await createTicketFromWebhook(userId, {
@@ -870,6 +1226,35 @@ async function handleNewAlert(
      WHERE id = $4`,
     [finalAlertId, ticketId, Date.now() - startTime, webhookEventId]
   );
+
+  // Send push notification for CRITICAL and MAJOR alerts
+  const upperSeverity = severity.toUpperCase();
+  if (isNew && (upperSeverity === 'CRITICAL' || upperSeverity === 'MAJOR')) {
+    try {
+      const title = upperSeverity === 'CRITICAL'
+        ? '🚨 KRITISCHER Alert!'
+        : '⚠️ Wichtiger Alert';
+
+      const body = deviceName
+        ? `${deviceName}: ${message.substring(0, 100)}`
+        : message.substring(0, 150);
+
+      // Get ticket URL if created
+      const ticketUrl = ticketId ? `/tickets/${ticketId}` : '/ninja';
+
+      await sendPushToUser(userId, {
+        title,
+        body,
+        icon: '/favicon.svg',
+        badge: '/favicon.svg',
+        tag: `ninja-alert-${finalAlertId}`,
+        data: { url: ticketUrl },
+      });
+      console.log(`📢 Push notification sent for ${upperSeverity} alert to user ${userId}`);
+    } catch (pushError) {
+      console.error('Failed to send push notification for alert:', pushError);
+    }
+  }
 }
 
 // Helper function to handle alert reset from webhook
@@ -1148,7 +1533,7 @@ router.get('/webhook-events', authenticateToken, requireNinjaFeature, async (req
     }
 
     const result = await query(
-      `SELECT id, event_type, ninja_alert_id, ninja_device_id, severity, status,
+      `SELECT id, event_type, ninja_alert_id, ninja_device_id, severity, message, device_name, status,
               error_message, alert_id, ticket_id, processing_time_ms, created_at
        FROM ninjarmm_webhook_events
        ${whereClause}
@@ -1164,6 +1549,8 @@ router.get('/webhook-events', authenticateToken, requireNinjaFeature, async (req
       ninjaAlertId: row.ninja_alert_id,
       ninjaDeviceId: row.ninja_device_id,
       severity: row.severity,
+      message: row.message,
+      deviceName: row.device_name,
       status: row.status,
       errorMessage: row.error_message,
       alertId: row.alert_id,
@@ -1178,6 +1565,504 @@ router.get('/webhook-events', authenticateToken, requireNinjaFeature, async (req
     });
   } catch (error: any) {
     console.error('Get webhook events error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ninjarmm/webhook-events/:id/payload - Get raw payload of a webhook event
+router.get('/webhook-events/:id/payload', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const result = await query(
+      `SELECT id, event_type, payload, created_at
+       FROM ninjarmm_webhook_events
+       WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Webhook event not found' });
+    }
+
+    const event = result.rows[0];
+
+    // Parse payload if it's a string
+    let payload = event.payload;
+    if (typeof payload === 'string') {
+      try {
+        payload = JSON.parse(payload);
+      } catch (e) {
+        // Keep as string if not valid JSON
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: event.id,
+        eventType: event.event_type,
+        payload,
+        createdAt: event.created_at,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get webhook payload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/webhook-events/backfill-device-names - Backfill device names for existing webhook events
+router.post('/webhook-events/backfill-device-names', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    let updatedCount = 0;
+    let processedCount = 0;
+
+    // Get all webhook events with missing device_name but have ninja_device_id
+    const eventsResult = await query(
+      `SELECT id, ninja_device_id, payload
+       FROM ninjarmm_webhook_events
+       WHERE user_id = $1 AND (device_name IS NULL OR device_name = '')
+       ORDER BY created_at DESC
+       LIMIT 500`,
+      [userId]
+    );
+
+    for (const event of eventsResult.rows) {
+      processedCount++;
+      let deviceName: string | null = null;
+
+      // First, try to get device name from our synced devices table
+      if (event.ninja_device_id) {
+        const deviceResult = await query(
+          `SELECT system_name, display_name
+           FROM ninjarmm_devices
+           WHERE user_id = $1 AND (ninja_device_id = $2 OR ninja_id::TEXT = $2)`,
+          [userId, event.ninja_device_id]
+        );
+
+        if (deviceResult.rows.length > 0) {
+          deviceName = deviceResult.rows[0].display_name || deviceResult.rows[0].system_name;
+        }
+      }
+
+      // If still no device name, try to extract from payload
+      if (!deviceName && event.payload) {
+        let payload: any = {};
+        try {
+          payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+        } catch (e) {
+          // ignore parse error
+        }
+
+        // Try various field names NinjaRMM uses
+        deviceName = payload.deviceName
+          || payload.device?.systemName
+          || payload.device?.displayName
+          || payload.device?.name
+          || payload.nodeName
+          || payload.node?.name
+          || payload.node?.systemName
+          || payload.systemName
+          || payload.displayName
+          || payload.targetNodeName
+          || payload.affected_entity?.name
+          || payload.data?.deviceName
+          || payload.data?.nodeName
+          || null;
+      }
+
+      // Update the event if we found a device name
+      if (deviceName) {
+        await query(
+          `UPDATE ninjarmm_webhook_events SET device_name = $1 WHERE id = $2`,
+          [deviceName, event.id]
+        );
+        updatedCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        processedCount,
+        updatedCount,
+      },
+      message: `${updatedCount} von ${processedCount} Events aktualisiert`,
+    });
+  } catch (error: any) {
+    console.error('Backfill device names error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// Alert Exclusions (Ignore Rules)
+// ============================================
+
+// GET /api/ninjarmm/exclusions - Get all alert exclusions
+router.get('/exclusions', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const result = await query(
+      `SELECT id, name, description, match_type, match_field, match_value,
+              is_active, hit_count, last_hit_at, created_at, updated_at
+       FROM ninjarmm_alert_exclusions
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    const exclusions = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      matchType: row.match_type,
+      matchField: row.match_field,
+      matchValue: row.match_value,
+      isActive: row.is_active,
+      hitCount: row.hit_count,
+      lastHitAt: row.last_hit_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    res.json({
+      success: true,
+      data: exclusions,
+    });
+  } catch (error: any) {
+    console.error('Get exclusions error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/exclusions - Create new exclusion
+router.post('/exclusions', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { name, description, matchType, matchField, matchValue, isActive } = req.body;
+
+    if (!name || !matchValue) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name und Match-Wert sind erforderlich',
+      });
+    }
+
+    // Validate matchType
+    const validMatchTypes = ['contains', 'equals', 'regex', 'starts_with', 'ends_with'];
+    if (matchType && !validMatchTypes.includes(matchType)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ungültiger Match-Typ',
+      });
+    }
+
+    // Validate matchField
+    const validMatchFields = ['message', 'source_name', 'condition_name', 'device_name', 'severity'];
+    if (matchField && !validMatchFields.includes(matchField)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ungültiges Match-Feld',
+      });
+    }
+
+    // Validate regex if matchType is regex
+    if (matchType === 'regex') {
+      try {
+        new RegExp(matchValue);
+      } catch (e) {
+        return res.status(400).json({
+          success: false,
+          error: 'Ungültiger regulärer Ausdruck',
+        });
+      }
+    }
+
+    const exclusionId = uuidv4();
+    await query(
+      `INSERT INTO ninjarmm_alert_exclusions
+       (id, user_id, name, description, match_type, match_field, match_value, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        exclusionId,
+        userId,
+        name,
+        description || null,
+        matchType || 'contains',
+        matchField || 'message',
+        matchValue,
+        isActive !== false,
+      ]
+    );
+
+    res.json({
+      success: true,
+      data: { id: exclusionId },
+      message: 'Ausnahme erstellt',
+    });
+  } catch (error: any) {
+    console.error('Create exclusion error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/ninjarmm/exclusions/:id - Update exclusion
+router.put('/exclusions/:id', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const { name, description, matchType, matchField, matchValue, isActive } = req.body;
+
+    // Check if exclusion exists and belongs to user
+    const existing = await query(
+      'SELECT id FROM ninjarmm_alert_exclusions WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ausnahme nicht gefunden',
+      });
+    }
+
+    // Validate regex if matchType is regex
+    if (matchType === 'regex' && matchValue) {
+      try {
+        new RegExp(matchValue);
+      } catch (e) {
+        return res.status(400).json({
+          success: false,
+          error: 'Ungültiger regulärer Ausdruck',
+        });
+      }
+    }
+
+    // Build update query dynamically
+    const updates: string[] = ['updated_at = NOW()'];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (name !== undefined) {
+      updates.push(`name = $${paramIndex++}`);
+      values.push(name);
+    }
+    if (description !== undefined) {
+      updates.push(`description = $${paramIndex++}`);
+      values.push(description || null);
+    }
+    if (matchType !== undefined) {
+      updates.push(`match_type = $${paramIndex++}`);
+      values.push(matchType);
+    }
+    if (matchField !== undefined) {
+      updates.push(`match_field = $${paramIndex++}`);
+      values.push(matchField);
+    }
+    if (matchValue !== undefined) {
+      updates.push(`match_value = $${paramIndex++}`);
+      values.push(matchValue);
+    }
+    if (isActive !== undefined) {
+      updates.push(`is_active = $${paramIndex++}`);
+      values.push(isActive);
+    }
+
+    values.push(id, userId);
+
+    await query(
+      `UPDATE ninjarmm_alert_exclusions
+       SET ${updates.join(', ')}
+       WHERE id = $${paramIndex++} AND user_id = $${paramIndex}`,
+      values
+    );
+
+    res.json({
+      success: true,
+      message: 'Ausnahme aktualisiert',
+    });
+  } catch (error: any) {
+    console.error('Update exclusion error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/ninjarmm/exclusions/:id - Delete exclusion
+router.delete('/exclusions/:id', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const result = await query(
+      'DELETE FROM ninjarmm_alert_exclusions WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ausnahme nicht gefunden',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Ausnahme gelöscht',
+    });
+  } catch (error: any) {
+    console.error('Delete exclusion error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/exclusions/from-event/:eventId - Create exclusion from webhook event
+router.post('/exclusions/from-event/:eventId', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { eventId } = req.params;
+    const { matchField = 'message', matchType = 'contains' } = req.body;
+
+    // Get the webhook event
+    const eventResult = await query(
+      `SELECT message, device_name, severity, payload
+       FROM ninjarmm_webhook_events
+       WHERE id = $1 AND user_id = $2`,
+      [eventId, userId]
+    );
+
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Webhook-Event nicht gefunden',
+      });
+    }
+
+    const event = eventResult.rows[0];
+    let payload: any = {};
+    try {
+      payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+    } catch (e) {
+      // ignore parse error
+    }
+
+    // Determine match value based on field
+    let matchValue = '';
+    let name = '';
+    switch (matchField) {
+      case 'message':
+        matchValue = event.message || '';
+        name = `Ignoriere: ${matchValue.substring(0, 50)}...`;
+        break;
+      case 'source_name':
+        matchValue = payload.sourceName || payload.activitySourceName || '';
+        name = `Ignoriere Quelle: ${matchValue}`;
+        break;
+      case 'condition_name':
+        matchValue = payload.conditionName || payload.data?.message?.params?.conditionName || '';
+        name = `Ignoriere Bedingung: ${matchValue}`;
+        break;
+      case 'device_name':
+        matchValue = event.device_name || '';
+        name = `Ignoriere Gerät: ${matchValue}`;
+        break;
+      case 'severity':
+        matchValue = event.severity || '';
+        name = `Ignoriere Severity: ${matchValue}`;
+        break;
+    }
+
+    if (!matchValue) {
+      return res.status(400).json({
+        success: false,
+        error: `Kein Wert für Feld "${matchField}" im Event gefunden`,
+      });
+    }
+
+    const exclusionId = uuidv4();
+    await query(
+      `INSERT INTO ninjarmm_alert_exclusions
+       (id, user_id, name, description, match_type, match_field, match_value, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)`,
+      [
+        exclusionId,
+        userId,
+        name,
+        `Automatisch erstellt aus Webhook-Event ${eventId.substring(0, 8)}`,
+        matchType,
+        matchField,
+        matchValue,
+      ]
+    );
+
+    res.json({
+      success: true,
+      data: { id: exclusionId, name, matchValue },
+      message: 'Ausnahme aus Event erstellt',
+    });
+  } catch (error: any) {
+    console.error('Create exclusion from event error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// IP History
+// ============================================
+
+// GET /api/ninjarmm/devices/:id/ip-history - Get IP change history for a device
+router.get('/devices/:id/ip-history', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const { ipType } = req.query; // 'private' | 'public' | undefined (both)
+
+    // Verify device belongs to user
+    const deviceResult = await query(
+      'SELECT id, system_name FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Device not found' });
+    }
+
+    let historyQuery = `
+      SELECT id, ip_type, old_ip, new_ip, changed_at
+      FROM ninjarmm_device_ip_history
+      WHERE device_id = $1
+    `;
+    const params: any[] = [id];
+
+    if (ipType === 'private' || ipType === 'public') {
+      historyQuery += ' AND ip_type = $2';
+      params.push(ipType);
+    }
+
+    historyQuery += ' ORDER BY changed_at DESC LIMIT 50';
+
+    const historyResult = await query(historyQuery, params);
+
+    res.json({
+      success: true,
+      data: {
+        deviceId: id,
+        deviceName: deviceResult.rows[0].system_name,
+        history: historyResult.rows.map(row => ({
+          id: row.id,
+          ipType: row.ip_type,
+          oldIp: row.old_ip,
+          newIp: row.new_ip,
+          changedAt: row.changed_at,
+        })),
+      },
+    });
+  } catch (error: any) {
+    console.error('Get IP history error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

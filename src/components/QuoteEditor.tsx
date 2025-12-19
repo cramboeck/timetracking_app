@@ -12,8 +12,10 @@ import {
   Check,
   AlertTriangle,
   GripVertical,
+  Sparkles,
+  Bot,
 } from 'lucide-react';
-import { sevdeskApi, PositionSearchResult, CreateQuoteInput } from '../services/api';
+import { sevdeskApi, PositionSearchResult, CreateQuoteInput, aiApi } from '../services/api';
 
 interface SevdeskContact {
   id: string;
@@ -27,6 +29,7 @@ interface QuotePosition {
   text: string;
   quantity: number;
   price: number;
+  purchasePrice?: number; // Einkaufspreis for margin calculation
   isHeading?: boolean; // For section headings (quantity = 0)
 }
 
@@ -156,10 +159,116 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Load contacts on mount
+  // AI Assistant
+  const [aiConfigured, setAiConfigured] = useState(false);
+  const [generatingHeadText, setGeneratingHeadText] = useState(false);
+  const [generatingFootText, setGeneratingFootText] = useState(false);
+  const [researchingPrice, setResearchingPrice] = useState<string | null>(null); // position id being researched
+  const [priceResearchResult, setPriceResearchResult] = useState<{positionId: string; result: string} | null>(null);
+
+  // Margin settings
+  const [showMarginSettings, setShowMarginSettings] = useState(false);
+  const [defaultMargin, setDefaultMargin] = useState(30); // 30% default margin
+
+  // Load contacts on mount and check AI config
   useEffect(() => {
     loadContacts();
+    checkAiConfig();
   }, []);
+
+  const checkAiConfig = async () => {
+    try {
+      const response = await aiApi.getConfig();
+      setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
+    } catch (err) {
+      console.error('Failed to check AI config:', err);
+      setAiConfigured(false);
+    }
+  };
+
+  // AI Text Generation
+  const generateAiHeadText = async () => {
+    if (!aiConfigured) return;
+    setGeneratingHeadText(true);
+    try {
+      const response = await aiApi.generateQuoteText('head', {
+        customerName: selectedContact?.name,
+        header,
+        positions: positions.filter(p => !p.isHeading).map(p => ({ name: p.name, price: p.price })),
+      });
+      if (response.success && response.data.text) {
+        // Combine with selected salutation
+        const salutation = SALUTATION_TEMPLATES.find(t => t.id === selectedSalutation);
+        if (salutation) {
+          setHeadText(`${replaceVariables(salutation.text)}\n\n${response.data.text}`);
+        } else {
+          setHeadText(response.data.text);
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to generate head text:', err);
+      setError(err.message || 'Fehler beim Generieren des Textes');
+    } finally {
+      setGeneratingHeadText(false);
+    }
+  };
+
+  const generateAiFootText = async () => {
+    if (!aiConfigured) return;
+    setGeneratingFootText(true);
+    try {
+      const response = await aiApi.generateQuoteText('foot', {
+        customerName: selectedContact?.name,
+        header,
+        positions: positions.filter(p => !p.isHeading).map(p => ({ name: p.name, price: p.price * p.quantity })),
+      });
+      if (response.success && response.data.text) {
+        setFootText(response.data.text);
+      }
+    } catch (err: any) {
+      console.error('Failed to generate foot text:', err);
+      setError(err.message || 'Fehler beim Generieren des Textes');
+    } finally {
+      setGeneratingFootText(false);
+    }
+  };
+
+  // AI Price Research
+  const researchPrice = async (positionId: string, productName: string) => {
+    if (!aiConfigured || !productName) return;
+    setResearchingPrice(positionId);
+    setPriceResearchResult(null);
+    try {
+      const response = await aiApi.researchPrice(productName);
+      if (response.success && response.data) {
+        setPriceResearchResult({
+          positionId,
+          result: response.data.result,
+        });
+        // If we got a suggested price, offer to apply it
+        if (response.data.suggestedPrice) {
+          updatePosition(positionId, { price: response.data.suggestedPrice });
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to research price:', err);
+      setError(err.message || 'Fehler bei der Preisrecherche');
+    } finally {
+      setResearchingPrice(null);
+    }
+  };
+
+  // Calculate margin for a position
+  const calculateMargin = (sellPrice: number, purchasePrice: number): number => {
+    if (sellPrice <= 0) return 0;
+    return ((sellPrice - purchasePrice) / sellPrice) * 100;
+  };
+
+  // Calculate sell price from purchase price and margin
+  const calculateSellPrice = (purchasePrice: number, margin: number): number => {
+    if (margin >= 100) return purchasePrice;
+    return purchasePrice / (1 - margin / 100);
+  };
 
   const loadContacts = async () => {
     try {
@@ -425,7 +534,7 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
               Einleitungstext
             </label>
             {/* Template Selectors */}
-            <div className="flex flex-wrap gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <select
                 value={selectedSalutation}
                 onChange={(e) => setSelectedSalutation(e.target.value)}
@@ -444,6 +553,21 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
                   <option key={t.id} value={t.id}>{t.label}</option>
                 ))}
               </select>
+              {aiConfigured && (
+                <button
+                  onClick={generateAiHeadText}
+                  disabled={generatingHeadText}
+                  className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                  title="KI generiert Text"
+                >
+                  {generatingHeadText ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={12} />
+                  )}
+                  KI-Text
+                </button>
+              )}
             </div>
             <textarea
               value={headText}
@@ -637,18 +761,41 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
                         {!pos.isHeading && (
                           <>
                             <div>
-                              <label className="text-xs text-gray-500 dark:text-gray-400">
-                                Beschreibung (optional)
-                              </label>
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs text-gray-500 dark:text-gray-400">
+                                  Beschreibung (optional)
+                                </label>
+                                {aiConfigured && pos.name && (
+                                  <button
+                                    onClick={() => researchPrice(pos.id, pos.name)}
+                                    disabled={researchingPrice === pos.id}
+                                    className="flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                                    title="KI Preisrecherche"
+                                  >
+                                    {researchingPrice === pos.id ? (
+                                      <Loader2 size={10} className="animate-spin" />
+                                    ) : (
+                                      <Bot size={10} />
+                                    )}
+                                    Preis recherchieren
+                                  </button>
+                                )}
+                              </div>
                               <textarea
                                 value={pos.text}
                                 onChange={(e) => updatePosition(pos.id, { text: e.target.value })}
                                 rows={2}
                                 className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                               />
+                              {/* Price Research Result */}
+                              {priceResearchResult?.positionId === pos.id && (
+                                <div className="mt-2 p-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded text-xs text-purple-800 dark:text-purple-300 whitespace-pre-wrap">
+                                  {priceResearchResult.result}
+                                </div>
+                              )}
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-4 gap-3">
                               <div>
                                 <label className="text-xs text-gray-500 dark:text-gray-400">
                                   Menge
@@ -664,7 +811,28 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
                               </div>
                               <div>
                                 <label className="text-xs text-gray-500 dark:text-gray-400">
-                                  Einzelpreis (EUR)
+                                  EK-Preis (EUR)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={pos.purchasePrice || ''}
+                                  onChange={(e) => {
+                                    const purchasePrice = parseFloat(e.target.value) || 0;
+                                    updatePosition(pos.id, { purchasePrice });
+                                    // Auto-calculate sell price with default margin if no price set
+                                    if (purchasePrice > 0 && (!pos.price || pos.price === 0)) {
+                                      updatePosition(pos.id, { price: calculateSellPrice(purchasePrice, defaultMargin) });
+                                    }
+                                  }}
+                                  placeholder="EK"
+                                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-500 dark:text-gray-400">
+                                  VK-Preis (EUR)
                                 </label>
                                 <input
                                   type="number"
@@ -674,6 +842,24 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
                                   onChange={(e) => updatePosition(pos.id, { price: parseFloat(e.target.value) || 0 })}
                                   className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                                 />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-500 dark:text-gray-400">
+                                  Marge
+                                </label>
+                                <div className={`px-2 py-1 text-sm rounded text-center font-medium ${
+                                  pos.purchasePrice && pos.price
+                                    ? calculateMargin(pos.price, pos.purchasePrice) >= 25
+                                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                      : calculateMargin(pos.price, pos.purchasePrice) >= 15
+                                        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                    : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                                }`}>
+                                  {pos.purchasePrice && pos.price
+                                    ? `${calculateMargin(pos.price, pos.purchasePrice).toFixed(1)}%`
+                                    : '-'}
+                                </div>
                               </div>
                             </div>
                           </>
@@ -685,15 +871,62 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
               )}
             </div>
 
-            {/* Total */}
+            {/* Total with Margin Summary */}
             {positions.filter(p => !p.isHeading).length > 0 && (
-              <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg flex justify-between items-center">
-                <span className="font-medium text-gray-700 dark:text-gray-300">
-                  Gesamtsumme (Netto)
-                </span>
-                <span className="text-lg font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(calculateTotal())}
-                </span>
+              <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    Gesamtsumme (Netto)
+                  </span>
+                  <span className="text-lg font-bold text-gray-900 dark:text-white">
+                    {formatCurrency(calculateTotal())}
+                  </span>
+                </div>
+                {/* Margin Summary - only show if at least one position has purchase price */}
+                {positions.some(p => !p.isHeading && p.purchasePrice && p.purchasePrice > 0) && (
+                  <>
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500 dark:text-gray-400">Gesamt EK</span>
+                        <span className="text-gray-700 dark:text-gray-300">
+                          {formatCurrency(
+                            positions
+                              .filter(p => !p.isHeading && p.purchasePrice)
+                              .reduce((sum, p) => sum + (p.purchasePrice || 0) * p.quantity, 0)
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500 dark:text-gray-400">Rohertrag</span>
+                        <span className="text-green-600 dark:text-green-400 font-medium">
+                          {formatCurrency(
+                            positions
+                              .filter(p => !p.isHeading)
+                              .reduce((sum, p) => sum + (p.price - (p.purchasePrice || 0)) * p.quantity, 0)
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500 dark:text-gray-400">Ø Marge</span>
+                        <span className={`font-medium ${
+                          (() => {
+                            const totalSell = positions.filter(p => !p.isHeading).reduce((sum, p) => sum + p.price * p.quantity, 0);
+                            const totalPurchase = positions.filter(p => !p.isHeading && p.purchasePrice).reduce((sum, p) => sum + (p.purchasePrice || 0) * p.quantity, 0);
+                            const margin = totalSell > 0 ? ((totalSell - totalPurchase) / totalSell) * 100 : 0;
+                            return margin >= 25 ? 'text-green-600 dark:text-green-400' : margin >= 15 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400';
+                          })()
+                        }`}>
+                          {(() => {
+                            const totalSell = positions.filter(p => !p.isHeading).reduce((sum, p) => sum + p.price * p.quantity, 0);
+                            const totalPurchase = positions.filter(p => !p.isHeading && p.purchasePrice).reduce((sum, p) => sum + (p.purchasePrice || 0) * p.quantity, 0);
+                            const margin = totalSell > 0 ? ((totalSell - totalPurchase) / totalSell) * 100 : 0;
+                            return `${margin.toFixed(1)}%`;
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -704,7 +937,7 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
               Schlusstext
             </label>
             {/* Template Selector */}
-            <div className="flex flex-wrap gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <select
                 value={selectedFootTemplate}
                 onChange={(e) => setSelectedFootTemplate(e.target.value)}
@@ -714,6 +947,21 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
                   <option key={t.id} value={t.id}>{t.label}</option>
                 ))}
               </select>
+              {aiConfigured && (
+                <button
+                  onClick={generateAiFootText}
+                  disabled={generatingFootText}
+                  className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                  title="KI generiert Text"
+                >
+                  {generatingFootText ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={12} />
+                  )}
+                  KI-Text
+                </button>
+              )}
             </div>
             <textarea
               value={footText}

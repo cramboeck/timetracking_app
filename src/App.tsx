@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView } from './components/AreaNavigation';
+import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 import { Stopwatch } from './components/Stopwatch';
 import { ManualEntry } from './components/ManualEntry';
 import { TimeEntriesList } from './components/TimeEntriesList';
@@ -12,6 +13,7 @@ import { DevicesView } from './components/DevicesView';
 import { AlertsView } from './components/AlertsView';
 import MaintenanceView from './components/MaintenanceView';
 import TaskHub from './components/TaskHub';
+import Contracts from './components/Contracts';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
@@ -21,12 +23,47 @@ import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
+import { useIsDesktop } from './hooks/useMediaQuery';
 import { haptics } from './utils/haptics';
 import { notificationService } from './utils/notifications';
 import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, userApi } from './services/api';
 
+const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
+
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
+  const isDesktop = useIsDesktop();
+
+  // Track sidebar collapsed state for layout adjustment
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+    }
+    return false;
+  });
+
+  // Listen for sidebar collapse changes from localStorage
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === SIDEBAR_COLLAPSED_KEY) {
+        setSidebarCollapsed(e.newValue === 'true');
+      }
+    };
+
+    // Also listen for custom event from DesktopSidebar
+    const handleSidebarToggle = () => {
+      setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('sidebar-toggle', handleSidebarToggle);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('sidebar-toggle', handleSidebarToggle);
+    };
+  }, []);
+
   // Use localStorage as initial fallback, will be overwritten by server preferences
   const [currentArea, setCurrentArea] = useState<Area>(() => {
     const saved = localStorage.getItem('currentArea');
@@ -46,6 +83,7 @@ function App() {
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [initialTicketId, setInitialTicketId] = useState<string | null>(null);
   // Track entry IDs that are being created to prevent duplicates
   const pendingEntryIdsRef = useRef<Set<string>>(new Set());
   // Track if we're currently saving preferences to avoid loops
@@ -220,6 +258,49 @@ function App() {
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  // Handle deep link to ticket via ?ticket= URL parameter
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const ticketId = urlParams.get('ticket');
+
+    if (ticketId) {
+      console.log('📬 [DEEPLINK] Found ticket ID in URL:', ticketId);
+      setInitialTicketId(ticketId);
+      setCurrentArea('support');
+      setCurrentSubView('tickets');
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [isAuthenticated]);
+
+  // Listen for navigation messages from Service Worker (push notification clicks)
+  useEffect(() => {
+    if (!isAuthenticated || !('serviceWorker' in navigator)) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      console.log('📬 [SW Message] Received:', event.data);
+
+      if (event.data?.type === 'NAVIGATE_TO') {
+        const url = event.data.url;
+        console.log('📬 [SW Message] Navigating to:', url);
+
+        // Handle ticket URLs: /tickets/{id}
+        if (url?.startsWith('/tickets/')) {
+          const ticketId = url.replace('/tickets/', '').split('?')[0];
+          console.log('📬 [SW Message] Opening ticket:', ticketId);
+          setInitialTicketId(ticketId);
+          setCurrentArea('support');
+          setCurrentSubView('tickets');
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, [isAuthenticated]);
 
   // When welcome modal closes, show notification request
   const handleWelcomeClose = () => {
@@ -411,6 +492,20 @@ function App() {
       setEntries(prev => prev.map(e => e.id === id ? response.data : e));
     } catch (error) {
       console.error('❌ [ENTRY] Failed to edit entry:', error);
+    }
+  };
+
+  const handleBulkUpdateEntries = async (entryIds: string[], updates: { projectId?: string; description?: string }) => {
+    try {
+      console.log('📦 [ENTRY] Bulk updating entries:', entryIds.length);
+      await entriesApi.bulkUpdate(entryIds, updates);
+      console.log('✅ [ENTRY] Bulk update complete');
+      // Reload entries to get updated data
+      const response = await entriesApi.getAll();
+      setEntries(response.data);
+    } catch (error) {
+      console.error('❌ [ENTRY] Failed to bulk update entries:', error);
+      throw error;
     }
   };
 
@@ -632,7 +727,7 @@ function App() {
 
   // Authenticated - show main app
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 overflow-x-hidden">
       {/* Top Navigation Header */}
       <AreaNavigation
         currentArea={currentArea}
@@ -642,8 +737,15 @@ function App() {
       />
 
       <main
-        className="flex-1 overflow-y-auto pt-12 pb-16"
-        {...swipeHandlers}
+        className={`flex-1 overflow-y-auto transition-all duration-300 ${
+          isDesktop
+            ? `pt-0 pb-0`  // No padding on desktop - sidebar handles navigation
+            : 'pt-12 pb-16'  // Mobile: top nav + bottom nav padding
+        }`}
+        style={isDesktop ? {
+          marginLeft: sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH,
+        } : undefined}
+        {...(isDesktop ? {} : swipeHandlers)}  // Only enable swipe on mobile
       >
         {currentSubView === 'stopwatch' && (
           <Stopwatch
@@ -675,6 +777,7 @@ function App() {
             onDelete={handleDeleteEntry}
             onEdit={handleEditEntry}
             onRepeatEntry={handleRepeatEntry}
+            onBulkUpdate={handleBulkUpdateEntries}
           />
         )}
         {currentSubView === 'calendar' && (
@@ -741,6 +844,8 @@ function App() {
               setCurrentArea('arbeiten');
               setCurrentSubView('stopwatch');
             }}
+            initialTicketId={initialTicketId}
+            onTicketIdHandled={() => setInitialTicketId(null)}
           />
         )}
         {currentSubView === 'devices' && (
@@ -754,6 +859,9 @@ function App() {
         )}
         {currentSubView === 'billing' && (
           <Finanzen onBack={() => setCurrentSubView('dashboard')} />
+        )}
+        {currentSubView === 'contracts' && (
+          <Contracts />
         )}
         {currentSubView === 'reports' && (
           <div className="p-4 text-center text-gray-500 dark:text-gray-400">
@@ -781,13 +889,15 @@ function App() {
         )}
       </main>
 
-      {/* Floating Action Button */}
-      <FloatingActionButton
-        isTimerRunning={!!runningEntry}
-        onStartTimer={handleFABStartTimer}
-        onStopTimer={handleFABStopTimer}
-        currentView={currentSubView}
-      />
+      {/* Floating Action Button - only on mobile */}
+      {!isDesktop && (
+        <FloatingActionButton
+          isTimerRunning={!!runningEntry}
+          onStartTimer={handleFABStartTimer}
+          onStopTimer={handleFABStopTimer}
+          currentView={currentSubView}
+        />
+      )}
 
       {/* Welcome Modal for new users */}
       {showWelcomeModal && (

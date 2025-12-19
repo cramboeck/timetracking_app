@@ -1,4 +1,5 @@
 import { Router, Request } from 'express';
+import crypto from 'crypto';
 import { pool } from '../config/database';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
@@ -27,6 +28,23 @@ const sendApprovalSchema = z.object({
 const reviewApprovalSchema = z.object({
   action: z.enum(['approve', 'reject']),
   comment: z.string().optional()
+});
+
+// Schema for saving report as proof (without sending)
+const saveReportSchema = z.object({
+  reportData: z.object({
+    customerId: z.string(),
+    customerName: z.string(),
+    reportTitle: z.string().optional(),
+    timeEntries: z.array(z.any()),
+    startDate: z.string(),
+    endDate: z.string(),
+    totalHours: z.number(),
+    entryCount: z.number(),
+    projectCount: z.number(),
+    pdfBase64: z.string().optional() // Optional PDF as base64
+  }),
+  notes: z.string().optional()
 });
 
 // POST /api/report-approvals/send - Send report for approval (protected)
@@ -87,6 +105,178 @@ router.post('/send', authenticateToken, validate(sendApprovalSchema), async (req
     });
   } catch (error) {
     console.error('Send approval request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/report-approvals/check-exists - Check if report already exists for customer/period
+router.post('/check-exists', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const { customerId, startDate, endDate } = req.body;
+    const userId = req.userId!;
+
+    // Check if a saved report exists for this customer and overlapping date range
+    const result = await pool.query(
+      `SELECT id, recipient_name as customer_name, sent_at as saved_at,
+              report_data->>'startDate' as start_date,
+              report_data->>'endDate' as end_date,
+              report_data->>'totalHours' as total_hours
+       FROM report_approvals
+       WHERE user_id = $1
+         AND report_data->>'customerId' = $2
+         AND status = 'saved'
+         AND (
+           (report_data->>'startDate')::timestamp <= $4::timestamp
+           AND (report_data->>'endDate')::timestamp >= $3::timestamp
+         )
+       ORDER BY sent_at DESC
+       LIMIT 1`,
+      [userId, customerId, startDate, endDate]
+    );
+
+    if (result.rows.length > 0) {
+      const existing = result.rows[0];
+      res.json({
+        exists: true,
+        existingReport: {
+          id: existing.id,
+          customerName: existing.customer_name,
+          savedAt: existing.saved_at,
+          startDate: existing.start_date,
+          endDate: existing.end_date,
+          totalHours: parseFloat(existing.total_hours)
+        }
+      });
+    } else {
+      res.json({ exists: false });
+    }
+  } catch (error) {
+    console.error('Check report exists error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/report-approvals/saved/:id - Delete a saved report (for overwrite)
+router.delete('/saved/:id', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId!;
+
+    const result = await pool.query(
+      'DELETE FROM report_approvals WHERE id = $1 AND user_id = $2 AND status = $3 RETURNING id',
+      [id, userId, 'saved']
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Report nicht gefunden' });
+    }
+
+    res.json({ success: true, message: 'Report wurde gelöscht' });
+  } catch (error) {
+    console.error('Delete saved report error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/report-approvals/save - Save report as proof (without sending, protected)
+router.post('/save', authenticateToken, validate(saveReportSchema), async (req: AuthRequest, res) => {
+  try {
+    const { reportData, notes } = req.body;
+    const userId = req.userId!;
+
+    const reportId = crypto.randomUUID();
+    // Generate a token even for saved reports (for potential later sharing)
+    const token = crypto.randomUUID() + crypto.randomUUID();
+
+    // Get organization_id for user
+    const orgResult = await pool.query(
+      `SELECT organization_id FROM organization_members WHERE user_id = $1 AND role = 'owner' LIMIT 1`,
+      [userId]
+    );
+    const organizationId = orgResult.rows[0]?.organization_id || null;
+
+    // Store report with 'saved' status
+    await pool.query(
+      `INSERT INTO report_approvals
+       (id, user_id, organization_id, token, recipient_email, recipient_name, report_data, status, expires_at, comment)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'saved', $8, $9)`,
+      [
+        reportId,
+        userId,
+        organizationId,
+        token,
+        '', // No recipient for saved reports
+        reportData.customerName,
+        JSON.stringify(reportData),
+        new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year expiry
+        notes || null
+      ]
+    );
+
+    console.log(`💾 Report saved: ${reportData.customerName} (${reportData.startDate} - ${reportData.endDate})`);
+
+    res.json({
+      success: true,
+      message: 'Report wurde gespeichert',
+      reportId,
+      token
+    });
+  } catch (error) {
+    console.error('Save report error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/report-approvals/saved - Get all reports for current user (protected)
+// Query params: ?status=all (default) | saved | pending | approved | rejected
+router.get('/saved', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const statusFilter = req.query.status as string || 'all';
+
+    let query = `SELECT id, token, recipient_email, recipient_name as customer_name, status, sent_at as created_at,
+              reviewed_at, expires_at, comment as notes, report_data
+       FROM report_approvals
+       WHERE user_id = $1`;
+
+    const params: any[] = [userId];
+
+    if (statusFilter !== 'all') {
+      query += ` AND status = $2`;
+      params.push(statusFilter);
+    }
+
+    query += ` ORDER BY sent_at DESC`;
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      reports: result.rows.map(row => {
+        const reportData = row.report_data || {};
+        return {
+          id: row.id,
+          token: row.token,
+          customer_id: reportData.customerId || '',
+          customer_name: reportData.customerName || row.customer_name || 'Unbekannt',
+          recipient_email: row.recipient_email || '',
+          report_title: reportData.reportTitle || 'Dienstleistungsnachweis',
+          start_date: reportData.startDate || '',
+          end_date: reportData.endDate || '',
+          total_hours: reportData.totalHours || 0,
+          entry_count: reportData.entryCount || 0,
+          project_count: reportData.projectCount || 0,
+          status: row.status,
+          created_at: row.created_at,
+          reviewed_at: row.reviewed_at,
+          expires_at: row.expires_at,
+          notes: row.notes,
+          // Include full data for PDF generation
+          time_entries: reportData.timeEntries || []
+        };
+      })
+    });
+  } catch (error) {
+    console.error('Get saved reports error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
