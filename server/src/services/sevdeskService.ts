@@ -474,39 +474,65 @@ export async function createInvoice(
   const invoiceHeadText = customData?.headText || `Abrechnung für den Zeitraum ${periodLabel}`;
   const invoiceFootText = customData?.footText || 'Vielen Dank für Ihr Vertrauen.';
 
-  // Create the invoice
-  const invoiceData = {
-    objectName: 'Invoice',
-    mapAll: true,
-    contact: {
-      id: parseInt(sevdeskCustomerId),
-      objectName: 'Contact',
+  // Use Factory/saveInvoice endpoint - more reliable for invoice number generation
+  // This creates invoice + positions in a single call
+  const invoicePosArray = positions.map((pos, index) => ({
+    objectName: 'InvoicePos',
+    mapAll: 'true',
+    part: null,
+    quantity: pos.quantity,
+    price: pos.price,
+    name: pos.name,
+    text: pos.text || null,
+    unity: {
+      id: 9, // Hours
+      objectName: 'Unity',
     },
-    invoiceDate: new Date().toISOString().split('T')[0],
-    header: invoiceHeader,
-    headText: invoiceHeadText,
-    footText: invoiceFootText,
-    timeToPay: config.paymentTermsDays,
-    discount: 0,
-    status: config.createAsFinal ? 200 : 100, // 100 = Draft, 200 = Open
+    positionNumber: index,
     taxRate: config.taxRate,
-    taxType: 'default',
-    invoiceType: 'RE', // Regular invoice
-    currency: 'EUR',
+    priceGross: null,
+    priceTax: null,
+  }));
+
+  const factoryData = {
+    invoice: {
+      objectName: 'Invoice',
+      contact: {
+        id: parseInt(sevdeskCustomerId),
+        objectName: 'Contact',
+      },
+      invoiceDate: new Date().toISOString().split('T')[0],
+      header: invoiceHeader,
+      headText: invoiceHeadText,
+      footText: invoiceFootText,
+      timeToPay: config.paymentTermsDays,
+      discount: 0,
+      status: config.createAsFinal ? 200 : 100,
+      taxRate: config.taxRate,
+      taxType: 'default',
+      invoiceType: 'RE',
+      currency: 'EUR',
+      mapAll: 'true',
+    },
+    invoicePosSave: invoicePosArray,
+    invoicePosDelete: null,
+    filename: null,
+    discountSave: null,
+    discountDelete: null,
   };
 
-  console.log('Invoice data:', JSON.stringify(invoiceData, null, 2));
+  console.log('Factory invoice data:', JSON.stringify(factoryData, null, 2));
 
   // Create invoice with retry mechanism for "Correct number abort" errors
-  let invoiceResponse;
+  let invoiceResponse: any;
   let retries = 0;
   const maxRetries = 3;
 
   while (retries < maxRetries) {
     try {
-      invoiceResponse = await sevdeskFetch(apiToken, '/Invoice', {
+      invoiceResponse = await sevdeskFetch(apiToken, '/Invoice/Factory/saveInvoice', {
         method: 'POST',
-        body: JSON.stringify(invoiceData),
+        body: JSON.stringify(factoryData),
       });
       break; // Success, exit loop
     } catch (error: any) {
@@ -526,32 +552,13 @@ export async function createInvoice(
 
   console.log('Invoice response:', JSON.stringify(invoiceResponse, null, 2));
 
-  // Handle different response formats
-  const invoiceObj = invoiceResponse.objects || invoiceResponse;
-  const invoiceId = invoiceObj.id;
+  // Handle Factory response format - it returns { objects: { invoice: {...}, invoicePos: [...] } }
+  const invoiceObj = invoiceResponse?.objects?.invoice || invoiceResponse?.objects || invoiceResponse;
+  const invoiceId = invoiceObj?.id;
 
   if (!invoiceId) {
     console.error('No invoice ID in response:', invoiceResponse);
     throw new Error('sevDesk did not return an invoice ID');
-  }
-
-  console.log(`Invoice created with ID: ${invoiceId}, adding ${positions.length} positions...`);
-
-  // Add positions to invoice
-  for (const position of positions) {
-    const positionData = {
-      ...position,
-      invoice: {
-        id: invoiceId,
-        objectName: 'Invoice',
-      },
-    };
-
-    console.log('Adding position:', position.name);
-    await sevdeskFetch(apiToken, '/InvoicePos', {
-      method: 'POST',
-      body: JSON.stringify(positionData),
-    });
   }
 
   console.log(`Invoice ${invoiceObj.invoiceNumber || invoiceId} created successfully with ${positions.length} positions`);
