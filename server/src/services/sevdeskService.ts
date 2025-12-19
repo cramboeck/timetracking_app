@@ -497,11 +497,32 @@ export async function createInvoice(
 
   console.log('Invoice data:', JSON.stringify(invoiceData, null, 2));
 
-  // Create invoice
-  const invoiceResponse = await sevdeskFetch(apiToken, '/Invoice', {
-    method: 'POST',
-    body: JSON.stringify(invoiceData),
-  });
+  // Create invoice with retry mechanism for "Correct number abort" errors
+  let invoiceResponse;
+  let retries = 0;
+  const maxRetries = 3;
+
+  while (retries < maxRetries) {
+    try {
+      invoiceResponse = await sevdeskFetch(apiToken, '/Invoice', {
+        method: 'POST',
+        body: JSON.stringify(invoiceData),
+      });
+      break; // Success, exit loop
+    } catch (error: any) {
+      retries++;
+      console.log(`Invoice creation attempt ${retries} failed:`, error.message);
+
+      // Only retry on "Correct number abort" timeout errors
+      if (error.message?.includes('Correct number abort') && retries < maxRetries) {
+        const waitTime = retries * 2000; // 2s, 4s, 6s
+        console.log(`Retrying in ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      } else {
+        throw error; // Re-throw if not a retryable error or max retries reached
+      }
+    }
+  }
 
   console.log('Invoice response:', JSON.stringify(invoiceResponse, null, 2));
 
