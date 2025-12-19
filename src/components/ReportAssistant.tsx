@@ -410,15 +410,14 @@ export const ReportAssistant = ({
             w = maxH * ratio;
           }
 
-          // Compress large logos to reduce PDF size
+          // Only resize very large logos to reduce PDF size (keep format to preserve transparency)
           let logoData = companyInfo.logo;
-          if (dims.width > 400 || dims.height > 400 || companyInfo.logo.length > 50000) {
-            // Create canvas to resize/compress
+          const maxDimension = 300;
+          if (dims.width > maxDimension || dims.height > maxDimension) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             if (ctx) {
-              // Scale down large images
-              const scale = Math.min(400 / dims.width, 400 / dims.height, 1);
+              const scale = Math.min(maxDimension / dims.width, maxDimension / dims.height);
               canvas.width = Math.round(dims.width * scale);
               canvas.height = Math.round(dims.height * scale);
 
@@ -432,12 +431,12 @@ export const ReportAssistant = ({
                 img.src = companyInfo.logo!;
               });
 
-              // Convert to JPEG with compression (0.8 quality)
-              logoData = canvas.toDataURL('image/jpeg', 0.8);
+              // Keep PNG format to preserve transparency
+              logoData = canvas.toDataURL('image/png');
             }
           }
 
-          doc.addImage(logoData, 'AUTO', x, y, w, h);
+          doc.addImage(logoData, 'PNG', x, y, w, h);
         } catch {
           // Ignore logo errors
         }
