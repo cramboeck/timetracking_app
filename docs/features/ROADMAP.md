@@ -130,6 +130,19 @@
 - [ ] Ressourcenplanung
 - [ ] Abwesenheitsverwaltung
 
+### Marketing Hub
+- [ ] Content-Kalender für Social Media Posts
+- [ ] Multi-Plattform-Unterstützung (LinkedIn, Instagram)
+- [ ] Post-Entwürfe speichern und bearbeiten
+- [ ] KI-gestützte Post-Texterstellung
+- [ ] Hashtag-Vorschläge per KI
+- [ ] Optimale Posting-Zeiten vorschlagen
+- [ ] Ton/Stil anpassen (professionell, locker, etc.)
+- [ ] Bild-/Medien-Upload und Verwaltung
+- [ ] Vorlagen für wiederkehrende Post-Typen
+- [ ] Content-Kategorien (Produkt, Team, Tips, etc.)
+- [ ] Übersicht geplante vs. veröffentlichte Posts
+
 ---
 
 ## Changelog
