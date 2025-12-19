@@ -466,11 +466,11 @@ export const ReportAssistant = ({
       doc.setTextColor(dark.r, dark.g, dark.b);
       doc.text(customerData.projectCount.toString(), margin + (cardWidth + 8) * 2 + 10, y + 35);
 
-      // ============ PIE CHART SECTION ============
+      // ============ DONUT CHART SECTION ============
       y = 210;
 
       // Calculate project breakdown
-      const projectBreakdown = new Map<string, { name: string; hours: number; color: string }>();
+      const projectBreakdown = new Map<string, { name: string; hours: number }>();
       customerEntries.forEach(entry => {
         const existing = projectBreakdown.get(entry.project.id);
         if (existing) {
@@ -478,8 +478,7 @@ export const ReportAssistant = ({
         } else {
           projectBreakdown.set(entry.project.id, {
             name: entry.project.name,
-            hours: entry.hours,
-            color: entry.project.color || '#6366f1'
+            hours: entry.hours
           });
         }
       });
@@ -487,12 +486,13 @@ export const ReportAssistant = ({
       const projectData = Array.from(projectBreakdown.values()).sort((a, b) => b.hours - a.hours);
 
       if (projectData.length > 0) {
-        // Pie chart configuration
+        // Donut chart configuration
         const centerX = margin + 35;
-        const centerY = y + 30;
-        const radius = 28;
+        const centerY = y + 32;
+        const outerRadius = 30;
+        const innerRadius = 15; // Creates donut hole
 
-        // Draw pie chart title
+        // Draw chart title
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
         doc.setTextColor(dark.r, dark.g, dark.b);
@@ -501,65 +501,67 @@ export const ReportAssistant = ({
         // Calculate total hours
         const totalHours = projectData.reduce((sum, p) => sum + p.hours, 0);
 
-        // Draw pie segments
-        let startAngle = -Math.PI / 2; // Start at 12 o'clock
-
-        // Default colors if project colors are not set
-        const defaultColors = [
-          '#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444',
-          '#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#6366f1'
+        // High-contrast color palette (always used for better visibility)
+        const chartColors = [
+          { r: 249, g: 115, b: 22 },   // Orange #f97316
+          { r: 59, g: 130, b: 246 },   // Blue #3b82f6
+          { r: 16, g: 185, b: 129 },   // Green #10b981
+          { r: 139, g: 92, b: 246 },   // Purple #8b5cf6
+          { r: 239, g: 68, b: 68 },    // Red #ef4444
+          { r: 245, g: 158, b: 11 },   // Amber #f59e0b
+          { r: 6, g: 182, b: 212 },    // Cyan #06b6d4
+          { r: 236, g: 72, b: 153 },   // Pink #ec4899
+          { r: 132, g: 204, b: 22 },   // Lime #84cc16
+          { r: 99, g: 102, b: 241 },   // Indigo #6366f1
         ];
+
+        // Draw donut segments
+        let startAngle = -Math.PI / 2; // Start at 12 o'clock
 
         projectData.forEach((project, index) => {
           const percentage = project.hours / totalHours;
           const sweepAngle = percentage * 2 * Math.PI;
-          const endAngle = startAngle + sweepAngle;
+          const rgb = chartColors[index % chartColors.length];
 
-          // Parse color or use default
-          let color = project.color;
-          if (!color || color === '#000000') {
-            color = defaultColors[index % defaultColors.length];
-          }
-
-          // Convert hex to RGB
-          const hexToRgb = (hex: string) => {
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? {
-              r: parseInt(result[1], 16),
-              g: parseInt(result[2], 16),
-              b: parseInt(result[3], 16)
-            } : { r: 99, g: 102, b: 241 }; // Default indigo
-          };
-
-          const rgb = hexToRgb(color);
           doc.setFillColor(rgb.r, rgb.g, rgb.b);
 
-          // Draw pie segment using triangle fan approach
-          const steps = Math.max(20, Math.floor(sweepAngle * 20));
+          // Draw segment with more steps for smoother curves
+          const steps = Math.max(30, Math.floor(sweepAngle * 30));
           const angleStep = sweepAngle / steps;
 
-          // Draw the sector using triangle fan method
-          doc.setFillColor(rgb.r, rgb.g, rgb.b);
-
-          // Fill in the arc with triangles for smooth appearance
+          // Draw outer arc triangles
           for (let i = 0; i < steps; i++) {
             const a1 = startAngle + angleStep * i;
             const a2 = startAngle + angleStep * (i + 1);
             doc.triangle(
               centerX, centerY,
-              centerX + radius * Math.cos(a1), centerY + radius * Math.sin(a1),
-              centerX + radius * Math.cos(a2), centerY + radius * Math.sin(a2),
+              centerX + outerRadius * Math.cos(a1), centerY + outerRadius * Math.sin(a1),
+              centerX + outerRadius * Math.cos(a2), centerY + outerRadius * Math.sin(a2),
               'F'
             );
           }
 
-          startAngle = endAngle;
+          startAngle += sweepAngle;
         });
 
+        // Draw white center circle to create donut effect (hides triangle lines)
+        doc.setFillColor(255, 255, 255);
+        const circleSteps = 60;
+        for (let i = 0; i < circleSteps; i++) {
+          const a1 = (i / circleSteps) * 2 * Math.PI;
+          const a2 = ((i + 1) / circleSteps) * 2 * Math.PI;
+          doc.triangle(
+            centerX, centerY,
+            centerX + innerRadius * Math.cos(a1), centerY + innerRadius * Math.sin(a1),
+            centerX + innerRadius * Math.cos(a2), centerY + innerRadius * Math.sin(a2),
+            'F'
+          );
+        }
+
         // Draw legend on the right side
-        const legendX = margin + 80;
-        let legendY = y + 10;
-        const legendItemHeight = 12;
+        const legendX = margin + 75;
+        let legendY = y + 12;
+        const legendItemHeight = 14;
         const maxLegendItems = 5;
 
         const displayProjects = projectData.slice(0, maxLegendItems);
@@ -567,36 +569,25 @@ export const ReportAssistant = ({
 
         displayProjects.forEach((project, index) => {
           const percentage = (project.hours / totalHours * 100).toFixed(1);
+          const rgb = chartColors[index % chartColors.length];
 
-          // Parse color
-          let color = project.color;
-          if (!color || color === '#000000') {
-            color = defaultColors[index % defaultColors.length];
-          }
-          const hexToRgb = (hex: string) => {
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? {
-              r: parseInt(result[1], 16),
-              g: parseInt(result[2], 16),
-              b: parseInt(result[3], 16)
-            } : { r: 99, g: 102, b: 241 };
-          };
-          const rgb = hexToRgb(color);
-
-          // Color box
+          // Color box (rounded)
           doc.setFillColor(rgb.r, rgb.g, rgb.b);
-          doc.rect(legendX, legendY - 3, 4, 4, 'F');
+          doc.roundedRect(legendX, legendY - 3, 5, 5, 1, 1, 'F');
 
-          // Project name and percentage
+          // Project name (longer text allowed)
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(9);
           doc.setTextColor(dark.r, dark.g, dark.b);
-          const nameText = project.name.length > 25 ? project.name.substring(0, 22) + '...' : project.name;
-          doc.text(nameText, legendX + 7, legendY);
+          const maxNameLength = 35;
+          const nameText = project.name.length > maxNameLength
+            ? project.name.substring(0, maxNameLength - 3) + '...'
+            : project.name;
+          doc.text(nameText, legendX + 8, legendY);
 
           // Hours and percentage
           doc.setTextColor(gray.r, gray.g, gray.b);
-          doc.text(`${formatHoursMinutes(project.hours)} (${percentage}%)`, legendX + 7, legendY + 5);
+          doc.text(`${formatHoursMinutes(project.hours)} (${percentage}%)`, legendX + 8, legendY + 5);
 
           legendY += legendItemHeight;
         });
@@ -605,7 +596,7 @@ export const ReportAssistant = ({
           doc.setFont('helvetica', 'italic');
           doc.setFontSize(8);
           doc.setTextColor(gray.r, gray.g, gray.b);
-          doc.text(`+ ${projectData.length - maxLegendItems} weitere Projekte`, legendX + 7, legendY);
+          doc.text(`+ ${projectData.length - maxLegendItems} weitere Projekte`, legendX + 8, legendY);
         }
       }
 
