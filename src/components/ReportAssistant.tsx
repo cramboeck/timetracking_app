@@ -1972,7 +1972,7 @@ ${companyInfo?.phone || ''}`;
                         { key: 'weekday', label: 'Wochentag' },
                         { key: 'times', label: 'Uhrzeiten' },
                         { key: 'project', label: 'Projekt' },
-                        { key: 'activity', label: 'Leistung' },
+                        { key: 'activity', label: 'Tätigkeit' },
                         { key: 'description', label: 'Beschreibung' },
                         { key: 'hours', label: 'Zeit' },
                       ].map(({ key, label }) => (
