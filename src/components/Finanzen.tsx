@@ -29,6 +29,7 @@ import {
 import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, DocumentSearchResult } from '../services/api';
 import { QuoteEditor } from './QuoteEditor';
 import { SevdeskSettings } from './SevdeskSettings';
+import { InvoiceCreationDialog } from './InvoiceCreationDialog';
 
 type FinanzenTab = 'billing' | 'documents' | 'settings';
 type DocumentType = 'invoices' | 'quotes';
@@ -175,6 +176,8 @@ const BillingTab = () => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  // Invoice creation dialog
+  const [invoiceDialogCustomer, setInvoiceDialogCustomer] = useState<BillingSummaryItem | null>(null);
 
   useEffect(() => {
     loadData();
@@ -226,6 +229,24 @@ const BillingTab = () => {
     setSelectedCustomers(newSelection);
   };
 
+  // Open invoice creation dialog
+  const handleCreateInvoice = (customer: BillingSummaryItem) => {
+    if (!customer.sevdeskCustomerId) {
+      setError(`${customer.customerName} ist nicht mit sevDesk verknüpft`);
+      return;
+    }
+    setInvoiceDialogCustomer(customer);
+  };
+
+  // Handle successful invoice creation
+  const handleInvoiceCreated = async (invoiceNumber: string) => {
+    setSuccess(`Rechnung ${invoiceNumber} für ${invoiceDialogCustomer?.customerName} erstellt`);
+    setInvoiceDialogCustomer(null);
+    await loadData();
+    setTimeout(() => setSuccess(null), 5000);
+  };
+
+  // Mark as billed without creating invoice (for customers without sevDesk)
   const handleMarkAsBilled = async (customerId: string, customerName: string) => {
     try {
       setProcessing(customerId);
@@ -407,7 +428,7 @@ const BillingTab = () => {
                     </div>
                     {item.sevdeskCustomerId && hasConfig ? (
                       <button
-                        onClick={() => handleMarkAsBilled(item.customerId, item.customerName)}
+                        onClick={() => handleCreateInvoice(item)}
                         disabled={processing === item.customerId}
                         className="flex items-center gap-1 px-3 py-1.5 bg-accent-primary text-white rounded-lg text-sm hover:bg-accent-primary/90 disabled:opacity-50"
                       >
@@ -549,6 +570,18 @@ const BillingTab = () => {
           )
         )}
       </div>
+
+      {/* Invoice Creation Dialog */}
+      {invoiceDialogCustomer && (
+        <InvoiceCreationDialog
+          isOpen={true}
+          onClose={() => setInvoiceDialogCustomer(null)}
+          customer={invoiceDialogCustomer}
+          periodStart={new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1)}
+          periodEnd={new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0)}
+          onSuccess={handleInvoiceCreated}
+        />
+      )}
     </div>
   );
 };
