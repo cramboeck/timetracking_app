@@ -399,6 +399,8 @@ export async function createInvoice(
   const endDate = new Date(periodEnd);
   const periodLabel = `${startDate.toLocaleDateString('de-DE')} - ${endDate.toLocaleDateString('de-DE')}`;
 
+  console.log(`Creating sevDesk invoice for contact ${sevdeskCustomerId}, period ${periodLabel}, ${entries.length} entries`);
+
   // Create invoice positions
   const positions = entries.map((entry, index) => {
     const hours = entry.duration / 3600;
@@ -446,31 +448,49 @@ export async function createInvoice(
     currency: 'EUR',
   };
 
+  console.log('Invoice data:', JSON.stringify(invoiceData, null, 2));
+
   // Create invoice
   const invoiceResponse = await sevdeskFetch(apiToken, '/Invoice', {
     method: 'POST',
     body: JSON.stringify(invoiceData),
   });
 
-  const invoiceId = invoiceResponse.objects.id;
+  console.log('Invoice response:', JSON.stringify(invoiceResponse, null, 2));
+
+  // Handle different response formats
+  const invoiceObj = invoiceResponse.objects || invoiceResponse;
+  const invoiceId = invoiceObj.id;
+
+  if (!invoiceId) {
+    console.error('No invoice ID in response:', invoiceResponse);
+    throw new Error('sevDesk did not return an invoice ID');
+  }
+
+  console.log(`Invoice created with ID: ${invoiceId}, adding ${positions.length} positions...`);
 
   // Add positions to invoice
   for (const position of positions) {
+    const positionData = {
+      ...position,
+      invoice: {
+        id: invoiceId,
+        objectName: 'Invoice',
+      },
+    };
+
+    console.log('Adding position:', position.name);
     await sevdeskFetch(apiToken, '/InvoicePos', {
       method: 'POST',
-      body: JSON.stringify({
-        ...position,
-        invoice: {
-          id: invoiceId,
-          objectName: 'Invoice',
-        },
-      }),
+      body: JSON.stringify(positionData),
     });
   }
 
+  console.log(`Invoice ${invoiceObj.invoiceNumber || invoiceId} created successfully with ${positions.length} positions`);
+
   return {
     invoiceId: invoiceId.toString(),
-    invoiceNumber: invoiceResponse.objects.invoiceNumber || `RE-${invoiceId}`,
+    invoiceNumber: invoiceObj.invoiceNumber || `RE-${invoiceId}`,
   };
 }
 
