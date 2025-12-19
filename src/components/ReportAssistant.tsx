@@ -377,7 +377,7 @@ export const ReportAssistant = ({
 
   // Generate Modern PDF Report
   const generateModernPDF = async (customerData: CustomerReportData, config: PdfConfig = pdfConfig) => {
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     const customerEntries = getCustomerEntries(customerData.customer.id);
 
     // Use config for report title
@@ -395,7 +395,7 @@ export const ReportAssistant = ({
     const lightGray = { r: 243, g: 244, b: 246 }; // Light gray (#f3f4f6)
     const accent = { r: 249, g: 115, b: 22 }; // App accent (#f97316)
 
-    // Helper to add logo with proper scaling
+    // Helper to add logo with proper scaling and compression
     const addLogo = async (x: number, y: number, maxW: number, maxH: number) => {
       if (companyInfo?.logo) {
         try {
@@ -409,7 +409,35 @@ export const ReportAssistant = ({
             h = maxH;
             w = maxH * ratio;
           }
-          doc.addImage(companyInfo.logo, 'AUTO', x, y, w, h);
+
+          // Compress large logos to reduce PDF size
+          let logoData = companyInfo.logo;
+          if (dims.width > 400 || dims.height > 400 || companyInfo.logo.length > 50000) {
+            // Create canvas to resize/compress
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              // Scale down large images
+              const scale = Math.min(400 / dims.width, 400 / dims.height, 1);
+              canvas.width = Math.round(dims.width * scale);
+              canvas.height = Math.round(dims.height * scale);
+
+              const img = new Image();
+              await new Promise<void>((resolve) => {
+                img.onload = () => {
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  resolve();
+                };
+                img.onerror = () => resolve();
+                img.src = companyInfo.logo!;
+              });
+
+              // Convert to JPEG with compression (0.8 quality)
+              logoData = canvas.toDataURL('image/jpeg', 0.8);
+            }
+          }
+
+          doc.addImage(logoData, 'AUTO', x, y, w, h);
         } catch {
           // Ignore logo errors
         }
@@ -558,8 +586,8 @@ export const ReportAssistant = ({
 
           doc.setFillColor(rgb.r, rgb.g, rgb.b);
 
-          // Draw segment with more steps for smoother curves
-          const steps = Math.max(30, Math.floor(sweepAngle * 30));
+          // Draw segment with fewer steps for smaller file size (12-24 triangles per segment is enough)
+          const steps = Math.max(12, Math.min(24, Math.floor(sweepAngle * 8)));
           const angleStep = sweepAngle / steps;
 
           // Draw outer arc triangles
@@ -577,9 +605,9 @@ export const ReportAssistant = ({
           startAngle += sweepAngle;
         });
 
-        // Draw white center circle to create donut effect (hides triangle lines)
+        // Draw white center circle to create donut effect (fewer triangles)
         doc.setFillColor(255, 255, 255);
-        const circleSteps = 60;
+        const circleSteps = 24; // Reduced from 60
         for (let i = 0; i < circleSteps; i++) {
           const a1 = (i / circleSteps) * 2 * Math.PI;
           const a2 = ((i + 1) / circleSteps) * 2 * Math.PI;
