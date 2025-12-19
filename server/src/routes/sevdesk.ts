@@ -202,7 +202,10 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
     const userId = req.user!.id;
     const { customerId, entryIds, periodStart, periodEnd } = req.body;
 
+    console.log('[create-invoice] Starting invoice creation for customer:', customerId);
+
     if (!customerId || !entryIds || !periodStart || !periodEnd) {
+      console.log('[create-invoice] Missing required fields');
       return res.status(400).json({
         success: false,
         error: 'customerId, entryIds, periodStart, and periodEnd are required',
@@ -212,8 +215,10 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
     // Get config
     const config = await sevdeskService.getConfig(userId);
     if (!config?.apiToken) {
+      console.log('[create-invoice] No sevDesk API token configured');
       return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
     }
+    console.log('[create-invoice] Config loaded, API token exists:', !!config.apiToken);
 
     // Get customer info
     const customerResult = await query(
@@ -222,12 +227,15 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
     );
 
     if (customerResult.rows.length === 0) {
+      console.log('[create-invoice] Customer not found');
       return res.status(404).json({ success: false, error: 'Customer not found' });
     }
 
     const customer = customerResult.rows[0];
+    console.log('[create-invoice] Customer:', customer.name, 'sevDesk ID:', customer.sevdesk_customer_id);
 
     if (!customer.sevdesk_customer_id) {
+      console.log('[create-invoice] Customer not linked to sevDesk');
       return res.status(400).json({
         success: false,
         error: 'Customer is not linked to a sevDesk contact',
@@ -235,12 +243,15 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
     }
 
     const hourlyRate = customer.hourly_rate ? parseFloat(customer.hourly_rate) : config.defaultHourlyRate;
+    console.log('[create-invoice] Hourly rate:', hourlyRate);
 
     // Get time entries
     const entries = await sevdeskService.getUnbilledTimeEntries(userId, customerId, periodStart, periodEnd);
     const selectedEntries = entries.filter(e => entryIds.includes(e.id));
+    console.log('[create-invoice] Found', entries.length, 'entries, selected', selectedEntries.length);
 
     if (selectedEntries.length === 0) {
+      console.log('[create-invoice] No valid entries selected');
       return res.status(400).json({ success: false, error: 'No valid time entries selected' });
     }
 
@@ -248,8 +259,10 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
     const totalSeconds = selectedEntries.reduce((sum, e) => sum + e.duration, 0);
     const totalHours = Math.round((totalSeconds / 3600) * 100) / 100;
     const totalAmount = Math.round(totalHours * hourlyRate * 100) / 100;
+    console.log('[create-invoice] Total hours:', totalHours, 'amount:', totalAmount);
 
     // Create invoice in sevDesk
+    console.log('[create-invoice] Calling sevdeskService.createInvoice...');
     const invoice = await sevdeskService.createInvoice(
       config.apiToken,
       config,
@@ -259,8 +272,10 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       periodStart,
       periodEnd
     );
+    console.log('[create-invoice] Invoice created:', invoice.invoiceId, invoice.invoiceNumber);
 
     // Record the export
+    console.log('[create-invoice] Recording export...');
     const exportId = await sevdeskService.recordInvoiceExport(
       userId,
       customerId,
@@ -272,6 +287,7 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       totalHours,
       totalAmount
     );
+    console.log('[create-invoice] Export recorded:', exportId);
 
     res.json({
       success: true,
@@ -284,7 +300,7 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       },
     });
   } catch (error: any) {
-    console.error('Create invoice error:', error);
+    console.error('[create-invoice] ERROR:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
