@@ -48,8 +48,41 @@ const getWeekdayAbbr = (date: Date): string => {
 
 // Helper to format date range
 const formatDateRange = (start: Date, end: Date): string => {
+  const startMonth = start.getMonth();
+  const endMonth = end.getMonth();
+  const startYear = start.getFullYear();
+  const endYear = end.getFullYear();
+
+  // Check if it's a full quarter (Q1: Jan-Mar, Q2: Apr-Jun, Q3: Jul-Sep, Q4: Oct-Dec)
+  const isFirstOfMonth = start.getDate() === 1;
+  const isLastOfMonth = end.getDate() === new Date(endYear, endMonth + 1, 0).getDate();
+  const monthDiff = (endYear - startYear) * 12 + (endMonth - startMonth);
+
+  if (isFirstOfMonth && isLastOfMonth && monthDiff === 2 && startMonth % 3 === 0 && startYear === endYear) {
+    const quarter = Math.floor(startMonth / 3) + 1;
+    return `Q${quarter} ${startYear}`;
+  }
+
+  // Check if it's a full year
+  if (isFirstOfMonth && isLastOfMonth && startMonth === 0 && endMonth === 11 && startYear === endYear) {
+    return `Jahr ${startYear}`;
+  }
+
+  // Check if it's a full month
+  if (isFirstOfMonth && isLastOfMonth && startMonth === endMonth && startYear === endYear) {
+    return start.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  }
+
+  // Different months or years - show full dates
+  if (startMonth !== endMonth || startYear !== endYear) {
+    const startStr = start.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' });
+    const endStr = end.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
+    return `${startStr} – ${endStr}`;
+  }
+
+  // Same month - show abbreviated format
   const startStr = start.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric' });
-  const endStr = end.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const endStr = end.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
   return `${startStr} – ${endStr}`;
 };
 
