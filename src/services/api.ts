@@ -3495,6 +3495,55 @@ export const contractsApi = {
   },
 };
 
+// Import API (Clockodo, etc.)
+export const importApi = {
+  // Preview Clockodo CSV import
+  previewClockodo: async (csvContent: string): Promise<{
+    success: boolean;
+    data: {
+      rowCount: number;
+      totalDuration: number;
+      totalHours: string;
+      customers: Array<{ name: string; nummer: string; matchedId?: string }>;
+      projects: Array<{ name: string; customerName: string; matchedId?: string }>;
+      sampleRows: Array<any>;
+      existingCustomers: Array<{ id: string; name: string }>;
+      existingProjects: Array<{ id: string; name: string; customerName: string; customerId: string }>;
+    };
+  }> => {
+    return authFetch('/import/clockodo/preview', {
+      method: 'POST',
+      body: JSON.stringify({ csvContent }),
+    });
+  },
+
+  // Execute Clockodo CSV import
+  executeClockodo: async (data: {
+    csvContent: string;
+    customerMapping?: Record<string, string>;
+    projectMapping?: Record<string, string>;
+    defaultProjectId?: string;
+    createMissingProjects?: boolean;
+    skipDuplicates?: boolean;
+  }): Promise<{
+    success: boolean;
+    data: {
+      importedCount: number;
+      skippedCount: number;
+      duplicateCount: number;
+      totalRows: number;
+      createdCustomers: number;
+      createdProjects: number;
+      errors: string[];
+    };
+  }> => {
+    return authFetch('/import/clockodo/execute', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -3510,4 +3559,5 @@ export default {
   organizations: organizationsApi,
   tasks: tasksApi,
   contracts: contractsApi,
+  import: importApi,
 };

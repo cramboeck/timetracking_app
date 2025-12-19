@@ -32,6 +32,7 @@ import leadsRoutes from './routes/leads';
 import tasksRoutes from './routes/tasks';
 import aiRoutes from './routes/ai';
 import contractsRoutes from './routes/contracts';
+import importRoutes from './routes/import';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -106,6 +107,7 @@ app.use('/api/leads', leadsRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/contracts', contractsRoutes);
+app.use('/api/import', importRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
