@@ -6,6 +6,7 @@ import { transformRows, transformRow } from '../utils/dbTransform';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import crypto from 'crypto';
+import * as aiService from '../services/aiService';
 
 const router = Router();
 
@@ -54,7 +55,38 @@ const generateContentSchema = z.object({
   tone: z.enum(['professional', 'casual', 'humorous', 'informative']).optional(),
   includeHashtags: z.boolean().optional(),
   includeEmoji: z.boolean().optional(),
-  customerId: z.string().uuid().optional()
+  customerId: z.string().uuid().optional(),
+  contentCategory: z.string().max(50).optional()
+});
+
+const batchGenerateSchema = z.object({
+  topics: z.array(z.string().min(1).max(500)).min(1).max(20),
+  platform: z.enum(['linkedin', 'twitter', 'facebook', 'instagram', 'all']),
+  tone: z.enum(['professional', 'casual', 'humorous', 'informative']).optional(),
+  includeHashtags: z.boolean().optional(),
+  includeEmoji: z.boolean().optional(),
+  contentCategory: z.string().max(50).optional(),
+  autoSchedule: z.boolean().optional(),
+  startDate: z.string().datetime().optional(),
+  postsPerDay: z.number().min(1).max(10).optional()
+});
+
+const generateIdeasSchema = z.object({
+  category: z.string().min(1).max(100),
+  count: z.number().min(1).max(30).optional()
+});
+
+const queueSettingsSchema = z.object({
+  enabled: z.boolean(),
+  postsPerDay: z.number().min(1).max(10),
+  preferredTimes: z.array(z.string()).optional(), // e.g., ["09:00", "12:00", "17:00"]
+  weekendPosting: z.boolean().optional(),
+  contentMix: z.object({
+    educational: z.number().min(0).max(100).optional(),
+    promotional: z.number().min(0).max(100).optional(),
+    behindTheScenes: z.number().min(0).max(100).optional(),
+    news: z.number().min(0).max(100).optional()
+  }).optional()
 });
 
 // ============================================
@@ -491,12 +523,13 @@ router.delete('/accounts/:id', authenticateToken, attachOrganization, requireOrg
 // AI Content Generation
 // ============================================
 
-// POST /api/social-media/generate - Generate content with AI
+// POST /api/social-media/generate - Generate single post with AI
 router.post('/generate', authenticateToken, attachOrganization, requireOrgRole('member'), validate(generateContentSchema), async (req: AuthRequest, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { topic, platform, tone, includeHashtags, includeEmoji, customerId } = req.body;
+    const userId = req.user!.id;
+    const { topic, platform, tone, includeHashtags, includeEmoji, customerId, contentCategory } = req.body;
 
     // Get customer info if specified
     let customerContext = '';
@@ -506,69 +539,354 @@ router.post('/generate', authenticateToken, attachOrganization, requireOrgRole('
         [customerId, organizationId]
       );
       if (customerResult.rows.length > 0) {
-        customerContext = `\nKunde: ${customerResult.rows[0].name}`;
+        customerContext = customerResult.rows[0].name;
       }
     }
 
-    // Platform-specific guidelines
-    const platformGuidelines: Record<string, string> = {
-      linkedin: 'LinkedIn: Professionell, bis zu 3000 Zeichen, keine übermäßigen Emojis, 3-5 relevante Hashtags am Ende',
-      twitter: 'Twitter/X: Maximal 280 Zeichen, prägnant, 1-3 Hashtags integriert',
-      facebook: 'Facebook: Locker aber informativ, bis zu 500 Zeichen optimal, Emojis erlaubt',
-      instagram: 'Instagram: Visuell orientiert, Emojis erwünscht, bis zu 30 Hashtags möglich',
-      all: 'Erstelle einen universellen Post der auf allen Plattformen funktioniert, ca. 200-300 Zeichen'
-    };
-
-    const toneGuidelines: Record<string, string> = {
-      professional: 'Professioneller, seriöser Ton',
-      casual: 'Lockerer, freundlicher Ton',
-      humorous: 'Humorvoller, unterhaltsamer Ton',
-      informative: 'Informativer, lehrreicher Ton'
-    };
-
-    const prompt = `Erstelle einen Social Media Post auf Deutsch.
-
-Thema: ${topic}${customerContext}
-
-Plattform: ${platformGuidelines[platform]}
-Ton: ${toneGuidelines[tone || 'professional']}
-${includeHashtags !== false ? 'Füge passende Hashtags hinzu.' : 'Keine Hashtags.'}
-${includeEmoji ? 'Verwende passende Emojis.' : 'Keine Emojis verwenden.'}
-
-Antworte NUR mit dem fertigen Post-Text, keine Erklärungen.`;
-
-    // Call the AI service (reuse existing infrastructure)
-    const aiResponse = await fetch(`http://localhost:${process.env.PORT || 3001}/api/ai/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': req.headers.authorization || ''
-      },
-      body: JSON.stringify({
-        message: prompt,
-        context: 'social_media_generation'
-      })
+    const result = await aiService.generateSocialMediaContent(userId, {
+      topic,
+      platform,
+      tone: tone || 'professional',
+      includeHashtags: includeHashtags !== false,
+      includeEmoji: includeEmoji || false,
+      customerContext,
+      contentCategory
     });
-
-    if (!aiResponse.ok) {
-      throw new Error('AI generation failed');
-    }
-
-    const aiResult = await aiResponse.json() as { response?: string };
-
-    // Extract hashtags from generated content
-    const hashtagRegex = /#[\wäöüÄÖÜß]+/g;
-    const extractedHashtags = (aiResult.response?.match(hashtagRegex) || []) as string[];
 
     res.json({
-      content: aiResult.response || '',
-      hashtags: extractedHashtags,
-      platform,
+      content: result.content,
+      hashtags: result.hashtags,
+      platform: result.platform,
+      characterCount: result.characterCount,
       prompt: topic
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Generate content error:', error);
-    res.status(500).json({ error: 'Failed to generate content' });
+    res.status(500).json({ error: error.message || 'Failed to generate content' });
+  }
+});
+
+// POST /api/social-media/generate-batch - Generate multiple posts with AI
+router.post('/generate-batch', authenticateToken, attachOrganization, requireOrgRole('member'), validate(batchGenerateSchema), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const { topics, platform, tone, includeHashtags, includeEmoji, contentCategory, autoSchedule, startDate, postsPerDay } = req.body;
+
+    // Generate posts with AI
+    const generatedPosts = await aiService.generateBatchSocialMediaContent(userId, {
+      topics,
+      platform,
+      tone: tone || 'professional',
+      includeHashtags: includeHashtags !== false,
+      includeEmoji: includeEmoji || false,
+      contentCategory,
+      schedulingStrategy: autoSchedule ? 'spread' : 'custom',
+      startDate: startDate ? new Date(startDate) : undefined,
+      postsPerDay: postsPerDay || 2
+    });
+
+    // If autoSchedule is enabled, create posts in the database with scheduled times
+    if (autoSchedule) {
+      const createdPosts = [];
+      const baseDate = startDate ? new Date(startDate) : new Date();
+      const perDay = postsPerDay || 2;
+      const preferredHours = [9, 12, 15, 17]; // Default posting times
+
+      for (let i = 0; i < generatedPosts.length; i++) {
+        const post = generatedPosts[i];
+        const dayOffset = Math.floor(i / perDay);
+        const timeIndex = i % perDay;
+
+        const scheduledDate = new Date(baseDate);
+        scheduledDate.setDate(scheduledDate.getDate() + dayOffset);
+
+        // Skip weekends
+        while (scheduledDate.getDay() === 0 || scheduledDate.getDay() === 6) {
+          scheduledDate.setDate(scheduledDate.getDate() + 1);
+        }
+
+        scheduledDate.setHours(preferredHours[timeIndex % preferredHours.length], 0, 0, 0);
+
+        const id = crypto.randomUUID();
+        await pool.query(
+          `INSERT INTO social_media_posts (id, user_id, organization_id, title, content, hashtags, status, scheduled_at, ai_generated, ai_prompt, content_category)
+           VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, true, $8, $9)`,
+          [
+            id,
+            userId,
+            organizationId,
+            topics[i] ? topics[i].substring(0, 100) : null,
+            post.content,
+            post.hashtags,
+            scheduledDate,
+            topics[i],
+            contentCategory || null
+          ]
+        );
+
+        createdPosts.push({
+          id,
+          content: post.content,
+          hashtags: post.hashtags,
+          scheduledAt: scheduledDate,
+          topic: topics[i]
+        });
+      }
+
+      res.json({
+        success: true,
+        posts: createdPosts,
+        message: `${createdPosts.length} Posts erstellt und geplant`
+      });
+    } else {
+      // Just return generated content without saving
+      res.json({
+        success: true,
+        posts: generatedPosts.map((post, i) => ({
+          content: post.content,
+          hashtags: post.hashtags,
+          platform: post.platform,
+          characterCount: post.characterCount,
+          topic: topics[i]
+        }))
+      });
+    }
+  } catch (error: any) {
+    console.error('Batch generate error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate batch content' });
+  }
+});
+
+// POST /api/social-media/generate-ideas - Generate content ideas with AI
+router.post('/generate-ideas', authenticateToken, attachOrganization, requireOrgRole('member'), validate(generateIdeasSchema), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { category, count } = req.body;
+
+    const ideas = await aiService.generateContentIdeas(userId, category, count || 10);
+
+    res.json({
+      success: true,
+      ideas,
+      category
+    });
+  } catch (error: any) {
+    console.error('Generate ideas error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate content ideas' });
+  }
+});
+
+// ============================================
+// Queue & Auto-Scheduling
+// ============================================
+
+// GET /api/social-media/queue - Get posts in queue (scheduled but not published)
+router.get('/queue', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await pool.query(
+      `SELECT p.*, c.name as customer_name
+       FROM social_media_posts p
+       LEFT JOIN customers c ON p.customer_id = c.id
+       WHERE p.organization_id = $1 AND p.status = 'scheduled' AND p.scheduled_at > NOW()
+       ORDER BY p.scheduled_at ASC`,
+      [organizationId]
+    );
+
+    res.json(transformRows(result.rows));
+  } catch (error) {
+    console.error('Get queue error:', error);
+    res.status(500).json({ error: 'Failed to get queue' });
+  }
+});
+
+// POST /api/social-media/queue/add - Add post to queue (auto-schedule)
+router.post('/queue/add', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const { content, hashtags, platforms, title, contentCategory } = req.body;
+
+    // Find the next available slot
+    const lastScheduled = await pool.query(
+      `SELECT scheduled_at FROM social_media_posts
+       WHERE organization_id = $1 AND status = 'scheduled' AND scheduled_at > NOW()
+       ORDER BY scheduled_at DESC LIMIT 1`,
+      [organizationId]
+    );
+
+    // Get queue settings or use defaults
+    const settingsResult = await pool.query(
+      `SELECT * FROM social_media_queue_settings WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    const settings = settingsResult.rows[0] || {
+      posts_per_day: 2,
+      preferred_times: ['09:00', '15:00'],
+      weekend_posting: false
+    };
+
+    // Calculate next slot
+    let nextSlot = new Date();
+    if (lastScheduled.rows.length > 0) {
+      nextSlot = new Date(lastScheduled.rows[0].scheduled_at);
+    }
+
+    // Find next available time based on settings
+    const preferredTimes = settings.preferred_times || ['09:00', '15:00'];
+    const postsToday = await pool.query(
+      `SELECT COUNT(*) FROM social_media_posts
+       WHERE organization_id = $1 AND status = 'scheduled'
+       AND DATE(scheduled_at) = DATE($2)`,
+      [organizationId, nextSlot]
+    );
+
+    if (parseInt(postsToday.rows[0].count) >= settings.posts_per_day) {
+      // Move to next day
+      nextSlot.setDate(nextSlot.getDate() + 1);
+    }
+
+    // Skip weekends if setting is disabled
+    if (!settings.weekend_posting) {
+      while (nextSlot.getDay() === 0 || nextSlot.getDay() === 6) {
+        nextSlot.setDate(nextSlot.getDate() + 1);
+      }
+    }
+
+    // Set to preferred time
+    const timeIndex = parseInt(postsToday.rows[0].count) % preferredTimes.length;
+    const [hours, minutes] = preferredTimes[timeIndex].split(':').map(Number);
+    nextSlot.setHours(hours, minutes, 0, 0);
+
+    // Ensure it's in the future
+    if (nextSlot <= new Date()) {
+      nextSlot.setDate(nextSlot.getDate() + 1);
+      nextSlot.setHours(parseInt(preferredTimes[0].split(':')[0]), parseInt(preferredTimes[0].split(':')[1]), 0, 0);
+    }
+
+    const id = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO social_media_posts (id, user_id, organization_id, title, content, hashtags, status, scheduled_at, content_category)
+       VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, $8)`,
+      [id, userId, organizationId, title || null, content, hashtags || [], nextSlot, contentCategory || null]
+    );
+
+    const newPost = await pool.query(
+      `SELECT * FROM social_media_posts WHERE id = $1`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      post: transformRow(newPost.rows[0]),
+      scheduledAt: nextSlot
+    });
+  } catch (error) {
+    console.error('Add to queue error:', error);
+    res.status(500).json({ error: 'Failed to add to queue' });
+  }
+});
+
+// GET /api/social-media/queue/settings - Get queue settings
+router.get('/queue/settings', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await pool.query(
+      `SELECT * FROM social_media_queue_settings WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      // Return defaults
+      res.json({
+        enabled: true,
+        postsPerDay: 2,
+        preferredTimes: ['09:00', '15:00'],
+        weekendPosting: false,
+        contentMix: {
+          educational: 40,
+          promotional: 30,
+          behindTheScenes: 20,
+          news: 10
+        }
+      });
+    } else {
+      res.json(transformRow(result.rows[0]));
+    }
+  } catch (error) {
+    console.error('Get queue settings error:', error);
+    res.status(500).json({ error: 'Failed to get queue settings' });
+  }
+});
+
+// PUT /api/social-media/queue/settings - Update queue settings
+router.put('/queue/settings', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(queueSettingsSchema), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { enabled, postsPerDay, preferredTimes, weekendPosting, contentMix } = req.body;
+
+    await pool.query(
+      `INSERT INTO social_media_queue_settings (organization_id, enabled, posts_per_day, preferred_times, weekend_posting, content_mix)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (organization_id) DO UPDATE SET
+         enabled = $2,
+         posts_per_day = $3,
+         preferred_times = $4,
+         weekend_posting = $5,
+         content_mix = $6,
+         updated_at = NOW()`,
+      [organizationId, enabled, postsPerDay, preferredTimes || ['09:00', '15:00'], weekendPosting || false, contentMix || {}]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update queue settings error:', error);
+    res.status(500).json({ error: 'Failed to update queue settings' });
+  }
+});
+
+// POST /api/social-media/queue/reorder - Reorder posts in queue
+router.post('/queue/reorder', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { postIds } = req.body; // Array of post IDs in new order
+
+    if (!Array.isArray(postIds) || postIds.length === 0) {
+      return res.status(400).json({ error: 'postIds array required' });
+    }
+
+    // Get current scheduled times
+    const currentPosts = await pool.query(
+      `SELECT id, scheduled_at FROM social_media_posts
+       WHERE organization_id = $1 AND id = ANY($2) AND status = 'scheduled'
+       ORDER BY scheduled_at ASC`,
+      [organizationId, postIds]
+    );
+
+    const times = currentPosts.rows.map(p => p.scheduled_at);
+
+    // Reassign times based on new order
+    for (let i = 0; i < postIds.length && i < times.length; i++) {
+      await pool.query(
+        `UPDATE social_media_posts SET scheduled_at = $1, updated_at = NOW() WHERE id = $2`,
+        [times[i], postIds[i]]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Reorder queue error:', error);
+    res.status(500).json({ error: 'Failed to reorder queue' });
   }
 });
 

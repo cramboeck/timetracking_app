@@ -2585,6 +2585,58 @@ export async function initializeDatabase() {
       )
     `);
 
+    // Social media queue settings - auto-scheduling configuration
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_queue_settings (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        organization_id TEXT UNIQUE NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        enabled BOOLEAN DEFAULT true,
+        posts_per_day INTEGER DEFAULT 2,
+        preferred_times TEXT[] DEFAULT ARRAY['09:00', '15:00'],
+        weekend_posting BOOLEAN DEFAULT false,
+        content_mix JSONB DEFAULT '{"educational": 40, "promotional": 30, "behindTheScenes": 20, "news": 10}',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Social media content categories - for organizing and balancing content
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_content_categories (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        color TEXT DEFAULT '#6366f1',
+        target_percentage INTEGER DEFAULT 25,
+        description TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(organization_id, name)
+      )
+    `);
+
+    // Add content_category column to posts if not exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'social_media_posts' AND column_name = 'content_category') THEN
+          ALTER TABLE social_media_posts ADD COLUMN content_category TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'social_media_posts' AND column_name = 'evergreen') THEN
+          ALTER TABLE social_media_posts ADD COLUMN evergreen BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'social_media_posts' AND column_name = 'recycle_count') THEN
+          ALTER TABLE social_media_posts ADD COLUMN recycle_count INTEGER DEFAULT 0;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'social_media_posts' AND column_name = 'last_recycled_at') THEN
+          ALTER TABLE social_media_posts ADD COLUMN last_recycled_at TIMESTAMP;
+        END IF;
+      END $$;
+    `);
+
     // Create indexes for social media tables
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_accounts_user ON social_media_accounts(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_accounts_org ON social_media_accounts(organization_id)');

@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Calendar, List, Plus, Sparkles, Hash, FileText, Settings, Send,
   ChevronLeft, ChevronRight, Edit2, Trash2, Copy, Clock, Check,
-  Linkedin, Twitter, Facebook, Instagram, X, Loader2, AlertCircle
+  Linkedin, Twitter, Facebook, Instagram, X, Loader2, AlertCircle,
+  Layers, Lightbulb, ListOrdered, Zap
 } from 'lucide-react';
 import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount } from '../services/api';
 import { Customer } from '../types';
@@ -12,7 +13,7 @@ interface SocialMediaManagerProps {
   customers?: Customer[];
 }
 
-type ViewMode = 'calendar' | 'list' | 'templates' | 'hashtags' | 'accounts';
+type ViewMode = 'calendar' | 'list' | 'templates' | 'hashtags' | 'accounts' | 'queue' | 'batch';
 type Platform = 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
@@ -78,6 +79,35 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
   // Hashtag Group Editor state
   const [showHashtagEditor, setShowHashtagEditor] = useState(false);
+
+  // Batch Generation state
+  const [batchTopics, setBatchTopics] = useState('');
+  const [batchPlatform, setBatchPlatform] = useState<Platform>('linkedin');
+  const [batchTone, setBatchTone] = useState<'professional' | 'casual' | 'humorous' | 'informative'>('professional');
+  const [batchIncludeHashtags, setBatchIncludeHashtags] = useState(true);
+  const [batchIncludeEmoji, setBatchIncludeEmoji] = useState(false);
+  const [batchAutoSchedule, setBatchAutoSchedule] = useState(true);
+  const [batchStartDate, setBatchStartDate] = useState('');
+  const [batchPostsPerDay, setBatchPostsPerDay] = useState(2);
+  const [batchGenerating, setBatchGenerating] = useState(false);
+  const [batchResults, setBatchResults] = useState<Array<{ content: string; hashtags: string[]; topic: string; scheduledAt?: string }>>([]);
+
+  // Ideas Generation state
+  const [showIdeasGenerator, setShowIdeasGenerator] = useState(false);
+  const [ideasCategory, setIdeasCategory] = useState('');
+  const [ideasCount, setIdeasCount] = useState(10);
+  const [generatedIdeas, setGeneratedIdeas] = useState<string[]>([]);
+  const [generatingIdeas, setGeneratingIdeas] = useState(false);
+
+  // Queue state
+  const [queue, setQueue] = useState<SocialMediaPost[]>([]);
+  const [queueSettings, setQueueSettings] = useState({
+    enabled: true,
+    postsPerDay: 2,
+    preferredTimes: ['09:00', '15:00'],
+    weekendPosting: false,
+    contentMix: { educational: 40, promotional: 30, behindTheScenes: 20, news: 10 }
+  });
   const [hashtagGroupName, setHashtagGroupName] = useState('');
   const [hashtagGroupTags, setHashtagGroupTags] = useState('');
 
@@ -119,6 +149,92 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       setPosts(calendarPosts);
     } catch (err) {
       console.error('Failed to load calendar posts:', err);
+    }
+  };
+
+  const loadQueue = async () => {
+    try {
+      const [queueData, settingsData] = await Promise.all([
+        socialMediaApi.getQueue(),
+        socialMediaApi.getQueueSettings(),
+      ]);
+      setQueue(queueData);
+      setQueueSettings(settingsData);
+    } catch (err) {
+      console.error('Failed to load queue:', err);
+    }
+  };
+
+  // Load queue when switching to queue view
+  useEffect(() => {
+    if (viewMode === 'queue') {
+      loadQueue();
+    }
+  }, [viewMode]);
+
+  // Batch generation
+  const generateBatch = async () => {
+    const topics = batchTopics.split('\n').map(t => t.trim()).filter(t => t.length > 0);
+    if (topics.length === 0) return;
+
+    setBatchGenerating(true);
+    setBatchResults([]);
+    try {
+      const result = await socialMediaApi.generateBatch({
+        topics,
+        platform: batchPlatform,
+        tone: batchTone,
+        includeHashtags: batchIncludeHashtags,
+        includeEmoji: batchIncludeEmoji,
+        autoSchedule: batchAutoSchedule,
+        startDate: batchStartDate || undefined,
+        postsPerDay: batchPostsPerDay,
+      });
+      setBatchResults(result.posts);
+      if (batchAutoSchedule) {
+        // Reload posts to show newly created ones
+        loadData();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Batch-Generierung fehlgeschlagen');
+    } finally {
+      setBatchGenerating(false);
+    }
+  };
+
+  // Ideas generation
+  const generateIdeas = async () => {
+    if (!ideasCategory.trim()) return;
+
+    setGeneratingIdeas(true);
+    setGeneratedIdeas([]);
+    try {
+      const result = await socialMediaApi.generateIdeas({
+        category: ideasCategory,
+        count: ideasCount,
+      });
+      setGeneratedIdeas(result.ideas);
+    } catch (err: any) {
+      setError(err.message || 'Ideen-Generierung fehlgeschlagen');
+    } finally {
+      setGeneratingIdeas(false);
+    }
+  };
+
+  // Use idea for batch generation
+  const useIdeasForBatch = () => {
+    setBatchTopics(generatedIdeas.join('\n'));
+    setShowIdeasGenerator(false);
+    setViewMode('batch');
+  };
+
+  // Add single post to queue
+  const addToQueue = async (content: string, hashtags: string[]) => {
+    try {
+      await socialMediaApi.addToQueue({ content, hashtags });
+      loadQueue();
+    } catch (err) {
+      console.error('Failed to add to queue:', err);
     }
   };
 
@@ -335,6 +451,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         {[
           { id: 'calendar', label: 'Kalender', icon: Calendar },
           { id: 'list', label: 'Posts', icon: List },
+          { id: 'queue', label: 'Queue', icon: ListOrdered },
+          { id: 'batch', label: 'Batch', icon: Layers },
           { id: 'templates', label: 'Vorlagen', icon: FileText },
           { id: 'hashtags', label: 'Hashtags', icon: Hash },
           { id: 'accounts', label: 'Konten', icon: Settings },
@@ -632,6 +750,354 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           </div>
         </div>
       )}
+
+      {/* Queue View */}
+      {viewMode === 'queue' && (
+        <div className="space-y-4">
+          {/* Queue Settings Summary */}
+          <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold dark:text-white flex items-center gap-2">
+                <Settings size={18} />
+                Queue-Einstellungen
+              </h3>
+              <span className={`px-2 py-1 rounded text-xs ${queueSettings.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                {queueSettings.enabled ? 'Aktiv' : 'Pausiert'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-gray-500">Posts/Tag:</span>
+                <span className="ml-2 font-medium dark:text-white">{queueSettings.postsPerDay}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Zeiten:</span>
+                <span className="ml-2 font-medium dark:text-white">{queueSettings.preferredTimes.join(', ')}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Wochenende:</span>
+                <span className="ml-2 font-medium dark:text-white">{queueSettings.weekendPosting ? 'Ja' : 'Nein'}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">In Queue:</span>
+                <span className="ml-2 font-medium dark:text-white">{queue.length} Posts</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Queue List */}
+          <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+            <h3 className="font-semibold dark:text-white mb-4">Geplante Posts</h3>
+            {queue.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">
+                Keine Posts in der Queue. Nutze "Batch" um mehrere Posts auf einmal zu generieren.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {queue.map((post, idx) => (
+                  <div
+                    key={post.id}
+                    className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg"
+                  >
+                    <span className="text-gray-400 font-mono text-sm">{idx + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm dark:text-white line-clamp-2">{post.content}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        <Clock size={12} className="inline mr-1" />
+                        {post.scheduledAt ? new Date(post.scheduledAt).toLocaleString('de-DE') : 'Nicht geplant'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => openPostEditor(post)}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-dark-300 rounded"
+                    >
+                      <Edit2 size={16} className="text-gray-500" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Batch Generation View */}
+      {viewMode === 'batch' && (
+        <div className="space-y-4">
+          {/* Ideas Generator Button */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowIdeasGenerator(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:opacity-90"
+            >
+              <Lightbulb size={18} />
+              Content-Ideen generieren
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Input Section */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+              <h3 className="font-semibold dark:text-white mb-4 flex items-center gap-2">
+                <Zap size={18} />
+                Batch-Generierung
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Themen (ein Thema pro Zeile)
+                  </label>
+                  <textarea
+                    value={batchTopics}
+                    onChange={(e) => setBatchTopics(e.target.value)}
+                    placeholder="Cloud Computing für KMUs&#10;Cybersecurity-Tipps&#10;Digitalisierung im Alltag&#10;Home Office Best Practices"
+                    rows={6}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {batchTopics.split('\n').filter(t => t.trim()).length} Themen erkannt
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Plattform
+                    </label>
+                    <select
+                      value={batchPlatform}
+                      onChange={(e) => setBatchPlatform(e.target.value as Platform)}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                    >
+                      <option value="linkedin">LinkedIn</option>
+                      <option value="twitter">Twitter/X</option>
+                      <option value="facebook">Facebook</option>
+                      <option value="instagram">Instagram</option>
+                      <option value="all">Alle Plattformen</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Tonalität
+                    </label>
+                    <select
+                      value={batchTone}
+                      onChange={(e) => setBatchTone(e.target.value as typeof batchTone)}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                    >
+                      <option value="professional">Professionell</option>
+                      <option value="casual">Locker</option>
+                      <option value="humorous">Humorvoll</option>
+                      <option value="informative">Informativ</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={batchIncludeHashtags}
+                      onChange={(e) => setBatchIncludeHashtags(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm dark:text-gray-300">Hashtags</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={batchIncludeEmoji}
+                      onChange={(e) => setBatchIncludeEmoji(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm dark:text-gray-300">Emojis</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={batchAutoSchedule}
+                      onChange={(e) => setBatchAutoSchedule(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm dark:text-gray-300">Auto-Planen</span>
+                  </label>
+                </div>
+
+                {batchAutoSchedule && (
+                  <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Start-Datum
+                      </label>
+                      <input
+                        type="date"
+                        value={batchStartDate}
+                        onChange={(e) => setBatchStartDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Posts/Tag
+                      </label>
+                      <input
+                        type="number"
+                        value={batchPostsPerDay}
+                        onChange={(e) => setBatchPostsPerDay(parseInt(e.target.value) || 1)}
+                        min={1}
+                        max={5}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={generateBatch}
+                  disabled={batchGenerating || batchTopics.split('\n').filter(t => t.trim()).length === 0}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                >
+                  {batchGenerating ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Generiere Posts...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={18} />
+                      {batchAutoSchedule ? 'Generieren & Planen' : 'Posts generieren'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Results Section */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+              <h3 className="font-semibold dark:text-white mb-4">
+                Generierte Posts ({batchResults.length})
+              </h3>
+
+              {batchResults.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">
+                  Gib links Themen ein und klicke auf "Generieren" um Posts zu erstellen.
+                </p>
+              ) : (
+                <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                  {batchResults.map((post, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-gray-50 dark:bg-dark-200 rounded-lg"
+                    >
+                      <p className="text-xs text-gray-500 mb-1">{post.topic}</p>
+                      <p className="text-sm dark:text-white whitespace-pre-wrap">{post.content}</p>
+                      {post.scheduledAt && (
+                        <p className="text-xs text-green-600 mt-2">
+                          <Clock size={12} className="inline mr-1" />
+                          Geplant: {new Date(post.scheduledAt).toLocaleString('de-DE')}
+                        </p>
+                      )}
+                      {post.hashtags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {post.hashtags.map((tag, i) => (
+                            <span key={i} className="text-xs text-blue-600 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ideas Generator Modal */}
+      <Modal
+        isOpen={showIdeasGenerator}
+        onClose={() => setShowIdeasGenerator(false)}
+        title="Content-Ideen generieren"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Kategorie/Themenbereich
+            </label>
+            <input
+              type="text"
+              value={ideasCategory}
+              onChange={(e) => setIdeasCategory(e.target.value)}
+              placeholder="z.B. Cloud Computing, Cybersecurity, Digitalisierung..."
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Anzahl Ideen: {ideasCount}
+            </label>
+            <input
+              type="range"
+              value={ideasCount}
+              onChange={(e) => setIdeasCount(parseInt(e.target.value))}
+              min={5}
+              max={20}
+              className="w-full"
+            />
+          </div>
+
+          <button
+            onClick={generateIdeas}
+            disabled={generatingIdeas || !ideasCategory.trim()}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+          >
+            {generatingIdeas ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Generiere Ideen...
+              </>
+            ) : (
+              <>
+                <Lightbulb size={18} />
+                Ideen generieren
+              </>
+            )}
+          </button>
+
+          {generatedIdeas.length > 0 && (
+            <>
+              <div className="border-t pt-4 mt-4">
+                <h4 className="font-medium dark:text-white mb-3">Generierte Ideen:</h4>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {generatedIdeas.map((idea, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-dark-200 rounded"
+                    >
+                      <span className="text-gray-400 text-sm">{idx + 1}.</span>
+                      <span className="text-sm dark:text-white flex-1">{idea}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={useIdeasForBatch}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:opacity-90"
+              >
+                <Layers size={18} />
+                Alle Ideen für Batch verwenden
+              </button>
+            </>
+          )}
+        </div>
+      </Modal>
 
       {/* Post Editor Modal */}
       <Modal

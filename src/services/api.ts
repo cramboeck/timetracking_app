@@ -3777,10 +3777,91 @@ export const socialMediaApi = {
     includeHashtags?: boolean;
     includeEmoji?: boolean;
     customerId?: string;
-  }): Promise<{ content: string; hashtags: string[]; platform: string; prompt: string }> => {
+    contentCategory?: string;
+  }): Promise<{ content: string; hashtags: string[]; platform: string; characterCount: number; prompt: string }> => {
     return authFetch('/social-media/generate', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  // Batch AI Generation
+  generateBatch: async (data: {
+    topics: string[];
+    platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+    tone?: 'professional' | 'casual' | 'humorous' | 'informative';
+    includeHashtags?: boolean;
+    includeEmoji?: boolean;
+    contentCategory?: string;
+    autoSchedule?: boolean;
+    startDate?: string;
+    postsPerDay?: number;
+  }): Promise<{
+    success: boolean;
+    posts: Array<{ id?: string; content: string; hashtags: string[]; platform?: string; characterCount?: number; topic: string; scheduledAt?: string }>;
+    message?: string;
+  }> => {
+    return authFetch('/social-media/generate-batch', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // AI Ideas Generation
+  generateIdeas: async (data: {
+    category: string;
+    count?: number;
+  }): Promise<{ success: boolean; ideas: string[]; category: string }> => {
+    return authFetch('/social-media/generate-ideas', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Queue Management
+  getQueue: async (): Promise<SocialMediaPost[]> => {
+    return authFetch('/social-media/queue');
+  },
+
+  addToQueue: async (data: {
+    content: string;
+    hashtags?: string[];
+    title?: string;
+    contentCategory?: string;
+  }): Promise<{ success: boolean; post: SocialMediaPost; scheduledAt: string }> => {
+    return authFetch('/social-media/queue/add', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getQueueSettings: async (): Promise<{
+    enabled: boolean;
+    postsPerDay: number;
+    preferredTimes: string[];
+    weekendPosting: boolean;
+    contentMix: { educational?: number; promotional?: number; behindTheScenes?: number; news?: number };
+  }> => {
+    return authFetch('/social-media/queue/settings');
+  },
+
+  updateQueueSettings: async (data: {
+    enabled: boolean;
+    postsPerDay: number;
+    preferredTimes?: string[];
+    weekendPosting?: boolean;
+    contentMix?: { educational?: number; promotional?: number; behindTheScenes?: number; news?: number };
+  }): Promise<{ success: boolean }> => {
+    return authFetch('/social-media/queue/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  reorderQueue: async (postIds: string[]): Promise<{ success: boolean }> => {
+    return authFetch('/social-media/queue/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ postIds }),
     });
   },
 

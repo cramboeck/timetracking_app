@@ -1206,3 +1206,265 @@ Gib NUR das JSON zurück, ohne Erklärungen oder Markdown-Formatierung.`;
     };
   }
 }
+
+// ============================================
+// Social Media Content Generation
+// ============================================
+
+const SOCIAL_MEDIA_SYSTEM_PROMPT = `Du bist ein erfahrener Social Media Manager und Content Creator für IT-Unternehmen.
+Deine Aufgabe ist es, ansprechende, professionelle Social Media Posts zu erstellen.
+Du kennst die Best Practices für alle gängigen Plattformen (LinkedIn, Twitter/X, Facebook, Instagram).
+Antworte immer auf Deutsch und liefere nur den fertigen Post-Text ohne Erklärungen.`;
+
+export interface SocialMediaGenerationOptions {
+  topic: string;
+  platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+  tone: 'professional' | 'casual' | 'humorous' | 'informative';
+  includeHashtags: boolean;
+  includeEmoji: boolean;
+  customerContext?: string;
+  contentCategory?: string;
+}
+
+export interface GeneratedPost {
+  content: string;
+  hashtags: string[];
+  platform: string;
+  characterCount: number;
+}
+
+export async function generateSocialMediaContent(
+  userId: string,
+  options: SocialMediaGenerationOptions
+): Promise<GeneratedPost> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const platformGuidelines: Record<string, string> = {
+    linkedin: 'LinkedIn: Professionell, bis zu 3000 Zeichen, keine übermäßigen Emojis, 3-5 relevante Hashtags am Ende',
+    twitter: 'Twitter/X: Maximal 280 Zeichen, prägnant, 1-3 Hashtags integriert',
+    facebook: 'Facebook: Locker aber informativ, bis zu 500 Zeichen optimal, Emojis erlaubt',
+    instagram: 'Instagram: Visuell orientiert, Emojis erwünscht, bis zu 30 Hashtags möglich',
+    all: 'Erstelle einen universellen Post der auf allen Plattformen funktioniert, ca. 200-280 Zeichen'
+  };
+
+  const toneGuidelines: Record<string, string> = {
+    professional: 'Professioneller, seriöser Ton',
+    casual: 'Lockerer, freundlicher Ton',
+    humorous: 'Humorvoller, unterhaltsamer Ton',
+    informative: 'Informativer, lehrreicher Ton'
+  };
+
+  const prompt = `Erstelle einen Social Media Post auf Deutsch.
+
+Thema: ${options.topic}
+${options.customerContext ? `Kontext: ${options.customerContext}` : ''}
+${options.contentCategory ? `Kategorie: ${options.contentCategory}` : ''}
+
+Plattform: ${platformGuidelines[options.platform]}
+Ton: ${toneGuidelines[options.tone]}
+${options.includeHashtags ? 'Füge passende Hashtags hinzu.' : 'Keine Hashtags.'}
+${options.includeEmoji ? 'Verwende passende Emojis.' : 'Keine Emojis verwenden.'}
+
+Antworte NUR mit dem fertigen Post-Text, keine Erklärungen.`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      SOCIAL_MEDIA_SYSTEM_PROMPT
+    );
+  } else {
+    result = await callOpenAI(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      SOCIAL_MEDIA_SYSTEM_PROMPT
+    );
+  }
+
+  // Extract hashtags from generated content
+  const hashtagRegex = /#[\wäöüÄÖÜß]+/g;
+  const extractedHashtags = (result.content.match(hashtagRegex) || []) as string[];
+
+  return {
+    content: result.content,
+    hashtags: extractedHashtags,
+    platform: options.platform,
+    characterCount: result.content.length
+  };
+}
+
+export interface BatchGenerationOptions {
+  topics: string[];
+  platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+  tone: 'professional' | 'casual' | 'humorous' | 'informative';
+  includeHashtags: boolean;
+  includeEmoji: boolean;
+  contentCategory?: string;
+  schedulingStrategy: 'spread' | 'burst' | 'custom';
+  startDate?: Date;
+  postsPerDay?: number;
+}
+
+export async function generateBatchSocialMediaContent(
+  userId: string,
+  options: BatchGenerationOptions
+): Promise<GeneratedPost[]> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const platformGuidelines: Record<string, string> = {
+    linkedin: 'LinkedIn: Professionell, bis zu 3000 Zeichen, keine übermäßigen Emojis, 3-5 relevante Hashtags am Ende',
+    twitter: 'Twitter/X: Maximal 280 Zeichen, prägnant, 1-3 Hashtags integriert',
+    facebook: 'Facebook: Locker aber informativ, bis zu 500 Zeichen optimal, Emojis erlaubt',
+    instagram: 'Instagram: Visuell orientiert, Emojis erwünscht, bis zu 30 Hashtags möglich',
+    all: 'Universell für alle Plattformen, ca. 200-280 Zeichen'
+  };
+
+  const toneGuidelines: Record<string, string> = {
+    professional: 'Professioneller, seriöser Ton',
+    casual: 'Lockerer, freundlicher Ton',
+    humorous: 'Humorvoller, unterhaltsamer Ton',
+    informative: 'Informativer, lehrreicher Ton'
+  };
+
+  const prompt = `Erstelle ${options.topics.length} verschiedene Social Media Posts auf Deutsch.
+
+Themen (ein Post pro Thema):
+${options.topics.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+
+Plattform: ${platformGuidelines[options.platform]}
+Ton: ${toneGuidelines[options.tone]}
+${options.contentCategory ? `Content-Kategorie: ${options.contentCategory}` : ''}
+${options.includeHashtags ? 'Füge passende Hashtags hinzu.' : 'Keine Hashtags.'}
+${options.includeEmoji ? 'Verwende passende Emojis.' : 'Keine Emojis verwenden.'}
+
+WICHTIG: Antworte im JSON-Format:
+{
+  "posts": [
+    {"topic": "Thema 1", "content": "Fertiger Post-Text 1"},
+    {"topic": "Thema 2", "content": "Fertiger Post-Text 2"}
+  ]
+}
+
+Keine weiteren Erklärungen, nur das JSON.`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(
+      config.apiKey,
+      config.model,
+      prompt,
+      4000, // Higher token limit for batch
+      config.temperature,
+      SOCIAL_MEDIA_SYSTEM_PROMPT
+    );
+  } else {
+    result = await callOpenAI(
+      config.apiKey,
+      config.model,
+      prompt,
+      4000,
+      config.temperature,
+      SOCIAL_MEDIA_SYSTEM_PROMPT
+    );
+  }
+
+  // Parse the JSON response
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) {
+      jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    } else if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+    }
+
+    const parsed = JSON.parse(jsonStr) as { posts: Array<{ topic: string; content: string }> };
+    const hashtagRegex = /#[\wäöüÄÖÜß]+/g;
+
+    return parsed.posts.map(post => ({
+      content: post.content,
+      hashtags: (post.content.match(hashtagRegex) || []) as string[],
+      platform: options.platform,
+      characterCount: post.content.length
+    }));
+  } catch (error) {
+    console.error('Failed to parse batch AI response:', error, result.content);
+    throw new Error('Fehler beim Verarbeiten der KI-Antwort');
+  }
+}
+
+export async function generateContentIdeas(
+  userId: string,
+  category: string,
+  count: number = 10
+): Promise<string[]> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const prompt = `Generiere ${count} kreative Social Media Content-Ideen für ein IT-Unternehmen.
+
+Kategorie: ${category}
+
+Die Ideen sollten:
+- Relevant für IT-Dienstleister sein
+- Verschiedene Aspekte des Themas abdecken
+- Gut für Engagement geeignet sein
+- Mix aus Educational, Behind-the-scenes, Tips, News
+
+WICHTIG: Antworte im JSON-Format:
+{
+  "ideas": ["Idee 1", "Idee 2", "Idee 3", ...]
+}
+
+Keine weiteren Erklärungen, nur das JSON.`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(
+      config.apiKey,
+      config.model,
+      prompt,
+      2000,
+      0.8, // Higher temperature for creativity
+      SOCIAL_MEDIA_SYSTEM_PROMPT
+    );
+  } else {
+    result = await callOpenAI(
+      config.apiKey,
+      config.model,
+      prompt,
+      2000,
+      0.8,
+      SOCIAL_MEDIA_SYSTEM_PROMPT
+    );
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) {
+      jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    } else if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+    }
+
+    const parsed = JSON.parse(jsonStr) as { ideas: string[] };
+    return parsed.ideas;
+  } catch (error) {
+    console.error('Failed to parse content ideas:', error);
+    throw new Error('Fehler beim Generieren der Content-Ideen');
+  }
+}
