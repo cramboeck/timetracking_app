@@ -474,99 +474,165 @@ export async function createInvoice(
   const invoiceHeadText = customData?.headText || `Abrechnung für den Zeitraum ${periodLabel}`;
   const invoiceFootText = customData?.footText || 'Vielen Dank für Ihr Vertrauen.';
 
-  // Use Factory/saveInvoice endpoint - more reliable for invoice number generation
-  // This creates invoice + positions in a single call
-  const invoicePosArray = positions.map((pos, index) => ({
-    objectName: 'InvoicePos',
-    mapAll: 'true',
-    part: null,
-    quantity: pos.quantity,
-    price: pos.price,
-    name: pos.name,
-    text: pos.text || null,
-    unity: {
-      id: 9, // Hours
-      objectName: 'Unity',
-    },
-    positionNumber: index,
-    taxRate: config.taxRate,
-    priceGross: null,
-    priceTax: null,
-  }));
+  // Fetch required data: SevUser (for contactPerson), contact with address
+  const [userResponse, contactResponse, addressResponse] = await Promise.all([
+    sevdeskFetch(apiToken, '/SevUser'),
+    sevdeskFetch(apiToken, `/Contact/${sevdeskCustomerId}`),
+    sevdeskFetch(apiToken, `/ContactAddress?contact[id]=${sevdeskCustomerId}&contact[objectName]=Contact`),
+  ]);
 
-  const factoryData = {
+  const sevUser = userResponse.objects?.[0];
+  if (!sevUser) {
+    throw new Error('Could not get sevDesk user for contactPerson');
+  }
+
+  const contact = contactResponse.objects;
+  const addresses = addressResponse.objects || [];
+  const mainAddress = addresses[0] || {};
+
+  // Build address fields
+  const addressName = contact?.name || `${contact?.surename || ''} ${contact?.familyname || ''}`.trim() || '';
+  const addressStreet = mainAddress.street || null;
+  const addressZip = mainAddress.zip || null;
+  const addressCity = mainAddress.city || null;
+
+  // Build combined address
+  const addressParts: string[] = [];
+  if (addressName) addressParts.push(addressName);
+  if (addressStreet) addressParts.push(addressStreet);
+  if (addressZip || addressCity) addressParts.push([addressZip, addressCity].filter(Boolean).join(' '));
+  const fullAddress = addressParts.join('\n');
+
+  console.log('[sevDesk] Using SevUser as contactPerson:', sevUser.id);
+  console.log('[sevDesk] Address:', fullAddress);
+
+  // Use Unix timestamp for date (like the quote creation)
+  const invoiceDateTimestamp = Math.floor(new Date().getTime() / 1000);
+  const taxRate = config.taxRate || 19;
+
+  // Build invoice data structure matching sevDesk format (similar to quote creation)
+  const invoiceData: Record<string, unknown> = {
     invoice: {
       objectName: 'Invoice',
       contact: {
         id: parseInt(sevdeskCustomerId),
         objectName: 'Contact',
       },
-      invoiceDate: new Date().toISOString().split('T')[0],
+      invoiceDate: invoiceDateTimestamp,
       header: invoiceHeader,
       headText: invoiceHeadText,
       footText: invoiceFootText,
       timeToPay: config.paymentTermsDays,
       discount: 0,
       status: config.createAsFinal ? 200 : 100,
-      taxRate: config.taxRate,
-      taxType: 'default',
+      // Address fields
+      addressName: addressName,
+      addressStreet: addressStreet,
+      addressZip: addressZip,
+      addressCity: addressCity,
+      address: fullAddress,
+      addressCountry: {
+        id: mainAddress.country?.id || 1,
+        objectName: 'StaticCountry',
+      },
+      // Contact person (SevUser, not Contact)
+      contactPerson: {
+        id: parseInt(sevUser.id),
+        objectName: 'SevUser',
+      },
+      taxRate: 0,
+      taxType: null,
+      taxRule: {
+        id: 1,
+        objectName: 'TaxRule',
+      },
       invoiceType: 'RE',
       currency: 'EUR',
-      mapAll: 'true',
+      showNet: false,
+      mapAll: true,
+      version: 0,
+      smallSettlement: false,
     },
-    invoicePosSave: invoicePosArray,
+    invoicePosSave: positions.map((pos, index) => ({
+      quantity: pos.quantity,
+      price: pos.price,
+      priceNet: pos.price,
+      priceTax: 0,
+      priceGross: pos.price * (1 + taxRate / 100),
+      name: pos.name || null,
+      unity: {
+        id: 9, // Stunden
+        objectName: 'Unity',
+      },
+      positionNumber: index,
+      text: pos.text || '',
+      discount: null,
+      taxRate: taxRate,
+      objectName: 'InvoicePos',
+      mapAll: true,
+    })),
     invoicePosDelete: null,
-    filename: null,
-    discountSave: null,
-    discountDelete: null,
   };
 
-  console.log('Factory invoice data:', JSON.stringify(factoryData, null, 2));
+  // Convert to form-urlencoded format (like quote creation)
+  const formBody = objectToFormData(invoiceData);
 
-  // Create invoice with retry mechanism for "Correct number abort" errors
-  let invoiceResponse: any;
+  console.log('[sevDesk] Creating invoice with form-urlencoded data');
+  console.log('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
+
+  // Create invoice with retry mechanism
+  let response: Response;
   let retries = 0;
   const maxRetries = 3;
 
   while (retries < maxRetries) {
     try {
-      invoiceResponse = await sevdeskFetch(apiToken, '/Invoice/Factory/saveInvoice', {
+      response = await fetch(`${SEVDESK_API_URL}/Invoice/Factory/saveInvoice`, {
         method: 'POST',
-        body: JSON.stringify(factoryData),
+        headers: {
+          'Authorization': apiToken,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formBody,
       });
-      break; // Success, exit loop
-    } catch (error: any) {
-      retries++;
-      console.log(`Invoice creation attempt ${retries} failed:`, error.message);
 
-      // Only retry on "Correct number abort" timeout errors
-      if (error.message?.includes('Correct number abort') && retries < maxRetries) {
-        const waitTime = retries * 2000; // 2s, 4s, 6s
-        console.log(`Retrying in ${waitTime}ms...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-      } else {
-        throw error; // Re-throw if not a retryable error or max retries reached
+      const responseText = await response.text();
+      console.log('[sevDesk] Response:', response.status, responseText.substring(0, 500));
+
+      if (!response.ok) {
+        const errorMessage = responseText;
+        // Check if retryable error
+        if (errorMessage.includes('Correct number abort') && retries < maxRetries - 1) {
+          retries++;
+          console.log(`Invoice creation attempt ${retries} failed, retrying in ${retries * 2000}ms...`);
+          await new Promise(resolve => setTimeout(resolve, retries * 2000));
+          continue;
+        }
+        throw new Error(`Failed to create invoice: ${responseText}`);
       }
+
+      const invoiceResponse = JSON.parse(responseText) as { objects: { invoice: { id: string; invoiceNumber: string } } };
+      const invoiceId = invoiceResponse.objects.invoice.id;
+      const invoiceNumber = invoiceResponse.objects.invoice.invoiceNumber;
+
+      console.log('[sevDesk] Invoice created:', invoiceId, invoiceNumber);
+
+      return {
+        invoiceId,
+        invoiceNumber,
+      };
+    } catch (error: any) {
+      if (error.message?.includes('Correct number abort') && retries < maxRetries - 1) {
+        retries++;
+        console.log(`Invoice creation attempt ${retries} failed:`, error.message);
+        await new Promise(resolve => setTimeout(resolve, retries * 2000));
+        continue;
+      }
+      throw error;
     }
   }
 
-  console.log('Invoice response:', JSON.stringify(invoiceResponse, null, 2));
-
-  // Handle Factory response format - it returns { objects: { invoice: {...}, invoicePos: [...] } }
-  const invoiceObj = invoiceResponse?.objects?.invoice || invoiceResponse?.objects || invoiceResponse;
-  const invoiceId = invoiceObj?.id;
-
-  if (!invoiceId) {
-    console.error('No invoice ID in response:', invoiceResponse);
-    throw new Error('sevDesk did not return an invoice ID');
-  }
-
-  console.log(`Invoice ${invoiceObj.invoiceNumber || invoiceId} created successfully with ${positions.length} positions`);
-
-  return {
-    invoiceId: invoiceId.toString(),
-    invoiceNumber: invoiceObj.invoiceNumber || `RE-${invoiceId}`,
-  };
+  throw new Error('Failed to create invoice after maximum retries');
 }
 
 // Record invoice export
