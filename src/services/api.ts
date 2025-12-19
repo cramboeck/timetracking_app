@@ -1941,6 +1941,7 @@ export const sevdeskApi = {
       hours: number;
       amount: number;
       hourlyRate: number;
+      isHeader?: boolean; // Header positions (quantity 0) display as bold
     }>;
   }): Promise<{
     success: boolean;

@@ -395,6 +395,7 @@ interface CustomInvoiceData {
     hours: number;
     amount: number;
     hourlyRate?: number;
+    isHeader?: boolean; // Header positions have quantity 0 and display as bold
   }>;
 }
 
@@ -424,6 +425,25 @@ export async function createInvoice(
     // Use grouped positions from frontend
     console.log('Using custom grouped positions');
     positions = customData.positions.map((pos, index) => {
+      // Header positions (quantity 0) are displayed as bold headers in sevDesk
+      if (pos.isHeader || pos.hours === 0) {
+        return {
+          objectName: 'InvoicePos',
+          mapAll: true,
+          quantity: 0,
+          price: 0,
+          name: pos.title,
+          text: pos.description || null,
+          unity: {
+            id: 1, // Stück for header positions
+            objectName: 'Unity',
+          },
+          taxRate: config.taxRate,
+          positionNumber: index,
+        };
+      }
+
+      // Regular positions with hours
       const posHourlyRate = pos.hourlyRate || hourlyRate;
       return {
         objectName: 'InvoicePos',
@@ -433,11 +453,11 @@ export async function createInvoice(
         name: pos.title,
         text: pos.description || null,
         unity: {
-          id: 9, // Hours in sevDesk
+          id: 9, // Stunden for regular positions
           objectName: 'Unity',
         },
         taxRate: config.taxRate,
-        positionNumber: index + 1,
+        positionNumber: index,
       };
     });
   } else {

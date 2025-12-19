@@ -59,23 +59,23 @@ export const InvoiceCreationDialog = ({
   const [headText, setHeadText] = useState('');
   const [footText, setFootText] = useState('');
 
-  // Generate service report filename
+  // Generate service report filename in format: Dienstleistungsnachweis_Kundenname_YYYY_MM.pdf
   const generateReportFilename = () => {
     const customerSlug = customer.customerName
       .replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, '')
-      .replace(/\s+/g, '-');
+      .replace(/\s+/g, '_');
 
-    const weekdays = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-    const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-
-    const startDay = periodStart.getDate();
-    const startWeekday = weekdays[periodStart.getDay()];
-    const endDay = periodEnd.getDate();
-    const endWeekday = weekdays[periodEnd.getDay()];
-    const month = months[periodStart.getMonth()];
     const year = periodStart.getFullYear();
+    const month = String(periodStart.getMonth() + 1).padStart(2, '0');
 
-    return `Dienstleistungsreport_${customerSlug}_${startWeekday}-${startDay}-${endWeekday}-${endDay}-${month}-${year}.pdf`;
+    return `Dienstleistungsnachweis_${customerSlug}_${year}_${month}.pdf`;
+  };
+
+  // Calculate payment due date (14 days from now)
+  const calculateDueDate = () => {
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 14);
+    return dueDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
   // Group entries by project
@@ -140,7 +140,10 @@ export const InvoiceCreationDialog = ({
     const monthYear = periodStart.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
     setInvoiceHeader(`IT-Dienstleistungen ${monthYear}`);
     setHeadText(`Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!\nHiermit stelle ich Ihnen die folgenden Leistungen in Rechnung:`);
-    setFootText('Vielen Dank für Ihr Vertrauen!');
+
+    // Default footer with payment terms and due date
+    const dueDate = calculateDueDate();
+    setFootText(`Zahlungsbedingungen: Zahlung innerhalb von 14 Tagen ab Rechnungseingang ohne Abzüge.\nBitte überweisen Sie den Rechnungsbetrag unter Angabe der Rechnungsnummer auf das unten angegebene Konto.\nDer Rechnungsbetrag ist zum ${dueDate} fällig.`);
   }, [isOpen, customer, periodStart, periodEnd]);
 
   const totalHours = useMemo(() =>
@@ -212,6 +215,27 @@ export const InvoiceCreationDialog = ({
       const entryIds = customer.entries.map(e => e.id);
       const hourlyRate = customer.hourlyRate || 95;
 
+      // Build positions array with header position first (quantity 0 = bold header in sevDesk)
+      const invoicePositions = [
+        // Header position (quantity 0 displays as bold header)
+        {
+          title: 'Dienstleistungen',
+          description: '',
+          hours: 0,
+          amount: 0,
+          hourlyRate: 0,
+          isHeader: true, // Mark as header for special handling
+        },
+        // Regular positions
+        ...positions.map(pos => ({
+          title: pos.title,
+          description: pos.description,
+          hours: pos.roundedHours,
+          amount: pos.amount,
+          hourlyRate: hourlyRate,
+        })),
+      ];
+
       // Create invoice with grouped positions and custom texts
       const response = await sevdeskApi.createInvoice({
         customerId: customer.customerId,
@@ -221,13 +245,7 @@ export const InvoiceCreationDialog = ({
         header: invoiceHeader,
         headText: headText,
         footText: footText,
-        positions: positions.map(pos => ({
-          title: pos.title,
-          description: pos.description,
-          hours: pos.roundedHours,
-          amount: pos.amount,
-          hourlyRate: hourlyRate,
-        })),
+        positions: invoicePositions,
       });
 
       if (response.success) {
