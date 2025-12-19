@@ -975,4 +975,530 @@ router.get('/stats', authenticateToken, attachOrganization, async (req: AuthRequ
   }
 });
 
+// ============================================
+// CSV/Bulk Import
+// ============================================
+
+const csvImportSchema = z.object({
+  posts: z.array(z.object({
+    content: z.string().min(1),
+    title: z.string().optional(),
+    scheduledAt: z.string().optional(),
+    hashtags: z.array(z.string()).optional(),
+    platform: z.enum(['linkedin', 'twitter', 'facebook', 'instagram', 'all']).optional(),
+    contentCategory: z.string().optional()
+  })).min(1).max(100)
+});
+
+// POST /api/social-media/import - Bulk import posts from CSV data
+router.post('/import', authenticateToken, attachOrganization, requireOrgRole('member'), validate(csvImportSchema), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const { posts } = req.body;
+
+    const createdPosts = [];
+    for (const post of posts) {
+      const id = crypto.randomUUID();
+      const scheduledAt = post.scheduledAt ? new Date(post.scheduledAt) : null;
+      const status = scheduledAt && scheduledAt > new Date() ? 'scheduled' : 'draft';
+
+      await pool.query(
+        `INSERT INTO social_media_posts (id, user_id, organization_id, title, content, hashtags, status, scheduled_at, content_category)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [id, userId, organizationId, post.title || null, post.content, post.hashtags || [], status, scheduledAt, post.contentCategory || null]
+      );
+
+      createdPosts.push({ id, content: post.content, status, scheduledAt });
+    }
+
+    res.json({
+      success: true,
+      imported: createdPosts.length,
+      posts: createdPosts
+    });
+  } catch (error) {
+    console.error('Import error:', error);
+    res.status(500).json({ error: 'Failed to import posts' });
+  }
+});
+
+// ============================================
+// Best Time Analysis
+// ============================================
+
+// GET /api/social-media/analytics/best-times - Get best posting times based on engagement
+router.get('/analytics/best-times', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    // Analyze published posts by hour of day and day of week
+    const result = await pool.query(
+      `SELECT
+         EXTRACT(DOW FROM published_at) as day_of_week,
+         EXTRACT(HOUR FROM published_at) as hour_of_day,
+         COUNT(*) as post_count,
+         AVG(COALESCE(
+           (SELECT SUM(engagement_likes + engagement_comments + engagement_shares)
+            FROM social_media_post_platforms WHERE post_id = p.id), 0
+         )) as avg_engagement
+       FROM social_media_posts p
+       WHERE organization_id = $1 AND status = 'published' AND published_at IS NOT NULL
+       GROUP BY EXTRACT(DOW FROM published_at), EXTRACT(HOUR FROM published_at)
+       HAVING COUNT(*) >= 1
+       ORDER BY avg_engagement DESC`,
+      [organizationId]
+    );
+
+    // Calculate recommended times (top 5 by engagement)
+    const recommendedTimes = result.rows.slice(0, 5).map(row => ({
+      dayOfWeek: parseInt(row.day_of_week),
+      dayName: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][parseInt(row.day_of_week)],
+      hour: parseInt(row.hour_of_day),
+      timeString: `${String(row.hour_of_day).padStart(2, '0')}:00`,
+      postCount: parseInt(row.post_count),
+      avgEngagement: parseFloat(row.avg_engagement) || 0
+    }));
+
+    // Generate heatmap data (7 days x 24 hours)
+    const heatmap: number[][] = Array(7).fill(null).map(() => Array(24).fill(0));
+    result.rows.forEach(row => {
+      heatmap[parseInt(row.day_of_week)][parseInt(row.hour_of_day)] = parseFloat(row.avg_engagement) || 0;
+    });
+
+    res.json({
+      recommendedTimes,
+      heatmap,
+      totalAnalyzedPosts: result.rows.reduce((sum, r) => sum + parseInt(r.post_count), 0)
+    });
+  } catch (error) {
+    console.error('Best times analysis error:', error);
+    res.status(500).json({ error: 'Failed to analyze best times' });
+  }
+});
+
+// ============================================
+// Hashtag Research & Analysis
+// ============================================
+
+// GET /api/social-media/analytics/hashtags - Get hashtag performance
+router.get('/analytics/hashtags', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    // Get all hashtags used and their frequency
+    const hashtagResult = await pool.query(
+      `SELECT unnest(hashtags) as hashtag, COUNT(*) as usage_count
+       FROM social_media_posts
+       WHERE organization_id = $1 AND hashtags IS NOT NULL AND array_length(hashtags, 1) > 0
+       GROUP BY unnest(hashtags)
+       ORDER BY usage_count DESC
+       LIMIT 50`,
+      [organizationId]
+    );
+
+    // Get engagement per hashtag (approximate)
+    const engagementResult = await pool.query(
+      `SELECT unnest(p.hashtags) as hashtag,
+              AVG(COALESCE(
+                (SELECT SUM(engagement_likes + engagement_comments + engagement_shares)
+                 FROM social_media_post_platforms WHERE post_id = p.id), 0
+              )) as avg_engagement
+       FROM social_media_posts p
+       WHERE organization_id = $1 AND hashtags IS NOT NULL AND status = 'published'
+       GROUP BY unnest(p.hashtags)
+       ORDER BY avg_engagement DESC
+       LIMIT 30`,
+      [organizationId]
+    );
+
+    const hashtagStats = hashtagResult.rows.map(row => {
+      const engagement = engagementResult.rows.find(e => e.hashtag === row.hashtag);
+      return {
+        hashtag: row.hashtag,
+        usageCount: parseInt(row.usage_count),
+        avgEngagement: parseFloat(engagement?.avg_engagement || '0')
+      };
+    });
+
+    // Top performing hashtags
+    const topPerforming = [...hashtagStats].sort((a, b) => b.avgEngagement - a.avgEngagement).slice(0, 10);
+
+    res.json({
+      allHashtags: hashtagStats,
+      topPerforming,
+      totalUniqueHashtags: hashtagStats.length
+    });
+  } catch (error) {
+    console.error('Hashtag analysis error:', error);
+    res.status(500).json({ error: 'Failed to analyze hashtags' });
+  }
+});
+
+// POST /api/social-media/analytics/hashtags/research - AI-powered hashtag research
+router.post('/analytics/hashtags/research', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { topic, platform, count = 15 } = req.body;
+
+    if (!topic) {
+      return res.status(400).json({ error: 'Topic is required' });
+    }
+
+    const platformContext = platform && platform !== 'all'
+      ? `für ${platform === 'linkedin' ? 'LinkedIn' : platform === 'twitter' ? 'Twitter/X' : platform === 'instagram' ? 'Instagram' : 'Facebook'}`
+      : 'für Social Media allgemein';
+
+    const prompt = `Finde die ${count} besten Hashtags ${platformContext} zum Thema "${topic}".
+
+Kriterien:
+- Relevante Hashtags mit guter Reichweite
+- Mix aus populären und Nischen-Hashtags
+- Für deutschsprachige und internationale Zielgruppe
+
+Antworte im JSON-Format:
+{
+  "hashtags": [
+    {"tag": "#beispiel", "reach": "hoch/mittel/niedrig", "description": "Kurze Erklärung"}
+  ]
+}`;
+
+    const result = await aiService.generateSocialMediaContent(userId, {
+      topic: prompt,
+      platform: 'all',
+      tone: 'professional',
+      includeHashtags: false,
+      includeEmoji: false
+    });
+
+    // Parse the response
+    try {
+      let jsonStr = result.content.trim();
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+      }
+
+      const parsed = JSON.parse(jsonStr) as { hashtags: Array<{ tag: string; reach: string; description: string }> };
+      res.json({
+        success: true,
+        topic,
+        platform,
+        hashtags: parsed.hashtags
+      });
+    } catch {
+      // If parsing fails, extract hashtags manually
+      const hashtagRegex = /#[\wäöüÄÖÜß]+/g;
+      const extractedHashtags = (result.content.match(hashtagRegex) || []) as string[];
+      res.json({
+        success: true,
+        topic,
+        platform,
+        hashtags: extractedHashtags.map(tag => ({ tag, reach: 'unbekannt', description: '' }))
+      });
+    }
+  } catch (error: any) {
+    console.error('Hashtag research error:', error);
+    res.status(500).json({ error: error.message || 'Failed to research hashtags' });
+  }
+});
+
+// ============================================
+// Evergreen Content Recycling
+// ============================================
+
+// GET /api/social-media/evergreen - Get evergreen posts
+router.get('/evergreen', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await pool.query(
+      `SELECT p.*, c.name as customer_name,
+              COALESCE(
+                (SELECT SUM(engagement_likes + engagement_comments + engagement_shares)
+                 FROM social_media_post_platforms WHERE post_id = p.id), 0
+              ) as total_engagement
+       FROM social_media_posts p
+       LEFT JOIN customers c ON p.customer_id = c.id
+       WHERE p.organization_id = $1 AND p.evergreen = true
+       ORDER BY total_engagement DESC, p.created_at DESC`,
+      [organizationId]
+    );
+
+    res.json(transformRows(result.rows));
+  } catch (error) {
+    console.error('Get evergreen posts error:', error);
+    res.status(500).json({ error: 'Failed to get evergreen posts' });
+  }
+});
+
+// PUT /api/social-media/posts/:id/evergreen - Toggle evergreen status
+router.put('/posts/:id/evergreen', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+    const { evergreen } = req.body;
+
+    await pool.query(
+      `UPDATE social_media_posts SET evergreen = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3`,
+      [evergreen, id, organizationId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update evergreen status error:', error);
+    res.status(500).json({ error: 'Failed to update evergreen status' });
+  }
+});
+
+// POST /api/social-media/evergreen/recycle - Recycle evergreen content
+router.post('/evergreen/recycle', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const { postId, scheduledAt, modifyContent } = req.body;
+
+    // Get the original post
+    const original = await pool.query(
+      `SELECT * FROM social_media_posts WHERE id = $1 AND organization_id = $2`,
+      [postId, organizationId]
+    );
+
+    if (original.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const originalPost = original.rows[0];
+    let newContent = originalPost.content;
+
+    // Optionally modify content slightly with AI
+    if (modifyContent) {
+      try {
+        const result = await aiService.generateSocialMediaContent(userId, {
+          topic: `Formuliere diesen Post leicht um, behalte aber die Kernaussage: "${originalPost.content}"`,
+          platform: 'all',
+          tone: 'professional',
+          includeHashtags: false,
+          includeEmoji: originalPost.content.match(/[\u{1F600}-\u{1F64F}]/gu) !== null
+        });
+        newContent = result.content;
+      } catch {
+        // If AI fails, use original content
+      }
+    }
+
+    // Create recycled post
+    const newId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO social_media_posts (id, user_id, organization_id, customer_id, title, content, hashtags, status, scheduled_at, content_category, evergreen)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'scheduled', $8, $9, true)`,
+      [
+        newId,
+        userId,
+        organizationId,
+        originalPost.customer_id,
+        originalPost.title ? `${originalPost.title} (Recycled)` : null,
+        newContent,
+        originalPost.hashtags,
+        new Date(scheduledAt),
+        originalPost.content_category
+      ]
+    );
+
+    // Update recycle count on original
+    await pool.query(
+      `UPDATE social_media_posts SET recycle_count = COALESCE(recycle_count, 0) + 1, last_recycled_at = NOW() WHERE id = $1`,
+      [postId]
+    );
+
+    res.json({
+      success: true,
+      newPostId: newId,
+      scheduledAt
+    });
+  } catch (error) {
+    console.error('Recycle evergreen error:', error);
+    res.status(500).json({ error: 'Failed to recycle content' });
+  }
+});
+
+// ============================================
+// Content Mix & Categories
+// ============================================
+
+// GET /api/social-media/analytics/content-mix - Get content mix distribution
+router.get('/analytics/content-mix', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    // Get distribution by content category
+    const categoryResult = await pool.query(
+      `SELECT
+         COALESCE(content_category, 'Uncategorized') as category,
+         COUNT(*) as count,
+         COUNT(*) FILTER (WHERE status = 'published') as published_count,
+         AVG(COALESCE(
+           (SELECT SUM(engagement_likes + engagement_comments + engagement_shares)
+            FROM social_media_post_platforms WHERE post_id = p.id), 0
+         )) as avg_engagement
+       FROM social_media_posts p
+       WHERE organization_id = $1
+       GROUP BY content_category
+       ORDER BY count DESC`,
+      [organizationId]
+    );
+
+    // Get target mix from queue settings
+    const settingsResult = await pool.query(
+      `SELECT content_mix FROM social_media_queue_settings WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    const targetMix = settingsResult.rows[0]?.content_mix || {
+      educational: 40,
+      promotional: 30,
+      behindTheScenes: 20,
+      news: 10
+    };
+
+    const totalPosts = categoryResult.rows.reduce((sum, r) => sum + parseInt(r.count), 0);
+    const distribution = categoryResult.rows.map(row => ({
+      category: row.category,
+      count: parseInt(row.count),
+      percentage: totalPosts > 0 ? Math.round((parseInt(row.count) / totalPosts) * 100) : 0,
+      publishedCount: parseInt(row.published_count),
+      avgEngagement: parseFloat(row.avg_engagement) || 0
+    }));
+
+    res.json({
+      distribution,
+      targetMix,
+      totalPosts,
+      recommendations: generateMixRecommendations(distribution, targetMix)
+    });
+  } catch (error) {
+    console.error('Content mix analysis error:', error);
+    res.status(500).json({ error: 'Failed to analyze content mix' });
+  }
+});
+
+function generateMixRecommendations(
+  distribution: Array<{ category: string; percentage: number }>,
+  targetMix: Record<string, number>
+): string[] {
+  const recommendations: string[] = [];
+
+  Object.entries(targetMix).forEach(([category, target]) => {
+    const actual = distribution.find(d => d.category.toLowerCase() === category.toLowerCase())?.percentage || 0;
+    const diff = target - actual;
+
+    if (diff > 10) {
+      recommendations.push(`Mehr "${category}" Content erstellen (aktuell ${actual}%, Ziel ${target}%)`);
+    } else if (diff < -10) {
+      recommendations.push(`Weniger "${category}" Content (aktuell ${actual}%, Ziel ${target}%)`);
+    }
+  });
+
+  if (recommendations.length === 0) {
+    recommendations.push('Content-Mix ist gut ausbalanciert! ✓');
+  }
+
+  return recommendations;
+}
+
+// ============================================
+// Post Performance Analytics
+// ============================================
+
+// GET /api/social-media/analytics/performance - Get overall performance metrics
+router.get('/analytics/performance', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { period = '30' } = req.query;
+
+    const days = parseInt(period as string) || 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    // Overall metrics
+    const metricsResult = await pool.query(
+      `SELECT
+         COUNT(*) as total_posts,
+         COUNT(*) FILTER (WHERE status = 'published') as published_posts,
+         SUM(COALESCE(
+           (SELECT SUM(engagement_likes) FROM social_media_post_platforms WHERE post_id = p.id), 0
+         )) as total_likes,
+         SUM(COALESCE(
+           (SELECT SUM(engagement_comments) FROM social_media_post_platforms WHERE post_id = p.id), 0
+         )) as total_comments,
+         SUM(COALESCE(
+           (SELECT SUM(engagement_shares) FROM social_media_post_platforms WHERE post_id = p.id), 0
+         )) as total_shares
+       FROM social_media_posts p
+       WHERE organization_id = $1 AND created_at >= $2`,
+      [organizationId, startDate.toISOString()]
+    );
+
+    // Top performing posts
+    const topPostsResult = await pool.query(
+      `SELECT p.id, p.title, p.content, p.published_at,
+              COALESCE(
+                (SELECT SUM(engagement_likes + engagement_comments + engagement_shares)
+                 FROM social_media_post_platforms WHERE post_id = p.id), 0
+              ) as total_engagement
+       FROM social_media_posts p
+       WHERE organization_id = $1 AND status = 'published' AND published_at >= $2
+       ORDER BY total_engagement DESC
+       LIMIT 5`,
+      [organizationId, startDate.toISOString()]
+    );
+
+    // Daily posting trend
+    const trendResult = await pool.query(
+      `SELECT DATE(created_at) as date, COUNT(*) as posts
+       FROM social_media_posts
+       WHERE organization_id = $1 AND created_at >= $2
+       GROUP BY DATE(created_at)
+       ORDER BY date`,
+      [organizationId, startDate.toISOString()]
+    );
+
+    const metrics = metricsResult.rows[0];
+    res.json({
+      period: days,
+      metrics: {
+        totalPosts: parseInt(metrics.total_posts) || 0,
+        publishedPosts: parseInt(metrics.published_posts) || 0,
+        totalLikes: parseInt(metrics.total_likes) || 0,
+        totalComments: parseInt(metrics.total_comments) || 0,
+        totalShares: parseInt(metrics.total_shares) || 0,
+        totalEngagement: (parseInt(metrics.total_likes) || 0) + (parseInt(metrics.total_comments) || 0) + (parseInt(metrics.total_shares) || 0)
+      },
+      topPosts: topPostsResult.rows.map(row => ({
+        id: row.id,
+        title: row.title,
+        content: row.content?.substring(0, 100) + (row.content?.length > 100 ? '...' : ''),
+        publishedAt: row.published_at,
+        engagement: parseInt(row.total_engagement) || 0
+      })),
+      dailyTrend: trendResult.rows.map(row => ({
+        date: row.date,
+        posts: parseInt(row.posts)
+      }))
+    });
+  } catch (error) {
+    console.error('Performance analytics error:', error);
+    res.status(500).json({ error: 'Failed to get performance analytics' });
+  }
+});
+
 export default router;

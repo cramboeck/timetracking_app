@@ -3,7 +3,8 @@ import {
   Calendar, List, Plus, Sparkles, Hash, FileText, Settings, Send,
   ChevronLeft, ChevronRight, Edit2, Trash2, Copy, Clock, Check,
   Linkedin, Twitter, Facebook, Instagram, X, Loader2, AlertCircle,
-  Layers, Lightbulb, ListOrdered, Zap
+  Layers, Lightbulb, ListOrdered, Zap, Upload, BarChart3, TrendingUp,
+  Recycle, Search, RefreshCw
 } from 'lucide-react';
 import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount } from '../services/api';
 import { Customer } from '../types';
@@ -13,7 +14,7 @@ interface SocialMediaManagerProps {
   customers?: Customer[];
 }
 
-type ViewMode = 'calendar' | 'list' | 'templates' | 'hashtags' | 'accounts' | 'queue' | 'batch';
+type ViewMode = 'calendar' | 'list' | 'templates' | 'hashtags' | 'accounts' | 'queue' | 'batch' | 'analytics' | 'evergreen';
 type Platform = 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
@@ -108,6 +109,35 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
     weekendPosting: false,
     contentMix: { educational: 40, promotional: 30, behindTheScenes: 20, news: 10 }
   });
+
+  // Analytics state
+  const [analyticsData, setAnalyticsData] = useState<{
+    bestTimes: { recommendedTimes: Array<{ dayName: string; timeString: string; avgEngagement: number }>; heatmap: number[][] } | null;
+    hashtagStats: { topPerforming: Array<{ hashtag: string; usageCount: number; avgEngagement: number }> } | null;
+    contentMix: { distribution: Array<{ category: string; percentage: number }>; recommendations: string[] } | null;
+    performance: { metrics: { totalPosts: number; totalEngagement: number }; topPosts: Array<{ content: string; engagement: number }> } | null;
+  }>({ bestTimes: null, hashtagStats: null, contentMix: null, performance: null });
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Evergreen state
+  const [evergreenPosts, setEvergreenPosts] = useState<SocialMediaPost[]>([]);
+  const [showRecycleModal, setShowRecycleModal] = useState(false);
+  const [recyclingPost, setRecyclingPost] = useState<SocialMediaPost | null>(null);
+  const [recycleDate, setRecycleDate] = useState('');
+  const [recycleModify, setRecycleModify] = useState(false);
+
+  // CSV Import state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [csvText, setCsvText] = useState('');
+  const [importPreviews, setImportPreviews] = useState<Array<{ content: string; scheduledAt?: string }>>([]);
+  const [importing, setImporting] = useState(false);
+
+  // Hashtag Research state
+  const [showHashtagResearch, setShowHashtagResearch] = useState(false);
+  const [hashtagTopic, setHashtagTopic] = useState('');
+  const [researchedHashtags, setResearchedHashtags] = useState<Array<{ tag: string; reach: string; description: string }>>([]);
+  const [researchingHashtags, setResearchingHashtags] = useState(false);
+
   const [hashtagGroupName, setHashtagGroupName] = useState('');
   const [hashtagGroupTags, setHashtagGroupTags] = useState('');
 
@@ -237,6 +267,108 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       console.error('Failed to add to queue:', err);
     }
   };
+
+  // Load analytics data
+  const loadAnalytics = async () => {
+    setAnalyticsLoading(true);
+    try {
+      const [bestTimes, hashtagStats, contentMix, performance] = await Promise.all([
+        socialMediaApi.getBestTimes(),
+        socialMediaApi.getHashtagAnalytics(),
+        socialMediaApi.getContentMix(),
+        socialMediaApi.getPerformance(30),
+      ]);
+      setAnalyticsData({ bestTimes, hashtagStats, contentMix, performance });
+    } catch (err) {
+      console.error('Failed to load analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  // Load evergreen posts
+  const loadEvergreen = async () => {
+    try {
+      const data = await socialMediaApi.getEvergreenPosts();
+      setEvergreenPosts(data);
+    } catch (err) {
+      console.error('Failed to load evergreen posts:', err);
+    }
+  };
+
+  // Toggle evergreen status
+  const toggleEvergreen = async (postId: string, currentStatus: boolean) => {
+    try {
+      await socialMediaApi.setEvergreen(postId, !currentStatus);
+      loadData();
+      if (viewMode === 'evergreen') loadEvergreen();
+    } catch (err) {
+      console.error('Failed to toggle evergreen:', err);
+    }
+  };
+
+  // Recycle evergreen post
+  const handleRecycle = async () => {
+    if (!recyclingPost || !recycleDate) return;
+    try {
+      await socialMediaApi.recycleEvergreen(recyclingPost.id, recycleDate, recycleModify);
+      setShowRecycleModal(false);
+      setRecyclingPost(null);
+      loadData();
+      loadEvergreen();
+    } catch (err) {
+      console.error('Failed to recycle post:', err);
+    }
+  };
+
+  // CSV Import
+  const parseCSV = () => {
+    const lines = csvText.split('\n').filter(l => l.trim());
+    const previews = lines.map(line => {
+      const parts = line.split(';');
+      return {
+        content: parts[0]?.trim() || '',
+        scheduledAt: parts[1]?.trim() || undefined
+      };
+    }).filter(p => p.content);
+    setImportPreviews(previews);
+  };
+
+  const handleImport = async () => {
+    if (importPreviews.length === 0) return;
+    setImporting(true);
+    try {
+      await socialMediaApi.importPosts(importPreviews);
+      setShowImportModal(false);
+      setCsvText('');
+      setImportPreviews([]);
+      loadData();
+    } catch (err) {
+      console.error('Failed to import:', err);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Hashtag Research
+  const handleHashtagResearch = async () => {
+    if (!hashtagTopic.trim()) return;
+    setResearchingHashtags(true);
+    try {
+      const result = await socialMediaApi.researchHashtags(hashtagTopic);
+      setResearchedHashtags(result.hashtags);
+    } catch (err: any) {
+      setError(err.message || 'Hashtag-Recherche fehlgeschlagen');
+    } finally {
+      setResearchingHashtags(false);
+    }
+  };
+
+  // Load data when switching views
+  useEffect(() => {
+    if (viewMode === 'analytics') loadAnalytics();
+    if (viewMode === 'evergreen') loadEvergreen();
+  }, [viewMode]);
 
   // Calendar helpers
   const calendarDays = useMemo(() => {
@@ -427,13 +559,29 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-bold dark:text-white">Social Media Manager</h2>
-        <button
-          onClick={() => openPostEditor()}
-          className="flex items-center gap-2 px-4 py-2 btn-accent"
-        >
-          <Plus size={18} />
-          Neuer Post
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+          >
+            <Upload size={18} />
+            CSV Import
+          </button>
+          <button
+            onClick={() => setShowHashtagResearch(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+          >
+            <Search size={18} />
+            Hashtag-Recherche
+          </button>
+          <button
+            onClick={() => openPostEditor()}
+            className="flex items-center gap-2 px-4 py-2 btn-accent"
+          >
+            <Plus size={18} />
+            Neuer Post
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -453,9 +601,10 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           { id: 'list', label: 'Posts', icon: List },
           { id: 'queue', label: 'Queue', icon: ListOrdered },
           { id: 'batch', label: 'Batch', icon: Layers },
+          { id: 'evergreen', label: 'Evergreen', icon: Recycle },
+          { id: 'analytics', label: 'Analytics', icon: BarChart3 },
           { id: 'templates', label: 'Vorlagen', icon: FileText },
           { id: 'hashtags', label: 'Hashtags', icon: Hash },
-          { id: 'accounts', label: 'Konten', icon: Settings },
         ].map(tab => (
           <button
             key={tab.id}
@@ -593,8 +742,21 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         KI
                       </span>
                     )}
+                    {post.evergreen && (
+                      <span className="flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                        <Recycle size={12} />
+                        Evergreen
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-2">
+                    <button
+                      onClick={() => toggleEvergreen(post.id, post.evergreen || false)}
+                      className={`p-2 rounded-lg ${post.evergreen ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : 'hover:bg-gray-100 dark:hover:bg-dark-200 text-gray-500'}`}
+                      title={post.evergreen ? 'Evergreen-Status entfernen' : 'Als Evergreen markieren'}
+                    >
+                      <Recycle size={16} />
+                    </button>
                     <button
                       onClick={() => openPostEditor(post)}
                       className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg text-gray-500"
@@ -1014,6 +1176,215 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Analytics View */}
+      {viewMode === 'analytics' && (
+        <div className="space-y-4">
+          {analyticsLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 size={32} className="animate-spin text-accent-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Best Posting Times */}
+              <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                <h3 className="font-semibold dark:text-white mb-4 flex items-center gap-2">
+                  <Clock size={18} />
+                  Beste Posting-Zeiten
+                </h3>
+                {analyticsData.bestTimes?.recommendedTimes?.length ? (
+                  <div className="space-y-2">
+                    {analyticsData.bestTimes.recommendedTimes.map((time, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-200 rounded">
+                        <span className="dark:text-white">{time.dayName} um {time.timeString}</span>
+                        <span className="text-sm text-green-600">+{time.avgEngagement}% Engagement</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">Noch keine Daten vorhanden. Veröffentliche mehr Posts um Insights zu erhalten.</p>
+                )}
+              </div>
+
+              {/* Top Hashtags */}
+              <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                <h3 className="font-semibold dark:text-white mb-4 flex items-center gap-2">
+                  <Hash size={18} />
+                  Top Hashtags
+                </h3>
+                {analyticsData.hashtagStats?.topPerforming?.length ? (
+                  <div className="space-y-2">
+                    {analyticsData.hashtagStats.topPerforming.slice(0, 5).map((tag, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-200 rounded">
+                        <span className="text-accent-primary">{tag.hashtag}</span>
+                        <div className="flex items-center gap-3 text-sm text-gray-500">
+                          <span>{tag.usageCount}x verwendet</span>
+                          <span className="text-green-600">+{tag.avgEngagement}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">Noch keine Hashtag-Daten vorhanden.</p>
+                )}
+              </div>
+
+              {/* Content Mix */}
+              <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                <h3 className="font-semibold dark:text-white mb-4 flex items-center gap-2">
+                  <Layers size={18} />
+                  Content-Mix
+                </h3>
+                {analyticsData.contentMix?.distribution?.length ? (
+                  <div className="space-y-3">
+                    {analyticsData.contentMix.distribution.map((cat, idx) => (
+                      <div key={idx}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="dark:text-white capitalize">{cat.category}</span>
+                          <span className="text-gray-500">{cat.percentage}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-dark-200 rounded-full h-2">
+                          <div
+                            className="bg-accent-primary h-2 rounded-full"
+                            style={{ width: `${cat.percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    {analyticsData.contentMix.recommendations?.length > 0 && (
+                      <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <p className="text-sm text-blue-700 dark:text-blue-400 font-medium mb-2">Empfehlungen:</p>
+                        <ul className="text-sm text-blue-600 dark:text-blue-300 space-y-1">
+                          {analyticsData.contentMix.recommendations.map((rec, idx) => (
+                            <li key={idx}>• {rec}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">Noch keine Content-Mix-Daten vorhanden.</p>
+                )}
+              </div>
+
+              {/* Performance Overview */}
+              <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                <h3 className="font-semibold dark:text-white mb-4 flex items-center gap-2">
+                  <TrendingUp size={18} />
+                  Performance (letzte 30 Tage)
+                </h3>
+                {analyticsData.performance?.metrics ? (
+                  <div>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="p-3 bg-gray-50 dark:bg-dark-200 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-accent-primary">{analyticsData.performance.metrics.totalPosts}</p>
+                        <p className="text-xs text-gray-500">Posts</p>
+                      </div>
+                      <div className="p-3 bg-gray-50 dark:bg-dark-200 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-green-600">{analyticsData.performance.metrics.totalEngagement}</p>
+                        <p className="text-xs text-gray-500">Engagement</p>
+                      </div>
+                    </div>
+                    {analyticsData.performance.topPosts?.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium dark:text-white mb-2">Top Posts:</p>
+                        <div className="space-y-2">
+                          {analyticsData.performance.topPosts.slice(0, 3).map((post, idx) => (
+                            <div key={idx} className="p-2 bg-gray-50 dark:bg-dark-200 rounded text-sm">
+                              <p className="dark:text-white line-clamp-1">{post.content}</p>
+                              <p className="text-xs text-green-600 mt-1">Engagement: {post.engagement}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">Noch keine Performance-Daten vorhanden.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Evergreen View */}
+      {viewMode === 'evergreen' && (
+        <div className="space-y-4">
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <p className="text-sm text-green-700 dark:text-green-400">
+              <strong>Evergreen-Content</strong> sind zeitlose Posts, die immer wieder recycelt werden können.
+              Markiere erfolgreiche Posts als Evergreen und plane sie erneut ein.
+            </p>
+          </div>
+
+          {evergreenPosts.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Recycle size={48} className="mx-auto mb-4 opacity-50" />
+              <p>Noch keine Evergreen-Posts vorhanden.</p>
+              <p className="text-sm mt-2">Markiere Posts in der Listen-Ansicht als Evergreen.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {evergreenPosts.map(post => (
+                <div
+                  key={post.id}
+                  className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-1 text-xs rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                        Evergreen
+                      </span>
+                      {post.recycleCount && post.recycleCount > 0 && (
+                        <span className="text-xs text-gray-500">
+                          {post.recycleCount}x recycelt
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setRecyclingPost(post);
+                          setRecycleDate('');
+                          setRecycleModify(false);
+                          setShowRecycleModal(true);
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 text-sm"
+                      >
+                        <RefreshCw size={14} />
+                        Recyceln
+                      </button>
+                      <button
+                        onClick={() => toggleEvergreen(post.id, true)}
+                        className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-500"
+                        title="Evergreen-Status entfernen"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap line-clamp-3">
+                    {post.content}
+                  </p>
+                  {post.hashtags && post.hashtags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {post.hashtags.map((tag, idx) => (
+                        <span key={idx} className="text-xs text-accent-primary">{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                  {post.lastRecycledAt && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Zuletzt recycelt: {new Date(post.lastRecycledAt).toLocaleDateString('de-DE')}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1501,6 +1872,230 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               Speichern
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* CSV Import Modal */}
+      <Modal
+        isOpen={showImportModal}
+        onClose={() => {
+          setShowImportModal(false);
+          setCsvText('');
+          setImportPreviews([]);
+        }}
+        title="CSV Import"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+            <p className="text-sm text-blue-700 dark:text-blue-400">
+              Format: <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Inhalt;Datum (YYYY-MM-DD HH:MM)</code>
+              <br />
+              Beispiel: <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Mein Post-Text;2025-01-15 09:00</code>
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              CSV-Daten (eine Zeile pro Post)
+            </label>
+            <textarea
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+              placeholder="Post-Inhalt;2025-01-15 09:00&#10;Noch ein Post;2025-01-16 15:00&#10;Post ohne Datum"
+              rows={6}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white font-mono text-sm"
+            />
+          </div>
+
+          <button
+            onClick={parseCSV}
+            className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+          >
+            Vorschau
+          </button>
+
+          {importPreviews.length > 0 && (
+            <div>
+              <h4 className="font-medium dark:text-white mb-2">Vorschau ({importPreviews.length} Posts)</h4>
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {importPreviews.map((preview, idx) => (
+                  <div key={idx} className="p-2 bg-gray-50 dark:bg-dark-200 rounded text-sm">
+                    <p className="dark:text-white line-clamp-2">{preview.content}</p>
+                    {preview.scheduledAt && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        <Clock size={12} className="inline mr-1" />
+                        {preview.scheduledAt}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              onClick={() => {
+                setShowImportModal(false);
+                setCsvText('');
+                setImportPreviews([]);
+              }}
+              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={handleImport}
+              disabled={importing || importPreviews.length === 0}
+              className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50"
+            >
+              {importing ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+              {importPreviews.length} Posts importieren
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Hashtag Research Modal */}
+      <Modal
+        isOpen={showHashtagResearch}
+        onClose={() => {
+          setShowHashtagResearch(false);
+          setHashtagTopic('');
+          setResearchedHashtags([]);
+        }}
+        title="Hashtag-Recherche"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Thema/Branche
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={hashtagTopic}
+                onChange={(e) => setHashtagTopic(e.target.value)}
+                placeholder="z.B. Cloud Computing, IT-Sicherheit, Marketing..."
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+              />
+              <button
+                onClick={handleHashtagResearch}
+                disabled={researchingHashtags || !hashtagTopic.trim()}
+                className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg disabled:opacity-50"
+              >
+                {researchingHashtags ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                Recherchieren
+              </button>
+            </div>
+          </div>
+
+          {researchedHashtags.length > 0 && (
+            <div>
+              <h4 className="font-medium dark:text-white mb-3">Gefundene Hashtags ({researchedHashtags.length})</h4>
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {researchedHashtags.map((hashtag, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-start justify-between p-3 bg-gray-50 dark:bg-dark-200 rounded-lg"
+                  >
+                    <div>
+                      <span className="text-accent-primary font-medium">{hashtag.tag}</span>
+                      <p className="text-xs text-gray-500 mt-1">{hashtag.description}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">
+                        {hashtag.reach}
+                      </span>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(hashtag.tag)}
+                        className="p-1 hover:bg-gray-200 dark:hover:bg-dark-300 rounded"
+                        title="Kopieren"
+                      >
+                        <Copy size={14} className="text-gray-500" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => {
+                  const allTags = researchedHashtags.map(h => h.tag).join(' ');
+                  navigator.clipboard.writeText(allTags);
+                }}
+                className="mt-3 flex items-center gap-2 text-sm text-accent-primary hover:underline"
+              >
+                <Copy size={14} />
+                Alle Hashtags kopieren
+              </button>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Recycle Modal */}
+      <Modal
+        isOpen={showRecycleModal}
+        onClose={() => {
+          setShowRecycleModal(false);
+          setRecyclingPost(null);
+        }}
+        title="Evergreen-Post recyceln"
+      >
+        <div className="space-y-4">
+          {recyclingPost && (
+            <>
+              <div className="p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                <p className="text-sm dark:text-white line-clamp-3">{recyclingPost.content}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Neues Veröffentlichungsdatum
+                </label>
+                <input
+                  type="datetime-local"
+                  value={recycleDate}
+                  onChange={(e) => setRecycleDate(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={recycleModify}
+                  onChange={(e) => setRecycleModify(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-sm dark:text-gray-300">
+                  Content leicht anpassen (KI-Variation)
+                </span>
+              </label>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowRecycleModal(false);
+                    setRecyclingPost(null);
+                  }}
+                  className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleRecycle}
+                  disabled={!recycleDate}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50 hover:bg-green-700"
+                >
+                  <RefreshCw size={18} />
+                  Recyceln & Planen
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
     </div>

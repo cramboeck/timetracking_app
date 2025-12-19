@@ -3605,6 +3605,10 @@ export interface SocialMediaPost {
   aiGenerated: boolean;
   aiPrompt?: string;
   platforms?: SocialMediaPostPlatform[];
+  contentCategory?: string;
+  evergreen?: boolean;
+  recycleCount?: number;
+  lastRecycledAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -3877,6 +3881,101 @@ export const socialMediaApi = {
     upcomingScheduled: number;
   }> => {
     return authFetch('/social-media/stats');
+  },
+
+  // CSV/Bulk Import
+  importPosts: async (posts: Array<{
+    content: string;
+    title?: string;
+    scheduledAt?: string;
+    hashtags?: string[];
+    platform?: string;
+    contentCategory?: string;
+  }>): Promise<{ success: boolean; imported: number; posts: Array<{ id: string; content: string; status: string }> }> => {
+    return authFetch('/social-media/import', {
+      method: 'POST',
+      body: JSON.stringify({ posts }),
+    });
+  },
+
+  // Analytics - Best Times
+  getBestTimes: async (): Promise<{
+    recommendedTimes: Array<{ dayOfWeek: number; dayName: string; hour: number; timeString: string; postCount: number; avgEngagement: number }>;
+    heatmap: number[][];
+    totalAnalyzedPosts: number;
+  }> => {
+    return authFetch('/social-media/analytics/best-times');
+  },
+
+  // Analytics - Hashtags
+  getHashtagAnalytics: async (): Promise<{
+    allHashtags: Array<{ hashtag: string; usageCount: number; avgEngagement: number }>;
+    topPerforming: Array<{ hashtag: string; usageCount: number; avgEngagement: number }>;
+    totalUniqueHashtags: number;
+  }> => {
+    return authFetch('/social-media/analytics/hashtags');
+  },
+
+  researchHashtags: async (topic: string, platform?: string, count?: number): Promise<{
+    success: boolean;
+    topic: string;
+    platform: string;
+    hashtags: Array<{ tag: string; reach: string; description: string }>;
+  }> => {
+    return authFetch('/social-media/analytics/hashtags/research', {
+      method: 'POST',
+      body: JSON.stringify({ topic, platform, count }),
+    });
+  },
+
+  // Evergreen Content
+  getEvergreenPosts: async (): Promise<SocialMediaPost[]> => {
+    return authFetch('/social-media/evergreen');
+  },
+
+  setEvergreen: async (postId: string, evergreen: boolean): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/posts/${postId}/evergreen`, {
+      method: 'PUT',
+      body: JSON.stringify({ evergreen }),
+    });
+  },
+
+  recycleEvergreen: async (postId: string, scheduledAt: string, modifyContent?: boolean): Promise<{
+    success: boolean;
+    newPostId: string;
+    scheduledAt: string;
+  }> => {
+    return authFetch('/social-media/evergreen/recycle', {
+      method: 'POST',
+      body: JSON.stringify({ postId, scheduledAt, modifyContent }),
+    });
+  },
+
+  // Analytics - Content Mix
+  getContentMix: async (): Promise<{
+    distribution: Array<{ category: string; count: number; percentage: number; publishedCount: number; avgEngagement: number }>;
+    targetMix: Record<string, number>;
+    totalPosts: number;
+    recommendations: string[];
+  }> => {
+    return authFetch('/social-media/analytics/content-mix');
+  },
+
+  // Analytics - Performance
+  getPerformance: async (period?: number): Promise<{
+    period: number;
+    metrics: {
+      totalPosts: number;
+      publishedPosts: number;
+      totalLikes: number;
+      totalComments: number;
+      totalShares: number;
+      totalEngagement: number;
+    };
+    topPosts: Array<{ id: string; title: string; content: string; publishedAt: string; engagement: number }>;
+    dailyTrend: Array<{ date: string; posts: number }>;
+  }> => {
+    return authFetch(`/social-media/analytics/performance${period ? `?period=${period}` : ''}`);
   },
 };
 
