@@ -70,6 +70,41 @@ export const ReportAssistant = ({
   // Report options
   const [showAmounts, setShowAmounts] = useState(false);
   const [dateRangeType, setDateRangeType] = useState<'month' | 'quarter' | 'year' | 'custom'>('month');
+
+  // PDF Configuration state
+  interface PdfConfig {
+    reportTitle: string;
+    includeCoverPage: boolean;
+    includeTimeEntries: boolean;
+    columns: {
+      date: boolean;
+      weekday: boolean;
+      times: boolean;
+      project: boolean;
+      activity: boolean;
+      description: boolean;
+      hours: boolean;
+    };
+  }
+  const [pdfConfigModal, setPdfConfigModal] = useState<{
+    show: boolean;
+    customerId: string | null;
+    customerName: string;
+  }>({ show: false, customerId: null, customerName: '' });
+  const [pdfConfig, setPdfConfig] = useState<PdfConfig>({
+    reportTitle: 'Dienstleistungsnachweis',
+    includeCoverPage: true,
+    includeTimeEntries: true,
+    columns: {
+      date: true,
+      weekday: true,
+      times: false,
+      project: true,
+      activity: true,
+      description: true,
+      hours: true,
+    },
+  });
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -308,9 +343,12 @@ export const ReportAssistant = ({
   };
 
   // Generate Modern PDF Report
-  const generateModernPDF = async (customerData: CustomerReportData) => {
+  const generateModernPDF = async (customerData: CustomerReportData, config: PdfConfig = pdfConfig) => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const customerEntries = getCustomerEntries(customerData.customer.id);
+
+    // Use config for report title
+    const reportTitle = config.reportTitle || customerData.customer.reportTitle || 'Dienstleistungsnachweis';
 
     // Page dimensions
     const pageWidth = 210;
@@ -347,128 +385,164 @@ export const ReportAssistant = ({
 
     // ============ COVER PAGE ============
     let y = 25;
+    let pageNum = 0;
 
-    // Header area with logo
-    await addLogo(pageWidth - margin - 45, y, 45, 25);
+    if (config.includeCoverPage) {
+      pageNum = 1;
+      // Header area with logo
+      await addLogo(pageWidth - margin - 45, y, 45, 25);
 
-    // Company name (top left)
-    if (companyInfo?.name) {
+      // Company name (top left)
+      if (companyInfo?.name) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        doc.text(companyInfo.name, margin, y + 8);
+      }
+
+      // Main title section
+      y = 80;
+
+      // Accent bar
+      doc.setFillColor(accent.r, accent.g, accent.b);
+      doc.rect(margin, y, 4, 35, 'F');
+
+      // Report title
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(13);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(reportTitle, margin + 12, y + 8);
+
+      // Customer name
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
+      doc.setFontSize(26);
       doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text(companyInfo.name, margin, y + 8);
+      doc.text(customerData.customer.name, margin + 12, y + 24);
+
+      // Date range
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(formatDateRange(dateRange.start, dateRange.end), margin + 12, y + 35);
+
+      // Summary cards
+      y = 150;
+      const cardWidth = (contentWidth - 16) / 3;
+      const cardHeight = 50;
+
+      // Card 1: Total Hours
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.roundedRect(margin, y, cardWidth, cardHeight, 4, 4, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text('Gesamtzeit', margin + 10, y + 15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(formatHoursMinutes(customerData.totalHours), margin + 10, y + 35);
+
+      // Card 2: Entry Count
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.roundedRect(margin + cardWidth + 8, y, cardWidth, cardHeight, 4, 4, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text('Einträge', margin + cardWidth + 18, y + 15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(customerData.entryCount.toString(), margin + cardWidth + 18, y + 35);
+
+      // Card 3: Projects
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.roundedRect(margin + (cardWidth + 8) * 2, y, cardWidth, cardHeight, 4, 4, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text('Projekte', margin + (cardWidth + 8) * 2 + 10, y + 15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(customerData.projectCount.toString(), margin + (cardWidth + 8) * 2 + 10, y + 35);
+
+      // Signature section
+      y = 230;
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.5);
+
+      // Left signature
+      doc.line(margin, y, margin + 70, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text('Datum, Unterschrift Auftragnehmer', margin, y + 6);
+
+      // Right signature
+      doc.line(pageWidth / 2 + 15, y, pageWidth - margin, y);
+      doc.text('Datum, Unterschrift Auftraggeber', pageWidth / 2 + 15, y + 6);
+
+      // Footer
+      const now = new Date();
+      doc.setFontSize(8);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(
+        `Erstellt: ${now.toLocaleDateString('de-DE')} ${now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`,
+        margin,
+        pageHeight - 15
+      );
+      doc.text('Seite 1', pageWidth - margin, pageHeight - 15, { align: 'right' });
     }
 
-    // Main title section
-    y = 80;
-
-    // Accent bar
-    doc.setFillColor(accent.r, accent.g, accent.b);
-    doc.rect(margin, y, 4, 35, 'F');
-
-    // Report title (from customer settings or default)
-    const reportTitle = customerData.customer.reportTitle || 'Dienstleistungsnachweis';
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(13);
-    doc.setTextColor(gray.r, gray.g, gray.b);
-    doc.text(reportTitle, margin + 12, y + 8);
-
-    // Customer name
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(26);
-    doc.setTextColor(dark.r, dark.g, dark.b);
-    doc.text(customerData.customer.name, margin + 12, y + 24);
-
-    // Date range
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(12);
-    doc.setTextColor(gray.r, gray.g, gray.b);
-    doc.text(formatDateRange(dateRange.start, dateRange.end), margin + 12, y + 35);
-
-    // Summary cards
-    y = 150;
-    const cardWidth = (contentWidth - 16) / 3;
-    const cardHeight = 50;
-
-    // Card 1: Total Hours
-    doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-    doc.roundedRect(margin, y, cardWidth, cardHeight, 4, 4, 'F');
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(gray.r, gray.g, gray.b);
-    doc.text('Gesamtzeit', margin + 10, y + 15);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
-    doc.setTextColor(dark.r, dark.g, dark.b);
-    doc.text(formatHoursMinutes(customerData.totalHours), margin + 10, y + 35);
-
-    // Card 2: Entry Count
-    doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-    doc.roundedRect(margin + cardWidth + 8, y, cardWidth, cardHeight, 4, 4, 'F');
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(gray.r, gray.g, gray.b);
-    doc.text('Einträge', margin + cardWidth + 18, y + 15);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
-    doc.setTextColor(dark.r, dark.g, dark.b);
-    doc.text(customerData.entryCount.toString(), margin + cardWidth + 18, y + 35);
-
-    // Card 3: Projects
-    doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-    doc.roundedRect(margin + (cardWidth + 8) * 2, y, cardWidth, cardHeight, 4, 4, 'F');
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(gray.r, gray.g, gray.b);
-    doc.text('Projekte', margin + (cardWidth + 8) * 2 + 10, y + 15);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
-    doc.setTextColor(dark.r, dark.g, dark.b);
-    doc.text(customerData.projectCount.toString(), margin + (cardWidth + 8) * 2 + 10, y + 35);
-
-    // Signature section
-    y = 230;
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.5);
-
-    // Left signature
-    doc.line(margin, y, margin + 70, y);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(gray.r, gray.g, gray.b);
-    doc.text('Datum, Unterschrift Auftragnehmer', margin, y + 6);
-
-    // Right signature
-    doc.line(pageWidth / 2 + 15, y, pageWidth - margin, y);
-    doc.text('Datum, Unterschrift Auftraggeber', pageWidth / 2 + 15, y + 6);
-
-    // Footer
-    const now = new Date();
-    doc.setFontSize(8);
-    doc.setTextColor(gray.r, gray.g, gray.b);
-    doc.text(
-      `Erstellt: ${now.toLocaleDateString('de-DE')} ${now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`,
-      margin,
-      pageHeight - 15
-    );
-    doc.text('Seite 1', pageWidth - margin, pageHeight - 15, { align: 'right' });
-
     // ============ DETAIL PAGES (Landscape) ============
-    if (customerEntries.length > 0) {
+    if (config.includeTimeEntries && customerEntries.length > 0) {
       // Add landscape page - correct jsPDF syntax
-      doc.addPage([297, 210], 'l');
+      if (config.includeCoverPage) {
+        doc.addPage([297, 210], 'l');
+      } else {
+        // If no cover page, we're on the first page but need landscape
+        // jsPDF doesn't support changing orientation, so we add a new page anyway
+        doc.addPage([297, 210], 'l');
+        doc.deletePage(1); // Remove the empty portrait page
+      }
 
       const lWidth = 297;
       const lHeight = 210;
-      let pageNum = 2;
+      pageNum = config.includeCoverPage ? 2 : 1;
 
-      // Column positions for landscape
-      const colDate = margin;
-      const colDay = margin + 25;
-      const colProject = margin + 42;
-      const colActivity = margin + 100;
-      const colDesc = margin + 155;
-      const colHours = lWidth - margin;
+      // Calculate dynamic column positions based on selected columns
+      const cols = config.columns;
+      const colWidths: { [key: string]: number } = {
+        date: 28,
+        weekday: 15,
+        times: 30,
+        project: 55,
+        activity: 50,
+        description: 0, // Will take remaining space
+        hours: 25,
+      };
+
+      // Calculate total fixed width and determine description width
+      let fixedWidth = margin * 2; // margins
+      if (cols.date) fixedWidth += colWidths.date;
+      if (cols.weekday) fixedWidth += colWidths.weekday;
+      if (cols.times) fixedWidth += colWidths.times;
+      if (cols.project) fixedWidth += colWidths.project;
+      if (cols.activity) fixedWidth += colWidths.activity;
+      if (cols.hours) fixedWidth += colWidths.hours;
+      if (cols.description) colWidths.description = lWidth - fixedWidth - 5;
+
+      // Build column positions dynamically
+      let currentX = margin;
+      const colPositions: { [key: string]: number } = {};
+
+      if (cols.date) { colPositions.date = currentX; currentX += colWidths.date; }
+      if (cols.weekday) { colPositions.weekday = currentX; currentX += colWidths.weekday; }
+      if (cols.times) { colPositions.times = currentX; currentX += colWidths.times; }
+      if (cols.project) { colPositions.project = currentX; currentX += colWidths.project; }
+      if (cols.activity) { colPositions.activity = currentX; currentX += colWidths.activity; }
+      if (cols.description) { colPositions.description = currentX; currentX += colWidths.description; }
+      if (cols.hours) { colPositions.hours = lWidth - margin; } // Always right-aligned
 
       // Header function for detail pages
       const addDetailHeader = async () => {
@@ -493,34 +567,39 @@ export const ReportAssistant = ({
         return 38;
       };
 
+      // Function to render table headers
+      const renderTableHeader = (yPos: number) => {
+        doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+        doc.rect(margin, yPos - 5, lWidth - margin * 2, 10, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(dark.r, dark.g, dark.b);
+
+        if (cols.date) doc.text('Datum', colPositions.date, yPos);
+        if (cols.weekday) doc.text('Tag', colPositions.weekday, yPos);
+        if (cols.times) doc.text('Uhrzeiten', colPositions.times, yPos);
+        if (cols.project) doc.text('Projekt', colPositions.project, yPos);
+        if (cols.activity) doc.text('Tätigkeit', colPositions.activity, yPos);
+        if (cols.description) doc.text('Beschreibung', colPositions.description, yPos);
+        if (cols.hours) doc.text('Zeit', colPositions.hours, yPos, { align: 'right' });
+      };
+
       y = await addDetailHeader();
-
-      // Table header with background
-      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-      doc.rect(margin, y - 5, lWidth - margin * 2, 10, 'F');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text('Datum', colDate, y);
-      doc.text('Tag', colDay, y);
-      doc.text('Projekt', colProject, y);
-      doc.text('Tätigkeit', colActivity, y);
-      doc.text('Beschreibung', colDesc, y);
-      doc.text('Zeit', colHours, y, { align: 'right' });
+      renderTableHeader(y);
 
       y += 10;
       let rowIndex = 0;
       const lineHeight = 4; // Height per line of text
       const minRowHeight = 7; // Minimum row height
-      const maxDescWidth = colHours - colDesc - 15; // Width for description column
+      const maxDescWidth = cols.description ? colWidths.description - 5 : 100;
 
       for (const entry of customerEntries) {
         // Calculate description lines first to know row height
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         const desc = entry.description || '-';
-        const descLines = doc.splitTextToSize(desc, maxDescWidth);
+        const descLines = cols.description ? doc.splitTextToSize(desc, maxDescWidth) : ['-'];
         const rowHeight = Math.max(minRowHeight, descLines.length * lineHeight + 3);
 
         // Check for page break with dynamic row height
@@ -538,17 +617,7 @@ export const ReportAssistant = ({
           rowIndex = 0;
 
           // Re-add table header
-          doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-          doc.rect(margin, y - 5, lWidth - margin * 2, 10, 'F');
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(9);
-          doc.setTextColor(dark.r, dark.g, dark.b);
-          doc.text('Datum', colDate, y);
-          doc.text('Tag', colDay, y);
-          doc.text('Projekt', colProject, y);
-          doc.text('Tätigkeit', colActivity, y);
-          doc.text('Beschreibung', colDesc, y);
-          doc.text('Zeit', colHours, y, { align: 'right' });
+          renderTableHeader(y);
           y += 10;
         }
 
@@ -563,52 +632,76 @@ export const ReportAssistant = ({
         doc.setTextColor(dark.r, dark.g, dark.b);
 
         // Date
-        doc.text(entry.date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }), colDate, y);
+        if (cols.date) {
+          doc.text(entry.date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }), colPositions.date, y);
+        }
 
         // Weekday
-        doc.setTextColor(gray.r, gray.g, gray.b);
-        doc.text(entry.weekday, colDay, y);
-        doc.setTextColor(dark.r, dark.g, dark.b);
+        if (cols.weekday) {
+          doc.setTextColor(gray.r, gray.g, gray.b);
+          doc.text(entry.weekday, colPositions.weekday, y);
+          doc.setTextColor(dark.r, dark.g, dark.b);
+        }
+
+        // Times (start - end)
+        if (cols.times) {
+          const startTime = entry.date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+          const endDate = new Date(entry.date.getTime() + entry.hours * 3600000);
+          const endTime = endDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+          doc.setTextColor(gray.r, gray.g, gray.b);
+          doc.text(`${startTime}-${endTime}`, colPositions.times, y);
+          doc.setTextColor(dark.r, dark.g, dark.b);
+        }
 
         // Project (truncate if needed)
-        const maxProjectWidth = 52;
-        let projectName = entry.project.name;
-        while (doc.getTextWidth(projectName) > maxProjectWidth && projectName.length > 3) {
-          projectName = projectName.substring(0, projectName.length - 4) + '...';
+        if (cols.project) {
+          const maxProjectWidth = colWidths.project - 5;
+          let projectName = entry.project.name;
+          while (doc.getTextWidth(projectName) > maxProjectWidth && projectName.length > 3) {
+            projectName = projectName.substring(0, projectName.length - 4) + '...';
+          }
+          doc.text(projectName, colPositions.project, y);
         }
-        doc.text(projectName, colProject, y);
 
         // Activity (truncate if needed)
-        const maxActivityWidth = 50;
-        let activityName = entry.activity?.name || '-';
-        while (doc.getTextWidth(activityName) > maxActivityWidth && activityName.length > 3) {
-          activityName = activityName.substring(0, activityName.length - 4) + '...';
+        if (cols.activity) {
+          const maxActivityWidth = colWidths.activity - 5;
+          let activityName = entry.activity?.name || '-';
+          while (doc.getTextWidth(activityName) > maxActivityWidth && activityName.length > 3) {
+            activityName = activityName.substring(0, activityName.length - 4) + '...';
+          }
+          doc.text(activityName, colPositions.activity, y);
         }
-        doc.text(activityName, colActivity, y);
 
         // Description - multi-line
-        doc.text(descLines, colDesc, y);
+        if (cols.description) {
+          doc.text(descLines, colPositions.description, y);
+        }
 
         // Hours (vertically centered if multi-line)
-        doc.setFont('helvetica', 'bold');
-        const hoursY = descLines.length > 1 ? y + ((descLines.length - 1) * lineHeight) / 2 : y;
-        doc.text(formatHoursMinutes(entry.hours), colHours, hoursY, { align: 'right' });
+        if (cols.hours) {
+          doc.setFont('helvetica', 'bold');
+          const hoursY = descLines.length > 1 ? y + ((descLines.length - 1) * lineHeight) / 2 : y;
+          doc.text(formatHoursMinutes(entry.hours), colPositions.hours, hoursY, { align: 'right' });
+        }
 
         y += rowHeight;
         rowIndex++;
       }
 
       // Total row
-      y += 5;
-      doc.setDrawColor(dark.r, dark.g, dark.b);
-      doc.setLineWidth(0.5);
-      doc.line(colHours - 50, y, lWidth - margin, y);
-      y += 7;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('Gesamt:', colHours - 50, y);
-      doc.setFontSize(11);
-      doc.text(formatHoursMinutes(customerData.totalHours), colHours, y, { align: 'right' });
+      if (cols.hours) {
+        y += 5;
+        doc.setDrawColor(dark.r, dark.g, dark.b);
+        doc.setLineWidth(0.5);
+        doc.line(colPositions.hours - 50, y, lWidth - margin, y);
+        y += 7;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text('Gesamt:', colPositions.hours - 50, y);
+        doc.setFontSize(11);
+        doc.text(formatHoursMinutes(customerData.totalHours), colPositions.hours, y, { align: 'right' });
+      }
 
       // Final page footer
       doc.setFont('helvetica', 'normal');
@@ -620,11 +713,35 @@ export const ReportAssistant = ({
     return doc;
   };
 
-  const exportSelected = async () => {
+  // Open PDF config modal before export
+  const openPdfConfigModal = () => {
+    if (selectedCustomers.size === 0) return;
+
+    // Get the first selected customer to use their reportTitle as default
+    const firstCustomerId = Array.from(selectedCustomers)[0];
+    const firstCustomerData = reportData.find(d => d.customer.id === firstCustomerId);
+
+    setPdfConfig(prev => ({
+      ...prev,
+      reportTitle: firstCustomerData?.customer.reportTitle || 'Dienstleistungsnachweis',
+    }));
+
+    setPdfConfigModal({
+      show: true,
+      customerId: null, // null means all selected
+      customerName: selectedCustomers.size === 1
+        ? firstCustomerData?.customer.name || ''
+        : `${selectedCustomers.size} Kunden`,
+    });
+  };
+
+  const exportWithConfig = async () => {
+    setPdfConfigModal({ show: false, customerId: null, customerName: '' });
+
     for (const customerId of Array.from(selectedCustomers)) {
       const customerData = reportData.find(d => d.customer.id === customerId);
       if (customerData) {
-        const doc = await generateModernPDF(customerData);
+        const doc = await generateModernPDF(customerData, pdfConfig);
         let dateStr: string;
         switch (dateRangeType) {
           case 'month':
@@ -639,10 +756,15 @@ export const ReportAssistant = ({
           default:
             dateStr = `${customStartDate}_${customEndDate}`;
         }
-        const fileTitle = (customerData.customer.reportTitle || 'Dienstleistungsnachweis').replace(/\s+/g, '_');
+        const fileTitle = pdfConfig.reportTitle.replace(/\s+/g, '_');
         doc.save(`${fileTitle}_${customerData.customer.name.replace(/\s+/g, '_')}_${dateStr}.pdf`);
       }
     }
+  };
+
+  // Legacy direct export (for backward compatibility)
+  const exportSelected = async () => {
+    openPdfConfigModal();
   };
 
   // Check for existing reports before saving
@@ -807,7 +929,7 @@ export const ReportAssistant = ({
   };
 
   // PDF Preview functions
-  const openPreview = async (index: number = 0) => {
+  const openPreview = async (index: number = 0, config?: PdfConfig) => {
     const selectedIds = Array.from(selectedCustomers);
     console.log('Opening preview, selectedIds:', selectedIds, 'index:', index);
     if (selectedIds.length === 0) {
@@ -824,7 +946,7 @@ export const ReportAssistant = ({
 
       if (customerData) {
         console.log('Generating PDF...');
-        const doc = await generateModernPDF(customerData);
+        const doc = await generateModernPDF(customerData, config || pdfConfig);
         console.log('PDF generated, creating blob URL...');
         const pdfUrl = doc.output('bloburl');
         console.log('Blob URL created:', pdfUrl);
@@ -866,7 +988,7 @@ export const ReportAssistant = ({
       : pdfPreview.currentIndex - 1;
 
     if (newIndex >= 0 && newIndex < pdfPreview.totalCount) {
-      await openPreview(newIndex);
+      await openPreview(newIndex, pdfConfig);
     }
   };
 
@@ -1758,6 +1880,138 @@ ${companyInfo?.phone || ''}`;
                   className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
                 >
                   Schließen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PDF Configuration Modal */}
+        {pdfConfigModal.show && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[90vw] max-w-lg max-h-[85vh] flex flex-col">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-200 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <FileText size={24} className="text-accent-primary" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      PDF erstellen
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {pdfConfigModal.customerName}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPdfConfigModal({ show: false, customerId: null, customerName: '' })}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-auto p-6 space-y-6">
+                {/* Report Title */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Berichtstitel
+                  </label>
+                  <input
+                    type="text"
+                    value={pdfConfig.reportTitle}
+                    onChange={(e) => setPdfConfig(prev => ({ ...prev, reportTitle: e.target.value }))}
+                    placeholder="Dienstleistungsnachweis"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary/20"
+                  />
+                </div>
+
+                {/* Page Options */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Seiten erstellen
+                  </label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-300 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={pdfConfig.includeCoverPage}
+                        onChange={(e) => setPdfConfig(prev => ({ ...prev, includeCoverPage: e.target.checked }))}
+                        className="w-4 h-4 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
+                      />
+                      <div>
+                        <span className="text-gray-900 dark:text-white font-medium">Deckblatt</span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Mit Zusammenfassung und Unterschriftsfeld</p>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-300 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={pdfConfig.includeTimeEntries}
+                        onChange={(e) => setPdfConfig(prev => ({ ...prev, includeTimeEntries: e.target.checked }))}
+                        className="w-4 h-4 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
+                      />
+                      <div>
+                        <span className="text-gray-900 dark:text-white font-medium">Liste der Zeiteinträge</span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Detaillierte Auflistung aller Einträge</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Column Selection - only show if time entries are included */}
+                {pdfConfig.includeTimeEntries && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Spalten anzeigen
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { key: 'date', label: 'Datum' },
+                        { key: 'weekday', label: 'Wochentag' },
+                        { key: 'times', label: 'Uhrzeiten' },
+                        { key: 'project', label: 'Projekt' },
+                        { key: 'activity', label: 'Leistung' },
+                        { key: 'description', label: 'Beschreibung' },
+                        { key: 'hours', label: 'Zeit' },
+                      ].map(({ key, label }) => (
+                        <label
+                          key={key}
+                          className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-dark-200 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-300 transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={pdfConfig.columns[key as keyof typeof pdfConfig.columns]}
+                            onChange={(e) => setPdfConfig(prev => ({
+                              ...prev,
+                              columns: { ...prev.columns, [key]: e.target.checked }
+                            }))}
+                            className="w-4 h-4 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-200 flex justify-end gap-3">
+                <button
+                  onClick={() => setPdfConfigModal({ show: false, customerId: null, customerName: '' })}
+                  className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={exportWithConfig}
+                  disabled={!pdfConfig.includeCoverPage && !pdfConfig.includeTimeEntries}
+                  className="px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Download size={18} />
+                  PDF erstellen
                 </button>
               </div>
             </div>
