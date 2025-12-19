@@ -384,6 +384,20 @@ export async function getBillingSummary(
   });
 }
 
+// Custom invoice data interface
+interface CustomInvoiceData {
+  header?: string;
+  headText?: string;
+  footText?: string;
+  positions?: Array<{
+    title: string;
+    description: string;
+    hours: number;
+    amount: number;
+    hourlyRate?: number;
+  }>;
+}
+
 // Create invoice in sevDesk
 export async function createInvoice(
   apiToken: string,
@@ -392,7 +406,8 @@ export async function createInvoice(
   entries: TimeEntryForBilling[],
   hourlyRate: number,
   periodStart: string,
-  periodEnd: string
+  periodEnd: string,
+  customData?: CustomInvoiceData
 ): Promise<{ invoiceId: string; invoiceNumber: string }> {
   // Format the period for display
   const startDate = new Date(periodStart);
@@ -400,32 +415,64 @@ export async function createInvoice(
   const periodLabel = `${startDate.toLocaleDateString('de-DE')} - ${endDate.toLocaleDateString('de-DE')}`;
 
   console.log(`Creating sevDesk invoice for contact ${sevdeskCustomerId}, period ${periodLabel}, ${entries.length} entries`);
+  console.log('Custom data provided:', !!customData, 'custom positions:', customData?.positions?.length || 0);
 
-  // Create invoice positions
-  const positions = entries.map((entry, index) => {
-    const hours = entry.duration / 3600;
-    let name = entry.description || 'Dienstleistung';
+  // Create invoice positions - use custom positions if provided, otherwise create from entries
+  let positions: any[];
 
-    if (entry.ticketNumber) {
-      name = `${entry.ticketNumber}: ${entry.ticketTitle || entry.description || 'Support'}`;
-    } else if (entry.projectName) {
-      name = `${entry.projectName}: ${entry.description || 'Arbeitszeit'}`;
-    }
+  if (customData?.positions && customData.positions.length > 0) {
+    // Use grouped positions from frontend
+    console.log('Using custom grouped positions');
+    positions = customData.positions.map((pos, index) => {
+      const posHourlyRate = pos.hourlyRate || hourlyRate;
+      return {
+        objectName: 'InvoicePos',
+        mapAll: true,
+        quantity: Math.round(pos.hours * 100) / 100,
+        price: posHourlyRate,
+        name: pos.title,
+        text: pos.description || null,
+        unity: {
+          id: 9, // Hours in sevDesk
+          objectName: 'Unity',
+        },
+        taxRate: config.taxRate,
+        positionNumber: index + 1,
+      };
+    });
+  } else {
+    // Fallback: create positions from individual entries
+    console.log('Using individual entry positions (fallback)');
+    positions = entries.map((entry, index) => {
+      const hours = entry.duration / 3600;
+      let name = entry.description || 'Dienstleistung';
 
-    return {
-      objectName: 'InvoicePos',
-      mapAll: true,
-      quantity: Math.round(hours * 100) / 100,
-      price: hourlyRate,
-      name: name,
-      unity: {
-        id: 9, // Hours in sevDesk
-        objectName: 'Unity',
-      },
-      taxRate: config.taxRate,
-      positionNumber: index + 1,
-    };
-  });
+      if (entry.ticketNumber) {
+        name = `${entry.ticketNumber}: ${entry.ticketTitle || entry.description || 'Support'}`;
+      } else if (entry.projectName) {
+        name = `${entry.projectName}: ${entry.description || 'Arbeitszeit'}`;
+      }
+
+      return {
+        objectName: 'InvoicePos',
+        mapAll: true,
+        quantity: Math.round(hours * 100) / 100,
+        price: hourlyRate,
+        name: name,
+        unity: {
+          id: 9, // Hours in sevDesk
+          objectName: 'Unity',
+        },
+        taxRate: config.taxRate,
+        positionNumber: index + 1,
+      };
+    });
+  }
+
+  // Use custom texts if provided, otherwise use defaults
+  const invoiceHeader = customData?.header || `Leistungen ${periodLabel}`;
+  const invoiceHeadText = customData?.headText || `Abrechnung für den Zeitraum ${periodLabel}`;
+  const invoiceFootText = customData?.footText || 'Vielen Dank für Ihr Vertrauen.';
 
   // Create the invoice
   const invoiceData = {
@@ -436,9 +483,9 @@ export async function createInvoice(
       objectName: 'Contact',
     },
     invoiceDate: new Date().toISOString().split('T')[0],
-    header: `Leistungen ${periodLabel}`,
-    headText: `Abrechnung für den Zeitraum ${periodLabel}`,
-    footText: 'Vielen Dank für Ihr Vertrauen.',
+    header: invoiceHeader,
+    headText: invoiceHeadText,
+    footText: invoiceFootText,
     timeToPay: config.paymentTermsDays,
     discount: 0,
     status: config.createAsFinal ? 200 : 100, // 100 = Draft, 200 = Open

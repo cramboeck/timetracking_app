@@ -210,14 +210,25 @@ export const InvoiceCreationDialog = ({
 
     try {
       const entryIds = customer.entries.map(e => e.id);
+      const hourlyRate = customer.hourlyRate || 95;
 
-      // Create invoice with grouped positions
-      const response = await sevdeskApi.createInvoice(
-        customer.customerId,
+      // Create invoice with grouped positions and custom texts
+      const response = await sevdeskApi.createInvoice({
+        customerId: customer.customerId,
         entryIds,
-        periodStart.toISOString().split('T')[0],
-        periodEnd.toISOString().split('T')[0]
-      );
+        periodStart: periodStart.toISOString().split('T')[0],
+        periodEnd: periodEnd.toISOString().split('T')[0],
+        header: invoiceHeader,
+        headText: headText,
+        footText: footText,
+        positions: positions.map(pos => ({
+          title: pos.title,
+          description: pos.description,
+          hours: pos.roundedHours,
+          amount: pos.amount,
+          hourlyRate: hourlyRate,
+        })),
+      });
 
       if (response.success) {
         onSuccess(response.data.invoiceNumber);

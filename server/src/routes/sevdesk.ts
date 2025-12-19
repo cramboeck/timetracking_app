@@ -200,9 +200,11 @@ router.get('/billing-summary', authenticateToken, requireBillingFeature, async (
 router.post('/create-invoice', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { customerId, entryIds, periodStart, periodEnd } = req.body;
+    const { customerId, entryIds, periodStart, periodEnd, header, headText, footText, positions } = req.body;
 
     console.log('[create-invoice] Starting invoice creation for customer:', customerId);
+    console.log('[create-invoice] Custom texts provided:', !!header, !!headText, !!footText);
+    console.log('[create-invoice] Custom positions:', positions?.length || 0);
 
     if (!customerId || !entryIds || !periodStart || !periodEnd) {
       console.log('[create-invoice] Missing required fields');
@@ -222,7 +224,7 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
 
     // Get customer info
     const customerResult = await query(
-      'SELECT id, name, hourly_rate, sevdesk_customer_id FROM customers WHERE id = $1 AND user_id = $2',
+      'SELECT id, name, hourly_rate, sevdesk_customer_id, time_rounding_interval FROM customers WHERE id = $1 AND user_id = $2',
       [customerId, userId]
     );
 
@@ -245,7 +247,7 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
     const hourlyRate = customer.hourly_rate ? parseFloat(customer.hourly_rate) : config.defaultHourlyRate;
     console.log('[create-invoice] Hourly rate:', hourlyRate);
 
-    // Get time entries
+    // Get time entries to verify they exist
     const entries = await sevdeskService.getUnbilledTimeEntries(userId, customerId, periodStart, periodEnd);
     const selectedEntries = entries.filter(e => entryIds.includes(e.id));
     console.log('[create-invoice] Found', entries.length, 'entries, selected', selectedEntries.length);
@@ -255,13 +257,28 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       return res.status(400).json({ success: false, error: 'No valid time entries selected' });
     }
 
-    // Calculate totals
-    const totalSeconds = selectedEntries.reduce((sum, e) => sum + e.duration, 0);
-    const totalHours = Math.round((totalSeconds / 3600) * 100) / 100;
-    const totalAmount = Math.round(totalHours * hourlyRate * 100) / 100;
-    console.log('[create-invoice] Total hours:', totalHours, 'amount:', totalAmount);
+    // Calculate totals - use grouped positions if provided, otherwise calculate from entries
+    let totalHours: number;
+    let totalAmount: number;
 
-    // Create invoice in sevDesk
+    if (positions && positions.length > 0) {
+      // Use the grouped positions data from frontend
+      totalHours = positions.reduce((sum: number, p: any) => sum + (p.hours || 0), 0);
+      totalAmount = positions.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+      console.log('[create-invoice] Using grouped positions - Total hours:', totalHours, 'amount:', totalAmount);
+    } else {
+      // Fallback: calculate from entries
+      const roundingInterval = customer.time_rounding_interval || 15;
+      const roundedSeconds = selectedEntries.reduce((sum, e) => {
+        const intervalSeconds = roundingInterval * 60;
+        return sum + Math.ceil(e.duration / intervalSeconds) * intervalSeconds;
+      }, 0);
+      totalHours = Math.round((roundedSeconds / 3600) * 100) / 100;
+      totalAmount = Math.round(totalHours * hourlyRate * 100) / 100;
+      console.log('[create-invoice] Calculated from entries - Total hours:', totalHours, 'amount:', totalAmount);
+    }
+
+    // Create invoice in sevDesk with custom texts and positions
     console.log('[create-invoice] Calling sevdeskService.createInvoice...');
     const invoice = await sevdeskService.createInvoice(
       config.apiToken,
@@ -270,7 +287,13 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       selectedEntries,
       hourlyRate,
       periodStart,
-      periodEnd
+      periodEnd,
+      {
+        header,
+        headText,
+        footText,
+        positions,
+      }
     );
     console.log('[create-invoice] Invoice created:', invoice.invoiceId, invoice.invoiceNumber);
 

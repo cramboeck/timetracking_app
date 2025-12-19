@@ -1926,7 +1926,23 @@ export const sevdeskApi = {
   },
 
   // Create invoice in sevDesk
-  createInvoice: async (customerId: string, entryIds: string[], periodStart: string, periodEnd: string): Promise<{
+  createInvoice: async (params: {
+    customerId: string;
+    entryIds: string[];
+    periodStart: string;
+    periodEnd: string;
+    // Optional custom texts and positions
+    header?: string;
+    headText?: string;
+    footText?: string;
+    positions?: Array<{
+      title: string;
+      description: string;
+      hours: number;
+      amount: number;
+      hourlyRate: number;
+    }>;
+  }): Promise<{
     success: boolean;
     data: {
       exportId: string;
@@ -1938,7 +1954,7 @@ export const sevdeskApi = {
   }> => {
     return authFetch('/sevdesk/create-invoice', {
       method: 'POST',
-      body: JSON.stringify({ customerId, entryIds, periodStart, periodEnd }),
+      body: JSON.stringify(params),
     });
   },
 
