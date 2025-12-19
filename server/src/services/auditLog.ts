@@ -95,7 +95,9 @@ export type AuditAction =
   | 'mfa.all_devices_revoked'
   // Admin maintenance actions
   | 'maintenance.admin_delete'
-  | 'maintenance.admin_bulk_delete';
+  | 'maintenance.admin_bulk_delete'
+  // Import actions
+  | 'import.clockodo';
 
 export interface AuditLogEntry {
   id: string;
