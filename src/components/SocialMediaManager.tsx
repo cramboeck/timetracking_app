@@ -5356,8 +5356,9 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         isOpen={showContentWizard}
         onClose={() => setShowContentWizard(false)}
         title=""
+        maxWidth="5xl"
       >
-        <div className="max-w-4xl w-full">
+        <div className="w-full">
           {/* Wizard Header */}
           <div className="mb-6 text-center">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500/10 to-red-500/10 rounded-full border border-amber-200 dark:border-amber-800 mb-3">
@@ -5626,142 +5627,142 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             </div>
           )}
 
-          {/* Step 3: Marketing Analysis */}
+          {/* Step 3: Marketing Analysis - Desktop: 2 Columns, Mobile: Stack */}
           {wizardStep === 'analyze' && wizardContent && (
             <div className="space-y-6">
-              {/* Generated Content Preview */}
-              <div className="bg-gray-50 dark:bg-dark-200 rounded-xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold dark:text-white flex items-center gap-2">
-                    <PenTool size={18} className="text-amber-500" />
-                    Generierter Content
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    {(wizardContent.alternatives || []).length > 0 && [wizardContent, ...wizardContent.alternatives].map((_, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          setWizardSelectedAlternative(idx);
-                          setWizardEditedContent(idx === 0 ? wizardContent.post?.content || '' : wizardContent.alternatives?.[idx - 1]?.content || wizardContent.post?.content || '');
-                        }}
-                        className={`px-3 py-1 rounded-full text-sm ${
-                          wizardSelectedAlternative === idx
-                            ? 'bg-amber-500 text-white'
-                            : 'bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-gray-400'
-                        }`}
-                      >
-                        {idx === 0 ? 'Original' : `Variante ${idx}`}
-                      </button>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* LEFT SIDE: Content Editor */}
+              <div className="space-y-4">
+                {/* Generated Content Preview */}
+                <div className="bg-gray-50 dark:bg-dark-200 rounded-xl p-5 h-fit">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold dark:text-white flex items-center gap-2">
+                      <PenTool size={18} className="text-amber-500" />
+                      Dein Content
+                    </h3>
+                    <div className="flex items-center gap-1">
+                      {(wizardContent.alternatives || []).length > 0 && [wizardContent, ...wizardContent.alternatives].map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            setWizardSelectedAlternative(idx);
+                            setWizardEditedContent(idx === 0 ? wizardContent.post?.content || '' : wizardContent.alternatives?.[idx - 1]?.content || wizardContent.post?.content || '');
+                          }}
+                          className={`px-2 py-1 rounded text-xs ${
+                            wizardSelectedAlternative === idx
+                              ? 'bg-amber-500 text-white'
+                              : 'bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-gray-400 hover:bg-gray-300'
+                          }`}
+                        >
+                          {idx === 0 ? 'Original' : `V${idx}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <textarea
+                    value={wizardEditedContent}
+                    onChange={(e) => setWizardEditedContent(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-dark-300 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white resize-none text-sm leading-relaxed"
+                    rows={10}
+                    placeholder="Bearbeite deinen Content hier..."
+                  />
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {(wizardContent.post?.hashtags || []).map(tag => (
+                      <span key={tag} className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs">
+                        #{tag}
+                      </span>
                     ))}
                   </div>
                 </div>
-                <textarea
-                  value={wizardEditedContent}
-                  onChange={(e) => setWizardEditedContent(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-dark-300 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white resize-none"
-                  rows={6}
-                />
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {(wizardContent.post?.hashtags || []).map(tag => (
-                    <span key={tag} className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-sm">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
+
+                {/* Best Posting Time - Moved to left side */}
+                {wizardContent.bestPostingTime && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 flex items-center gap-3">
+                    <Clock size={20} className="text-blue-600 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium dark:text-white text-sm">Optimaler Zeitpunkt</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {wizardContent.bestPostingTime.day} um {wizardContent.bestPostingTime.time}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Marketing Expert Analysis */}
-              {wizardAnalyzing ? (
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-6 text-center">
-                  <Loader2 size={32} className="animate-spin text-purple-500 mx-auto mb-3" />
-                  <p className="font-medium dark:text-white">Marketing-Experte analysiert...</p>
-                </div>
-              ) : wizardAnalysis && (
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-6">
-                  <h3 className="font-semibold dark:text-white mb-4 flex items-center gap-2">
-                    <Bot size={20} className="text-purple-600" />
-                    Marketing-Experten-Analyse
-                  </h3>
-
-                  {/* Score Overview */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3 text-center">
-                      <div className={`text-2xl font-bold ${wizardAnalysis.overallScore >= 80 ? 'text-green-600' : wizardAnalysis.overallScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {wizardAnalysis.overallScore}/100
-                      </div>
-                      <div className="text-xs text-gray-500">Gesamt-Score</div>
-                    </div>
-                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3 text-center">
-                      <div className="text-2xl font-bold text-blue-600">{wizardAnalysis.platformFit?.score || 0}/100</div>
-                      <div className="text-xs text-gray-500">Plattform-Fit</div>
-                    </div>
-                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3 text-center">
-                      <div className="text-2xl font-bold text-purple-600">{wizardAnalysis.viralPotential || 0}/100</div>
-                      <div className="text-xs text-gray-500">Viral-Potenzial</div>
-                    </div>
-                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3 text-center">
-                      <div className="text-2xl font-bold text-green-600">{wizardAnalysis.callToActionEffectiveness?.score || 0}/100</div>
-                      <div className="text-xs text-gray-500">CTA-Stärke</div>
-                    </div>
+              {/* RIGHT SIDE: Marketing Analysis */}
+              <div className="space-y-4">
+                {wizardAnalyzing ? (
+                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-8 text-center">
+                    <Loader2 size={40} className="animate-spin text-purple-500 mx-auto mb-4" />
+                    <p className="font-medium dark:text-white">Marketing-Experte analysiert...</p>
+                    <p className="text-sm text-gray-500 mt-1">Prüft Hook, Mehrwert, CTA und Plattform-Fit</p>
                   </div>
+                ) : wizardAnalysis && (
+                  <>
+                    {/* Score Header */}
+                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold dark:text-white flex items-center gap-2">
+                          <Bot size={18} className="text-purple-600" />
+                          Experten-Analyse
+                        </h3>
+                        <div className={`text-2xl font-bold ${wizardAnalysis.overallScore >= 80 ? 'text-green-600' : wizardAnalysis.overallScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                          {wizardAnalysis.overallScore}/100
+                        </div>
+                      </div>
 
-                  {/* Strengths & Weaknesses */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div>
-                      <h4 className="text-sm font-medium text-green-700 dark:text-green-400 mb-2 flex items-center gap-1">
-                        <ThumbsUp size={14} />
-                        Stärken
-                      </h4>
-                      <ul className="space-y-1">
-                        {wizardAnalysis.strengths?.slice(0, 3).map((s, i) => (
-                          <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
-                            <Check size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
-                            {s}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-red-700 dark:text-red-400 mb-2 flex items-center gap-1">
-                        <ThumbsDown size={14} />
-                        Verbesserungspotenzial
-                      </h4>
-                      <ul className="space-y-1">
-                        {wizardAnalysis.weaknesses?.slice(0, 3).map((w, i) => (
-                          <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
-                            <AlertCircle size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                            {w}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
+                      {/* Score Grid - Compact */}
+                      <div className="grid grid-cols-3 gap-2 mb-4">
+                        <div className="bg-white/60 dark:bg-dark-100/60 rounded-lg p-2 text-center">
+                          <div className="text-lg font-bold text-blue-600">{wizardAnalysis.platformFit?.score || 0}</div>
+                          <div className="text-[10px] text-gray-500">Plattform</div>
+                        </div>
+                        <div className="bg-white/60 dark:bg-dark-100/60 rounded-lg p-2 text-center">
+                          <div className="text-lg font-bold text-purple-600">{wizardAnalysis.viralPotential || 0}</div>
+                          <div className="text-[10px] text-gray-500">Viral</div>
+                        </div>
+                        <div className="bg-white/60 dark:bg-dark-100/60 rounded-lg p-2 text-center">
+                          <div className="text-lg font-bold text-green-600">{wizardAnalysis.callToActionEffectiveness?.score || 0}</div>
+                          <div className="text-[10px] text-gray-500">CTA</div>
+                        </div>
+                      </div>
 
-                  {/* Additional Scores */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Target size={14} className="text-indigo-600" />
-                        <span className="text-xs text-gray-500">Zielgruppen-Fit</span>
+                      {/* Strengths & Weaknesses - Compact */}
+                      <div className="space-y-3">
+                        {wizardAnalysis.strengths?.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-medium text-green-700 dark:text-green-400 mb-1 flex items-center gap-1">
+                              <ThumbsUp size={12} />
+                              Stärken
+                            </h4>
+                            <ul className="space-y-0.5">
+                              {wizardAnalysis.strengths?.slice(0, 3).map((s, i) => (
+                                <li key={i} className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
+                                  <Check size={12} className="text-green-500 mt-0.5 flex-shrink-0" />
+                                  {s}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {wizardAnalysis.weaknesses?.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-medium text-red-700 dark:text-red-400 mb-1 flex items-center gap-1">
+                              <ThumbsDown size={12} />
+                              Verbesserungspotenzial
+                            </h4>
+                            <ul className="space-y-0.5">
+                              {wizardAnalysis.weaknesses?.slice(0, 3).map((w, i) => (
+                                <li key={i} className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
+                                  <AlertCircle size={12} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                                  {w}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
-                      <div className="text-lg font-bold text-indigo-600">{wizardAnalysis.audienceAlignment?.score || 0}%</div>
-                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{wizardAnalysis.audienceAlignment?.feedback}</p>
                     </div>
-                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <MessageSquare size={14} className="text-teal-600" />
-                        <span className="text-xs text-gray-500">Lesbarkeit</span>
-                      </div>
-                      <div className="text-lg font-bold text-teal-600">{wizardAnalysis.readabilityScore || 0}%</div>
-                    </div>
-                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Heart size={14} className="text-pink-600" />
-                        <span className="text-xs text-gray-500">Tonalität</span>
-                      </div>
-                      <div className="text-sm font-medium text-pink-600 capitalize">{wizardAnalysis.emotionalTone || 'Neutral'}</div>
-                    </div>
-                  </div>
 
                   {/* Improvement Suggestions */}
                   {wizardAnalysis.improvements?.length > 0 && (
@@ -5785,7 +5786,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                                     content: bestImprovement.improvedExample,
                                     platform: wizardPlatform,
                                     goal: wizardGoal,
-                                    targetAudience: wizardAudience
+                                    targetAudience: wizardTargetAudience
                                   });
                                   setWizardAnalysis(newAnalysis);
                                 } catch (err) {
@@ -5830,7 +5831,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                                             content: imp.improvedExample!,
                                             platform: wizardPlatform,
                                             goal: wizardGoal,
-                                            targetAudience: wizardAudience
+                                            targetAudience: wizardTargetAudience
                                           });
                                           setWizardAnalysis(newAnalysis);
                                         } catch (err) {
@@ -5874,79 +5875,68 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       </div>
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* Best Posting Time */}
-              {wizardContent.bestPostingTime && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 flex items-center gap-4">
-                  <Clock size={24} className="text-blue-600" />
-                  <div>
-                    <p className="font-medium dark:text-white">Optimaler Zeitpunkt</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {wizardContent.bestPostingTime.day} um {wizardContent.bestPostingTime.time} - {wizardContent.bestPostingTime.reason}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex justify-between pt-4">
-                <button
-                  onClick={() => setWizardStep('goal')}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
-                >
-                  Zurück
-                </button>
-                <div className="flex gap-3">
-                  <button
-                    onClick={async () => {
-                      if (!wizardAnalysis?.weaknesses?.length) {
-                        setWizardStep(wizardIncludeImage ? 'image' : 'preview');
-                        return;
-                      }
-                      setWizardImproving(true);
-                      try {
-                        const improved = await socialMediaApi.improveContent({
-                          content: wizardEditedContent,
-                          platform: wizardPlatform,
-                          improvementFocus: wizardAnalysis.weaknesses[0]
-                        });
-                        setWizardImprovement(improved);
-                        setWizardEditedContent(improved.improvedContent);
-                        // Re-analyze
-                        const analysis = await socialMediaApi.analyzeContent({
-                          content: improved.improvedContent,
-                          platform: wizardPlatform,
-                          goal: wizardGoal,
-                          targetAudience: wizardTargetAudience
-                        });
-                        setWizardAnalysis(analysis);
-                      } catch (err: any) {
-                        setError(err.message);
-                      } finally {
-                        setWizardImproving(false);
-                      }
-                    }}
-                    disabled={wizardImproving}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
-                  >
-                    {wizardImproving ? (
-                      <Loader2 size={18} className="animate-spin" />
-                    ) : (
-                      <RefreshCw size={18} />
-                    )}
-                    Content verbessern
-                  </button>
-                  <button
-                    onClick={() => setWizardStep(wizardIncludeImage ? 'image' : 'preview')}
-                    className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:opacity-90"
-                  >
-                    Weiter
-                    <ArrowRight size={18} />
-                  </button>
-                </div>
+                  </>
+                )}
               </div>
+            </div>
+
+            {/* Action Buttons - Full Width Below Grid */}
+            <div className="flex justify-between pt-4">
+              <button
+                onClick={() => setWizardStep('goal')}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
+              >
+                Zurück
+              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    if (!wizardAnalysis?.weaknesses?.length) {
+                      setWizardStep(wizardIncludeImage ? 'image' : 'preview');
+                      return;
+                    }
+                    setWizardImproving(true);
+                    try {
+                      const improved = await socialMediaApi.improveContent({
+                        content: wizardEditedContent,
+                        platform: wizardPlatform,
+                        improvementFocus: wizardAnalysis.weaknesses[0]
+                      });
+                      setWizardImprovement(improved);
+                      setWizardEditedContent(improved.improvedContent);
+                      // Re-analyze
+                      const analysis = await socialMediaApi.analyzeContent({
+                        content: improved.improvedContent,
+                        platform: wizardPlatform,
+                        goal: wizardGoal,
+                        targetAudience: wizardTargetAudience
+                      });
+                      setWizardAnalysis(analysis);
+                    } catch (err: any) {
+                      setError(err.message);
+                    } finally {
+                      setWizardImproving(false);
+                    }
+                  }}
+                  disabled={wizardImproving}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {wizardImproving ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={18} />
+                  )}
+                  Content verbessern
+                </button>
+                <button
+                  onClick={() => setWizardStep(wizardIncludeImage ? 'image' : 'preview')}
+                  className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:opacity-90"
+                >
+                  Weiter
+                  <ArrowRight size={18} />
+                </button>
+              </div>
+            </div>
             </div>
           )}
 
