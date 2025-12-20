@@ -1208,13 +1208,144 @@ Gib NUR das JSON zurück, ohne Erklärungen oder Markdown-Formatierung.`;
 }
 
 // ============================================
-// Social Media Content Generation
+// Social Media Content Generation - Expert System
 // ============================================
 
-const SOCIAL_MEDIA_SYSTEM_PROMPT = `Du bist ein erfahrener Social Media Manager und Content Creator für IT-Unternehmen.
-Deine Aufgabe ist es, ansprechende, professionelle Social Media Posts zu erstellen.
-Du kennst die Best Practices für alle gängigen Plattformen (LinkedIn, Twitter/X, Facebook, Instagram).
-Antworte immer auf Deutsch und liefere nur den fertigen Post-Text ohne Erklärungen.`;
+/**
+ * Expert-level system prompt with viral content strategies and engagement psychology
+ */
+const SOCIAL_MEDIA_SYSTEM_PROMPT = `Du bist ein Elite Social Media Stratege mit 15+ Jahren Erfahrung bei Top-Agenturen.
+Du hast hunderte virale Kampagnen erstellt und verstehst die Psychologie hinter Engagement auf molekularer Ebene.
+
+DEINE KERN-EXPERTISE:
+
+1. HOOK-MASTERY (Die ersten 3 Sekunden/Zeilen entscheiden ALLES)
+   - Pattern Interrupt: Erwartungen brechen, Aufmerksamkeit erzwingen
+   - Curiosity Gap: Neugier wecken ohne alles zu verraten
+   - Bold Statement: Kontroverse oder überraschende Aussage
+   - Question Hook: Fragen die zum Nachdenken zwingen
+   - Number Hook: Spezifische Zahlen sind magnetisch
+
+2. ENGAGEMENT-PSYCHOLOGIE
+   - Reciprocity: Erst Wert geben, dann nehmen
+   - Social Proof: "Tausende nutzen bereits..."
+   - Scarcity: Dringlichkeit und Exklusivität
+   - Authority: Expertise demonstrieren
+   - Liking: Authentisch und nahbar sein
+   - FOMO: Fear of Missing Out aktivieren
+
+3. CONTENT-STRUKTUREN DIE FUNKTIONIEREN
+   - AIDA: Attention → Interest → Desire → Action
+   - PAS: Problem → Agitation → Solution
+   - BAB: Before → After → Bridge
+   - 4U: Useful, Urgent, Unique, Ultra-specific
+
+4. PLATTFORM-ALGORITHMUS-OPTIMIERUNG
+   - LinkedIn: Dwell Time maximieren, native Content, keine externen Links im Post
+   - Instagram: Saves & Shares > Likes, Carousel > Single Image
+   - Twitter/X: Threads performen besser, Engagement in ersten 30 Min kritisch
+   - Facebook: Kommentare triggern, Gruppen-Mindset
+
+Du schreibst IMMER auf Deutsch und lieferst nur den fertigen Post ohne Erklärungen.`;
+
+/**
+ * Platform-specific viral strategies and best practices
+ */
+const PLATFORM_EXPERT_GUIDELINES: Record<string, string> = {
+  linkedin: `LINKEDIN MASTERY:
+- HOOK: Erste Zeile MUSS stoppen (Bold Statement, Kontroverse, oder überraschende Statistik)
+- FORMAT: Kurze Absätze (1-2 Sätze), Leerzeilen, Lesbarkeit ist König
+- LÄNGE: 1200-1900 Zeichen performen am besten (lange Posts = mehr Dwell Time = Algorithmus-Boost)
+- STORYTELLING: Persönliche Erfahrungen + Business-Learnings = Gold
+- CTA: Frage am Ende die Diskussion startet ("Was denkt ihr?" funktioniert)
+- HASHTAGS: 3-5 relevante am ENDE des Posts, nicht im Text
+- EMOJIS: Sparsam (max 3-4), strategisch für Struktur
+- TIMING: Dienstag-Donnerstag, 7-8 Uhr oder 17-18 Uhr
+- GEHEIMTIPP: "I" (Ich) Posts performen 2x besser als "We" Posts
+- VERMEIDEN: Externe Links (zerstören Reichweite), zu viele Hashtags`,
+
+  twitter: `TWITTER/X MASTERY:
+- HOOK: Erste 10 Worte entscheiden ob gescrollt wird
+- FORMAT: 280 Zeichen clever nutzen, Threads für längeren Content
+- THREADS: Tweet 1 muss standalone viral sein, dann "Thread 🧵" anteasern
+- CONTROVERSY: Meinung polarisiert = Engagement (aber authentisch bleiben)
+- RATIO: 80% Value-Content, 20% Promo
+- HASHTAGS: Max 2-3, integriert im Text, nicht als Block
+- MEDIEN: Tweets mit Bildern bekommen 150% mehr Retweets
+- TIMING: Peaks um 9h, 12h und 17h
+- GEHEIMTIPP: Replys zu großen Accounts = kostenlose Reichweite
+- VERMEIDEN: Hashtag-Spam, zu viele @Mentions`,
+
+  facebook: `FACEBOOK MASTERY:
+- HOOK: Emotional und relatable, "Feeling"-Posts performen
+- FORMAT: Storytelling, persönliche Geschichten, Community-Focus
+- LÄNGE: 40-80 Wörter optimal, kann aber länger für Stories
+- INTERAKTION: Fragen stellen, Meinungen einfordern, Polls nutzen
+- GRUPPEN-DENKE: "Wir" und "Gemeinsam" resoniert
+- VIDEO: Native Videos bekommen 10x mehr Reach als Links
+- EMOJIS: Erlaubt und erwünscht, machen Posts menschlicher
+- TIMING: Mittags (12-14h) und Abends (19-21h)
+- GEHEIMTIPP: Persönliche Updates > Business-Content
+- VERMEIDEN: Clickbait, zu sales-lastig`,
+
+  instagram: `INSTAGRAM MASTERY:
+- HOOK: Erste Zeile im Feed sichtbar - MUSS catchen
+- FORMAT: Carousels bekommen 3x mehr Engagement als Single Posts
+- CAPTION: Storytelling + Value + CTA, kann lang sein (Leute lesen!)
+- HASHTAGS: 5-15 relevante, Mix aus groß (1M+), mittel (100K-1M), nisch (<100K)
+- HASHTAG-PLACEMENT: Im ersten Kommentar ODER nach ... (versteckt)
+- SAVES: Wichtigste Metrik! "Speicher dir das" funktioniert
+- REELS: 7-15 Sekunden optimal, Hook in ersten 0.5 Sekunden
+- EMOJIS: Teil der Kultur, strategisch für Lesbarkeit
+- TIMING: 11-13h und 19-21h, Mittwoch-Freitag
+- GEHEIMTIPP: Frag nach Saves ("Speicher für später")
+- VERMEIDEN: Broken Hashtags, zu generische Tags`,
+
+  all: `UNIVERSAL POST (Multi-Platform):
+- HOOK: Muss auf allen Plattformen funktionieren
+- LÄNGE: 150-200 Zeichen (Tweet-kompatibel, trotzdem Substanz)
+- FORMAT: Klar, prägnant, ohne plattform-spezifische Features
+- HASHTAGS: 2-3 universelle
+- TON: Professionell aber menschlich
+- CTA: Optional, subtil`
+};
+
+/**
+ * Tone-specific writing guidelines with psychological triggers
+ */
+const TONE_EXPERT_GUIDELINES: Record<string, string> = {
+  professional: `PROFESSIONELLER TON:
+- Expertise demonstrieren ohne arrogant zu wirken
+- Daten und Fakten wo möglich
+- Branchenbegriffe nutzen (zeigt Insider-Wissen)
+- Struktur und Klarheit priorisieren
+- Autorität durch Substanz, nicht durch Titel
+- "Ich habe gelernt..." statt "Man sollte..."`,
+
+  casual: `LOCKERER TON:
+- Schreib wie du mit einem Freund sprechen würdest
+- Umgangssprache okay (aber professionell bleiben)
+- Persönliche Anekdoten und Erfahrungen
+- Humor wenn es passt (nicht erzwungen)
+- "Du" statt "Sie", direkte Ansprache
+- Authentizität > Perfektion`,
+
+  humorous: `HUMORVOLLER TON:
+- Selbstironie funktioniert immer
+- Übertreibungen für Effekt
+- Unerwartete Wendungen und Punchlines
+- Relatables Humor (Alltags-Struggles)
+- Memes und Pop-Culture-Referenzen wenn passend
+- ABER: Nie auf Kosten anderer, inklusiv bleiben`,
+
+  informative: `INFORMATIVER TON:
+- Klare Struktur: Problem → Lösung → Takeaway
+- Bullet Points für Übersichtlichkeit
+- Konkrete Beispiele und Zahlen
+- "How-To" Format funktioniert immer
+- Takeaway am Ende (was soll der Leser TUN?)
+- "Save this for later" - Trigger für Speichern`
+};
 
 export interface SocialMediaGenerationOptions {
   topic: string;
@@ -1242,33 +1373,35 @@ export async function generateSocialMediaContent(
     throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
   }
 
-  const platformGuidelines: Record<string, string> = {
-    linkedin: 'LinkedIn: Professionell, bis zu 3000 Zeichen, keine übermäßigen Emojis, 3-5 relevante Hashtags am Ende',
-    twitter: 'Twitter/X: Maximal 280 Zeichen, prägnant, 1-3 Hashtags integriert',
-    facebook: 'Facebook: Locker aber informativ, bis zu 500 Zeichen optimal, Emojis erlaubt',
-    instagram: 'Instagram: Visuell orientiert, Emojis erwünscht, bis zu 30 Hashtags möglich',
-    all: 'Erstelle einen universellen Post der auf allen Plattformen funktioniert, ca. 200-280 Zeichen'
-  };
+  const prompt = `ERSTELLE EINEN VIRALEN SOCIAL MEDIA POST:
 
-  const toneGuidelines: Record<string, string> = {
-    professional: 'Professioneller, seriöser Ton',
-    casual: 'Lockerer, freundlicher Ton',
-    humorous: 'Humorvoller, unterhaltsamer Ton',
-    informative: 'Informativer, lehrreicher Ton'
-  };
+═══════════════════════════════════════
+THEMA: ${options.topic}
+${options.customerContext ? `KONTEXT: ${options.customerContext}` : ''}
+${options.contentCategory ? `KATEGORIE: ${options.contentCategory}` : ''}
+═══════════════════════════════════════
 
-  const prompt = `Erstelle einen Social Media Post auf Deutsch.
+${PLATFORM_EXPERT_GUIDELINES[options.platform]}
 
-Thema: ${options.topic}
-${options.customerContext ? `Kontext: ${options.customerContext}` : ''}
-${options.contentCategory ? `Kategorie: ${options.contentCategory}` : ''}
+═══════════════════════════════════════
+${TONE_EXPERT_GUIDELINES[options.tone]}
+═══════════════════════════════════════
 
-Plattform: ${platformGuidelines[options.platform]}
-Ton: ${toneGuidelines[options.tone]}
-${options.includeHashtags ? 'Füge passende Hashtags hinzu.' : 'Keine Hashtags.'}
-${options.includeEmoji ? 'Verwende passende Emojis.' : 'Keine Emojis verwenden.'}
+DEINE AUFGABE:
+1. Starte mit einem MAGNETISCHEN HOOK (Pattern Interrupt!)
+2. Liefere echten VALUE (nicht nur Floskeln)
+3. Nutze eine bewährte Struktur (AIDA, PAS, oder BAB)
+4. ${options.includeEmoji ? 'Setze Emojis STRATEGISCH ein (für Struktur und Emotion)' : 'KEINE Emojis verwenden'}
+5. ${options.includeHashtags ? 'Füge optimierte Hashtags hinzu (nach Platform-Regeln)' : 'KEINE Hashtags'}
+6. Ende mit einem CTA der Engagement triggert
 
-Antworte NUR mit dem fertigen Post-Text, keine Erklärungen.`;
+QUALITÄTSKRITERIEN:
+✓ Würde ICH bei diesem Post stoppen?
+✓ Liefert er echten Mehrwert?
+✓ Hat er einen klaren Takeaway?
+✓ Triggert er Engagement (Kommentar, Save, Share)?
+
+LIEFERE NUR DEN FERTIGEN POST-TEXT. Keine Erklärungen.`;
 
   let result: { content: string; tokensUsed: number };
   if (config.provider === 'anthropic') {
@@ -1979,6 +2112,86 @@ const STYLE_DESCRIPTIONS: Record<string, string> = {
   photorealistic: 'Ultra-realistic, photographic quality with natural lighting',
 };
 
+/**
+ * Use AI to enhance a basic prompt into a detailed, creative DALL-E prompt
+ */
+async function enhanceImagePromptWithAI(
+  apiKey: string,
+  basicPrompt: string,
+  style: string,
+  aspectRatio: string,
+  purpose?: string
+): Promise<string> {
+  const systemPrompt = `Du bist ein Elite Visual Director mit Expertise in AI-Bildgenerierung.
+Du transformierst einfache Bildideen in detaillierte, kreative DALL-E Prompts die ATEMBERAUBENDE Ergebnisse liefern.
+
+DEINE SUPERKRAFT:
+1. Du denkst in visuellen Metaphern und unerwarteten Perspektiven
+2. Du kennst Komposition, Lichtführung, Farbpsychologie
+3. Du weißt was DALL-E am besten kann (und was es NICHT kann)
+
+PROMPT-ENGINEERING REGELN:
+- Spezifische Details > Vage Beschreibungen
+- Konkrete Kamera-Perspektiven angeben
+- Lichtstimmung explizit beschreiben
+- Farb-Palette definieren
+- Stil-Referenzen nutzen (z.B. "in the style of Apple product photography")
+- NIEMALS: "high quality" oder "4K" (DALL-E ignoriert das)
+- IMMER: Komposition, Mood, Atmosphäre beschreiben`;
+
+  const userPrompt = `Transformiere diese einfache Bildidee in einen MEISTERHAFTEN DALL-E Prompt:
+
+URSPRÜNGLICHE IDEE: "${basicPrompt}"
+STIL: ${style}
+FORMAT: ${aspectRatio}
+${purpose ? `VERWENDUNGSZWECK: ${purpose}` : ''}
+
+Erstelle einen detaillierten englischen Prompt der:
+1. Eine kreative visuelle Interpretation findet
+2. Spezifische Komposition beschreibt (Perspektive, Framing)
+3. Licht und Atmosphäre definiert
+4. Farbpalette vorgibt
+5. Stil-Referenzen einbaut
+6. Für Social Media geeignet ist (eye-catching, scroll-stopping)
+
+Antworte NUR mit dem fertigen englischen Prompt (keine Erklärungen).`;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.85,
+        max_tokens: 500
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to enhance prompt with AI, using fallback');
+      return null as any; // Will trigger fallback
+    }
+
+    const data = await response.json() as { choices: Array<{ message: { content: string } }> };
+    const enhancedPrompt = data.choices[0]?.message?.content?.trim();
+
+    if (enhancedPrompt && enhancedPrompt.length > 50) {
+      return enhancedPrompt;
+    }
+    return null as any;
+  } catch (error) {
+    console.error('Error enhancing prompt:', error);
+    return null as any;
+  }
+}
+
 const ASPECT_RATIO_SIZES: Record<string, { openai: string; stability: { width: number; height: number } }> = {
   '1:1': { openai: '1024x1024', stability: { width: 1024, height: 1024 } },
   '9:16': { openai: '1024x1792', stability: { width: 768, height: 1344 } },
@@ -2070,32 +2283,60 @@ async function generateImageWithStability(
 }
 
 /**
- * Generate an AI image with the specified options
+ * Generate an AI image with intelligent prompt enhancement
  */
 export async function generateImage(
   userId: string,
   options: ImageGenerationOptions
-): Promise<GeneratedImage> {
+): Promise<GeneratedImage & { originalPrompt: string; enhancedPrompt: string }> {
   // Get AI config for the API key
   const config = await getAIConfig(userId);
   if (!config || !config.apiKey) {
     throw new Error('AI-Konfiguration nicht gefunden. Bitte API-Schlüssel in den Einstellungen hinterlegen.');
   }
 
-  // Build the enhanced prompt
-  const styleDesc = STYLE_DESCRIPTIONS[options.style || 'modern'];
-  const enhancedPrompt = `${options.prompt}. Style: ${styleDesc}. High quality, professional, suitable for social media.`;
+  const style = options.style || 'modern';
+  const styleDesc = STYLE_DESCRIPTIONS[style];
+  let enhancedPrompt: string;
+
+  // Try AI-powered prompt enhancement first
+  console.log('Enhancing image prompt with AI...');
+  const aiEnhancedPrompt = await enhanceImagePromptWithAI(
+    config.apiKey,
+    options.prompt,
+    style,
+    options.aspectRatio,
+    'Social Media Visual'
+  );
+
+  if (aiEnhancedPrompt) {
+    console.log('Using AI-enhanced prompt');
+    enhancedPrompt = aiEnhancedPrompt;
+  } else {
+    // Fallback to static enhancement
+    console.log('Using fallback prompt enhancement');
+    enhancedPrompt = `${options.prompt}.
+Style: ${styleDesc}.
+Composition: Professional, well-balanced with clear focal point.
+Lighting: Soft, flattering light that enhances the subject.
+Mood: Engaging and suitable for social media.
+Quality: Sharp details, rich colors, professional finish.`;
+  }
 
   if (options.provider === 'stability') {
     const size = ASPECT_RATIO_SIZES[options.aspectRatio].stability;
-    // For Stability, you'd need a separate API key - for now, we'll use OpenAI
-    // In production, you'd get the Stability API key from a separate config
     throw new Error('Stability AI erfordert einen separaten API-Schlüssel. Bitte OpenAI verwenden.');
   }
 
   // Default to OpenAI DALL-E 3
   const size = ASPECT_RATIO_SIZES[options.aspectRatio].openai;
-  return generateImageWithOpenAI(config.apiKey, enhancedPrompt, size, options.quality || 'hd');
+  const result = await generateImageWithOpenAI(config.apiKey, enhancedPrompt, size, options.quality || 'hd');
+
+  return {
+    ...result,
+    originalPrompt: options.prompt,
+    enhancedPrompt: enhancedPrompt
+  };
 }
 
 // ============================================
