@@ -1352,6 +1352,842 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         </div>
       )}
 
+      {/* Create View - with Sub-Tabs */}
+      {viewMode === 'create' && (
+        <div className="space-y-6">
+          {/* Sub-Tab Navigation */}
+          <div className="flex items-center gap-2 border-b border-gray-200 dark:border-dark-200 pb-4">
+            {[
+              { id: 'post', label: 'Einzelpost', icon: PenTool },
+              { id: 'batch', label: 'Batch-Generierung', icon: Layers },
+              { id: 'remix', label: 'Content Remix', icon: RefreshCw },
+            ].map(sub => (
+              <button
+                key={sub.id}
+                onClick={() => setCreateSubView(sub.id as CreateSubView)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  createSubView === sub.id
+                    ? 'bg-accent-primary text-white'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                }`}
+              >
+                <sub.icon size={16} />
+                {sub.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Single Post Sub-View */}
+          {createSubView === 'post' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Manual Post Card */}
+                <div
+                  onClick={() => setShowPostEditor(true)}
+                  className="bg-white dark:bg-dark-100 rounded-xl p-6 border-2 border-dashed border-gray-300 dark:border-dark-200 hover:border-accent-primary cursor-pointer transition-colors"
+                >
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <PenTool size={28} className="text-blue-600" />
+                    </div>
+                    <h3 className="font-semibold dark:text-white mb-2">Manuell erstellen</h3>
+                    <p className="text-sm text-gray-500">Schreibe deinen Post selbst mit voller Kontrolle</p>
+                  </div>
+                </div>
+
+                {/* AI Post Card */}
+                <div
+                  onClick={() => setShowAiGenerator(true)}
+                  className="bg-white dark:bg-dark-100 rounded-xl p-6 border-2 border-dashed border-gray-300 dark:border-dark-200 hover:border-purple-500 cursor-pointer transition-colors"
+                >
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Sparkles size={28} className="text-purple-600" />
+                    </div>
+                    <h3 className="font-semibold dark:text-white mb-2">KI-Generierung</h3>
+                    <p className="text-sm text-gray-500">Lass KI einen Post basierend auf deinem Thema erstellen</p>
+                  </div>
+                </div>
+
+                {/* Content Wizard Card */}
+                <div
+                  onClick={() => {
+                    setShowContentWizard(true);
+                    setWizardStep('goal');
+                    setWizardTopic('');
+                    setWizardContent(null);
+                    setWizardAnalysis(null);
+                    setWizardGeneratedImage(null);
+                  }}
+                  className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl p-6 border-2 border-amber-200 dark:border-amber-800 hover:border-amber-400 cursor-pointer transition-colors md:col-span-2"
+                >
+                  <div className="flex items-center gap-6">
+                    <div className="w-20 h-20 bg-gradient-to-br from-amber-500 to-red-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Wand2 size={36} className="text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg dark:text-white mb-1">Content Wizard</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        Der Marketing-Experte erstellt professionellen Content mit kritischer Analyse und DALL-E Bildgenerierung
+                      </p>
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                        <Sparkles size={12} /> Empfohlen für Lead-Generierung
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Drafts */}
+              {posts.filter(p => p.status === 'draft').length > 0 && (
+                <div className="bg-white dark:bg-dark-100 rounded-xl p-6 border border-gray-200 dark:border-dark-200">
+                  <h3 className="font-semibold dark:text-white mb-4">Aktuelle Entwürfe</h3>
+                  <div className="space-y-3">
+                    {posts.filter(p => p.status === 'draft').slice(0, 3).map(post => (
+                      <div key={post.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                        <div className="flex-1 min-w-0 mr-4">
+                          <p className="text-sm dark:text-white truncate">{post.content.substring(0, 80)}...</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(post.createdAt).toLocaleDateString('de-DE')}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => openPostEditor(post)}
+                          className="px-3 py-1 text-sm bg-accent-primary text-white rounded-lg"
+                        >
+                          Bearbeiten
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Batch Sub-View - Uses existing batch content */}
+          {createSubView === 'batch' && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <Layers size={28} />
+                  <h2 className="text-xl font-bold">Batch-Generierung</h2>
+                </div>
+                <p className="opacity-90">Erstelle mehrere Posts auf einmal aus einer Liste von Themen.</p>
+              </div>
+
+              <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Themen (ein Thema pro Zeile)
+                    </label>
+                    <textarea
+                      value={batchTopics}
+                      onChange={(e) => setBatchTopics(e.target.value)}
+                      placeholder="Thema 1&#10;Thema 2&#10;Thema 3..."
+                      rows={6}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Plattform</label>
+                      <select
+                        value={batchPlatform}
+                        onChange={(e) => setBatchPlatform(e.target.value as Platform)}
+                        className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      >
+                        <option value="linkedin">LinkedIn</option>
+                        <option value="twitter">Twitter</option>
+                        <option value="instagram">Instagram</option>
+                        <option value="facebook">Facebook</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ton</label>
+                      <select
+                        value={batchTone}
+                        onChange={(e) => setBatchTone(e.target.value as any)}
+                        className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      >
+                        <option value="professional">Professionell</option>
+                        <option value="casual">Locker</option>
+                        <option value="humorous">Humorvoll</option>
+                        <option value="informative">Informativ</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2 text-sm mt-6">
+                        <input
+                          type="checkbox"
+                          checked={batchAutoSchedule}
+                          onChange={(e) => setBatchAutoSchedule(e.target.checked)}
+                          className="rounded"
+                        />
+                        <span className="dark:text-gray-300">Auto-Planen</span>
+                      </label>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Posts/Tag</label>
+                      <input
+                        type="number"
+                        value={batchPostsPerDay}
+                        onChange={(e) => setBatchPostsPerDay(parseInt(e.target.value) || 1)}
+                        min={1}
+                        max={10}
+                        className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleBatchGenerate}
+                    disabled={batchGenerating || !batchTopics.trim()}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg disabled:opacity-50"
+                  >
+                    {batchGenerating ? <Loader2 size={20} className="animate-spin" /> : <Zap size={20} />}
+                    {batchGenerating ? 'Generiere...' : 'Batch generieren'}
+                  </button>
+                </div>
+
+                {/* Batch Results */}
+                {batchResults.length > 0 && (
+                  <div className="mt-6 pt-6 border-t dark:border-dark-200">
+                    <h3 className="font-semibold dark:text-white mb-4">Generierte Posts ({batchResults.length})</h3>
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {batchResults.map((result, idx) => (
+                        <div key={idx} className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <p className="text-xs text-gray-500 mb-1">Thema: {result.topic}</p>
+                              <p className="text-sm dark:text-white">{result.content}</p>
+                              {result.scheduledAt && (
+                                <p className="text-xs text-blue-600 mt-2">
+                                  Geplant: {new Date(result.scheduledAt).toLocaleString('de-DE')}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => {
+                                setPostContent(result.content);
+                                setPostHashtags(result.hashtags);
+                                setShowPostEditor(true);
+                              }}
+                              className="text-accent-primary text-sm"
+                            >
+                              Bearbeiten
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Remix Sub-View - Uses existing remix content */}
+          {createSubView === 'remix' && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <RefreshCw size={28} />
+                  <h2 className="text-xl font-bold">Content Remix</h2>
+                </div>
+                <p className="opacity-90">Verwandle Blog-Artikel, Transkripte oder Newsletters in Social Media Posts.</p>
+              </div>
+
+              <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Quell-Typ</label>
+                    <select
+                      value={remixSourceType}
+                      onChange={(e) => setRemixSourceType(e.target.value as any)}
+                      className="w-full px-4 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                    >
+                      <option value="blog">Blog-Artikel</option>
+                      <option value="transcript">Video/Podcast Transkript</option>
+                      <option value="article">Fachartikel</option>
+                      <option value="newsletter">Newsletter</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Quell-Content
+                    </label>
+                    <textarea
+                      value={remixSourceContent}
+                      onChange={(e) => setRemixSourceContent(e.target.value)}
+                      placeholder="Füge hier deinen bestehenden Content ein..."
+                      rows={8}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Output-Plattformen
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {['linkedin', 'twitter', 'instagram', 'facebook'].map(p => {
+                        const existing = remixPlatforms.find(rp => rp.platform === p);
+                        return (
+                          <button
+                            key={p}
+                            onClick={() => {
+                              if (existing) {
+                                setRemixPlatforms(remixPlatforms.filter(rp => rp.platform !== p));
+                              } else {
+                                setRemixPlatforms([...remixPlatforms, { platform: p, count: 3 }]);
+                              }
+                            }}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                              existing
+                                ? 'bg-accent-primary text-white'
+                                : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400'
+                            }`}
+                          >
+                            {PLATFORM_ICONS[p]}
+                            <span className="capitalize">{p}</span>
+                            {existing && <span className="text-xs">({existing.count})</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleRemix}
+                    disabled={remixing || !remixSourceContent.trim() || remixPlatforms.length === 0}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg disabled:opacity-50"
+                  >
+                    {remixing ? <Loader2 size={20} className="animate-spin" /> : <RefreshCw size={20} />}
+                    {remixing ? 'Remixe...' : 'Content remixen'}
+                  </button>
+                </div>
+
+                {/* Remix Results */}
+                {remixOutputs.length > 0 && (
+                  <div className="mt-6 pt-6 border-t dark:border-dark-200">
+                    <h3 className="font-semibold dark:text-white mb-4">Generierte Posts</h3>
+                    <div className="space-y-4">
+                      {remixOutputs.map((output, idx) => (
+                        <div key={idx} className="border dark:border-dark-200 rounded-lg overflow-hidden">
+                          <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-dark-200">
+                            {PLATFORM_ICONS[output.platform]}
+                            <span className="font-medium dark:text-white capitalize">{output.platform}</span>
+                            <span className="text-sm text-gray-500">({output.posts.length} Posts)</span>
+                          </div>
+                          <div className="p-4 space-y-3">
+                            {output.posts.map((post, postIdx) => (
+                              <div key={postIdx} className="p-3 bg-gray-50 dark:bg-dark-300 rounded-lg">
+                                <p className="text-sm dark:text-white">{post.content}</p>
+                                <div className="flex items-center justify-between mt-2">
+                                  <div className="flex flex-wrap gap-1">
+                                    {post.hashtags.slice(0, 3).map(tag => (
+                                      <span key={tag} className="text-xs text-blue-600">#{tag}</span>
+                                    ))}
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setPostContent(post.content);
+                                      setPostHashtags(post.hashtags);
+                                      setPostPlatforms([output.platform as Platform]);
+                                      setShowPostEditor(true);
+                                    }}
+                                    className="text-xs text-accent-primary"
+                                  >
+                                    Als Post verwenden
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* AI-Tools View - with Sub-Tabs */}
+      {viewMode === 'ai-tools' && (
+        <div className="space-y-6">
+          {/* Sub-Tab Navigation */}
+          <div className="flex items-center gap-2 border-b border-gray-200 dark:border-dark-200 pb-4">
+            {[
+              { id: 'autopilot', label: 'Autopilot', icon: Zap },
+              { id: 'trends', label: 'Trend-Radar', icon: TrendingUp },
+              { id: 'ideas', label: 'Ideen-Generator', icon: Lightbulb },
+            ].map(sub => (
+              <button
+                key={sub.id}
+                onClick={() => setAIToolsSubView(sub.id as AIToolsSubView)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  aiToolsSubView === sub.id
+                    ? 'bg-accent-primary text-white'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                }`}
+              >
+                <sub.icon size={16} />
+                {sub.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Autopilot Sub-View */}
+          {aiToolsSubView === 'autopilot' && (
+            <div className="space-y-6">
+              <div className={`rounded-xl p-6 ${autopilotSettings.enabled ? 'bg-gradient-to-r from-green-500 to-emerald-600' : 'bg-gradient-to-r from-gray-500 to-gray-600'} text-white`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Zap size={28} />
+                    <div>
+                      <h2 className="text-xl font-bold">Social Media Autopilot</h2>
+                      <p className="opacity-90">KI erstellt und plant Posts automatisch basierend auf deinen Vorgaben.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAutopilotSettings(s => ({ ...s, enabled: !s.enabled }))}
+                    className={`px-4 py-2 rounded-lg font-medium ${
+                      autopilotSettings.enabled
+                        ? 'bg-white/20 hover:bg-white/30'
+                        : 'bg-white text-gray-800 hover:bg-gray-100'
+                    }`}
+                  >
+                    {autopilotSettings.enabled ? 'Deaktivieren' : 'Aktivieren'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Settings */}
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+                  <h3 className="font-semibold dark:text-white mb-4">Einstellungen</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Posts pro Woche</label>
+                      <input
+                        type="number"
+                        value={autopilotSettings.postsPerWeek}
+                        onChange={(e) => setAutopilotSettings(s => ({ ...s, postsPerWeek: parseInt(e.target.value) || 1 }))}
+                        min={1}
+                        max={21}
+                        className="w-full px-4 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Zielgruppe</label>
+                      <input
+                        type="text"
+                        value={autopilotSettings.targetAudience}
+                        onChange={(e) => setAutopilotSettings(s => ({ ...s, targetAudience: e.target.value }))}
+                        placeholder="z.B. IT-Entscheider, Startups..."
+                        className="w-full px-4 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium dark:text-gray-300 mb-2">Content-Themen</label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {autopilotSettings.contentThemes.map((theme, idx) => (
+                          <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded text-sm">
+                            {theme}
+                            <button onClick={() => setAutopilotSettings(s => ({ ...s, contentThemes: s.contentThemes.filter((_, i) => i !== idx) }))}>
+                              <X size={12} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newTheme}
+                          onChange={(e) => setNewTheme(e.target.value)}
+                          placeholder="Neues Thema..."
+                          className="flex-1 px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newTheme.trim()) {
+                              setAutopilotSettings(s => ({ ...s, contentThemes: [...s.contentThemes, newTheme.trim()] }));
+                              setNewTheme('');
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            if (newTheme.trim()) {
+                              setAutopilotSettings(s => ({ ...s, contentThemes: [...s.contentThemes, newTheme.trim()] }));
+                              setNewTheme('');
+                            }
+                          }}
+                          className="px-3 py-2 bg-accent-primary text-white rounded-lg"
+                        >
+                          <Plus size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Generate */}
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+                  <h3 className="font-semibold dark:text-white mb-4">Vorschau generieren</h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Generiere eine Vorschau der nächsten Autopilot-Posts zur Überprüfung.
+                  </p>
+                  <button
+                    onClick={handleAutopilotGenerate}
+                    disabled={autopilotGenerating || autopilotSettings.contentThemes.length === 0}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg disabled:opacity-50"
+                  >
+                    {autopilotGenerating ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
+                    {autopilotGenerating ? 'Generiere...' : 'Posts generieren'}
+                  </button>
+
+                  {autopilotPending.length > 0 && (
+                    <div className="mt-4 space-y-3 max-h-64 overflow-y-auto">
+                      {autopilotPending.map((post, idx) => (
+                        <div key={idx} className="p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                          <p className="text-sm dark:text-white line-clamp-2">{post.content}</p>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-xs text-gray-500">
+                              {post.scheduledAt && new Date(post.scheduledAt).toLocaleDateString('de-DE')}
+                            </span>
+                            <div className="flex gap-2">
+                              <button className="text-green-600 text-xs">Genehmigen</button>
+                              <button className="text-red-600 text-xs">Ablehnen</button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Trends Sub-View */}
+          {aiToolsSubView === 'trends' && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-xl p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <TrendingUp size={28} />
+                  <h2 className="text-xl font-bold">Trend-Radar</h2>
+                </div>
+                <p className="opacity-90">Entdecke aktuelle Trends in deiner Branche für virale Posts.</p>
+              </div>
+
+              <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+                <div className="flex gap-4 mb-6">
+                  <input
+                    type="text"
+                    value={trendsIndustry}
+                    onChange={(e) => setTrendsIndustry(e.target.value)}
+                    placeholder="Branche eingeben..."
+                    className="flex-1 px-4 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                  />
+                  <button
+                    onClick={handleLoadTrends}
+                    disabled={trendsLoading}
+                    className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg disabled:opacity-50"
+                  >
+                    {trendsLoading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                    Trends finden
+                  </button>
+                </div>
+
+                {trends.length > 0 && (
+                  <div className="space-y-4">
+                    {trends.map((trend, idx) => (
+                      <div key={idx} className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <h4 className="font-medium dark:text-white">{trend.topic}</h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">{trend.description}</p>
+                          </div>
+                          <span className={`px-2 py-1 text-xs rounded ${
+                            trend.relevance === 'high' ? 'bg-green-100 text-green-700' :
+                            trend.relevance === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {trend.relevance === 'high' ? 'Hoch' : trend.relevance === 'medium' ? 'Mittel' : 'Niedrig'}
+                          </span>
+                        </div>
+                        {trend.suggestedAngles && (
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            {trend.suggestedAngles.map((angle, aIdx) => (
+                              <button
+                                key={aIdx}
+                                onClick={() => {
+                                  setSelectedTrend(trend);
+                                  setWizardTopic(angle);
+                                  setShowContentWizard(true);
+                                }}
+                                className="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded hover:bg-orange-200"
+                              >
+                                {angle}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Ideas Sub-View */}
+          {aiToolsSubView === 'ideas' && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-yellow-500 to-amber-500 rounded-xl p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <Lightbulb size={28} />
+                  <h2 className="text-xl font-bold">Ideen-Generator</h2>
+                </div>
+                <p className="opacity-90">Generiere kreative Content-Ideen basierend auf deinen Themen.</p>
+              </div>
+
+              <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium dark:text-gray-300 mb-1">Themenbereich</label>
+                    <input
+                      type="text"
+                      value={ideasCategory}
+                      onChange={(e) => setIdeasCategory(e.target.value)}
+                      placeholder="z.B. Cloud Computing, Digitalisierung..."
+                      className="w-full px-4 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium dark:text-gray-300 mb-1">Anzahl Ideen</label>
+                    <input
+                      type="number"
+                      value={ideasCount}
+                      onChange={(e) => setIdeasCount(parseInt(e.target.value) || 5)}
+                      min={1}
+                      max={20}
+                      className="w-full px-4 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={generateIdeas}
+                  disabled={generatingIdeas || !ideasCategory.trim()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 text-white rounded-lg disabled:opacity-50"
+                >
+                  {generatingIdeas ? <Loader2 size={20} className="animate-spin" /> : <Lightbulb size={20} />}
+                  {generatingIdeas ? 'Generiere Ideen...' : 'Ideen generieren'}
+                </button>
+
+                {generatedIdeas.length > 0 && (
+                  <div className="mt-6 space-y-3">
+                    <h3 className="font-semibold dark:text-white">Generierte Ideen</h3>
+                    {generatedIdeas.map((idea, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                        <span className="dark:text-white">{idea}</span>
+                        <button
+                          onClick={() => {
+                            setWizardTopic(idea);
+                            setShowContentWizard(true);
+                            setWizardStep('goal');
+                          }}
+                          className="text-sm text-accent-primary hover:underline"
+                        >
+                          Post erstellen
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Library View - with Sub-Tabs */}
+      {viewMode === 'library' && (
+        <div className="space-y-6">
+          {/* Sub-Tab Navigation */}
+          <div className="flex items-center gap-2 border-b border-gray-200 dark:border-dark-200 pb-4">
+            {[
+              { id: 'evergreen', label: 'Evergreen', icon: Recycle },
+              { id: 'templates', label: 'Vorlagen', icon: FileText },
+              { id: 'hashtags', label: 'Hashtag-Gruppen', icon: Hash },
+            ].map(sub => (
+              <button
+                key={sub.id}
+                onClick={() => setLibrarySubView(sub.id as LibrarySubView)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  librarySubView === sub.id
+                    ? 'bg-accent-primary text-white'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                }`}
+              >
+                <sub.icon size={16} />
+                {sub.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Evergreen Sub-View */}
+          {librarySubView === 'evergreen' && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-green-500 to-teal-500 rounded-xl p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <Recycle size={28} />
+                  <h2 className="text-xl font-bold">Evergreen Content</h2>
+                </div>
+                <p className="opacity-90">Zeitlose Posts die du regelmäßig wiederverwenden kannst.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {evergreenPosts.length === 0 ? (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    <Recycle size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Noch keine Evergreen-Posts</p>
+                    <p className="text-sm mt-1">Markiere Posts als Evergreen um sie hier zu sehen</p>
+                  </div>
+                ) : (
+                  evergreenPosts.map(post => (
+                    <div key={post.id} className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                      <p className="text-sm dark:text-white line-clamp-4 mb-3">{post.content}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">
+                          {post.publishedAt ? `Zuletzt: ${new Date(post.publishedAt).toLocaleDateString('de-DE')}` : 'Nie veröffentlicht'}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setRecyclingPost(post);
+                            setShowRecycleModal(true);
+                          }}
+                          className="flex items-center gap-1 text-sm text-green-600"
+                        >
+                          <RefreshCw size={14} />
+                          Recyceln
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Templates Sub-View */}
+          {librarySubView === 'templates' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold dark:text-white">Post-Vorlagen</h2>
+                <button
+                  onClick={() => setShowTemplateEditor(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg"
+                >
+                  <Plus size={18} />
+                  Neue Vorlage
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {templates.length === 0 ? (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    <FileText size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Noch keine Vorlagen erstellt</p>
+                  </div>
+                ) : (
+                  templates.map(template => (
+                    <div key={template.id} className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-medium dark:text-white">{template.name}</h4>
+                        <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-dark-200 rounded">
+                          {template.platform === 'all' ? 'Alle' : template.platform}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3">{template.content}</p>
+                      <button
+                        onClick={() => useTemplate(template)}
+                        className="text-sm text-accent-primary hover:underline"
+                      >
+                        Vorlage verwenden
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Hashtags Sub-View */}
+          {librarySubView === 'hashtags' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold dark:text-white">Hashtag-Gruppen</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowHashtagResearch(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg"
+                  >
+                    <Search size={18} />
+                    Hashtag-Recherche
+                  </button>
+                  <button
+                    onClick={() => setShowHashtagEditor(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg"
+                  >
+                    <Plus size={18} />
+                    Neue Gruppe
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {hashtagGroups.length === 0 ? (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    <Hash size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Noch keine Hashtag-Gruppen</p>
+                  </div>
+                ) : (
+                  hashtagGroups.map(group => (
+                    <div key={group.id} className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                      <h4 className="font-medium dark:text-white mb-2">{group.name}</h4>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {group.hashtags.slice(0, 8).map((tag, idx) => (
+                          <span key={idx} className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">
+                            #{tag}
+                          </span>
+                        ))}
+                        {group.hashtags.length > 8 && (
+                          <span className="text-xs text-gray-500">+{group.hashtags.length - 8}</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(group.hashtags.map(t => `#${t}`).join(' '))}
+                        className="flex items-center gap-1 text-sm text-accent-primary"
+                      >
+                        <Copy size={14} />
+                        Alle kopieren
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Templates View */}
       {viewMode === 'templates' && (
         <div className="space-y-4">
@@ -2466,126 +3302,303 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         </div>
       )}
 
-      {/* Engagement View */}
+      {/* Engagement View - with Sub-Tabs */}
       {viewMode === 'engagement' && (
         <div className="space-y-6">
-          <div className="bg-gradient-to-r from-green-500 to-teal-600 rounded-xl p-6 text-white">
-            <div className="flex items-center gap-3 mb-2">
-              <MessageCircle size={28} />
-              <h2 className="text-xl font-bold">Smart Engagement Bot</h2>
-            </div>
-            <p className="opacity-90">Generiere authentische Kommentare zu Posts in deiner Branche.</p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Settings */}
-            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
-              <h3 className="font-semibold dark:text-white mb-4">Einstellungen</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium dark:text-gray-300 mb-1">Antwort-Stil</label>
-                  <select
-                    value={engagementSettings.responseStyle}
-                    onChange={(e) => setEngagementSettings(s => ({ ...s, responseStyle: e.target.value as any }))}
-                    className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
-                  >
-                    <option value="thoughtful">Nachdenklich</option>
-                    <option value="supportive">Unterstützend</option>
-                    <option value="inquisitive">Neugierig/Fragend</option>
-                    <option value="expert">Experte</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium dark:text-gray-300 mb-2">Keywords zum Verfolgen</label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {engagementSettings.targetKeywords.map((kw, idx) => (
-                      <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-sm">
-                        {kw}
-                        <button onClick={() => setEngagementSettings(s => ({ ...s, targetKeywords: s.targetKeywords.filter((_, i) => i !== idx) }))}>
-                          <X size={12} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newKeyword}
-                      onChange={(e) => setNewKeyword(e.target.value)}
-                      placeholder="Keyword..."
-                      className="flex-1 px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && newKeyword.trim()) {
-                          setEngagementSettings(s => ({ ...s, targetKeywords: [...s.targetKeywords, newKeyword.trim()] }));
-                          setNewKeyword('');
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={() => {
-                        if (newKeyword.trim()) {
-                          setEngagementSettings(s => ({ ...s, targetKeywords: [...s.targetKeywords, newKeyword.trim()] }));
-                          setNewKeyword('');
-                        }
-                      }}
-                      className="px-3 py-2 bg-accent-primary text-white rounded-lg"
-                    >
-                      <Plus size={18} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Generate Responses */}
-            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
-              <h3 className="font-semibold dark:text-white mb-4">Antworten generieren</h3>
-              <p className="text-sm text-gray-500 mb-3">Füge Posts ein, auf die du antworten möchtest (getrennt durch ---)</p>
-              <textarea
-                value={engagementPosts}
-                onChange={(e) => setEngagementPosts(e.target.value)}
-                placeholder="Post 1...&#10;---&#10;Post 2...&#10;---&#10;Post 3..."
-                rows={6}
-                className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white text-sm"
-              />
+          {/* Sub-Tab Navigation */}
+          <div className="flex items-center gap-2 border-b border-gray-200 dark:border-dark-200 pb-4">
+            {[
+              { id: 'competitors', label: 'Konkurrenz-Analyse', icon: Users },
+              { id: 'bot', label: 'Engagement Bot', icon: MessageCircle },
+            ].map(sub => (
               <button
-                onClick={handleGenerateEngagement}
-                disabled={generatingEngagement || !engagementPosts.trim()}
-                className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-lg disabled:opacity-50"
+                key={sub.id}
+                onClick={() => setEngagementSubView(sub.id as EngagementSubView)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  engagementSubView === sub.id
+                    ? 'bg-accent-primary text-white'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                }`}
               >
-                {generatingEngagement ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
-                Antworten generieren
+                <sub.icon size={16} />
+                {sub.label}
               </button>
-            </div>
+            ))}
           </div>
 
-          {/* Generated Responses */}
-          {engagementResponses.length > 0 && (
-            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
-              <h3 className="font-semibold dark:text-white mb-4">Generierte Antworten</h3>
-              <div className="space-y-4">
-                {engagementResponses.map((resp, idx) => (
-                  <div key={idx} className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
-                    <div className="text-xs text-gray-500 mb-2">
-                      <span className="font-medium">Original:</span> {resp.originalPost}
+          {/* Competitors Sub-View */}
+          {engagementSubView === 'competitors' && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-red-500 to-orange-600 rounded-xl p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <Users size={28} />
+                  <h2 className="text-xl font-bold">Konkurrenz-Analyse</h2>
+                </div>
+                <p className="opacity-90">Analysiere Wettbewerber und generiere inspirierten Content.</p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowAddCompetitor(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg"
+                >
+                  <Plus size={18} />
+                  Konkurrent hinzufügen
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {competitors.length === 0 ? (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    <Users size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Noch keine Konkurrenten hinzugefügt</p>
+                    <p className="text-sm mt-1">Füge Wettbewerber hinzu um deren Strategien zu analysieren</p>
+                  </div>
+                ) : (
+                  competitors.map(comp => (
+                    <div
+                      key={comp.id}
+                      onClick={() => setSelectedCompetitor(comp.id)}
+                      className={`bg-white dark:bg-dark-100 rounded-xl shadow-sm border p-4 cursor-pointer transition-colors ${
+                        selectedCompetitor === comp.id ? 'border-accent-primary' : 'border-gray-200 dark:border-dark-200'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-medium dark:text-white">{comp.name}</h4>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            socialMediaApi.deleteCompetitor(comp.id).then(loadCompetitors);
+                          }}
+                          className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        {comp.profiles?.linkedin && <Linkedin size={14} className="text-blue-600" />}
+                        {comp.profiles?.twitter && <Twitter size={14} className="text-sky-500" />}
+                        {comp.profiles?.website && <ExternalLink size={14} className="text-gray-500" />}
+                      </div>
+                      {comp.lastAnalyzed && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Zuletzt analysiert: {new Date(comp.lastAnalyzed).toLocaleDateString('de-DE')}
+                        </p>
+                      )}
                     </div>
-                    <p className="dark:text-white">{resp.response}</p>
-                    <div className="flex items-center justify-between mt-3">
-                      <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded capitalize">
-                        {resp.responseType}
-                      </span>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(resp.response)}
-                        className="flex items-center gap-1 text-sm text-accent-primary"
-                      >
-                        <Copy size={14} />
-                        Kopieren
+                  ))
+                )}
+              </div>
+
+              {selectedCompetitor && (
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                  <h3 className="font-semibold dark:text-white mb-4">Konkurrenten-Posts analysieren</h3>
+                  <p className="text-sm text-gray-500 mb-3">Füge Beispiel-Posts des Konkurrenten ein (getrennt durch ---)</p>
+                  <textarea
+                    value={competitorSamplePosts}
+                    onChange={(e) => setCompetitorSamplePosts(e.target.value)}
+                    placeholder="Post 1 hier einfügen...&#10;---&#10;Post 2 hier einfügen...&#10;---&#10;Post 3 hier einfügen..."
+                    rows={6}
+                    className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white text-sm"
+                  />
+                  <button
+                    onClick={handleAnalyzeCompetitor}
+                    disabled={analyzingCompetitor || !competitorSamplePosts.trim()}
+                    className="mt-3 flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg disabled:opacity-50"
+                  >
+                    {analyzingCompetitor ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                    Analysieren & Content generieren
+                  </button>
+
+                  {competitorAnalysis && (
+                    <div className="mt-6 space-y-4">
+                      <div className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                        <h4 className="font-medium dark:text-white mb-2">Erkenntnisse</h4>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div><span className="text-gray-500">Posting-Frequenz:</span> <span className="dark:text-white">{competitorAnalysis.insights.postingFrequency}</span></div>
+                          <div><span className="text-gray-500">Stärken:</span> <span className="dark:text-white">{competitorAnalysis.insights.strengths.join(', ')}</span></div>
+                          <div><span className="text-gray-500">Themen:</span> <span className="dark:text-white">{competitorAnalysis.insights.topTopics.join(', ')}</span></div>
+                          <div><span className="text-gray-500">Chancen:</span> <span className="dark:text-white">{competitorAnalysis.insights.opportunities.join(', ')}</span></div>
+                        </div>
+                      </div>
+                      <h4 className="font-medium dark:text-white">Generierte Posts (inspiriert)</h4>
+                      <div className="space-y-2">
+                        {competitorAnalysis.generatedPosts.map((post: any, idx: number) => (
+                          <div key={idx} className="p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                            <p className="dark:text-white text-sm">{post.content}</p>
+                            <p className="text-xs text-gray-500 mt-2">Inspiration: {post.inspiration}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Add Competitor Modal */}
+              {showAddCompetitor && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-white dark:bg-dark-100 rounded-xl p-6 w-full max-w-md">
+                    <h3 className="font-semibold dark:text-white mb-4">Konkurrent hinzufügen</h3>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={newCompetitorName}
+                        onChange={(e) => setNewCompetitorName(e.target.value)}
+                        placeholder="Firmenname"
+                        className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      />
+                      <input
+                        type="text"
+                        value={newCompetitorProfiles.linkedin}
+                        onChange={(e) => setNewCompetitorProfiles(p => ({ ...p, linkedin: e.target.value }))}
+                        placeholder="LinkedIn URL"
+                        className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      />
+                      <input
+                        type="text"
+                        value={newCompetitorProfiles.website}
+                        onChange={(e) => setNewCompetitorProfiles(p => ({ ...p, website: e.target.value }))}
+                        placeholder="Website"
+                        className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-3 mt-4">
+                      <button onClick={() => setShowAddCompetitor(false)} className="px-4 py-2 bg-gray-100 dark:bg-dark-200 rounded-lg dark:text-white">
+                        Abbrechen
+                      </button>
+                      <button onClick={handleAddCompetitor} className="px-4 py-2 bg-accent-primary text-white rounded-lg">
+                        Hinzufügen
                       </button>
                     </div>
                   </div>
-                ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Engagement Bot Sub-View */}
+          {engagementSubView === 'bot' && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-green-500 to-teal-600 rounded-xl p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <MessageCircle size={28} />
+                  <h2 className="text-xl font-bold">Smart Engagement Bot</h2>
+                </div>
+                <p className="opacity-90">Generiere authentische Kommentare zu Posts in deiner Branche.</p>
               </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Settings */}
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                  <h3 className="font-semibold dark:text-white mb-4">Einstellungen</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Antwort-Stil</label>
+                      <select
+                        value={engagementSettings.responseStyle}
+                        onChange={(e) => setEngagementSettings(s => ({ ...s, responseStyle: e.target.value as any }))}
+                        className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      >
+                        <option value="thoughtful">Nachdenklich</option>
+                        <option value="supportive">Unterstützend</option>
+                        <option value="inquisitive">Neugierig/Fragend</option>
+                        <option value="expert">Experte</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium dark:text-gray-300 mb-2">Keywords zum Verfolgen</label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {engagementSettings.targetKeywords.map((kw, idx) => (
+                          <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-sm">
+                            {kw}
+                            <button onClick={() => setEngagementSettings(s => ({ ...s, targetKeywords: s.targetKeywords.filter((_, i) => i !== idx) }))}>
+                              <X size={12} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newKeyword}
+                          onChange={(e) => setNewKeyword(e.target.value)}
+                          placeholder="Keyword..."
+                          className="flex-1 px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newKeyword.trim()) {
+                              setEngagementSettings(s => ({ ...s, targetKeywords: [...s.targetKeywords, newKeyword.trim()] }));
+                              setNewKeyword('');
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            if (newKeyword.trim()) {
+                              setEngagementSettings(s => ({ ...s, targetKeywords: [...s.targetKeywords, newKeyword.trim()] }));
+                              setNewKeyword('');
+                            }
+                          }}
+                          className="px-3 py-2 bg-accent-primary text-white rounded-lg"
+                        >
+                          <Plus size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Generate Responses */}
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                  <h3 className="font-semibold dark:text-white mb-4">Antworten generieren</h3>
+                  <p className="text-sm text-gray-500 mb-3">Füge Posts ein, auf die du antworten möchtest (getrennt durch ---)</p>
+                  <textarea
+                    value={engagementPosts}
+                    onChange={(e) => setEngagementPosts(e.target.value)}
+                    placeholder="Post 1...&#10;---&#10;Post 2...&#10;---&#10;Post 3..."
+                    rows={6}
+                    className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white text-sm"
+                  />
+                  <button
+                    onClick={handleGenerateEngagement}
+                    disabled={generatingEngagement || !engagementPosts.trim()}
+                    className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-lg disabled:opacity-50"
+                  >
+                    {generatingEngagement ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                    Antworten generieren
+                  </button>
+                </div>
+              </div>
+
+              {/* Generated Responses */}
+              {engagementResponses.length > 0 && (
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                  <h3 className="font-semibold dark:text-white mb-4">Generierte Antworten</h3>
+                  <div className="space-y-4">
+                    {engagementResponses.map((resp, idx) => (
+                      <div key={idx} className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                        <div className="text-xs text-gray-500 mb-2">
+                          <span className="font-medium">Original:</span> {resp.originalPost}
+                        </div>
+                        <p className="dark:text-white">{resp.response}</p>
+                        <div className="flex items-center justify-between mt-3">
+                          <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded capitalize">
+                            {resp.responseType}
+                          </span>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(resp.response)}
+                            className="flex items-center gap-1 text-sm text-accent-primary"
+                          >
+                            <Copy size={14} />
+                            Kopieren
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
