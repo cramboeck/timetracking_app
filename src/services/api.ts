@@ -3785,16 +3785,11 @@ export interface WizardContentGeneration {
 }
 
 export interface ContentImprovement {
-  originalContent: string;
   improvedContent: string;
-  changes: Array<{
-    type: string;
-    description: string;
-    before: string;
-    after: string;
-  }>;
-  improvementScore: number;
-  expertNotes: string[];
+  alternativeHooks: string[];
+  ctaSuggestions: string[];
+  changes: string[];
+  reasoning: string;
 }
 
 // Carousel Types

@@ -2925,16 +2925,74 @@ WICHTIG: Antworte NUR im JSON-Format:
 // Marketing Expert AI - Critical Analysis
 // ============================================
 
-const MARKETING_EXPERT_PROMPT = `Du bist ein erfahrener Social Media Marketing-Experte mit 15+ Jahren Erfahrung. Du analysierst Content kritisch und ehrlich - kein Sugarcoating. Du gibst konkretes, umsetzbares Feedback das die Performance verbessert.
+// Dynamic marketing expert system prompt generator
+function getMarketingExpertPrompt(targetAudience?: string, platform?: string): string {
+  const baseExpertise = `Du bist ein erfahrener Social Media Marketing-Experte mit 15+ Jahren Erfahrung im B2B-Bereich.
+Du analysierst Content kritisch und ehrlich - kein Sugarcoating. Du gibst konkretes, umsetzbares Feedback.
 
-Deine Expertise umfasst:
-- Virale Content-Strategien
+DEIN STIL:
+- Sachlich, souverän und praxisnah
+- Keine Marketing-Buzzwords oder leere Phrasen
+- Positionierend: Expertenwissen statt Werbung
+- Authentisch und glaubwürdig
+
+DEINE EXPERTISE:
+- Hook-Optimierung: konkret, dringlich, neugierig machend (KEIN Clickbait!)
+- CTA-Formulierung: logisch zum Hook passend, klare Handlungsaufforderung
 - Plattform-spezifische Best Practices
-- Psychologie der Engagement-Trigger
-- Hook-Optimierung (erste 3 Sekunden/Zeilen)
-- Call-to-Action Formulierung
-- Hashtag-Strategien
-- Posting-Zeiten und Algorithmus-Verständnis`;
+- Psychologie der Engagement-Trigger für Entscheider
+- Content der Expertise demonstriert, nicht verkauft`;
+
+  let audienceContext = '';
+  if (targetAudience) {
+    audienceContext = `
+
+ZIELGRUPPEN-KONTEXT:
+Du schreibst für: ${targetAudience}
+- Verstehe ihre Pain Points und Herausforderungen
+- Sprich ihre Sprache (professionell aber nicht überheblich)
+- Biete echten Mehrwert und praktische Insights
+- Positioniere den Absender als vertrauenswürdigen Experten`;
+  }
+
+  let platformContext = '';
+  if (platform) {
+    const platformTips: Record<string, string> = {
+      linkedin: `
+LINKEDIN-SPEZIFISCH:
+- Professioneller, aber persönlicher Ton
+- Erste Zeile = Scroll-Stopper (max. 150 Zeichen vor "mehr anzeigen")
+- Absätze mit Leerzeilen für Lesbarkeit
+- Keine übertriebenen Emojis (max. 2-3 dezent)
+- Thought Leadership > Werbung`,
+      instagram: `
+INSTAGRAM-SPEZIFISCH:
+- Visuell denken - Text ergänzt das Bild
+- Erste Zeile fesselt, Rest liefert Wert
+- Hashtags strategisch (10-15 relevant)
+- Story-Format bevorzugen
+- Authentizität > Perfektion`,
+      facebook: `
+FACEBOOK-SPEZIFISCH:
+- Längerer Content kann funktionieren
+- Community-Building Fokus
+- Fragen stellen für Engagement
+- Persönliche Geschichten verbinden`,
+      twitter: `
+TWITTER/X-SPEZIFISCH:
+- Prägnant und pointiert
+- Kontroverse Meinungen performen
+- Thread-Format für komplexe Themen
+- Keine Hashtag-Überladung (max. 2)`
+    };
+    platformContext = platformTips[platform.toLowerCase()] || '';
+  }
+
+  return baseExpertise + audienceContext + platformContext;
+}
+
+// Legacy constant for backwards compatibility
+const MARKETING_EXPERT_PROMPT = getMarketingExpertPrompt();
 
 export interface MarketingAnalysis {
   overallScore: number; // 0-100
@@ -2986,69 +3044,78 @@ export async function analyzeContentAsExpert(
     branding: 'Markenbekanntheit und Positionierung stärken'
   };
 
-  const prompt = `Analysiere diesen Social Media Post kritisch und ehrlich. Sei ein strenger aber fairer Experte.
+  // Use dynamic system prompt with audience and platform context
+  const systemPrompt = getMarketingExpertPrompt(targetAudience, platform);
 
+  const prompt = `Analysiere diesen Social Media Post wie ein professioneller Social Media Manager.
+Sei kritisch aber konstruktiv - gib konkretes, umsetzbares Feedback.
+
+═══════════════════════════════════════
+KONTEXT:
+═══════════════════════════════════════
 PLATTFORM: ${platform}
 ZIEL: ${goalDescriptions[goal]}
-${targetAudience ? `ZIELGRUPPE: ${targetAudience}` : ''}
+${targetAudience ? `ZIELGRUPPE: ${targetAudience}` : 'ZIELGRUPPE: B2B-Entscheider'}
 
-POST:
+═══════════════════════════════════════
+ZU ANALYSIERENDER POST:
+═══════════════════════════════════════
 """
 ${content}
 """
 
-Analysiere nach diesen Kriterien:
-1. HOOK: Sind die ersten Zeilen stark genug um Scroll-Stopper zu sein?
-2. WERT: Bietet der Post echten Mehrwert für die Zielgruppe?
-3. EMOTION: Löst er eine emotionale Reaktion aus?
-4. CTA: Ist der Call-to-Action klar und motivierend?
-5. PLATTFORM-FIT: Passt Format/Länge/Stil zur Plattform?
-6. AUTHENTIZITÄT: Wirkt es authentisch oder wie Corporate-Blabla?
+═══════════════════════════════════════
+BEWERTUNGSKRITERIEN:
+═══════════════════════════════════════
+1. HOOK (0-100): Ist der Einstieg konkret, dringlich und neugierig machend? (KEIN Clickbait!)
+2. KLARHEIT (0-100): Ist die Kernbotschaft sofort verständlich?
+3. MEHRWERT (0-100): Bietet der Post echten Nutzen für die Zielgruppe?
+4. CTA (0-100): Ist der Call-to-Action logisch zum Hook passend und handlungsauslösend?
+5. CONVERSION-FIT (0-100): Wird die Zielgruppe zur gewünschten Aktion motiviert?
+6. AUTHENTIZITÄT: Wirkt es wie Expertenwissen oder wie Werbung?
 
-SEI KRITISCH! Nenne konkrete Probleme und wie man sie behebt.
+═══════════════════════════════════════
+DEINE ANALYSE:
+═══════════════════════════════════════
+Bewerte EHRLICH. Ein guter Score ist 70+, exzellent ist 85+.
+Bei Verbesserungsvorschlägen: Gib KONKRETE Beispiele wie es besser wäre.
 
-WICHTIG: Antworte NUR im JSON-Format (alle Scores 0-100):
+WICHTIG: Antworte NUR im JSON-Format:
 {
   "overallScore": 75,
-  "strengths": ["Stärke 1", "Stärke 2", "Stärke 3"],
-  "weaknesses": ["Schwäche 1", "Schwäche 2"],
+  "strengths": ["Konkrete Stärke 1", "Konkrete Stärke 2"],
+  "weaknesses": ["Konkretes Problem 1", "Konkretes Problem 2"],
   "improvements": [
     {
       "area": "Hook",
-      "suggestion": "Was verbessert werden sollte",
+      "suggestion": "Der Hook sollte dringlicher und spezifischer sein",
       "priority": "high",
-      "improvedExample": "Konkret verbesserte Version des Texts"
-    },
-    {
-      "area": "CTA",
-      "suggestion": "Was verbessert werden sollte",
-      "priority": "medium",
-      "improvedExample": "Konkret verbesserte Version"
+      "improvedExample": "Beispiel für einen besseren Hook-Satz als Inspiration"
     }
   ],
   "platformFit": {
     "score": 80,
-    "feedback": "Wie gut passt es zur Plattform"
+    "feedback": "Konkrete Einschätzung zum Plattform-Fit"
   },
   "audienceAlignment": {
     "score": 70,
-    "feedback": "Wie gut passt es zur Zielgruppe"
+    "feedback": "Wie gut trifft es die Zielgruppe und warum"
   },
   "callToActionEffectiveness": {
     "score": 60,
-    "feedback": "Wie effektiv ist der CTA",
-    "suggestions": ["Besserer CTA Vorschlag 1", "Besserer CTA Vorschlag 2"]
+    "feedback": "Konkrete Bewertung des CTA",
+    "suggestions": ["Konkreter CTA-Vorschlag 1", "Konkreter CTA-Vorschlag 2"]
   },
-  "emotionalTone": "inspirierend/professionell/etc.",
+  "emotionalTone": "sachlich-professionell/inspirierend/etc.",
   "readabilityScore": 85,
   "viralPotential": 45
 }`;
 
   let result: { content: string; tokensUsed: number };
   if (config.provider === 'anthropic') {
-    result = await callAnthropic(config.apiKey, config.model, prompt, 2000, 0.7, MARKETING_EXPERT_PROMPT);
+    result = await callAnthropic(config.apiKey, config.model, prompt, 2000, 0.7, systemPrompt);
   } else {
-    result = await callOpenAI(config.apiKey, config.model, prompt, 2000, 0.7, MARKETING_EXPERT_PROMPT);
+    result = await callOpenAI(config.apiKey, config.model, prompt, 2000, 0.7, systemPrompt);
   }
 
   try {
@@ -3116,6 +3183,9 @@ export async function generateWizardContent(
     throw new Error('AI-Konfiguration nicht gefunden');
   }
 
+  // Use dynamic system prompt with audience and platform context
+  const systemPrompt = getMarketingExpertPrompt(options.targetAudience, options.platform);
+
   const contentLength = options.contentLength || 'medium';
   const lengthInstructions = {
     short: 'Kurz und prägnant (max. 150 Wörter)',
@@ -3123,54 +3193,82 @@ export async function generateWizardContent(
     long: 'Ausführlich und detailliert (300+ Wörter)'
   };
 
-  const prompt = `Erstelle einen perfekten Social Media Post als Marketing-Experte für maximale Lead-Generierung und Conversions.
+  const goalDescriptions: Record<string, string> = {
+    reach: 'Maximale Reichweite - Content der geteilt wird',
+    engagement: 'Interaktion - Kommentare und Diskussion anregen',
+    leads: 'Lead-Generierung - konkrete Handlung auslösen (Download, Anmeldung, Kontakt)',
+    branding: 'Positionierung - Expertise demonstrieren und Vertrauen aufbauen'
+  };
 
+  const prompt = `Erstelle einen Social Media Post der WIRKLICH konvertiert.
+
+═══════════════════════════════════════
+BRIEFING:
+═══════════════════════════════════════
 THEMA: ${options.topic}
 PLATTFORM: ${options.platform}
-ZIEL: ${options.goal}
-${options.contentType ? `CONTENT-TYP: ${options.contentType}` : ''}
-${options.tone ? `TONALITÄT: ${options.tone}` : ''}
-${options.targetAudience ? `ZIELGRUPPE: ${options.targetAudience}` : ''}
+ZIEL: ${goalDescriptions[options.goal] || options.goal}
+${options.targetAudience ? `ZIELGRUPPE: ${options.targetAudience}` : 'ZIELGRUPPE: B2B-Entscheider (Geschäftsführer, IT-Leiter)'}
+${options.tone ? `TONALITÄT: ${options.tone}` : 'TONALITÄT: Sachlich, souverän, praxisnah'}
 ${options.brandVoice ? `MARKENSTIMME: ${options.brandVoice}` : ''}
+${options.contentType ? `CONTENT-TYP: ${options.contentType}` : ''}
 LÄNGE: ${lengthInstructions[contentLength]}
 
-Erstelle einen Post der:
-1. Mit einem unwiderstehlichen Hook beginnt (Scroll-Stopper!)
-2. Echten Mehrwert bietet
-3. Emotional resoniert
-4. Einen klaren, motivierenden CTA hat
-5. Perfekt zur Plattform passt
+═══════════════════════════════════════
+QUALITÄTSANFORDERUNGEN:
+═══════════════════════════════════════
+HOOK (erste 1-2 Zeilen):
+- Konkret und spezifisch (keine generischen Aussagen)
+- Dringlichkeit oder Neugier wecken (OHNE Clickbait!)
+- Direkt relevant für die Zielgruppe
+- Beispiel SCHLECHT: "Digitalisierung ist wichtig"
+- Beispiel GUT: "3 von 4 KMU verlieren Aufträge durch veraltete IT-Prozesse"
 
-WICHTIG: Antworte NUR im JSON-Format:
+HAUPTTEIL:
+- Echten Mehrwert liefern (nicht nur behaupten)
+- Praxisnahe Insights oder konkrete Tipps
+- Positioniert als Experte, nicht als Verkäufer
+- Keine leeren Marketing-Phrasen
+
+CTA (Call-to-Action):
+- Logisch zum Hook passend (roter Faden!)
+- Konkrete, niedrigschwellige Handlung
+- Klar formuliert was der Leser bekommt
+- Beispiel SCHLECHT: "Kontaktieren Sie uns"
+- Beispiel GUT: "Laden Sie unsere IT-Sicherheits-Checkliste herunter (kostenlos, 2 Min. Lesezeit)"
+
+═══════════════════════════════════════
+OUTPUT (NUR JSON):
+═══════════════════════════════════════
 {
   "post": {
-    "content": "Der komplette Post-Text mit Zeilenumbrüchen",
+    "content": "Der komplette Post-Text mit Zeilenumbrüchen für Lesbarkeit",
     "hashtags": ["hashtag1", "hashtag2", "hashtag3"],
-    "callToAction": "Der Call-to-Action Text"
+    "callToAction": "Der CTA-Text separat"
   },
   "alternatives": [
     {
-      "content": "Alternative Version 1 des Posts",
-      "style": "Mehr humorvoll"
+      "content": "Alternative mit anderem Hook-Ansatz",
+      "style": "z.B. Frage statt Statistik"
     },
     {
-      "content": "Alternative Version 2 des Posts",
-      "style": "Mehr emotional"
+      "content": "Alternative mit anderem Stil",
+      "style": "z.B. Story-Format"
     }
   ],
   "imagePrompt": {
-    "prompt": "Detaillierter englischer Prompt für DALL-E Bildgenerierung, professional, corporate style",
-    "style": "modern",
-    "description": "Kurze Beschreibung was das Bild zeigen soll"
+    "prompt": "Detailed English DALL-E prompt, professional corporate style, no text in image",
+    "style": "modern/professional",
+    "description": "Kurze deutsche Beschreibung"
   },
   "bestPostingTime": {
-    "day": "Dienstag",
-    "time": "09:00",
-    "reason": "Höchste Engagement-Rate für B2B-Content"
+    "day": "Wochentag",
+    "time": "HH:MM",
+    "reason": "Begründung basierend auf Zielgruppe"
   },
   "contentAnalysis": {
-    "emotionalTone": "Inspirierend und professionell",
-    "expectedEngagement": "high",
+    "emotionalTone": "z.B. sachlich-professionell mit Dringlichkeit",
+    "expectedEngagement": "low/medium/high",
     "targetAudienceMatch": 85
   }
 }`;
@@ -3205,9 +3303,9 @@ Denke wie ein Top-Performer mit 100k+ Followern. Was würde VIRAL gehen?
 
     let result: { content: string; tokensUsed: number };
     if (config.provider === 'anthropic') {
-      result = await callAnthropic(config.apiKey, config.model, currentPrompt, 3000, 0.8 + (attempt * 0.05), MARKETING_EXPERT_PROMPT);
+      result = await callAnthropic(config.apiKey, config.model, currentPrompt, 3000, 0.8 + (attempt * 0.05), systemPrompt);
     } else {
-      result = await callOpenAI(config.apiKey, config.model, currentPrompt, 3000, 0.8 + (attempt * 0.05), MARKETING_EXPERT_PROMPT);
+      result = await callOpenAI(config.apiKey, config.model, currentPrompt, 3000, 0.8 + (attempt * 0.05), systemPrompt);
     }
 
     try {
@@ -3259,56 +3357,108 @@ Denke wie ein Top-Performer mit 100k+ Followern. Was würde VIRAL gehen?
   } as WizardContentGeneration & { qualityScore: number; attempts: number };
 }
 
+// Extended interface for improved content
+export interface ContentImprovement {
+  improvedContent: string;
+  alternativeHooks: string[];
+  ctaSuggestions: string[];
+  changes: string[];
+  reasoning: string;
+}
+
 /**
- * Improve content based on expert feedback
+ * Improve content based on expert feedback - with extended output
  */
 export async function improveContentWithExpert(
   userId: string,
   originalContent: string,
   platform: string,
-  improvementFocus: string
-): Promise<{ improvedContent: string; changes: string[] }> {
+  improvementFocus: string,
+  targetAudience?: string,
+  goal?: string
+): Promise<ContentImprovement> {
   const config = await getAIConfig(userId);
   if (!config || !config.apiKey) {
     throw new Error('AI-Konfiguration nicht gefunden');
   }
 
+  // Use dynamic system prompt
+  const systemPrompt = getMarketingExpertPrompt(targetAudience, platform);
+
   const focusDescriptions: Record<string, string> = {
-    hook: 'Verbessere den Hook - mache die ersten Zeilen unwiderstehlich',
-    cta: 'Optimiere den Call-to-Action - mache ihn klar und motivierend',
-    value: 'Erhöhe den Mehrwert - was lernt/gewinnt der Leser?',
-    emotion: 'Verstärke die emotionale Resonanz',
-    all: 'Optimiere alle Aspekte für maximale Performance'
+    hook: 'FOKUS: Hook optimieren - konkret, dringlich, neugierig machend (KEIN Clickbait)',
+    cta: 'FOKUS: CTA optimieren - logisch zum Hook passend, klare Handlungsaufforderung',
+    value: 'FOKUS: Mehrwert erhöhen - was lernt/gewinnt der Leser konkret?',
+    emotion: 'FOKUS: Emotionale Resonanz verstärken - authentisch, nicht manipulativ',
+    clarity: 'FOKUS: Klarheit verbessern - Kernbotschaft sofort verständlich',
+    all: 'FOKUS: Vollständige Optimierung aller Aspekte'
   };
 
-  // Use predefined description if available, otherwise use the focus as-is
-  const focusDescription = focusDescriptions[improvementFocus] || `Verbessere: ${improvementFocus}`;
+  const focusDescription = focusDescriptions[improvementFocus.toLowerCase()] || `FOKUS: ${improvementFocus}`;
 
-  const prompt = `Verbessere diesen Social Media Post für ${platform}.
+  const prompt = `Optimiere diesen Social Media Post wie ein professioneller Social Media Manager.
 
-FOKUS: ${focusDescription}
+═══════════════════════════════════════
+KONTEXT:
+═══════════════════════════════════════
+PLATTFORM: ${platform}
+${targetAudience ? `ZIELGRUPPE: ${targetAudience}` : 'ZIELGRUPPE: B2B-Entscheider (Geschäftsführer, IT-Leiter in KMU)'}
+${goal ? `ZIEL: ${goal}` : ''}
+${focusDescription}
 
-ORIGINAL:
+═══════════════════════════════════════
+ORIGINAL-POST:
+═══════════════════════════════════════
 """
 ${originalContent}
 """
 
-Verbessere den Post signifikant. Behalte die Kernaussage, aber mache ihn viral-würdig.
+═══════════════════════════════════════
+OPTIMIERUNGSRICHTLINIEN:
+═══════════════════════════════════════
+1. HOOK: Konkret, dringlich, neugierig machend - KEIN Clickbait
+   - SCHLECHT: "Digitalisierung ist wichtig"
+   - GUT: "73% der KMU unterschätzen dieses IT-Risiko"
 
-WICHTIG: Antworte NUR im JSON-Format:
+2. CTA: Logisch zum Hook passend, klare niedrigschwellige Handlung
+   - SCHLECHT: "Kontaktieren Sie uns"
+   - GUT: "Kostenlose Checkliste herunterladen (2 Min. Lesezeit)"
+
+3. STIL: Sachlich, souverän, praxisnah
+   - Keine Marketing-Buzzwords oder leere Phrasen
+   - Expertenwissen demonstrieren, nicht verkaufen
+   - Ansprache passend zur Zielgruppe
+
+4. STRUKTUR: Gute Lesbarkeit
+   - Absätze mit Leerzeilen
+   - Maximal 2-3 dezente Emojis
+   - Klarer roter Faden von Hook zu CTA
+
+═══════════════════════════════════════
+OUTPUT (NUR JSON):
+═══════════════════════════════════════
 {
-  "improvedContent": "Der verbesserte Post-Text",
+  "improvedContent": "Der KOMPLETT überarbeitete Post-Text mit allen Verbesserungen eingebaut",
+  "alternativeHooks": [
+    "Alternativer Hook 1 (z.B. Frage-Format)",
+    "Alternativer Hook 2 (z.B. Statistik-Format)"
+  ],
+  "ctaSuggestions": [
+    "Konkreter CTA-Vorschlag 1",
+    "Konkreter CTA-Vorschlag 2"
+  ],
   "changes": [
-    "Was wurde geändert und warum 1",
-    "Was wurde geändert und warum 2"
-  ]
+    "Was wurde geändert und warum (konkret)",
+    "Weitere Änderung und Begründung"
+  ],
+  "reasoning": "Kurze Erklärung warum diese Optimierung besser konvertiert (1-2 Sätze)"
 }`;
 
   let result: { content: string; tokensUsed: number };
   if (config.provider === 'anthropic') {
-    result = await callAnthropic(config.apiKey, config.model, prompt, 1500, 0.7, MARKETING_EXPERT_PROMPT);
+    result = await callAnthropic(config.apiKey, config.model, prompt, 2000, 0.7, systemPrompt);
   } else {
-    result = await callOpenAI(config.apiKey, config.model, prompt, 1500, 0.7, MARKETING_EXPERT_PROMPT);
+    result = await callOpenAI(config.apiKey, config.model, prompt, 2000, 0.7, systemPrompt);
   }
 
   try {
@@ -3316,7 +3466,16 @@ WICHTIG: Antworte NUR im JSON-Format:
     if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
     else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
 
-    return JSON.parse(jsonStr) as { improvedContent: string; changes: string[] };
+    const parsed = JSON.parse(jsonStr);
+
+    // Ensure backwards compatibility - if old format, convert to new
+    return {
+      improvedContent: parsed.improvedContent || '',
+      alternativeHooks: parsed.alternativeHooks || [],
+      ctaSuggestions: parsed.ctaSuggestions || [],
+      changes: parsed.changes || [],
+      reasoning: parsed.reasoning || ''
+    };
   } catch (error) {
     console.error('Failed to parse improvement:', error);
     throw new Error('Fehler bei der Verbesserung');

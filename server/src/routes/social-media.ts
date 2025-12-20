@@ -2796,7 +2796,7 @@ router.post('/wizard/generate', authenticateToken, async (req: AuthRequest, res)
 router.post('/wizard/improve', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { content, platform, improvementFocus } = req.body;
+    const { content, platform, improvementFocus, targetAudience, goal } = req.body;
 
     if (!content || !platform || !improvementFocus) {
       return res.status(400).json({
@@ -2808,7 +2808,9 @@ router.post('/wizard/improve', authenticateToken, async (req: AuthRequest, res) 
       userId,
       content,
       platform,
-      improvementFocus
+      improvementFocus,
+      targetAudience,
+      goal
     );
 
     res.json(improved);
