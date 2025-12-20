@@ -2016,7 +2016,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     className="flex-1 px-4 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
                   />
                   <button
-                    onClick={handleLoadTrends}
+                    onClick={loadTrends}
                     disabled={trendsLoading}
                     className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg disabled:opacity-50"
                   >
