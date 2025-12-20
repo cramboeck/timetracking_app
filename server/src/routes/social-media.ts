@@ -2179,6 +2179,176 @@ router.post('/engagement/log', authenticateToken, attachOrganization, requireOrg
 });
 
 // ============================================
+// Carousel Generator Routes
+// ============================================
+
+const carouselOptionsSchema = z.object({
+  topic: z.string().min(1).max(500),
+  platform: z.enum(['instagram', 'linkedin']),
+  slideCount: z.number().min(3).max(15).default(7),
+  style: z.enum(['educational', 'storytelling', 'listicle', 'how-to', 'tips', 'myth-busting']),
+  tone: z.enum(['professional', 'casual', 'inspirational', 'bold']),
+  targetAudience: z.string().optional(),
+  brandColors: z.object({
+    primary: z.string().optional(),
+    secondary: z.string().optional()
+  }).optional(),
+  includeEmojis: z.boolean().default(true)
+});
+
+// POST /api/social-media/carousel/generate - Generate carousel content
+router.post('/carousel/generate', authenticateToken, attachOrganization, requireOrgRole('member'), validate(carouselOptionsSchema), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const options = req.body;
+
+    const carousel = await aiService.generateCarouselContent(userId, options);
+
+    res.json(carousel);
+  } catch (error: any) {
+    console.error('Generate carousel error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate carousel' });
+  }
+});
+
+// POST /api/social-media/carousel/generate-images - Generate images for carousel slides
+router.post('/carousel/generate-images', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { slides, style, colorScheme } = req.body;
+
+    if (!slides || !Array.isArray(slides)) {
+      return res.status(400).json({ error: 'Slides array is required' });
+    }
+
+    const images = await aiService.generateCarouselSlideImages(
+      userId,
+      slides,
+      style || 'modern',
+      colorScheme || { primary: '#1a365d', secondary: '#2563eb' }
+    );
+
+    res.json({ images });
+  } catch (error: any) {
+    console.error('Generate carousel images error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate carousel images' });
+  }
+});
+
+// POST /api/social-media/carousel/save - Save carousel as draft post
+router.post('/carousel/save', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const organizationId = req.organization!.id;
+    const { carousel, scheduleAt } = req.body;
+
+    if (!carousel) {
+      return res.status(400).json({ error: 'Carousel content is required' });
+    }
+
+    // Create post with carousel metadata
+    const postId = crypto.randomUUID();
+    const result = await pool.query(
+      `INSERT INTO social_media_posts
+       (id, organization_id, title, content, hashtags, status, scheduled_at, ai_generated, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [
+        postId,
+        organizationId,
+        carousel.title || 'Carousel Post',
+        carousel.caption,
+        carousel.hashtags,
+        scheduleAt ? 'scheduled' : 'draft',
+        scheduleAt || null,
+        true,
+        JSON.stringify({
+          type: 'carousel',
+          platform: carousel.platform,
+          slides: carousel.slides,
+          colorScheme: carousel.colorScheme,
+          designTips: carousel.designTips,
+          canvaInstructions: carousel.canvaInstructions,
+          totalSlides: carousel.totalSlides
+        })
+      ]
+    );
+
+    // Add platform
+    await pool.query(
+      `INSERT INTO social_media_post_platforms (id, post_id, platform, status)
+       VALUES ($1, $2, $3, $4)`,
+      [crypto.randomUUID(), postId, carousel.platform, scheduleAt ? 'scheduled' : 'draft']
+    );
+
+    res.json(transformRow(result.rows[0]));
+  } catch (error: any) {
+    console.error('Save carousel error:', error);
+    res.status(500).json({ error: error.message || 'Failed to save carousel' });
+  }
+});
+
+// GET /api/social-media/carousel/export/:format - Export carousel in different formats
+router.get('/carousel/export/:format', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const { format } = req.params;
+    const carouselData = req.query.data ? JSON.parse(req.query.data as string) : null;
+
+    if (!carouselData) {
+      return res.status(400).json({ error: 'Carousel data is required' });
+    }
+
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="carousel-${Date.now()}.json"`);
+      res.json(carouselData);
+    } else if (format === 'text') {
+      // Text format for easy copy-paste to Canva
+      let textContent = `# ${carouselData.title}\n\n`;
+      textContent += `Platform: ${carouselData.platform}\n`;
+      textContent += `Total Slides: ${carouselData.totalSlides}\n\n`;
+      textContent += `## Farbschema\n`;
+      textContent += `Primär: ${carouselData.colorScheme?.primary}\n`;
+      textContent += `Sekundär: ${carouselData.colorScheme?.secondary}\n`;
+      textContent += `Akzent: ${carouselData.colorScheme?.accent}\n`;
+      textContent += `Hintergrund: ${carouselData.colorScheme?.background}\n`;
+      textContent += `Text: ${carouselData.colorScheme?.text}\n\n`;
+      textContent += `---\n\n`;
+
+      carouselData.slides?.forEach((slide: any) => {
+        textContent += `## Slide ${slide.slideNumber} (${slide.type})\n`;
+        if (slide.emoji) textContent += `Emoji: ${slide.emoji}\n`;
+        textContent += `### ${slide.headline}\n`;
+        textContent += `${slide.body}\n`;
+        if (slide.bulletPoints?.length) {
+          textContent += `\nBullet Points:\n`;
+          slide.bulletPoints.forEach((bp: string) => {
+            textContent += `• ${bp}\n`;
+          });
+        }
+        if (slide.designNote) textContent += `\nDesign-Hinweis: ${slide.designNote}\n`;
+        textContent += `\n---\n\n`;
+      });
+
+      textContent += `## Caption\n${carouselData.caption}\n\n`;
+      textContent += `## Hashtags\n${carouselData.hashtags?.map((h: string) => `#${h}`).join(' ')}\n\n`;
+      textContent += `## Canva-Anleitung\n${carouselData.canvaInstructions}\n\n`;
+      textContent += `## Design-Tipps\n`;
+      carouselData.designTips?.forEach((tip: string) => {
+        textContent += `• ${tip}\n`;
+      });
+
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="carousel-${Date.now()}.txt"`);
+      res.send(textContent);
+    } else {
+      res.status(400).json({ error: 'Unsupported format. Use json or text.' });
+    }
+  } catch (error: any) {
+    console.error('Export carousel error:', error);
+    res.status(500).json({ error: error.message || 'Failed to export carousel' });
+  }
+});
+
+// ============================================
 // Stories Routes
 // ============================================
 

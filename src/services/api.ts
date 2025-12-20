@@ -3797,6 +3797,36 @@ export interface ContentImprovement {
   expertNotes: string[];
 }
 
+// Carousel Types
+export interface CarouselSlide {
+  slideNumber: number;
+  type: 'hook' | 'content' | 'tip' | 'example' | 'cta';
+  headline: string;
+  body: string;
+  bulletPoints?: string[];
+  emoji?: string;
+  designNote?: string;
+}
+
+export interface CarouselContent {
+  title: string;
+  topic: string;
+  platform: 'instagram' | 'linkedin';
+  slides: CarouselSlide[];
+  hashtags: string[];
+  caption: string;
+  colorScheme: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    background: string;
+    text: string;
+  };
+  designTips: string[];
+  canvaInstructions: string;
+  totalSlides: number;
+}
+
 export const socialMediaApi = {
   // Posts
   getPosts: async (filters?: { status?: string; customerId?: string; startDate?: string; endDate?: string }): Promise<SocialMediaPost[]> => {
@@ -4357,6 +4387,107 @@ export const socialMediaApi = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  },
+
+  // ============================================
+  // Carousel Generator API
+  // ============================================
+
+  generateCarousel: async (options: {
+    topic: string;
+    platform: 'instagram' | 'linkedin';
+    slideCount?: number;
+    style: 'educational' | 'storytelling' | 'listicle' | 'how-to' | 'tips' | 'myth-busting';
+    tone: 'professional' | 'casual' | 'inspirational' | 'bold';
+    targetAudience?: string;
+    brandColors?: { primary?: string; secondary?: string };
+    includeEmojis?: boolean;
+  }): Promise<CarouselContent> => {
+    return authFetch('/social-media/carousel/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...options,
+        slideCount: options.slideCount || 7,
+        includeEmojis: options.includeEmojis ?? true
+      }),
+    });
+  },
+
+  generateCarouselImages: async (data: {
+    slides: CarouselSlide[];
+    style?: 'modern' | 'minimalist' | 'vibrant' | 'professional';
+    colorScheme?: { primary: string; secondary: string };
+  }): Promise<{ images: Array<{ slideNumber: number; imageUrl: string; prompt: string }> }> => {
+    return authFetch('/social-media/carousel/generate-images', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  saveCarousel: async (data: {
+    carousel: CarouselContent;
+    scheduleAt?: string;
+  }): Promise<SocialMediaPost> => {
+    return authFetch('/social-media/carousel/save', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  exportCarousel: (carousel: CarouselContent, format: 'json' | 'text'): void => {
+    // Create downloadable file locally
+    if (format === 'json') {
+      const blob = new Blob([JSON.stringify(carousel, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `carousel-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      // Text format for Canva
+      let textContent = `# ${carousel.title}\n\n`;
+      textContent += `Platform: ${carousel.platform}\n`;
+      textContent += `Total Slides: ${carousel.totalSlides}\n\n`;
+      textContent += `## Farbschema\n`;
+      textContent += `Primär: ${carousel.colorScheme?.primary}\n`;
+      textContent += `Sekundär: ${carousel.colorScheme?.secondary}\n`;
+      textContent += `Akzent: ${carousel.colorScheme?.accent}\n`;
+      textContent += `Hintergrund: ${carousel.colorScheme?.background}\n`;
+      textContent += `Text: ${carousel.colorScheme?.text}\n\n`;
+      textContent += `---\n\n`;
+
+      carousel.slides?.forEach((slide) => {
+        textContent += `## Slide ${slide.slideNumber} (${slide.type})\n`;
+        if (slide.emoji) textContent += `Emoji: ${slide.emoji}\n`;
+        textContent += `### ${slide.headline}\n`;
+        textContent += `${slide.body}\n`;
+        if (slide.bulletPoints?.length) {
+          textContent += `\nBullet Points:\n`;
+          slide.bulletPoints.forEach((bp) => {
+            textContent += `• ${bp}\n`;
+          });
+        }
+        if (slide.designNote) textContent += `\nDesign-Hinweis: ${slide.designNote}\n`;
+        textContent += `\n---\n\n`;
+      });
+
+      textContent += `## Caption\n${carousel.caption}\n\n`;
+      textContent += `## Hashtags\n${carousel.hashtags?.map((h) => `#${h}`).join(' ')}\n\n`;
+      textContent += `## Canva-Anleitung\n${carousel.canvaInstructions}\n\n`;
+      textContent += `## Design-Tipps\n`;
+      carousel.designTips?.forEach((tip) => {
+        textContent += `• ${tip}\n`;
+      });
+
+      const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `carousel-${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   },
 
   // ============================================

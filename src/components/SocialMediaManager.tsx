@@ -9,7 +9,7 @@ import {
   LayoutDashboard, PenTool, Bot, Library, ArrowRight, Target, Eye, CalendarDays,
   Heart, MousePointer, MessageSquare
 } from 'lucide-react';
-import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement } from '../services/api';
+import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement, CarouselContent, CarouselSlide } from '../services/api';
 import { Customer } from '../types';
 import { Modal } from './Modal';
 
@@ -20,7 +20,7 @@ interface SocialMediaManagerProps {
 // Simplified view modes - grouped by function
 type ViewMode = 'dashboard' | 'calendar' | 'list' | 'create' | 'stories' | 'ai-tools' | 'engagement' | 'library' | 'analytics';
 // Sub-views for grouped sections
-type CreateSubView = 'post' | 'batch' | 'remix';
+type CreateSubView = 'post' | 'batch' | 'remix' | 'carousel';
 type AIToolsSubView = 'autopilot' | 'trends' | 'ideas';
 type EngagementSubView = 'competitors' | 'bot';
 type LibrarySubView = 'evergreen' | 'templates' | 'hashtags';
@@ -264,6 +264,21 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   const [wizardGeneratingImage, setWizardGeneratingImage] = useState(false);
   const [wizardEditedContent, setWizardEditedContent] = useState('');
   const [wizardIncludeImage, setWizardIncludeImage] = useState(true);
+
+  // Carousel Generator state
+  const [carouselTopic, setCarouselTopic] = useState('');
+  const [carouselPlatform, setCarouselPlatform] = useState<'instagram' | 'linkedin'>('instagram');
+  const [carouselSlideCount, setCarouselSlideCount] = useState(7);
+  const [carouselStyle, setCarouselStyle] = useState<'educational' | 'storytelling' | 'listicle' | 'how-to' | 'tips' | 'myth-busting'>('tips');
+  const [carouselTone, setCarouselTone] = useState<'professional' | 'casual' | 'inspirational' | 'bold'>('professional');
+  const [carouselTargetAudience, setCarouselTargetAudience] = useState('');
+  const [carouselIncludeEmojis, setCarouselIncludeEmojis] = useState(true);
+  const [carouselBrandColors, setCarouselBrandColors] = useState({ primary: '#1a365d', secondary: '#2563eb' });
+  const [carouselGenerating, setCarouselGenerating] = useState(false);
+  const [carouselContent, setCarouselContent] = useState<CarouselContent | null>(null);
+  const [carouselCurrentSlide, setCarouselCurrentSlide] = useState(0);
+  const [carouselGeneratingImages, setCarouselGeneratingImages] = useState(false);
+  const [carouselSlideImages, setCarouselSlideImages] = useState<Array<{ slideNumber: number; imageUrl: string }>>([]);
 
   // Load data
   useEffect(() => {
@@ -612,6 +627,61 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       setRemixSourceContent('');
     } catch (err: any) {
       setError(err.message || 'Fehler beim Speichern');
+    }
+  };
+
+  // Carousel Generator functions
+  const generateCarousel = async () => {
+    if (!carouselTopic.trim()) return;
+    setCarouselGenerating(true);
+    setCarouselContent(null);
+    setCarouselCurrentSlide(0);
+    setCarouselSlideImages([]);
+    try {
+      const result = await socialMediaApi.generateCarousel({
+        topic: carouselTopic,
+        platform: carouselPlatform,
+        slideCount: carouselSlideCount,
+        style: carouselStyle,
+        tone: carouselTone,
+        targetAudience: carouselTargetAudience || undefined,
+        brandColors: carouselBrandColors,
+        includeEmojis: carouselIncludeEmojis
+      });
+      setCarouselContent(result);
+    } catch (err: any) {
+      setError(err.message || 'Carousel-Generierung fehlgeschlagen');
+    } finally {
+      setCarouselGenerating(false);
+    }
+  };
+
+  const generateCarouselImages = async () => {
+    if (!carouselContent) return;
+    setCarouselGeneratingImages(true);
+    try {
+      const result = await socialMediaApi.generateCarouselImages({
+        slides: carouselContent.slides,
+        style: 'modern',
+        colorScheme: { primary: carouselContent.colorScheme.primary, secondary: carouselContent.colorScheme.secondary }
+      });
+      setCarouselSlideImages(result.images);
+    } catch (err: any) {
+      setError(err.message || 'Bildgenerierung fehlgeschlagen');
+    } finally {
+      setCarouselGeneratingImages(false);
+    }
+  };
+
+  const saveCarousel = async (scheduleAt?: string) => {
+    if (!carouselContent) return;
+    try {
+      await socialMediaApi.saveCarousel({ carousel: carouselContent, scheduleAt });
+      loadData();
+      setCarouselContent(null);
+      setCarouselTopic('');
+    } catch (err: any) {
+      setError(err.message || 'Speichern fehlgeschlagen');
     }
   };
 
@@ -1476,11 +1546,12 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       {viewMode === 'create' && (
         <div className="space-y-6">
           {/* Sub-Tab Navigation */}
-          <div className="flex items-center gap-2 border-b border-gray-200 dark:border-dark-200 pb-4">
+          <div className="flex items-center gap-2 border-b border-gray-200 dark:border-dark-200 pb-4 overflow-x-auto">
             {[
               { id: 'post', label: 'Einzelpost', icon: PenTool },
-              { id: 'batch', label: 'Batch-Generierung', icon: Layers },
-              { id: 'remix', label: 'Content Remix', icon: RefreshCw },
+              { id: 'carousel', label: 'Carousel', icon: Layers },
+              { id: 'batch', label: 'Batch', icon: ListOrdered },
+              { id: 'remix', label: 'Remix', icon: RefreshCw },
             ].map(sub => (
               <button
                 key={sub.id}
@@ -1582,6 +1653,335 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Carousel Sub-View */}
+          {createSubView === 'carousel' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-xl p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <Layers size={28} />
+                  <h2 className="text-xl font-bold">Carousel Generator</h2>
+                </div>
+                <p className="opacity-90">Erstelle virale Carousel-Posts für Instagram & LinkedIn mit 3x mehr Engagement.</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Settings */}
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+                  <h3 className="font-semibold dark:text-white mb-4">Carousel Einstellungen</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Thema *</label>
+                      <input
+                        type="text"
+                        value={carouselTopic}
+                        onChange={(e) => setCarouselTopic(e.target.value)}
+                        placeholder="z.B. 5 Tipps für produktiveres Arbeiten"
+                        className="w-full px-4 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Plattform</label>
+                        <select
+                          value={carouselPlatform}
+                          onChange={(e) => setCarouselPlatform(e.target.value as 'instagram' | 'linkedin')}
+                          className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                        >
+                          <option value="instagram">Instagram</option>
+                          <option value="linkedin">LinkedIn</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Anzahl Slides</label>
+                        <input
+                          type="number"
+                          value={carouselSlideCount}
+                          onChange={(e) => setCarouselSlideCount(Math.min(15, Math.max(3, parseInt(e.target.value) || 7)))}
+                          min={3}
+                          max={15}
+                          className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Stil</label>
+                        <select
+                          value={carouselStyle}
+                          onChange={(e) => setCarouselStyle(e.target.value as any)}
+                          className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                        >
+                          <option value="tips">Tipps & Tricks</option>
+                          <option value="listicle">Listicle (5 Gründe...)</option>
+                          <option value="how-to">How-To Anleitung</option>
+                          <option value="educational">Lehrreich</option>
+                          <option value="storytelling">Storytelling</option>
+                          <option value="myth-busting">Mythen aufdecken</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Tonalität</label>
+                        <select
+                          value={carouselTone}
+                          onChange={(e) => setCarouselTone(e.target.value as any)}
+                          className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                        >
+                          <option value="professional">Professionell</option>
+                          <option value="casual">Locker</option>
+                          <option value="inspirational">Inspirierend</option>
+                          <option value="bold">Mutig/Provokant</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Zielgruppe (optional)</label>
+                      <input
+                        type="text"
+                        value={carouselTargetAudience}
+                        onChange={(e) => setCarouselTargetAudience(e.target.value)}
+                        placeholder="z.B. Unternehmer, Startups, Freelancer"
+                        className="w-full px-4 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Primärfarbe</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="color"
+                            value={carouselBrandColors.primary}
+                            onChange={(e) => setCarouselBrandColors(c => ({ ...c, primary: e.target.value }))}
+                            className="w-10 h-10 rounded cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={carouselBrandColors.primary}
+                            onChange={(e) => setCarouselBrandColors(c => ({ ...c, primary: e.target.value }))}
+                            className="flex-1 px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Sekundärfarbe</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="color"
+                            value={carouselBrandColors.secondary}
+                            onChange={(e) => setCarouselBrandColors(c => ({ ...c, secondary: e.target.value }))}
+                            className="w-10 h-10 rounded cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={carouselBrandColors.secondary}
+                            onChange={(e) => setCarouselBrandColors(c => ({ ...c, secondary: e.target.value }))}
+                            className="flex-1 px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={carouselIncludeEmojis}
+                        onChange={(e) => setCarouselIncludeEmojis(e.target.checked)}
+                        className="rounded"
+                      />
+                      <span className="text-sm dark:text-gray-300">Emojis verwenden</span>
+                    </label>
+
+                    <button
+                      onClick={generateCarousel}
+                      disabled={carouselGenerating || !carouselTopic.trim()}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg disabled:opacity-50 font-medium"
+                    >
+                      {carouselGenerating ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
+                      {carouselGenerating ? 'Generiere...' : 'Carousel generieren'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Preview / Results */}
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+                  {!carouselContent ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <Layers size={48} className="mx-auto mb-4 opacity-30" />
+                      <p>Generiere einen Carousel um die Vorschau zu sehen</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold dark:text-white">{carouselContent.title}</h3>
+                        <span className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                          {carouselContent.totalSlides} Slides
+                        </span>
+                      </div>
+
+                      {/* Slide Preview */}
+                      <div className="relative bg-gray-100 dark:bg-dark-200 rounded-xl overflow-hidden" style={{ aspectRatio: carouselPlatform === 'instagram' ? '4/5' : '1/1' }}>
+                        {carouselContent.slides[carouselCurrentSlide] && (
+                          <div
+                            className="absolute inset-0 p-6 flex flex-col justify-center"
+                            style={{ backgroundColor: carouselContent.colorScheme.background }}
+                          >
+                            <div className="text-center">
+                              {carouselContent.slides[carouselCurrentSlide].emoji && (
+                                <span className="text-4xl mb-4 block">{carouselContent.slides[carouselCurrentSlide].emoji}</span>
+                              )}
+                              <h4 className="text-xl font-bold mb-3" style={{ color: carouselContent.colorScheme.primary }}>
+                                {carouselContent.slides[carouselCurrentSlide].headline}
+                              </h4>
+                              <p className="text-sm" style={{ color: carouselContent.colorScheme.text }}>
+                                {carouselContent.slides[carouselCurrentSlide].body}
+                              </p>
+                              {carouselContent.slides[carouselCurrentSlide].bulletPoints?.map((bp, i) => (
+                                <p key={i} className="text-sm mt-2" style={{ color: carouselContent.colorScheme.text }}>
+                                  • {bp}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Navigation */}
+                        <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+                          {carouselContent.slides.map((_, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setCarouselCurrentSlide(idx)}
+                              className={`w-2 h-2 rounded-full transition-colors ${
+                                idx === carouselCurrentSlide ? 'bg-purple-500' : 'bg-gray-400'
+                              }`}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Arrow navigation */}
+                        <button
+                          onClick={() => setCarouselCurrentSlide(Math.max(0, carouselCurrentSlide - 1))}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 p-1 bg-white/80 rounded-full"
+                          disabled={carouselCurrentSlide === 0}
+                        >
+                          <ChevronLeft size={20} />
+                        </button>
+                        <button
+                          onClick={() => setCarouselCurrentSlide(Math.min(carouselContent.slides.length - 1, carouselCurrentSlide + 1))}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 bg-white/80 rounded-full"
+                          disabled={carouselCurrentSlide === carouselContent.slides.length - 1}
+                        >
+                          <ChevronRight size={20} />
+                        </button>
+                      </div>
+
+                      {/* Slide Info */}
+                      <div className="p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium uppercase text-gray-500">
+                            Slide {carouselCurrentSlide + 1} - {carouselContent.slides[carouselCurrentSlide]?.type}
+                          </span>
+                        </div>
+                        {carouselContent.slides[carouselCurrentSlide]?.designNote && (
+                          <p className="text-xs text-gray-500">
+                            Design: {carouselContent.slides[carouselCurrentSlide].designNote}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Color Scheme */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Farbschema:</span>
+                        <div className="flex gap-1">
+                          {Object.entries(carouselContent.colorScheme).map(([key, color]) => (
+                            <div
+                              key={key}
+                              className="w-6 h-6 rounded border border-gray-200"
+                              style={{ backgroundColor: color }}
+                              title={key}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Caption */}
+                      <div className="p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                        <p className="text-xs font-medium text-gray-500 mb-1">Caption:</p>
+                        <p className="text-sm dark:text-white">{carouselContent.caption}</p>
+                      </div>
+
+                      {/* Hashtags */}
+                      <div className="flex flex-wrap gap-1">
+                        {carouselContent.hashtags.map((tag, i) => (
+                          <span key={i} className="text-xs text-accent-primary">#{tag}</span>
+                        ))}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex flex-wrap gap-2 pt-4 border-t dark:border-dark-200">
+                        <button
+                          onClick={() => socialMediaApi.exportCarousel(carouselContent, 'text')}
+                          className="flex items-center gap-1 px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg text-sm"
+                        >
+                          <FileText size={16} />
+                          Für Canva exportieren
+                        </button>
+                        <button
+                          onClick={() => socialMediaApi.exportCarousel(carouselContent, 'json')}
+                          className="flex items-center gap-1 px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg text-sm"
+                        >
+                          <FileCode size={16} />
+                          JSON Export
+                        </button>
+                        <button
+                          onClick={generateCarouselImages}
+                          disabled={carouselGeneratingImages}
+                          className="flex items-center gap-1 px-3 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-sm"
+                        >
+                          {carouselGeneratingImages ? <Loader2 size={16} className="animate-spin" /> : <Image size={16} />}
+                          Bilder generieren
+                        </button>
+                        <button
+                          onClick={() => saveCarousel()}
+                          className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm ml-auto"
+                        >
+                          <Check size={16} />
+                          Speichern
+                        </button>
+                      </div>
+
+                      {/* Canva Instructions */}
+                      {carouselContent.canvaInstructions && (
+                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-2">
+                            <Lightbulb size={16} />
+                            Canva-Anleitung
+                          </h4>
+                          <p className="text-sm text-blue-700 dark:text-blue-400">{carouselContent.canvaInstructions}</p>
+                        </div>
+                      )}
+
+                      {/* Design Tips */}
+                      {carouselContent.designTips?.length > 0 && (
+                        <div className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                          <h4 className="text-sm font-medium dark:text-white mb-2">Design-Tipps</h4>
+                          <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                            {carouselContent.designTips.map((tip, i) => (
+                              <li key={i}>• {tip}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

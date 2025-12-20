@@ -2594,3 +2594,225 @@ WICHTIG: Antworte NUR im JSON-Format:
     throw new Error('Fehler bei der Verbesserung');
   }
 }
+
+// ============================================
+// Carousel Content Generator
+// ============================================
+
+export interface CarouselSlide {
+  slideNumber: number;
+  type: 'hook' | 'content' | 'tip' | 'example' | 'cta';
+  headline: string;
+  body: string;
+  bulletPoints?: string[];
+  emoji?: string;
+  designNote?: string;
+}
+
+export interface CarouselContent {
+  title: string;
+  topic: string;
+  platform: 'instagram' | 'linkedin';
+  slides: CarouselSlide[];
+  hashtags: string[];
+  caption: string;
+  colorScheme: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    background: string;
+    text: string;
+  };
+  designTips: string[];
+  canvaInstructions: string;
+  totalSlides: number;
+}
+
+export interface CarouselOptions {
+  topic: string;
+  platform: 'instagram' | 'linkedin';
+  slideCount: number;
+  style: 'educational' | 'storytelling' | 'listicle' | 'how-to' | 'tips' | 'myth-busting';
+  tone: 'professional' | 'casual' | 'inspirational' | 'bold';
+  targetAudience?: string;
+  brandColors?: {
+    primary?: string;
+    secondary?: string;
+  };
+  includeEmojis: boolean;
+}
+
+/**
+ * Generate carousel content for Instagram/LinkedIn
+ */
+export async function generateCarouselContent(
+  userId: string,
+  options: CarouselOptions
+): Promise<CarouselContent> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.apiKey) {
+    throw new Error('AI-Konfiguration nicht gefunden');
+  }
+
+  const styleDescriptions: Record<string, string> = {
+    'educational': 'Lehrreich mit klaren Fakten und Erklärungen',
+    'storytelling': 'Erzählerisch mit einer Geschichte die fesselt',
+    'listicle': 'Liste mit nummerierten Punkten (z.B. "5 Gründe warum...")',
+    'how-to': 'Schritt-für-Schritt Anleitung',
+    'tips': 'Praktische Tipps und Tricks',
+    'myth-busting': 'Mythen aufdecken und mit Fakten widerlegen'
+  };
+
+  const toneDescriptions: Record<string, string> = {
+    'professional': 'Seriös und kompetent, aber nicht langweilig',
+    'casual': 'Locker und nahbar, wie ein Gespräch unter Freunden',
+    'inspirational': 'Motivierend und inspirierend',
+    'bold': 'Mutig, provokant und aufmerksamkeitsstark'
+  };
+
+  const platformSpecs: Record<string, string> = {
+    'instagram': 'Instagram Carousel (1080x1350px empfohlen, max 10 Slides, visuell ansprechend)',
+    'linkedin': 'LinkedIn Dokument-Carousel (PDF-Format, bis zu 300 Slides, professioneller Look)'
+  };
+
+  const prompt = `Erstelle einen viralen Carousel-Post für ${platformSpecs[options.platform]}.
+
+THEMA: ${options.topic}
+STIL: ${styleDescriptions[options.style]}
+TONALITÄT: ${toneDescriptions[options.tone]}
+ANZAHL SLIDES: ${options.slideCount} (optimal sind 6-10 für maximale Reichweite)
+${options.targetAudience ? `ZIELGRUPPE: ${options.targetAudience}` : ''}
+EMOJIS: ${options.includeEmojis ? 'Ja, passend einsetzen' : 'Minimal oder keine'}
+
+WICHTIGE REGELN FÜR VIRALE CAROUSELS:
+1. SLIDE 1 (HOOK): Muss SOFORT Aufmerksamkeit erregen - provokante Frage, shocking Statistik, oder Bold Statement
+2. SLIDES 2-${options.slideCount - 1}: Jede Slide = EIN klarer Punkt, kurz und scanbar
+3. LETZTE SLIDE (CTA): Klarer Call-to-Action zum Speichern, Teilen oder Folgen
+4. Jede Slide sollte auch einzeln Sinn ergeben (Leute springen!)
+5. Halte Text KURZ - max 3-4 Zeilen pro Slide für Instagram, etwas mehr für LinkedIn
+6. Nutze Pattern-Interrupts und Neugier-Lücken
+
+${options.brandColors?.primary ? `MARKENFARBEN: Primär ${options.brandColors.primary}, Sekundär ${options.brandColors.secondary || 'frei wählbar'}` : ''}
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "title": "Interner Titel für den Carousel",
+  "topic": "${options.topic}",
+  "platform": "${options.platform}",
+  "slides": [
+    {
+      "slideNumber": 1,
+      "type": "hook",
+      "headline": "Die HOOK-Überschrift die stoppt",
+      "body": "Kurzer unterstützender Text",
+      "emoji": "🔥",
+      "designNote": "Große, fette Schrift, zentriert"
+    },
+    {
+      "slideNumber": 2,
+      "type": "content",
+      "headline": "Punkt 1 Headline",
+      "body": "Erklärender Text",
+      "bulletPoints": ["Bullet 1", "Bullet 2"],
+      "emoji": "💡",
+      "designNote": "Links-ausgerichtet mit Icon"
+    }
+  ],
+  "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"],
+  "caption": "Die Instagram/LinkedIn Caption die zum Carousel gehört mit Call-to-Action",
+  "colorScheme": {
+    "primary": "#1a365d",
+    "secondary": "#2563eb",
+    "accent": "#f59e0b",
+    "background": "#ffffff",
+    "text": "#1f2937"
+  },
+  "designTips": [
+    "Tipp für das Design 1",
+    "Tipp für das Design 2"
+  ],
+  "canvaInstructions": "Detaillierte Anleitung wie man das in Canva umsetzt",
+  "totalSlides": ${options.slideCount}
+}`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(config.apiKey, config.model, prompt, 4000, 0.8, MARKETING_EXPERT_PROMPT);
+  } else {
+    result = await callOpenAI(config.apiKey, config.model, prompt, 4000, 0.8, MARKETING_EXPERT_PROMPT);
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    return JSON.parse(jsonStr) as CarouselContent;
+  } catch (error) {
+    console.error('Failed to parse carousel content:', error);
+    throw new Error('Fehler bei der Carousel-Generierung');
+  }
+}
+
+/**
+ * Generate DALL-E images for carousel slides
+ */
+export async function generateCarouselSlideImages(
+  userId: string,
+  slides: CarouselSlide[],
+  style: 'modern' | 'minimalist' | 'vibrant' | 'professional',
+  colorScheme: { primary: string; secondary: string }
+): Promise<Array<{ slideNumber: number; imageUrl: string; prompt: string }>> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.apiKey || config.provider !== 'openai') {
+    throw new Error('OpenAI API-Key erforderlich für Bildgenerierung');
+  }
+
+  const styleDescriptions: Record<string, string> = {
+    'modern': 'modern, clean, tech-inspired design with geometric shapes',
+    'minimalist': 'minimalist, lots of white space, simple elegant design',
+    'vibrant': 'vibrant, colorful, eye-catching with bold colors',
+    'professional': 'professional, corporate, trustworthy business design'
+  };
+
+  const results: Array<{ slideNumber: number; imageUrl: string; prompt: string }> = [];
+
+  // Only generate images for key slides (hook, cta, and 1-2 content slides)
+  const slidesToGenerate = slides.filter(s =>
+    s.type === 'hook' || s.type === 'cta' || s.slideNumber <= 3
+  ).slice(0, 4); // Max 4 images to save costs
+
+  for (const slide of slidesToGenerate) {
+    const prompt = `Create a ${styleDescriptions[style]} social media slide background.
+Theme: ${slide.headline}.
+Color scheme: primary ${colorScheme.primary}, secondary ${colorScheme.secondary}.
+The image should be a clean background suitable for text overlay, not too busy.
+Professional quality, suitable for Instagram/LinkedIn carousel.
+NO TEXT in the image - just visual elements and patterns.
+Square format (1:1 aspect ratio).`;
+
+    try {
+      const openai = new (await import('openai')).default({ apiKey: config.apiKey });
+      const response = await openai.images.generate({
+        model: 'dall-e-3',
+        prompt,
+        n: 1,
+        size: '1024x1024',
+        quality: 'standard',
+      });
+
+      if (response.data[0]?.url) {
+        results.push({
+          slideNumber: slide.slideNumber,
+          imageUrl: response.data[0].url,
+          prompt
+        });
+      }
+    } catch (error) {
+      console.error(`Failed to generate image for slide ${slide.slideNumber}:`, error);
+      // Continue with other slides even if one fails
+    }
+  }
+
+  return results;
+}
