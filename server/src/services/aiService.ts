@@ -2274,32 +2274,31 @@ Deine Expertise umfasst:
 - Posting-Zeiten und Algorithmus-Verständnis`;
 
 export interface MarketingAnalysis {
-  overallScore: number; // 1-10
+  overallScore: number; // 0-100
   strengths: string[];
   weaknesses: string[];
-  criticalIssues: string[];
   improvements: Array<{
-    aspect: string;
-    current: string;
-    improved: string;
-    reason: string;
+    area: string;
+    suggestion: string;
+    priority: 'high' | 'medium' | 'low';
+    improvedExample?: string;
   }>;
-  hookAnalysis: {
-    score: number;
-    feedback: string;
-    suggestedHook: string;
-  };
-  ctaAnalysis: {
-    hasEffectiveCTA: boolean;
-    feedback: string;
-    suggestedCTA: string;
-  };
   platformFit: {
     score: number;
     feedback: string;
   };
-  predictedEngagement: 'low' | 'medium' | 'high' | 'viral-potential';
-  finalRecommendation: string;
+  audienceAlignment: {
+    score: number;
+    feedback: string;
+  };
+  callToActionEffectiveness: {
+    score: number;
+    feedback: string;
+    suggestions: string[];
+  };
+  emotionalTone: string;
+  readabilityScore: number;
+  viralPotential: number;
 }
 
 /**
@@ -2345,36 +2344,41 @@ Analysiere nach diesen Kriterien:
 
 SEI KRITISCH! Nenne konkrete Probleme und wie man sie behebt.
 
-WICHTIG: Antworte NUR im JSON-Format:
+WICHTIG: Antworte NUR im JSON-Format (alle Scores 0-100):
 {
-  "overallScore": 7,
-  "strengths": ["Stärke 1", "Stärke 2"],
+  "overallScore": 75,
+  "strengths": ["Stärke 1", "Stärke 2", "Stärke 3"],
   "weaknesses": ["Schwäche 1", "Schwäche 2"],
-  "criticalIssues": ["Kritisches Problem falls vorhanden"],
   "improvements": [
     {
-      "aspect": "Hook",
-      "current": "Aktuelle Formulierung",
-      "improved": "Verbesserte Formulierung",
-      "reason": "Warum das besser ist"
+      "area": "Hook",
+      "suggestion": "Was verbessert werden sollte",
+      "priority": "high",
+      "improvedExample": "Konkret verbesserte Version des Texts"
+    },
+    {
+      "area": "CTA",
+      "suggestion": "Was verbessert werden sollte",
+      "priority": "medium",
+      "improvedExample": "Konkret verbesserte Version"
     }
   ],
-  "hookAnalysis": {
-    "score": 6,
-    "feedback": "Ehrliches Feedback zum Hook",
-    "suggestedHook": "Besserer Hook-Vorschlag"
-  },
-  "ctaAnalysis": {
-    "hasEffectiveCTA": false,
-    "feedback": "Feedback zum CTA",
-    "suggestedCTA": "Besserer CTA"
-  },
   "platformFit": {
-    "score": 8,
+    "score": 80,
     "feedback": "Wie gut passt es zur Plattform"
   },
-  "predictedEngagement": "medium",
-  "finalRecommendation": "Zusammenfassende Empfehlung in 1-2 Sätzen"
+  "audienceAlignment": {
+    "score": 70,
+    "feedback": "Wie gut passt es zur Zielgruppe"
+  },
+  "callToActionEffectiveness": {
+    "score": 60,
+    "feedback": "Wie effektiv ist der CTA",
+    "suggestions": ["Besserer CTA Vorschlag 1", "Besserer CTA Vorschlag 2"]
+  },
+  "emotionalTone": "inspirierend/professionell/etc.",
+  "readabilityScore": 85,
+  "viralPotential": 45
 }`;
 
   let result: { content: string; tokensUsed: number };

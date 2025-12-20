@@ -537,6 +537,25 @@ export const AISettings = () => {
           <li>Gib Feedback (Daumen hoch/runter) um die Qualität zu verbessern</li>
         </ul>
       </div>
+
+      {/* Social Media Features Info */}
+      {provider === 'openai' && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <h4 className="font-medium text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-2">
+            <Sparkles size={16} />
+            Auch für Social Media Manager
+          </h4>
+          <p className="text-sm text-amber-700 dark:text-amber-400 mb-2">
+            Dieser OpenAI API-Key wird auch für folgende Social Media Funktionen verwendet:
+          </p>
+          <ul className="text-sm text-amber-700 dark:text-amber-400 space-y-1 list-disc list-inside">
+            <li><strong>DALL-E 3 Bildgenerierung</strong> - Professionelle Grafiken für Posts & Stories</li>
+            <li><strong>Content Wizard</strong> - Marketing-Experte für optimierte Posts</li>
+            <li><strong>Post-Generierung</strong> - KI-gestützte Content-Erstellung</li>
+            <li><strong>Trend-Analyse</strong> - Branchentrends und Content-Ideen</li>
+          </ul>
+        </div>
+      )}
     </div>
   );
 };

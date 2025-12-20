@@ -6,7 +6,8 @@ import {
   Layers, Lightbulb, ListOrdered, Zap, Upload, BarChart3, TrendingUp,
   Recycle, Search, RefreshCw, Rocket, Globe, FileCode, Users, MessageCircle,
   Play, Pause, ThumbsUp, ThumbsDown, ExternalLink, Image, Wand2, Film,
-  LayoutDashboard, PenTool, Bot, Library, ArrowRight, Target, Eye, CalendarDays
+  LayoutDashboard, PenTool, Bot, Library, ArrowRight, Target, Eye, CalendarDays,
+  Heart, MousePointer, MessageSquare
 } from 'lucide-react';
 import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement } from '../services/api';
 import { Customer } from '../types';
@@ -216,6 +217,9 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   const [engagementResponses, setEngagementResponses] = useState<Array<{ originalPost: string; author: string; response: string; responseType: string }>>([]);
   const [generatingEngagement, setGeneratingEngagement] = useState(false);
   const [newKeyword, setNewKeyword] = useState('');
+  const [engagementHistory, setEngagementHistory] = useState<Array<{ id: string; originalPost: string; response: string; platform: string; createdAt: string }>>([]);
+  const [savingEngagementSettings, setSavingEngagementSettings] = useState(false);
+  const [engagementSettingsLoaded, setEngagementSettingsLoaded] = useState(false);
 
   // Stories state
   const [stories, setStories] = useState<SocialMediaStory[]>([]);
@@ -322,6 +326,13 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
     }
   }, [viewMode]);
 
+  // Load engagement data when switching to engagement view
+  useEffect(() => {
+    if (viewMode === 'engagement') {
+      loadEngagementData();
+    }
+  }, [viewMode]);
+
   // Batch generation
   const generateBatch = async () => {
     const topics = batchTopics.split('\n').map(t => t.trim()).filter(t => t.length > 0);
@@ -375,7 +386,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   const useIdeasForBatch = () => {
     setBatchTopics(generatedIdeas.join('\n'));
     setShowIdeasGenerator(false);
-    setViewMode('batch');
+    setViewMode('create');
+    setCreateSubView('batch');
   };
 
   // Add single post to queue
@@ -671,6 +683,59 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
     }
   };
 
+  // Load engagement settings and history
+  const loadEngagementData = async () => {
+    if (engagementSettingsLoaded) return;
+    try {
+      const [settings, history] = await Promise.all([
+        socialMediaApi.getEngagementSettings(),
+        socialMediaApi.getEngagementHistory()
+      ]);
+      setEngagementSettings({
+        enabled: settings.enabled,
+        platforms: settings.platforms || [],
+        targetKeywords: settings.targetKeywords || [],
+        targetAccounts: settings.targetAccounts || [],
+        responseStyle: settings.responseStyle || 'thoughtful',
+        dailyLimit: settings.dailyLimit || 10,
+        excludeKeywords: settings.excludeKeywords || []
+      });
+      setEngagementHistory(history);
+      setEngagementSettingsLoaded(true);
+    } catch (err) {
+      console.error('Failed to load engagement data:', err);
+    }
+  };
+
+  // Save engagement settings
+  const saveEngagementSettings = async () => {
+    setSavingEngagementSettings(true);
+    try {
+      await socialMediaApi.updateEngagementSettings(engagementSettings);
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Speichern der Einstellungen');
+    } finally {
+      setSavingEngagementSettings(false);
+    }
+  };
+
+  // Log engagement response (save to history)
+  const logEngagementResponse = async (originalPost: string, response: string, platform: string) => {
+    try {
+      await socialMediaApi.logEngagement({
+        originalPost,
+        response,
+        platform,
+        responseType: engagementSettings.responseStyle
+      });
+      // Reload history
+      const history = await socialMediaApi.getEngagementHistory();
+      setEngagementHistory(history);
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Speichern der Antwort');
+    }
+  };
+
   // Calendar helpers
   const calendarDays = useMemo(() => {
     const firstDay = new Date(currentYear, currentMonth, 1);
@@ -855,72 +920,127 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
     );
   }
 
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'calendar', label: 'Planen', icon: CalendarDays },
+    { id: 'create', label: 'Erstellen', icon: PenTool },
+    { id: 'stories', label: 'Stories', icon: Film },
+    { id: 'ai-tools', label: 'KI-Tools', icon: Bot },
+    { id: 'engagement', label: 'Engagement', icon: Target },
+    { id: 'library', label: 'Bibliothek', icon: Library },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold dark:text-white">Social Media Manager</h2>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
-          >
-            <Upload size={18} />
-            CSV Import
-          </button>
-          <button
-            onClick={() => setShowHashtagResearch(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
-          >
-            <Search size={18} />
-            Hashtag-Recherche
-          </button>
-          <button
-            onClick={() => openPostEditor()}
-            className="flex items-center gap-2 px-4 py-2 btn-accent"
-          >
-            <Plus size={18} />
-            Neuer Post
-          </button>
+    <div className="flex flex-col lg:flex-row gap-6 min-h-[calc(100vh-200px)]">
+      {/* Desktop Sidebar Navigation */}
+      <div className="hidden lg:flex flex-col w-64 flex-shrink-0">
+        <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4 sticky top-4">
+          <h2 className="text-lg font-bold dark:text-white mb-4 flex items-center gap-2">
+            <Globe size={20} className="text-accent-primary" />
+            Social Media
+          </h2>
+          <nav className="space-y-1">
+            {navItems.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setViewMode(tab.id as ViewMode)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${
+                  viewMode === tab.id
+                    ? 'bg-accent-primary text-white'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200'
+                }`}
+              >
+                <tab.icon size={18} />
+                <span className="font-medium">{tab.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* Quick Actions */}
+          <div className="mt-6 pt-4 border-t border-gray-200 dark:border-dark-200 space-y-2">
+            <button
+              onClick={() => openPostEditor()}
+              className="w-full flex items-center gap-2 px-3 py-2 btn-accent rounded-lg"
+            >
+              <Plus size={18} />
+              Neuer Post
+            </button>
+            <button
+              onClick={() => setShowHashtagResearch(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+            >
+              <Search size={18} />
+              Hashtags
+            </button>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+            >
+              <Upload size={18} />
+              Import
+            </button>
+          </div>
         </div>
       </div>
 
-      {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 text-red-700 dark:text-red-400">
-          <AlertCircle size={18} />
-          {error}
-          <button onClick={() => setError(null)} className="ml-auto">
-            <X size={16} />
-          </button>
+      {/* Main Content Area */}
+      <div className="flex-1 min-w-0 space-y-6">
+        {/* Mobile Header */}
+        <div className="lg:hidden flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h2 className="text-2xl font-bold dark:text-white">Social Media Manager</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+            >
+              <Upload size={18} />
+              CSV Import
+            </button>
+            <button
+              onClick={() => setShowHashtagResearch(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+            >
+              <Search size={18} />
+              Hashtag-Recherche
+            </button>
+            <button
+              onClick={() => openPostEditor()}
+              className="flex items-center gap-2 px-4 py-2 btn-accent"
+            >
+              <Plus size={18} />
+              Neuer Post
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* Simplified View Mode Tabs */}
-      <div className="flex gap-2 border-b border-gray-200 dark:border-dark-200 pb-2 overflow-x-auto">
-        {[
-          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-          { id: 'calendar', label: 'Planen', icon: CalendarDays },
-          { id: 'create', label: 'Erstellen', icon: PenTool },
-          { id: 'stories', label: 'Stories', icon: Film },
-          { id: 'ai-tools', label: 'KI-Tools', icon: Bot },
-          { id: 'engagement', label: 'Engagement', icon: Target },
-          { id: 'library', label: 'Bibliothek', icon: Library },
-          { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setViewMode(tab.id as ViewMode)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${
-              viewMode === tab.id
-                ? 'bg-accent-primary text-white'
-                : 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-300'
-            }`}
-          >
-            <tab.icon size={18} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+        {error && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 text-red-700 dark:text-red-400">
+            <AlertCircle size={18} />
+            {error}
+            <button onClick={() => setError(null)} className="ml-auto">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* Mobile Navigation Tabs */}
+        <div className="lg:hidden flex gap-2 border-b border-gray-200 dark:border-dark-200 pb-2 overflow-x-auto">
+          {navItems.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setViewMode(tab.id as ViewMode)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${
+                viewMode === tab.id
+                  ? 'bg-accent-primary text-white'
+                  : 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-300'
+              }`}
+            >
+              <tab.icon size={18} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
       {/* Dashboard View */}
       {viewMode === 'dashboard' && (
@@ -1844,7 +1964,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     Generiere eine Vorschau der nächsten Autopilot-Posts zur Überprüfung.
                   </p>
                   <button
-                    onClick={handleAutopilotGenerate}
+                    onClick={handleGenerateAutopilot}
                     disabled={autopilotGenerating || autopilotSettings.contentThemes.length === 0}
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg disabled:opacity-50"
                   >
@@ -3491,7 +3611,17 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Settings */}
                 <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
-                  <h3 className="font-semibold dark:text-white mb-4">Einstellungen</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold dark:text-white">Einstellungen</h3>
+                    <button
+                      onClick={saveEngagementSettings}
+                      disabled={savingEngagementSettings}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600 disabled:opacity-50"
+                    >
+                      {savingEngagementSettings ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                      Speichern
+                    </button>
+                  </div>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium dark:text-gray-300 mb-1">Antwort-Stil</label>
@@ -3505,6 +3635,19 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         <option value="inquisitive">Neugierig/Fragend</option>
                         <option value="expert">Experte</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Tägliches Limit</label>
+                      <input
+                        type="number"
+                        value={engagementSettings.dailyLimit}
+                        onChange={(e) => setEngagementSettings(s => ({ ...s, dailyLimit: parseInt(e.target.value) || 10 }))}
+                        min={1}
+                        max={100}
+                        className="w-full px-3 py-2 border dark:border-dark-200 rounded-lg dark:bg-dark-200 dark:text-white"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Maximale Anzahl an Antworten pro Tag</p>
                     </div>
 
                     <div>
@@ -3586,14 +3729,60 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                           <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded capitalize">
                             {resp.responseType}
                           </span>
-                          <button
-                            onClick={() => navigator.clipboard.writeText(resp.response)}
-                            className="flex items-center gap-1 text-sm text-accent-primary"
-                          >
-                            <Copy size={14} />
-                            Kopieren
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => navigator.clipboard.writeText(resp.response)}
+                              className="flex items-center gap-1 text-sm text-accent-primary"
+                            >
+                              <Copy size={14} />
+                              Kopieren
+                            </button>
+                            <button
+                              onClick={() => logEngagementResponse(resp.originalPost, resp.response, 'linkedin')}
+                              className="flex items-center gap-1 text-sm text-green-600 hover:text-green-700"
+                            >
+                              <Check size={14} />
+                              Speichern
+                            </button>
+                          </div>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Engagement History */}
+              {engagementHistory.length > 0 && (
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-4">
+                  <h3 className="font-semibold dark:text-white mb-4 flex items-center gap-2">
+                    <Clock size={18} className="text-gray-500" />
+                    Verlauf ({engagementHistory.length})
+                  </h3>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {engagementHistory.slice(0, 10).map((entry, idx) => (
+                      <div key={entry.id || idx} className="p-3 bg-gray-50 dark:bg-dark-200 rounded-lg text-sm">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-gray-500">
+                            {new Date(entry.createdAt).toLocaleDateString('de-DE', {
+                              day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                            })}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded capitalize">
+                            {entry.platform}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-1 line-clamp-1">
+                          <span className="font-medium">Original:</span> {entry.originalPost}
+                        </p>
+                        <p className="dark:text-white">{entry.response}</p>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(entry.response)}
+                          className="mt-2 flex items-center gap-1 text-xs text-accent-primary"
+                        >
+                          <Copy size={12} />
+                          Kopieren
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -5148,34 +5337,139 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     </div>
                   </div>
 
+                  {/* Additional Scores */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Target size={14} className="text-indigo-600" />
+                        <span className="text-xs text-gray-500">Zielgruppen-Fit</span>
+                      </div>
+                      <div className="text-lg font-bold text-indigo-600">{wizardAnalysis.audienceAlignment?.score || 0}%</div>
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{wizardAnalysis.audienceAlignment?.feedback}</p>
+                    </div>
+                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MessageSquare size={14} className="text-teal-600" />
+                        <span className="text-xs text-gray-500">Lesbarkeit</span>
+                      </div>
+                      <div className="text-lg font-bold text-teal-600">{wizardAnalysis.readabilityScore || 0}%</div>
+                    </div>
+                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Heart size={14} className="text-pink-600" />
+                        <span className="text-xs text-gray-500">Tonalität</span>
+                      </div>
+                      <div className="text-sm font-medium text-pink-600 capitalize">{wizardAnalysis.emotionalTone || 'Neutral'}</div>
+                    </div>
+                  </div>
+
                   {/* Improvement Suggestions */}
                   {wizardAnalysis.improvements?.length > 0 && (
-                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-4">
-                      <h4 className="text-sm font-medium dark:text-white mb-3">Konkrete Verbesserungsvorschläge</h4>
+                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-4 mb-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium dark:text-white flex items-center gap-2">
+                          <Wand2 size={16} className="text-purple-600" />
+                          Konkrete Verbesserungsvorschläge
+                        </h4>
+                        {wizardAnalysis.improvements.filter(imp => imp.improvedExample).length > 1 && (
+                          <button
+                            onClick={async () => {
+                              // Apply best improvement and re-analyze
+                              const bestImprovement = wizardAnalysis.improvements.find(imp => imp.priority === 'high' && imp.improvedExample);
+                              if (bestImprovement?.improvedExample) {
+                                setWizardEditedContent(bestImprovement.improvedExample);
+                                // Trigger re-analysis
+                                setWizardAnalyzing(true);
+                                try {
+                                  const newAnalysis = await socialMediaApi.analyzeContent({
+                                    content: bestImprovement.improvedExample,
+                                    platform: wizardPlatform,
+                                    goal: wizardGoal,
+                                    targetAudience: wizardAudience
+                                  });
+                                  setWizardAnalysis(newAnalysis);
+                                } catch (err) {
+                                  console.error('Re-analysis failed:', err);
+                                } finally {
+                                  setWizardAnalyzing(false);
+                                }
+                              }
+                            }}
+                            className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-1 rounded-full flex items-center gap-1 hover:bg-purple-200"
+                          >
+                            <Zap size={12} />
+                            Beste übernehmen & neu analysieren
+                          </button>
+                        )}
+                      </div>
                       <div className="space-y-3">
-                        {wizardAnalysis.improvements.slice(0, 2).map((imp, i) => (
-                          <div key={i} className="flex items-start gap-3">
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                              imp.priority === 'high' ? 'bg-red-100 text-red-700' :
-                              imp.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {imp.priority === 'high' ? 'Hoch' : imp.priority === 'medium' ? 'Mittel' : 'Niedrig'}
-                            </span>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium dark:text-white">{imp.area}</p>
-                              <p className="text-xs text-gray-500">{imp.suggestion}</p>
-                              {imp.improvedExample && (
-                                <button
-                                  onClick={() => setWizardEditedContent(imp.improvedExample!)}
-                                  className="mt-2 text-xs text-amber-600 hover:text-amber-700 flex items-center gap-1"
-                                >
-                                  <Sparkles size={12} />
-                                  Vorschlag anwenden
-                                </button>
-                              )}
+                        {wizardAnalysis.improvements.map((imp, i) => (
+                          <div key={i} className="border border-gray-200 dark:border-dark-100 rounded-lg p-3 hover:border-purple-300 transition-colors">
+                            <div className="flex items-start gap-3">
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
+                                imp.priority === 'high' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                                imp.priority === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
+                              }`}>
+                                {imp.priority === 'high' ? '🔥 Hoch' : imp.priority === 'medium' ? '⚡ Mittel' : 'Niedrig'}
+                              </span>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium dark:text-white">{imp.area}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{imp.suggestion}</p>
+                                {imp.improvedExample && (
+                                  <div className="mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2">
+                                    <p className="text-xs text-gray-500 mb-1">Verbesserter Text:</p>
+                                    <p className="text-sm text-green-800 dark:text-green-300 italic">"{imp.improvedExample}"</p>
+                                    <button
+                                      onClick={async () => {
+                                        setWizardEditedContent(imp.improvedExample!);
+                                        // Re-analyze after applying
+                                        setWizardAnalyzing(true);
+                                        try {
+                                          const newAnalysis = await socialMediaApi.analyzeContent({
+                                            content: imp.improvedExample!,
+                                            platform: wizardPlatform,
+                                            goal: wizardGoal,
+                                            targetAudience: wizardAudience
+                                          });
+                                          setWizardAnalysis(newAnalysis);
+                                        } catch (err) {
+                                          console.error('Re-analysis failed:', err);
+                                        } finally {
+                                          setWizardAnalyzing(false);
+                                        }
+                                      }}
+                                      className="mt-2 text-xs bg-green-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-green-700"
+                                    >
+                                      <Check size={12} />
+                                      Übernehmen & neu analysieren
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* CTA Suggestions */}
+                  {wizardAnalysis.callToActionEffectiveness?.suggestions?.length > 0 && (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-2">
+                        <MousePointer size={14} />
+                        CTA-Vorschläge
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {wizardAnalysis.callToActionEffectiveness.suggestions.map((cta, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setWizardEditedContent(prev => prev + '\n\n' + cta)}
+                            className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-3 py-1.5 rounded-full hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+                          >
+                            + {cta}
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -5516,6 +5810,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           )}
         </div>
       </Modal>
+      </div>
     </div>
   );
 };
