@@ -2755,41 +2755,242 @@ WICHTIG: Antworte NUR im JSON-Format:
 }
 
 /**
- * Generate DALL-E images for carousel slides
+ * Use AI to generate creative, context-aware image prompts for carousel slides
+ */
+async function generateAIImagePrompts(
+  apiKey: string,
+  slides: CarouselSlide[],
+  style: string,
+  colorScheme: { primary: string; secondary: string },
+  topic: string
+): Promise<Map<number, string>> {
+  const slideDescriptions = slides.map(s => ({
+    number: s.slideNumber,
+    type: s.type,
+    headline: s.headline,
+    body: s.body,
+    bulletPoints: s.bulletPoints
+  }));
+
+  const systemPrompt = `Du bist ein kreativer Art Director, spezialisiert auf Social Media Visuals.
+Deine Aufgabe ist es, einzigartige DALL-E Bild-Prompts für Carousel-Slides zu erstellen.
+
+Wichtige Regeln:
+1. Jeder Prompt muss EINZIGARTIG und spezifisch zum Slide-Inhalt sein
+2. Nutze kreative visuelle Metaphern, die den Inhalt symbolisch darstellen
+3. NIEMALS Text, Buchstaben oder Zahlen im Bild
+4. Lass Platz für Text-Overlay (unteres Drittel frei)
+5. Die Bilder sollen zusammen als Serie funktionieren, aber visuell unterschiedlich sein`;
+
+  const userPrompt = `Erstelle DALL-E Bild-Prompts für diese Carousel-Slides:
+
+THEMA: ${topic}
+STIL: ${style}
+FARBEN: Primär ${colorScheme.primary}, Sekundär ${colorScheme.secondary}
+
+SLIDES:
+${JSON.stringify(slideDescriptions, null, 2)}
+
+Erstelle für JEDEN Slide einen einzigartigen, kreativen Prompt der:
+- Eine visuelle Metapher für den Slide-Inhalt verwendet
+- Den ${style}-Stil berücksichtigt
+- Die Farbpalette einbezieht
+- Zur Slide-Position passt (Hook = aufmerksamkeitsstark, CTA = motivierend, etc.)
+
+Antworte im JSON-Format:
+{
+  "prompts": [
+    {
+      "slideNumber": 1,
+      "visualMetaphor": "Kurze Beschreibung der gewählten Metapher",
+      "prompt": "Detaillierter DALL-E Prompt auf Englisch..."
+    }
+  ]
+}
+
+Sei kreativ! Verwende unerwartete, aber passende visuelle Metaphern.
+Beispiele für kreative Metaphern:
+- "Produktivität" → Schweizer Uhrwerk, Wasserfall, Dominosteine
+- "Wachstum" → Bonsai-Baum, Schmetterlingsmetamorphose, Bergbesteigung
+- "Innovation" → Prisma das Licht bricht, Origami-Transformation, Schachbrett-Perspektive`;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.9, // High creativity
+        response_format: { type: 'json_object' }
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate AI prompts');
+    }
+
+    const data = await response.json() as { choices: Array<{ message: { content: string } }> };
+    const content = data.choices[0]?.message?.content;
+
+    if (!content) {
+      throw new Error('No content in AI response');
+    }
+
+    const parsed = JSON.parse(content) as { prompts: Array<{ slideNumber: number; prompt: string; visualMetaphor: string }> };
+    const promptMap = new Map<number, string>();
+
+    for (const item of parsed.prompts) {
+      // Enhance each prompt with technical requirements
+      const enhancedPrompt = `${item.prompt}
+
+Technical requirements:
+- Square format (1:1 aspect ratio), 1024x1024px
+- NO TEXT, NO LETTERS, NO WORDS, NO NUMBERS in the image
+- Leave clear space in the lower third for text overlay
+- Professional quality for Instagram/LinkedIn
+- Color scheme: ${colorScheme.primary} as primary accent, ${colorScheme.secondary} for supporting elements
+- Style: ${style === 'modern' ? 'Apple-like clean design, tech-forward aesthetics' :
+  style === 'minimalist' ? 'Muji-inspired, Japanese design philosophy, lots of white space' :
+  style === 'vibrant' ? 'Spotify Wrapped energy, bold and eye-catching' :
+  'Corporate premium, McKinsey-level sophistication'}`;
+
+      promptMap.set(item.slideNumber, enhancedPrompt);
+    }
+
+    return promptMap;
+  } catch (error) {
+    console.error('Failed to generate AI image prompts:', error);
+    // Return empty map, will fall back to static prompts
+    return new Map();
+  }
+}
+
+/**
+ * Generate a static fallback prompt for carousel slide images
+ */
+function generateFallbackImagePrompt(
+  slide: CarouselSlide,
+  style: string,
+  colorScheme: { primary: string; secondary: string },
+  totalSlides: number,
+  topic: string
+): string {
+  // Style-specific visual approaches
+  const styleApproaches: Record<string, { elements: string[]; mood: string; technique: string }> = {
+    'modern': {
+      elements: ['geometric shapes', 'gradient meshes', 'glassmorphism effects', 'neon accents', 'floating 3D elements', 'holographic textures'],
+      mood: 'innovative, tech-forward, sleek',
+      technique: 'clean lines, subtle shadows, layered depth'
+    },
+    'minimalist': {
+      elements: ['single focal object', 'negative space', 'thin line art', 'subtle textures', 'soft gradients', 'organic shapes'],
+      mood: 'calm, sophisticated, elegant',
+      technique: 'lots of breathing room, muted tones, understated beauty'
+    },
+    'vibrant': {
+      elements: ['bold color blocks', 'dynamic patterns', 'abstract splashes', 'energetic swirls', 'playful illustrations', 'bright overlays'],
+      mood: 'energetic, exciting, bold',
+      technique: 'high contrast, saturated colors, dynamic composition'
+    },
+    'professional': {
+      elements: ['subtle patterns', 'corporate textures', 'refined gradients', 'structured layouts', 'premium materials', 'architectural elements'],
+      mood: 'trustworthy, established, authoritative',
+      technique: 'balanced composition, conservative palette, polished finish'
+    }
+  };
+
+  // Slide-type specific visual concepts
+  const slideTypeVisuals: Record<string, { concept: string; elements: string[]; composition: string }> = {
+    'hook': {
+      concept: 'attention-grabbing, creates curiosity',
+      elements: ['dramatic lighting', 'bold focal point', 'dynamic perspective', 'mystery element'],
+      composition: 'asymmetric, draws eye to center'
+    },
+    'content': {
+      concept: 'informative, supports learning',
+      elements: ['organized structure', 'supporting graphics', 'visual hierarchy', 'illustrative elements'],
+      composition: 'balanced, space for text overlay'
+    },
+    'tip': {
+      concept: 'helpful revelation',
+      elements: ['illumination metaphor', 'clarity symbols', 'breakthrough imagery'],
+      composition: 'centered focus, radiating elements'
+    },
+    'example': {
+      concept: 'practical demonstration',
+      elements: ['concrete visuals', 'contextual backgrounds', 'realistic touches'],
+      composition: 'grounded, relatable'
+    },
+    'cta': {
+      concept: 'action-oriented, motivating',
+      elements: ['directional elements', 'achievement imagery', 'pathway visuals'],
+      composition: 'dynamic movement, empowering'
+    }
+  };
+
+  const styleInfo = styleApproaches[style] || styleApproaches['modern'];
+  const typeInfo = slideTypeVisuals[slide.type] || slideTypeVisuals['content'];
+
+  const randomStyleElement = styleInfo.elements[Math.floor(Math.random() * styleInfo.elements.length)];
+  const randomTypeElement = typeInfo.elements[Math.floor(Math.random() * typeInfo.elements.length)];
+
+  return `Create a ${style} social media carousel slide background.
+Topic: "${topic}" - Slide ${slide.slideNumber}/${totalSlides}: "${slide.headline}"
+Visual elements: ${randomStyleElement}, ${randomTypeElement}
+Mood: ${styleInfo.mood}
+Composition: ${typeInfo.composition}
+Colors: ${colorScheme.primary} primary, ${colorScheme.secondary} secondary
+Technical: Square 1024x1024, NO TEXT/LETTERS, leave lower third clear for overlay, ${styleInfo.technique}
+Style ref: ${style === 'modern' ? 'Apple, Stripe' : style === 'minimalist' ? 'Muji, Japanese' : style === 'vibrant' ? 'Spotify Wrapped' : 'McKinsey, HBR'}`;
+}
+
+/**
+ * Generate DALL-E images for carousel slides with AI-powered creative prompts
  */
 export async function generateCarouselSlideImages(
   userId: string,
   slides: CarouselSlide[],
   style: 'modern' | 'minimalist' | 'vibrant' | 'professional',
-  colorScheme: { primary: string; secondary: string }
-): Promise<Array<{ slideNumber: number; imageUrl: string; prompt: string }>> {
+  colorScheme: { primary: string; secondary: string },
+  topic?: string
+): Promise<Array<{ slideNumber: number; imageUrl: string; prompt: string; visualMetaphor?: string }>> {
   const config = await getAIConfig(userId);
   if (!config || !config.apiKey || config.provider !== 'openai') {
     throw new Error('OpenAI API-Key erforderlich für Bildgenerierung');
   }
 
-  const styleDescriptions: Record<string, string> = {
-    'modern': 'modern, clean, tech-inspired design with geometric shapes',
-    'minimalist': 'minimalist, lots of white space, simple elegant design',
-    'vibrant': 'vibrant, colorful, eye-catching with bold colors',
-    'professional': 'professional, corporate, trustworthy business design'
-  };
-
-  const results: Array<{ slideNumber: number; imageUrl: string; prompt: string }> = [];
+  const results: Array<{ slideNumber: number; imageUrl: string; prompt: string; visualMetaphor?: string }> = [];
+  const carouselTopic = topic || slides[0]?.headline || 'Business Content';
+  const totalSlides = slides.length;
 
   // Only generate images for key slides (hook, cta, and 1-2 content slides)
   const slidesToGenerate = slides.filter(s =>
     s.type === 'hook' || s.type === 'cta' || s.slideNumber <= 3
   ).slice(0, 4); // Max 4 images to save costs
 
+  // First: Use AI to generate creative, context-aware prompts for all slides
+  console.log('Generating AI-powered creative prompts for carousel slides...');
+  const aiPrompts = await generateAIImagePrompts(
+    config.apiKey,
+    slidesToGenerate,
+    style,
+    colorScheme,
+    carouselTopic
+  );
+
+  console.log(`Generated ${aiPrompts.size} AI prompts, generating images...`);
+
   for (const slide of slidesToGenerate) {
-    const prompt = `Create a ${styleDescriptions[style]} social media slide background.
-Theme: ${slide.headline}.
-Color scheme: primary ${colorScheme.primary}, secondary ${colorScheme.secondary}.
-The image should be a clean background suitable for text overlay, not too busy.
-Professional quality, suitable for Instagram/LinkedIn carousel.
-NO TEXT in the image - just visual elements and patterns.
-Square format (1:1 aspect ratio).`;
+    // Use AI-generated prompt if available, otherwise fall back to static prompt
+    const prompt = aiPrompts.get(slide.slideNumber) ||
+      generateFallbackImagePrompt(slide, style, colorScheme, totalSlides, carouselTopic);
 
     try {
       const response = await fetch('https://api.openai.com/v1/images/generations', {
@@ -2818,7 +3019,8 @@ Square format (1:1 aspect ratio).`;
         results.push({
           slideNumber: slide.slideNumber,
           imageUrl: data.data[0].url,
-          prompt
+          prompt,
+          visualMetaphor: aiPrompts.has(slide.slideNumber) ? 'AI-generated creative metaphor' : undefined
         });
       }
     } catch (error) {
