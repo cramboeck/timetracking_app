@@ -3792,6 +3792,24 @@ export interface ContentImprovement {
   reasoning: string;
 }
 
+export interface AutoImprovementIteration {
+  iteration: number;
+  focus: string;
+  beforeScore: number;
+  afterScore: number;
+  changes: string[];
+}
+
+export interface AutoImprovementResult {
+  finalContent: string;
+  finalScore: number;
+  initialScore: number;
+  iterations: AutoImprovementIteration[];
+  alternativeHooks: string[];
+  ctaSuggestions: string[];
+  totalImprovementTime: number;
+}
+
 // Carousel Types
 export interface CarouselSlide {
   slideNumber: number;
@@ -4619,8 +4637,24 @@ export const socialMediaApi = {
     content: string;
     platform: string;
     improvementFocus: string;
+    targetAudience?: string;
+    goal?: string;
   }): Promise<ContentImprovement> => {
     return authFetch('/social-media/wizard/improve', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  autoImproveContent: async (options: {
+    content: string;
+    platform: string;
+    goal: string;
+    targetAudience?: string;
+    minScore?: number;
+    maxIterations?: number;
+  }): Promise<AutoImprovementResult> => {
+    return authFetch('/social-media/wizard/auto-improve', {
       method: 'POST',
       body: JSON.stringify(options),
     });

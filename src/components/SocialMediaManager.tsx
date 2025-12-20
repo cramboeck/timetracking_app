@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Calendar, List, Plus, Sparkles, Hash, FileText, Settings, Send,
-  ChevronLeft, ChevronRight, Edit2, Trash2, Copy, Clock, Check,
+  ChevronLeft, ChevronRight, Edit2, Trash2, Copy, Clock, Check, CheckCircle,
   Linkedin, Twitter, Facebook, Instagram, X, Loader2, AlertCircle,
   Layers, Lightbulb, ListOrdered, Zap, Upload, BarChart3, TrendingUp,
   Recycle, Search, RefreshCw, Rocket, Globe, FileCode, Users, MessageCircle,
@@ -9,7 +9,7 @@ import {
   LayoutDashboard, PenTool, Bot, Library, ArrowRight, ArrowUp, ArrowDown, Target, Eye, CalendarDays,
   Heart, MousePointer, MessageSquare
 } from 'lucide-react';
-import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement, CarouselContent, CarouselSlide } from '../services/api';
+import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement, AutoImprovementResult, CarouselContent, CarouselSlide } from '../services/api';
 import { Customer } from '../types';
 import { Modal } from './Modal';
 
@@ -260,6 +260,9 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   const [wizardAnalyzing, setWizardAnalyzing] = useState(false);
   const [wizardImprovement, setWizardImprovement] = useState<ContentImprovement | null>(null);
   const [wizardImproving, setWizardImproving] = useState(false);
+  const [wizardAutoImprovement, setWizardAutoImprovement] = useState<AutoImprovementResult | null>(null);
+  const [wizardAutoImproving, setWizardAutoImproving] = useState(false);
+  const [wizardAutoImprovingStatus, setWizardAutoImprovingStatus] = useState('');
   const [wizardGeneratedImage, setWizardGeneratedImage] = useState<GeneratedImage | null>(null);
   const [wizardGeneratingImage, setWizardGeneratingImage] = useState(false);
   const [wizardEditedContent, setWizardEditedContent] = useState('');
@@ -5801,21 +5804,26 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                           <Wand2 size={16} className="text-purple-600" />
                           Verbesserungsvorschläge
                         </h4>
-                        {/* Main improve button - improves entire text */}
+                        {/* Main auto-improve button - iteratively improves until target score */}
                         <button
                           onClick={async () => {
-                            setWizardImproving(true);
+                            setWizardAutoImproving(true);
+                            setWizardAutoImprovingStatus('Starte Auto-Verbesserung...');
+                            setWizardAutoImprovement(null);
                             try {
-                              const improved = await socialMediaApi.improveContent({
+                              const result = await socialMediaApi.autoImproveContent({
                                 content: wizardEditedContent,
                                 platform: wizardPlatform,
-                                improvementFocus: 'all'
+                                goal: wizardGoal,
+                                targetAudience: wizardTargetAudience,
+                                minScore: 75,
+                                maxIterations: 3
                               });
-                              setWizardImprovement(improved);
-                              setWizardEditedContent(improved.improvedContent);
-                              // Re-analyze
+                              setWizardAutoImprovement(result);
+                              setWizardEditedContent(result.finalContent);
+                              // Re-analyze with final content
                               const analysis = await socialMediaApi.analyzeContent({
-                                content: improved.improvedContent,
+                                content: result.finalContent,
                                 platform: wizardPlatform,
                                 goal: wizardGoal,
                                 targetAudience: wizardTargetAudience
@@ -5824,18 +5832,19 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                             } catch (err: any) {
                               setError(err.message);
                             } finally {
-                              setWizardImproving(false);
+                              setWizardAutoImproving(false);
+                              setWizardAutoImprovingStatus('');
                             }
                           }}
-                          disabled={wizardImproving}
+                          disabled={wizardAutoImproving || wizardImproving}
                           className="text-xs bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-1.5 rounded-full flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 font-medium"
                         >
-                          {wizardImproving ? (
+                          {wizardAutoImproving ? (
                             <Loader2 size={12} className="animate-spin" />
                           ) : (
                             <Sparkles size={12} />
                           )}
-                          Alles verbessern
+                          {wizardAutoImproving ? 'Verbessere...' : 'Auto-Verbessern'}
                         </button>
                       </div>
                       <div className="space-y-2">
@@ -5919,6 +5928,118 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       </div>
                     </div>
                   )}
+
+                  {/* Auto-Improvement Progress */}
+                  {wizardAutoImproving && (
+                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                      <div className="flex items-center gap-3">
+                        <Loader2 size={20} className="animate-spin text-purple-600" />
+                        <div>
+                          <p className="text-sm font-medium text-purple-800 dark:text-purple-200">
+                            Auto-Verbesserung läuft...
+                          </p>
+                          <p className="text-xs text-purple-600 dark:text-purple-400">
+                            Der Content wird iterativ analysiert und verbessert bis Score ≥ 75
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Auto-Improvement Results */}
+                  {wizardAutoImprovement && !wizardAutoImproving && (
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-green-800 dark:text-green-200 flex items-center gap-2">
+                          <CheckCircle size={16} />
+                          Auto-Verbesserung abgeschlossen
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            Score: {wizardAutoImprovement.initialScore}
+                          </span>
+                          <ArrowRight size={12} className="text-green-600" />
+                          <span className="text-sm font-bold text-green-700 dark:text-green-300">
+                            {wizardAutoImprovement.finalScore}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Iterations Summary */}
+                      <div className="space-y-2 mb-3">
+                        {wizardAutoImprovement.iterations.map((iter, i) => (
+                          <div key={i} className="bg-white/50 dark:bg-black/20 rounded p-2 text-xs">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-medium text-gray-700 dark:text-gray-300">
+                                Iteration {iter.iteration}: {iter.focus}
+                              </span>
+                              <span className="text-green-600 dark:text-green-400">
+                                {iter.beforeScore} → {iter.afterScore} (+{iter.afterScore - iter.beforeScore})
+                              </span>
+                            </div>
+                            <ul className="text-gray-500 dark:text-gray-400 list-disc list-inside">
+                              {iter.changes.slice(0, 2).map((change, j) => (
+                                <li key={j}>{change}</li>
+                              ))}
+                              {iter.changes.length > 2 && (
+                                <li className="text-gray-400">+{iter.changes.length - 2} weitere...</li>
+                              )}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Alternative Hooks */}
+                      {wizardAutoImprovement.alternativeHooks?.length > 0 && (
+                        <div className="mb-3">
+                          <p className="text-xs font-medium text-green-700 dark:text-green-300 mb-1">
+                            Alternative Hooks:
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {wizardAutoImprovement.alternativeHooks.map((hook, i) => (
+                              <button
+                                key={i}
+                                onClick={() => {
+                                  // Replace the first line (hook) with the new hook
+                                  const lines = wizardEditedContent.split('\n');
+                                  lines[0] = hook;
+                                  setWizardEditedContent(lines.join('\n'));
+                                }}
+                                className="text-[10px] bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-2 py-1 rounded hover:bg-green-200 dark:hover:bg-green-900/60"
+                                title="Klicken um Hook zu ersetzen"
+                              >
+                                {hook.substring(0, 50)}...
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* CTA Suggestions from auto-improvement */}
+                      {wizardAutoImprovement.ctaSuggestions?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-green-700 dark:text-green-300 mb-1">
+                            CTA-Vorschläge:
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {wizardAutoImprovement.ctaSuggestions.map((cta, i) => (
+                              <button
+                                key={i}
+                                onClick={() => setWizardEditedContent(prev => prev + '\n\n' + cta)}
+                                className="text-[10px] bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-2 py-1 rounded hover:bg-green-200 dark:hover:bg-green-900/60"
+                              >
+                                + {cta}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-2">
+                        Dauer: {(wizardAutoImprovement.totalImprovementTime / 1000).toFixed(1)}s
+                      </p>
+                    </div>
+                  )}
                   </>
                 )}
               </div>
@@ -5935,22 +6056,27 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               <div className="flex gap-3">
                 <button
                   onClick={async () => {
-                    if (!wizardAnalysis?.weaknesses?.length) {
+                    if (!wizardAnalysis?.weaknesses?.length && wizardAnalysis?.overallScore >= 75) {
                       setWizardStep(wizardIncludeImage ? 'image' : 'preview');
                       return;
                     }
-                    setWizardImproving(true);
+                    setWizardAutoImproving(true);
+                    setWizardAutoImprovingStatus('Starte Auto-Verbesserung...');
+                    setWizardAutoImprovement(null);
                     try {
-                      const improved = await socialMediaApi.improveContent({
+                      const result = await socialMediaApi.autoImproveContent({
                         content: wizardEditedContent,
                         platform: wizardPlatform,
-                        improvementFocus: wizardAnalysis.weaknesses[0]
+                        goal: wizardGoal,
+                        targetAudience: wizardTargetAudience,
+                        minScore: 75,
+                        maxIterations: 3
                       });
-                      setWizardImprovement(improved);
-                      setWizardEditedContent(improved.improvedContent);
-                      // Re-analyze
+                      setWizardAutoImprovement(result);
+                      setWizardEditedContent(result.finalContent);
+                      // Re-analyze with final content
                       const analysis = await socialMediaApi.analyzeContent({
-                        content: improved.improvedContent,
+                        content: result.finalContent,
                         platform: wizardPlatform,
                         goal: wizardGoal,
                         targetAudience: wizardTargetAudience
@@ -5959,18 +6085,19 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     } catch (err: any) {
                       setError(err.message);
                     } finally {
-                      setWizardImproving(false);
+                      setWizardAutoImproving(false);
+                      setWizardAutoImprovingStatus('');
                     }
                   }}
-                  disabled={wizardImproving}
+                  disabled={wizardAutoImproving || wizardImproving}
                   className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                 >
-                  {wizardImproving ? (
+                  {wizardAutoImproving ? (
                     <Loader2 size={18} className="animate-spin" />
                   ) : (
-                    <RefreshCw size={18} />
+                    <Sparkles size={18} />
                   )}
-                  Content verbessern
+                  {wizardAutoImproving ? 'Verbessere...' : 'Auto-Verbessern'}
                 </button>
                 <button
                   onClick={() => setWizardStep(wizardIncludeImage ? 'image' : 'preview')}

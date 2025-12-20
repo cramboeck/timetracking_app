@@ -2820,6 +2820,35 @@ router.post('/wizard/improve', authenticateToken, async (req: AuthRequest, res) 
   }
 });
 
+// POST /api/social-media/wizard/auto-improve - Automatically improve content with self-improvement loop
+router.post('/wizard/auto-improve', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { content, platform, goal, targetAudience, minScore, maxIterations } = req.body;
+
+    if (!content || !platform || !goal) {
+      return res.status(400).json({
+        error: 'Content, platform, and goal are required'
+      });
+    }
+
+    const result = await aiService.autoImproveContent(
+      userId,
+      content,
+      platform,
+      goal,
+      targetAudience,
+      minScore || 75,
+      maxIterations || 3
+    );
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Auto-improve content error:', error);
+    res.status(500).json({ error: error.message || 'Failed to auto-improve content' });
+  }
+});
+
 // POST /api/social-media/wizard/generate-image - Generate image for content
 router.post('/wizard/generate-image', authenticateToken, async (req: AuthRequest, res) => {
   try {

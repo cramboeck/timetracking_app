@@ -3483,6 +3483,222 @@ OUTPUT (NUR JSON):
 }
 
 // ============================================
+// Auto-Improvement Loop - Self-Optimizing Content
+// ============================================
+
+export interface AutoImprovementResult {
+  finalContent: string;
+  finalScore: number;
+  initialScore: number;
+  iterations: Array<{
+    iteration: number;
+    focus: string;
+    beforeScore: number;
+    afterScore: number;
+    changes: string[];
+  }>;
+  alternativeHooks: string[];
+  ctaSuggestions: string[];
+  totalImprovementTime: number;
+}
+
+const PRIORITY_ORDER: Record<string, number> = {
+  high: 1,
+  medium: 2,
+  low: 3
+};
+
+/**
+ * Automatically improves content through iterative analysis and targeted improvements
+ * Continues until minimum score is reached or max iterations exhausted
+ */
+export async function autoImproveContent(
+  userId: string,
+  content: string,
+  platform: string,
+  goal: string,
+  targetAudience?: string,
+  minScore: number = 75,
+  maxIterations: number = 3
+): Promise<AutoImprovementResult> {
+  const startTime = Date.now();
+
+  let currentContent = content;
+  let iterations: AutoImprovementResult['iterations'] = [];
+  let allAlternativeHooks: string[] = [];
+  let allCtaSuggestions: string[] = [];
+  let initialScore = 0;
+  let bestContent = content;
+  let bestScore = 0;
+
+  console.log(`Starting auto-improvement loop for ${platform}, goal: ${goal}, minScore: ${minScore}`);
+
+  for (let i = 0; i < maxIterations; i++) {
+    console.log(`\n=== Auto-Improvement Iteration ${i + 1}/${maxIterations} ===`);
+
+    // Step 1: Analyze current content
+    const analysis = await analyzeContentAsExpert(
+      userId,
+      currentContent,
+      platform,
+      goal as 'reach' | 'engagement' | 'leads' | 'branding',
+      targetAudience
+    );
+
+    const currentScore = analysis.overallScore;
+    console.log(`Current score: ${currentScore}/100`);
+
+    // Track initial score
+    if (i === 0) {
+      initialScore = currentScore;
+    }
+
+    // Track best version
+    if (currentScore > bestScore) {
+      bestScore = currentScore;
+      bestContent = currentContent;
+    }
+
+    // Step 2: Check if score is good enough
+    if (currentScore >= minScore) {
+      console.log(`✓ Score ${currentScore} meets minimum ${minScore} - stopping loop`);
+      break;
+    }
+
+    // Step 3: Find highest priority weakness to fix
+    if (!analysis.improvements || analysis.improvements.length === 0) {
+      console.log('No improvements suggested - stopping loop');
+      break;
+    }
+
+    // Sort by priority and get the most critical issue
+    const sortedImprovements = [...analysis.improvements].sort(
+      (a, b) => (PRIORITY_ORDER[a.priority] || 3) - (PRIORITY_ORDER[b.priority] || 3)
+    );
+
+    const focusArea = sortedImprovements[0];
+    const focusName = focusArea.area?.toLowerCase() || 'all';
+
+    console.log(`Focus area: "${focusArea.area}" (priority: ${focusArea.priority})`);
+    console.log(`Suggestion: ${focusArea.suggestion}`);
+
+    // Step 4: Improve content with targeted focus
+    try {
+      const improvement = await improveContentWithExpert(
+        userId,
+        currentContent,
+        platform,
+        focusName,
+        targetAudience,
+        goal
+      );
+
+      // Collect alternative hooks and CTA suggestions
+      if (improvement.alternativeHooks?.length > 0) {
+        allAlternativeHooks.push(...improvement.alternativeHooks);
+      }
+      if (improvement.ctaSuggestions?.length > 0) {
+        allCtaSuggestions.push(...improvement.ctaSuggestions);
+      }
+
+      // Step 5: Re-analyze to get new score
+      const newAnalysis = await analyzeContentAsExpert(
+        userId,
+        improvement.improvedContent,
+        platform,
+        goal as 'reach' | 'engagement' | 'leads' | 'branding',
+        targetAudience
+      );
+
+      const newScore = newAnalysis.overallScore;
+      console.log(`After improvement: ${currentScore} → ${newScore} (${newScore > currentScore ? '+' : ''}${newScore - currentScore})`);
+
+      // Track this iteration
+      iterations.push({
+        iteration: i + 1,
+        focus: focusArea.area || 'all',
+        beforeScore: currentScore,
+        afterScore: newScore,
+        changes: improvement.changes || []
+      });
+
+      // Only keep improvement if it actually improved the score
+      if (newScore > currentScore) {
+        currentContent = improvement.improvedContent;
+        console.log(`✓ Improvement accepted`);
+      } else {
+        console.log(`✗ Improvement rejected (score didn't improve)`);
+        // Try a different approach - focus on "all" if specific focus didn't help
+        if (focusName !== 'all' && i < maxIterations - 1) {
+          console.log(`Trying comprehensive improvement...`);
+          const comprehensiveImprovement = await improveContentWithExpert(
+            userId,
+            currentContent,
+            platform,
+            'all',
+            targetAudience,
+            goal
+          );
+
+          const comprehensiveAnalysis = await analyzeContentAsExpert(
+            userId,
+            comprehensiveImprovement.improvedContent,
+            platform,
+            goal as 'reach' | 'engagement' | 'leads' | 'branding',
+            targetAudience
+          );
+
+          if (comprehensiveAnalysis.overallScore > currentScore) {
+            currentContent = comprehensiveImprovement.improvedContent;
+            console.log(`✓ Comprehensive improvement accepted: ${comprehensiveAnalysis.overallScore}`);
+          }
+        }
+      }
+
+    } catch (error) {
+      console.error(`Iteration ${i + 1} failed:`, error);
+      // Continue with next iteration
+    }
+  }
+
+  // Final analysis to get accurate final score
+  const finalAnalysis = await analyzeContentAsExpert(
+    userId,
+    currentContent,
+    platform,
+    goal as 'reach' | 'engagement' | 'leads' | 'branding',
+    targetAudience
+  );
+
+  // Use best version if final isn't better
+  if (bestScore > finalAnalysis.overallScore) {
+    currentContent = bestContent;
+  }
+
+  const endTime = Date.now();
+
+  // Remove duplicates from suggestions
+  const uniqueHooks = [...new Set(allAlternativeHooks)];
+  const uniqueCtas = [...new Set(allCtaSuggestions)];
+
+  console.log(`\n=== Auto-Improvement Complete ===`);
+  console.log(`Initial score: ${initialScore}`);
+  console.log(`Final score: ${Math.max(finalAnalysis.overallScore, bestScore)}`);
+  console.log(`Iterations: ${iterations.length}`);
+  console.log(`Time: ${endTime - startTime}ms`);
+
+  return {
+    finalContent: currentContent,
+    finalScore: Math.max(finalAnalysis.overallScore, bestScore),
+    initialScore,
+    iterations,
+    alternativeHooks: uniqueHooks.slice(0, 4), // Limit to 4 best hooks
+    ctaSuggestions: uniqueCtas.slice(0, 4), // Limit to 4 best CTAs
+    totalImprovementTime: endTime - startTime
+  };
+}
+
+// ============================================
 // Carousel Content Generator
 // ============================================
 
