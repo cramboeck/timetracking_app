@@ -716,9 +716,7 @@ function App() {
     // Bottom zone (30%): Navigate between areas
     onSwipeLeftBottom: handleSwipeLeftArea,
     onSwipeRightBottom: handleSwipeRightArea,
-    // Middle zone (40%): Also navigate areas (legacy behavior)
-    onSwipeLeftMiddle: handleSwipeLeftArea,
-    onSwipeRightMiddle: handleSwipeRightArea,
+    // Middle zone (40%): No swipe navigation - allows normal scrolling
     minSwipeDistance: 75,
     topZoneThreshold: 0.30,
     bottomZoneThreshold: 0.30,
