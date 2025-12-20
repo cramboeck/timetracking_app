@@ -2267,7 +2267,7 @@ router.post('/stories', authenticateToken, attachOrganization, requireOrgRole('m
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const data = req.body;
 
     const result = await pool.query(
@@ -2396,7 +2396,7 @@ router.delete('/stories/:id', authenticateToken, attachOrganization, requireOrgR
 // POST /api/social-media/stories/generate - Generate story content with AI
 router.post('/stories/generate', authenticateToken, attachOrganization, requireOrgRole('member'), validate(generateStorySchema), async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const options = req.body;
 
     const story = await aiService.generateStoryContent(userId, options);
@@ -2416,7 +2416,7 @@ router.post('/images/generate', authenticateToken, attachOrganization, requireOr
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const options = req.body;
 
     const image = await aiService.generateImage(userId, {
@@ -2448,7 +2448,7 @@ router.post('/images/generate', authenticateToken, attachOrganization, requireOr
 // POST /api/social-media/images/suggestions - Get AI-generated image prompt suggestions
 router.post('/images/suggestions', authenticateToken, attachOrganization, requireOrgRole('member'), validate(imagePromptSuggestionsSchema), async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const { topic, style, count } = req.body;
 
     const suggestions = await aiService.generateImagePromptSuggestions(
@@ -2529,7 +2529,7 @@ router.post('/story-templates', authenticateToken, attachOrganization, requireOr
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const { name, description, category, contentType, layout, textStyles, colorScheme, previewUrl } = req.body;
 
     const result = await pool.query(

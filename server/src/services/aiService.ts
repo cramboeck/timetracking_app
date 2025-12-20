@@ -2012,11 +2012,11 @@ async function generateImageWithOpenAI(
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json() as { error?: { message?: string } };
     throw new Error(`OpenAI API Error: ${error.error?.message || 'Unknown error'}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as { data: Array<{ url: string; revised_prompt?: string }> };
   const costCents = quality === 'hd' ? 12 : 4; // DALL-E 3 pricing
 
   return {
@@ -2055,11 +2055,11 @@ async function generateImageWithStability(
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json() as { message?: string };
     throw new Error(`Stability API Error: ${error.message || 'Unknown error'}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as { artifacts: Array<{ base64: string }> };
 
   return {
     url: `data:image/png;base64,${data.artifacts[0].base64}`,
