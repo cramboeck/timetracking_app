@@ -1663,7 +1663,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   </div>
 
                   <button
-                    onClick={handleBatchGenerate}
+                    onClick={generateBatch}
                     disabled={batchGenerating || !batchTopics.trim()}
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg disabled:opacity-50"
                   >
