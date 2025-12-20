@@ -6,7 +6,7 @@ import {
   Layers, Lightbulb, ListOrdered, Zap, Upload, BarChart3, TrendingUp,
   Recycle, Search, RefreshCw, Rocket, Globe, FileCode, Users, MessageCircle,
   Play, Pause, ThumbsUp, ThumbsDown, ExternalLink, Image, Wand2, Film,
-  LayoutDashboard, PenTool, Bot, Library, ArrowRight, Target, Eye, CalendarDays,
+  LayoutDashboard, PenTool, Bot, Library, ArrowRight, ArrowUp, ArrowDown, Target, Eye, CalendarDays,
   Heart, MousePointer, MessageSquare
 } from 'lucide-react';
 import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement, CarouselContent, CarouselSlide } from '../services/api';
@@ -5818,16 +5818,53 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                                   <div className="mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2">
                                     <p className="text-xs text-gray-500 mb-1">Vorschlag:</p>
                                     <p className="text-sm text-green-800 dark:text-green-300 italic">"{imp.improvedExample}"</p>
-                                    <button
-                                      onClick={() => {
-                                        // Append to existing content
-                                        setWizardEditedContent(prev => prev + '\n\n' + imp.improvedExample!);
-                                      }}
-                                      className="mt-2 text-xs bg-green-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-green-700"
-                                    >
-                                      <Plus size={12} />
-                                      In Text einfügen
-                                    </button>
+                                    <div className="flex gap-2 mt-2 flex-wrap">
+                                      {/* Hook suggestions go at the beginning */}
+                                      {imp.area?.toLowerCase().includes('hook') || imp.area?.toLowerCase().includes('einstieg') || imp.area?.toLowerCase().includes('anfang') ? (
+                                        <button
+                                          onClick={() => {
+                                            setWizardEditedContent(prev => imp.improvedExample! + '\n\n' + prev);
+                                          }}
+                                          className="text-xs bg-green-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-green-700"
+                                        >
+                                          <ArrowUp size={12} />
+                                          Als Hook verwenden
+                                        </button>
+                                      ) : imp.area?.toLowerCase().includes('cta') || imp.area?.toLowerCase().includes('call') || imp.area?.toLowerCase().includes('handlung') ? (
+                                        /* CTA suggestions go at the end */
+                                        <button
+                                          onClick={() => {
+                                            setWizardEditedContent(prev => prev + '\n\n' + imp.improvedExample!);
+                                          }}
+                                          className="text-xs bg-green-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-green-700"
+                                        >
+                                          <ArrowDown size={12} />
+                                          Als CTA anhängen
+                                        </button>
+                                      ) : (
+                                        /* Other suggestions: give user choice */
+                                        <>
+                                          <button
+                                            onClick={() => {
+                                              setWizardEditedContent(prev => imp.improvedExample! + '\n\n' + prev);
+                                            }}
+                                            className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full flex items-center gap-1 hover:bg-blue-200"
+                                          >
+                                            <ArrowUp size={12} />
+                                            Am Anfang
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              setWizardEditedContent(prev => prev + '\n\n' + imp.improvedExample!);
+                                            }}
+                                            className="text-xs bg-green-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-green-700"
+                                          >
+                                            <ArrowDown size={12} />
+                                            Am Ende
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
                               </div>
