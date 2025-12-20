@@ -2792,19 +2792,32 @@ NO TEXT in the image - just visual elements and patterns.
 Square format (1:1 aspect ratio).`;
 
     try {
-      const openai = new (await import('openai')).default({ apiKey: config.apiKey });
-      const response = await openai.images.generate({
-        model: 'dall-e-3',
-        prompt,
-        n: 1,
-        size: '1024x1024',
-        quality: 'standard',
+      const response = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'dall-e-3',
+          prompt,
+          n: 1,
+          size: '1024x1024',
+          quality: 'standard',
+          response_format: 'url',
+        }),
       });
 
-      if (response.data[0]?.url) {
+      if (!response.ok) {
+        const error = await response.json() as { error?: { message?: string } };
+        throw new Error(`OpenAI API Error: ${error.error?.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json() as { data: Array<{ url: string }> };
+      if (data.data[0]?.url) {
         results.push({
           slideNumber: slide.slideNumber,
-          imageUrl: response.data[0].url,
+          imageUrl: data.data[0].url,
           prompt
         });
       }

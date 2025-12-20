@@ -2199,7 +2199,7 @@ const carouselOptionsSchema = z.object({
 // POST /api/social-media/carousel/generate - Generate carousel content
 router.post('/carousel/generate', authenticateToken, attachOrganization, requireOrgRole('member'), validate(carouselOptionsSchema), async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const options = req.body;
 
     const carousel = await aiService.generateCarouselContent(userId, options);
@@ -2214,7 +2214,7 @@ router.post('/carousel/generate', authenticateToken, attachOrganization, require
 // POST /api/social-media/carousel/generate-images - Generate images for carousel slides
 router.post('/carousel/generate-images', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const { slides, style, colorScheme } = req.body;
 
     if (!slides || !Array.isArray(slides)) {
@@ -2238,7 +2238,8 @@ router.post('/carousel/generate-images', authenticateToken, attachOrganization, 
 // POST /api/social-media/carousel/save - Save carousel as draft post
 router.post('/carousel/save', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
   try {
-    const organizationId = req.organization!.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
     const { carousel, scheduleAt } = req.body;
 
     if (!carousel) {
