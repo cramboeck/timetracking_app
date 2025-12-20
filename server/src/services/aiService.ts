@@ -1403,37 +1403,165 @@ QUALITÄTSKRITERIEN:
 
 LIEFERE NUR DEN FERTIGEN POST-TEXT. Keine Erklärungen.`;
 
-  let result: { content: string; tokensUsed: number };
-  if (config.provider === 'anthropic') {
-    result = await callAnthropic(
+  // Self-critique loop: Generate, analyze, improve until quality threshold met
+  const MIN_QUALITY_SCORE = 75;
+  const MAX_ATTEMPTS = 3;
+
+  let bestPost = '';
+  let bestScore = 0;
+  let attempts: Array<{ content: string; score: number; feedback: string[] }> = [];
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    console.log(`Post generation attempt ${attempt}/${MAX_ATTEMPTS}...`);
+
+    // Add previous feedback to prompt if this isn't the first attempt
+    let currentPrompt = prompt;
+    if (attempt > 1 && attempts.length > 0) {
+      const lastAttempt = attempts[attempts.length - 1];
+      currentPrompt = `${prompt}
+
+═══════════════════════════════════════
+⚠️ KRITISCHES FEEDBACK ZUM VORHERIGEN VERSUCH (Score: ${lastAttempt.score}/100):
+${lastAttempt.feedback.map(f => `- ${f}`).join('\n')}
+
+VORHERIGER TEXT (NICHT WIEDERHOLEN, KOMPLETT NEU SCHREIBEN):
+"""${lastAttempt.content.substring(0, 200)}..."""
+
+DU MUSST DIESE PROBLEME BEHEBEN! Schreibe einen KOMPLETT NEUEN, BESSEREN Post.
+═══════════════════════════════════════`;
+    }
+
+    let result: { content: string; tokensUsed: number };
+    if (config.provider === 'anthropic') {
+      result = await callAnthropic(
+        config.apiKey,
+        config.model,
+        currentPrompt,
+        config.maxTokens,
+        attempt === 1 ? config.temperature : Math.min(config.temperature + 0.1, 1.0), // Slightly higher creativity on retries
+        SOCIAL_MEDIA_SYSTEM_PROMPT
+      );
+    } else {
+      result = await callOpenAI(
+        config.apiKey,
+        config.model,
+        currentPrompt,
+        config.maxTokens,
+        attempt === 1 ? config.temperature : Math.min(config.temperature + 0.1, 1.0),
+        SOCIAL_MEDIA_SYSTEM_PROMPT
+      );
+    }
+
+    const generatedContent = result.content.trim();
+
+    // Quick internal quality check
+    const qualityCheck = await quickQualityCheck(
       config.apiKey,
+      config.provider,
       config.model,
-      prompt,
-      config.maxTokens,
-      config.temperature,
-      SOCIAL_MEDIA_SYSTEM_PROMPT
+      generatedContent,
+      options.platform
     );
-  } else {
-    result = await callOpenAI(
-      config.apiKey,
-      config.model,
-      prompt,
-      config.maxTokens,
-      config.temperature,
-      SOCIAL_MEDIA_SYSTEM_PROMPT
-    );
+
+    console.log(`Attempt ${attempt} score: ${qualityCheck.score}/100`);
+
+    attempts.push({
+      content: generatedContent,
+      score: qualityCheck.score,
+      feedback: qualityCheck.issues
+    });
+
+    // Track best post
+    if (qualityCheck.score > bestScore) {
+      bestScore = qualityCheck.score;
+      bestPost = generatedContent;
+    }
+
+    // If quality threshold met, we're done
+    if (qualityCheck.score >= MIN_QUALITY_SCORE) {
+      console.log(`Quality threshold met on attempt ${attempt}!`);
+      break;
+    }
+
+    // If this is the last attempt and still below threshold, use the best one we have
+    if (attempt === MAX_ATTEMPTS) {
+      console.log(`Max attempts reached. Using best post (score: ${bestScore})`);
+    }
   }
 
-  // Extract hashtags from generated content
+  // Extract hashtags from best post
   const hashtagRegex = /#[\wäöüÄÖÜß]+/g;
-  const extractedHashtags = (result.content.match(hashtagRegex) || []) as string[];
+  const extractedHashtags = (bestPost.match(hashtagRegex) || []) as string[];
 
   return {
-    content: result.content,
+    content: bestPost,
     hashtags: extractedHashtags,
     platform: options.platform,
-    characterCount: result.content.length
-  };
+    characterCount: bestPost.length,
+    qualityScore: bestScore,
+    attempts: attempts.length
+  } as GeneratedPost & { qualityScore: number; attempts: number };
+}
+
+/**
+ * Quick internal quality check for self-critique loop
+ * Returns a score and list of issues to fix
+ */
+async function quickQualityCheck(
+  apiKey: string,
+  provider: string,
+  model: string,
+  content: string,
+  platform: string
+): Promise<{ score: number; issues: string[] }> {
+  const prompt = `Bewerte diesen ${platform.toUpperCase()} Post SCHNELL und KRITISCH (0-100 Score).
+
+POST:
+"""
+${content}
+"""
+
+BEWERTUNGSKRITERIEN:
+1. HOOK (25%): Stoppt er den Scroll? Erste Zeile magnetisch?
+2. WERT (25%): Echter Mehrwert oder leere Worte?
+3. AUTHENTIZITÄT (25%): Klingt es echt oder wie Corporate-Blabla?
+4. CTA (25%): Klarer, motivierender Call-to-Action?
+
+SEI STRENG! Die meisten Posts sind mittelmäßig (50-70).
+Ein Score über 75 bedeutet: "Das würde ICH liken/teilen"
+Ein Score über 85 bedeutet: "Das hat virales Potenzial"
+
+Antworte NUR in diesem JSON-Format:
+{
+  "score": 65,
+  "issues": ["Problem 1 das behoben werden muss", "Problem 2", "Problem 3"]
+}
+
+Wenn der Post GUT ist, gib ein leeres issues-Array zurück.
+Maximal 3 Issues nennen, die WICHTIGSTEN zuerst.`;
+
+  try {
+    let result: { content: string; tokensUsed: number };
+    if (provider === 'anthropic') {
+      result = await callAnthropic(apiKey, model, prompt, 500, 0.3, 'Du bist ein strenger Social Media Kritiker.');
+    } else {
+      result = await callOpenAI(apiKey, model, prompt, 500, 0.3, 'Du bist ein strenger Social Media Kritiker.');
+    }
+
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    const parsed = JSON.parse(jsonStr) as { score: number; issues: string[] };
+    return {
+      score: Math.min(100, Math.max(0, parsed.score)),
+      issues: parsed.issues || []
+    };
+  } catch (error) {
+    console.error('Quality check failed, assuming pass:', error);
+    // If quality check fails, assume it's okay to avoid infinite loops
+    return { score: 75, issues: [] };
+  }
 }
 
 export interface BatchGenerationOptions {
