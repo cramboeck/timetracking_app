@@ -3728,6 +3728,75 @@ export interface StoryTemplate {
   createdAt: string;
 }
 
+// Marketing Expert AI interfaces
+export interface MarketingAnalysis {
+  overallScore: number;
+  strengths: string[];
+  weaknesses: string[];
+  improvements: Array<{
+    area: string;
+    suggestion: string;
+    priority: 'high' | 'medium' | 'low';
+    improvedExample?: string;
+  }>;
+  platformFit: {
+    score: number;
+    feedback: string;
+  };
+  audienceAlignment: {
+    score: number;
+    feedback: string;
+  };
+  callToActionEffectiveness: {
+    score: number;
+    feedback: string;
+    suggestions: string[];
+  };
+  emotionalTone: string;
+  readabilityScore: number;
+  viralPotential: number;
+}
+
+export interface WizardContentGeneration {
+  post: {
+    content: string;
+    hashtags: string[];
+    callToAction: string;
+  };
+  alternatives: Array<{
+    content: string;
+    style: string;
+  }>;
+  imagePrompt?: {
+    prompt: string;
+    style: string;
+    description: string;
+  };
+  bestPostingTime: {
+    day: string;
+    time: string;
+    reason: string;
+  };
+  contentAnalysis: {
+    emotionalTone: string;
+    expectedEngagement: 'low' | 'medium' | 'high';
+    targetAudienceMatch: number;
+  };
+}
+
+export interface ContentImprovement {
+  originalContent: string;
+  improvedContent: string;
+  changes: Array<{
+    type: string;
+    description: string;
+    before: string;
+    after: string;
+  }>;
+  improvementScore: number;
+  expertNotes: string[];
+}
+
 export const socialMediaApi = {
   // Posts
   getPosts: async (filters?: { status?: string; customerId?: string; startDate?: string; endDate?: string }): Promise<SocialMediaPost[]> => {
@@ -4385,6 +4454,61 @@ export const socialMediaApi = {
     return authFetch('/social-media/story-templates', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  // ============================================
+  // Content Wizard API (Marketing Expert AI)
+  // ============================================
+
+  analyzeContent: async (options: {
+    content: string;
+    platform: string;
+    goal: string;
+    targetAudience?: string;
+  }): Promise<MarketingAnalysis> => {
+    return authFetch('/social-media/wizard/analyze', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  generateWizardContent: async (options: {
+    topic: string;
+    platform: string;
+    goal: string;
+    targetAudience?: string;
+    tone?: string;
+    includeImage?: boolean;
+    includeHashtags?: boolean;
+    contentLength?: 'short' | 'medium' | 'long';
+  }): Promise<WizardContentGeneration> => {
+    return authFetch('/social-media/wizard/generate', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  improveContent: async (options: {
+    content: string;
+    platform: string;
+    improvementFocus: string;
+  }): Promise<ContentImprovement> => {
+    return authFetch('/social-media/wizard/improve', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  generateWizardImage: async (options: {
+    prompt: string;
+    aspectRatio?: '1:1' | '9:16' | '16:9' | '4:5';
+    style?: string;
+    quality?: 'standard' | 'hd';
+  }): Promise<GeneratedImage> => {
+    return authFetch('/social-media/wizard/generate-image', {
+      method: 'POST',
+      body: JSON.stringify(options),
     });
   },
 };

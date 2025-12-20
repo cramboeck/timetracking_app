@@ -8,7 +8,7 @@ import {
   Play, Pause, ThumbsUp, ThumbsDown, ExternalLink, Image, Wand2, Film,
   LayoutDashboard, PenTool, Bot, Library, ArrowRight, Target, Eye, CalendarDays
 } from 'lucide-react';
-import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage } from '../services/api';
+import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement } from '../services/api';
 import { Customer } from '../types';
 import { Modal } from './Modal';
 
@@ -239,6 +239,27 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [imageSuggestions, setImageSuggestions] = useState<Array<{ prompt: string; description: string }>>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
+  // Content Wizard state (Marketing Expert with Lead Generation focus)
+  const [showContentWizard, setShowContentWizard] = useState(false);
+  const [wizardStep, setWizardStep] = useState<'goal' | 'content' | 'analyze' | 'image' | 'preview'>('goal');
+  const [wizardTopic, setWizardTopic] = useState('');
+  const [wizardPlatform, setWizardPlatform] = useState<Platform>('linkedin');
+  const [wizardGoal, setWizardGoal] = useState<'leads' | 'brand' | 'engagement' | 'sales' | 'traffic'>('leads');
+  const [wizardTargetAudience, setWizardTargetAudience] = useState('');
+  const [wizardTone, setWizardTone] = useState<'professional' | 'inspirational' | 'urgent' | 'storytelling' | 'educational'>('professional');
+  const [wizardContentLength, setWizardContentLength] = useState<'short' | 'medium' | 'long'>('medium');
+  const [wizardGenerating, setWizardGenerating] = useState(false);
+  const [wizardContent, setWizardContent] = useState<WizardContentGeneration | null>(null);
+  const [wizardSelectedAlternative, setWizardSelectedAlternative] = useState(0);
+  const [wizardAnalysis, setWizardAnalysis] = useState<MarketingAnalysis | null>(null);
+  const [wizardAnalyzing, setWizardAnalyzing] = useState(false);
+  const [wizardImprovement, setWizardImprovement] = useState<ContentImprovement | null>(null);
+  const [wizardImproving, setWizardImproving] = useState(false);
+  const [wizardGeneratedImage, setWizardGeneratedImage] = useState<GeneratedImage | null>(null);
+  const [wizardGeneratingImage, setWizardGeneratingImage] = useState(false);
+  const [wizardEditedContent, setWizardEditedContent] = useState('');
+  const [wizardIncludeImage, setWizardIncludeImage] = useState(true);
 
   // Load data
   useEffect(() => {
@@ -955,7 +976,24 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           {/* Quick Actions */}
           <div className="bg-white dark:bg-dark-100 rounded-xl p-6 border border-gray-200 dark:border-dark-200">
             <h3 className="font-semibold dark:text-white mb-4">Schnellaktionen</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {/* Content Wizard - Hero Button */}
+              <button
+                onClick={() => {
+                  setShowContentWizard(true);
+                  setWizardStep('goal');
+                  setWizardTopic('');
+                  setWizardContent(null);
+                  setWizardAnalysis(null);
+                  setWizardGeneratedImage(null);
+                  setWizardEditedContent('');
+                }}
+                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 text-white rounded-xl hover:opacity-90 md:col-span-1 ring-2 ring-amber-300/50"
+              >
+                <Wand2 size={24} />
+                <span className="text-sm font-medium">Content Wizard</span>
+                <span className="text-xs opacity-75">KI-Experte</span>
+              </button>
               <button
                 onClick={() => { setViewMode('create'); setCreateSubView('post'); setShowPostEditor(true); }}
                 className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl hover:opacity-90"
@@ -3707,6 +3745,761 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 </button>
               </div>
             </>
+          )}
+        </div>
+      </Modal>
+
+      {/* Content Wizard Modal - Professional Marketing Expert */}
+      <Modal
+        isOpen={showContentWizard}
+        onClose={() => setShowContentWizard(false)}
+        title=""
+      >
+        <div className="max-w-4xl w-full">
+          {/* Wizard Header */}
+          <div className="mb-6 text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500/10 to-red-500/10 rounded-full border border-amber-200 dark:border-amber-800 mb-3">
+              <Wand2 size={20} className="text-amber-600" />
+              <span className="text-sm font-medium text-amber-700 dark:text-amber-400">Content Wizard - Marketing Expert AI</span>
+            </div>
+            <h2 className="text-2xl font-bold dark:text-white">
+              {wizardStep === 'goal' && 'Was möchten Sie erreichen?'}
+              {wizardStep === 'content' && 'Professioneller Content wird erstellt...'}
+              {wizardStep === 'analyze' && 'Marketing-Experten-Analyse'}
+              {wizardStep === 'image' && 'Professionelle Grafik generieren'}
+              {wizardStep === 'preview' && 'Finaler Content Review'}
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {wizardStep === 'goal' && 'Hochwertige, lead-generierende Inhalte mit KI-Marketing-Expertise'}
+              {wizardStep === 'content' && 'Unser KI-Experte erstellt conversion-optimierten Content'}
+              {wizardStep === 'analyze' && 'Kritische Prüfung durch virtuellen Marketing-Experten'}
+              {wizardStep === 'image' && 'DALL-E generiert ein professionelles Corporate-Bild'}
+              {wizardStep === 'preview' && 'Überprüfen und veröffentlichen Sie Ihren optimierten Content'}
+            </p>
+          </div>
+
+          {/* Step Progress */}
+          <div className="flex items-center justify-center gap-2 mb-8">
+            {['goal', 'content', 'analyze', 'image', 'preview'].map((step, idx) => (
+              <div key={step} className="flex items-center">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                    wizardStep === step
+                      ? 'bg-amber-500 text-white'
+                      : ['goal', 'content', 'analyze', 'image', 'preview'].indexOf(wizardStep) > idx
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-200 dark:bg-dark-200 text-gray-500'
+                  }`}
+                >
+                  {['goal', 'content', 'analyze', 'image', 'preview'].indexOf(wizardStep) > idx ? (
+                    <Check size={16} />
+                  ) : (
+                    idx + 1
+                  )}
+                </div>
+                {idx < 4 && (
+                  <div className={`w-12 h-1 mx-1 rounded ${
+                    ['goal', 'content', 'analyze', 'image', 'preview'].indexOf(wizardStep) > idx
+                      ? 'bg-green-500'
+                      : 'bg-gray-200 dark:bg-dark-200'
+                  }`} />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Step 1: Goal Selection */}
+          {wizardStep === 'goal' && (
+            <div className="space-y-6">
+              {/* Platform Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Plattform auswählen
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(['linkedin', 'instagram', 'facebook', 'twitter'] as Platform[]).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setWizardPlatform(p)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+                        wizardPlatform === p
+                          ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+                          : 'border-gray-200 dark:border-dark-200 hover:border-gray-300'
+                      }`}
+                    >
+                      {PLATFORM_ICONS[p]}
+                      <span className="capitalize">{p}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Business Goal */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Business-Ziel
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {[
+                    { id: 'leads', label: 'Lead-Generierung', icon: Target, desc: 'Neue Kontakte & Anfragen' },
+                    { id: 'sales', label: 'Verkauf', icon: Rocket, desc: 'Direkte Conversions' },
+                    { id: 'brand', label: 'Markenbildung', icon: Eye, desc: 'Bekanntheit steigern' },
+                    { id: 'traffic', label: 'Website Traffic', icon: Globe, desc: 'Besucher generieren' },
+                    { id: 'engagement', label: 'Engagement', icon: MessageCircle, desc: 'Interaktionen fördern' },
+                  ].map(goal => (
+                    <button
+                      key={goal.id}
+                      onClick={() => setWizardGoal(goal.id as any)}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${
+                        wizardGoal === goal.id
+                          ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 ring-2 ring-amber-500/30'
+                          : 'border-gray-200 dark:border-dark-200 hover:border-gray-300 hover:bg-gray-50 dark:hover:bg-dark-200'
+                      }`}
+                    >
+                      <goal.icon size={24} className={wizardGoal === goal.id ? 'text-amber-600' : 'text-gray-500'} />
+                      <span className={`text-sm font-medium ${wizardGoal === goal.id ? 'text-amber-700 dark:text-amber-400' : 'dark:text-white'}`}>
+                        {goal.label}
+                      </span>
+                      <span className="text-xs text-gray-500 text-center">{goal.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Topic Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Thema / Produkt / Dienstleistung
+                </label>
+                <textarea
+                  value={wizardTopic}
+                  onChange={(e) => setWizardTopic(e.target.value)}
+                  placeholder="z.B. 'IT-Sicherheitsberatung für mittelständische Unternehmen' oder 'Neues Cloud-Backup Produkt mit 99.9% Verfügbarkeit'"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white resize-none"
+                  rows={3}
+                />
+              </div>
+
+              {/* Target Audience */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Zielgruppe
+                </label>
+                <input
+                  type="text"
+                  value={wizardTargetAudience}
+                  onChange={(e) => setWizardTargetAudience(e.target.value)}
+                  placeholder="z.B. 'IT-Entscheider in mittelständischen Unternehmen' oder 'Geschäftsführer mit 10-50 Mitarbeitern'"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                />
+              </div>
+
+              {/* Tone & Style */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Tonalität
+                  </label>
+                  <select
+                    value={wizardTone}
+                    onChange={(e) => setWizardTone(e.target.value as any)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  >
+                    <option value="professional">Professionell & Seriös</option>
+                    <option value="inspirational">Inspirierend & Motivierend</option>
+                    <option value="urgent">Dringend & Aktionsorientiert</option>
+                    <option value="storytelling">Storytelling & Emotional</option>
+                    <option value="educational">Lehrreich & Informativ</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Content-Länge
+                  </label>
+                  <select
+                    value={wizardContentLength}
+                    onChange={(e) => setWizardContentLength(e.target.value as any)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  >
+                    <option value="short">Kurz & Prägnant</option>
+                    <option value="medium">Mittel (Empfohlen)</option>
+                    <option value="long">Ausführlich</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Image Toggle */}
+              <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-dark-200 rounded-lg cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={wizardIncludeImage}
+                  onChange={(e) => setWizardIncludeImage(e.target.checked)}
+                  className="w-5 h-5 rounded text-amber-500"
+                />
+                <div>
+                  <span className="font-medium dark:text-white">Professionelle Grafik generieren (DALL-E)</span>
+                  <p className="text-sm text-gray-500">Erstellt ein hochwertiges, conversion-optimiertes Bild</p>
+                </div>
+                <Image size={24} className="ml-auto text-amber-500" />
+              </label>
+
+              {/* Continue Button */}
+              <div className="flex justify-end pt-4">
+                <button
+                  onClick={async () => {
+                    if (!wizardTopic.trim()) return;
+                    setWizardGenerating(true);
+                    setWizardStep('content');
+                    try {
+                      const goalMap: Record<string, string> = {
+                        leads: 'Lead-Generierung und Kontaktanfragen',
+                        sales: 'Direkter Verkauf und Conversions',
+                        brand: 'Markenbekanntheit und Corporate Image',
+                        traffic: 'Website-Traffic und Klicks',
+                        engagement: 'Engagement und Community-Building'
+                      };
+                      const toneMap: Record<string, string> = {
+                        professional: 'professionell und seriös',
+                        inspirational: 'inspirierend und motivierend',
+                        urgent: 'dringend und handlungsorientiert',
+                        storytelling: 'storytelling und emotional',
+                        educational: 'lehrreich und informativ'
+                      };
+                      const content = await socialMediaApi.generateWizardContent({
+                        topic: wizardTopic,
+                        platform: wizardPlatform,
+                        goal: goalMap[wizardGoal],
+                        targetAudience: wizardTargetAudience || 'Business-Entscheider',
+                        tone: toneMap[wizardTone],
+                        includeImage: wizardIncludeImage,
+                        includeHashtags: true,
+                        contentLength: wizardContentLength
+                      });
+                      setWizardContent(content);
+                      setWizardEditedContent(content.post.content);
+                      setWizardStep('analyze');
+
+                      // Auto-analyze
+                      setWizardAnalyzing(true);
+                      const analysis = await socialMediaApi.analyzeContent({
+                        content: content.post.content,
+                        platform: wizardPlatform,
+                        goal: goalMap[wizardGoal],
+                        targetAudience: wizardTargetAudience
+                      });
+                      setWizardAnalysis(analysis);
+                    } catch (err: any) {
+                      setError(err.message || 'Fehler bei der Content-Generierung');
+                      setWizardStep('goal');
+                    } finally {
+                      setWizardGenerating(false);
+                      setWizardAnalyzing(false);
+                    }
+                  }}
+                  disabled={!wizardTopic.trim() || wizardGenerating}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-medium"
+                >
+                  {wizardGenerating ? (
+                    <>
+                      <Loader2 size={20} className="animate-spin" />
+                      Content wird erstellt...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={20} />
+                      Professionellen Content erstellen
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Content Generation (Loading) */}
+          {wizardStep === 'content' && wizardGenerating && (
+            <div className="text-center py-12">
+              <Loader2 size={48} className="animate-spin text-amber-500 mx-auto mb-4" />
+              <p className="text-lg dark:text-white mb-2">Marketing-Experte arbeitet...</p>
+              <p className="text-sm text-gray-500">Analysiert Zielgruppe, optimiert für Conversions</p>
+            </div>
+          )}
+
+          {/* Step 3: Marketing Analysis */}
+          {wizardStep === 'analyze' && wizardContent && (
+            <div className="space-y-6">
+              {/* Generated Content Preview */}
+              <div className="bg-gray-50 dark:bg-dark-200 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold dark:text-white flex items-center gap-2">
+                    <PenTool size={18} className="text-amber-500" />
+                    Generierter Content
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    {wizardContent.alternatives.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setWizardSelectedAlternative(idx);
+                          setWizardEditedContent(idx === 0 ? wizardContent.post.content : wizardContent.alternatives[idx - 1]?.content || wizardContent.post.content);
+                        }}
+                        className={`px-3 py-1 rounded-full text-sm ${
+                          wizardSelectedAlternative === idx
+                            ? 'bg-amber-500 text-white'
+                            : 'bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-gray-400'
+                        }`}
+                      >
+                        {idx === 0 ? 'Original' : `Variante ${idx}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <textarea
+                  value={wizardEditedContent}
+                  onChange={(e) => setWizardEditedContent(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-dark-300 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white resize-none"
+                  rows={6}
+                />
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {wizardContent.post.hashtags.map(tag => (
+                    <span key={tag} className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-sm">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Marketing Expert Analysis */}
+              {wizardAnalyzing ? (
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-6 text-center">
+                  <Loader2 size={32} className="animate-spin text-purple-500 mx-auto mb-3" />
+                  <p className="font-medium dark:text-white">Marketing-Experte analysiert...</p>
+                </div>
+              ) : wizardAnalysis && (
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-6">
+                  <h3 className="font-semibold dark:text-white mb-4 flex items-center gap-2">
+                    <Bot size={20} className="text-purple-600" />
+                    Marketing-Experten-Analyse
+                  </h3>
+
+                  {/* Score Overview */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3 text-center">
+                      <div className={`text-2xl font-bold ${wizardAnalysis.overallScore >= 80 ? 'text-green-600' : wizardAnalysis.overallScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {wizardAnalysis.overallScore}/100
+                      </div>
+                      <div className="text-xs text-gray-500">Gesamt-Score</div>
+                    </div>
+                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-blue-600">{wizardAnalysis.platformFit?.score || 0}/100</div>
+                      <div className="text-xs text-gray-500">Plattform-Fit</div>
+                    </div>
+                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-purple-600">{wizardAnalysis.viralPotential || 0}/100</div>
+                      <div className="text-xs text-gray-500">Viral-Potenzial</div>
+                    </div>
+                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-green-600">{wizardAnalysis.callToActionEffectiveness?.score || 0}/100</div>
+                      <div className="text-xs text-gray-500">CTA-Stärke</div>
+                    </div>
+                  </div>
+
+                  {/* Strengths & Weaknesses */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                      <h4 className="text-sm font-medium text-green-700 dark:text-green-400 mb-2 flex items-center gap-1">
+                        <ThumbsUp size={14} />
+                        Stärken
+                      </h4>
+                      <ul className="space-y-1">
+                        {wizardAnalysis.strengths?.slice(0, 3).map((s, i) => (
+                          <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
+                            <Check size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
+                            {s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-red-700 dark:text-red-400 mb-2 flex items-center gap-1">
+                        <ThumbsDown size={14} />
+                        Verbesserungspotenzial
+                      </h4>
+                      <ul className="space-y-1">
+                        {wizardAnalysis.weaknesses?.slice(0, 3).map((w, i) => (
+                          <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
+                            <AlertCircle size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                            {w}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Improvement Suggestions */}
+                  {wizardAnalysis.improvements?.length > 0 && (
+                    <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-4">
+                      <h4 className="text-sm font-medium dark:text-white mb-3">Konkrete Verbesserungsvorschläge</h4>
+                      <div className="space-y-3">
+                        {wizardAnalysis.improvements.slice(0, 2).map((imp, i) => (
+                          <div key={i} className="flex items-start gap-3">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              imp.priority === 'high' ? 'bg-red-100 text-red-700' :
+                              imp.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {imp.priority === 'high' ? 'Hoch' : imp.priority === 'medium' ? 'Mittel' : 'Niedrig'}
+                            </span>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium dark:text-white">{imp.area}</p>
+                              <p className="text-xs text-gray-500">{imp.suggestion}</p>
+                              {imp.improvedExample && (
+                                <button
+                                  onClick={() => setWizardEditedContent(imp.improvedExample!)}
+                                  className="mt-2 text-xs text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                                >
+                                  <Sparkles size={12} />
+                                  Vorschlag anwenden
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Best Posting Time */}
+              {wizardContent.bestPostingTime && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 flex items-center gap-4">
+                  <Clock size={24} className="text-blue-600" />
+                  <div>
+                    <p className="font-medium dark:text-white">Optimaler Zeitpunkt</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {wizardContent.bestPostingTime.day} um {wizardContent.bestPostingTime.time} - {wizardContent.bestPostingTime.reason}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-between pt-4">
+                <button
+                  onClick={() => setWizardStep('goal')}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
+                >
+                  Zurück
+                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={async () => {
+                      if (!wizardAnalysis?.weaknesses?.length) {
+                        setWizardStep(wizardIncludeImage ? 'image' : 'preview');
+                        return;
+                      }
+                      setWizardImproving(true);
+                      try {
+                        const improved = await socialMediaApi.improveContent({
+                          content: wizardEditedContent,
+                          platform: wizardPlatform,
+                          improvementFocus: wizardAnalysis.weaknesses[0]
+                        });
+                        setWizardImprovement(improved);
+                        setWizardEditedContent(improved.improvedContent);
+                        // Re-analyze
+                        const analysis = await socialMediaApi.analyzeContent({
+                          content: improved.improvedContent,
+                          platform: wizardPlatform,
+                          goal: wizardGoal,
+                          targetAudience: wizardTargetAudience
+                        });
+                        setWizardAnalysis(analysis);
+                      } catch (err: any) {
+                        setError(err.message);
+                      } finally {
+                        setWizardImproving(false);
+                      }
+                    }}
+                    disabled={wizardImproving}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {wizardImproving ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <RefreshCw size={18} />
+                    )}
+                    Content verbessern
+                  </button>
+                  <button
+                    onClick={() => setWizardStep(wizardIncludeImage ? 'image' : 'preview')}
+                    className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:opacity-90"
+                  >
+                    Weiter
+                    <ArrowRight size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Image Generation */}
+          {wizardStep === 'image' && (
+            <div className="space-y-6">
+              {/* Image Prompt from AI */}
+              {wizardContent?.imagePrompt && (
+                <div className="bg-gray-50 dark:bg-dark-200 rounded-xl p-6">
+                  <h3 className="font-semibold dark:text-white mb-3 flex items-center gap-2">
+                    <Image size={18} className="text-amber-500" />
+                    KI-Bildvorschlag
+                  </h3>
+                  <div className="p-4 bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-300">
+                    <p className="text-sm dark:text-white mb-2">{wizardContent.imagePrompt.prompt}</p>
+                    <p className="text-xs text-gray-500">
+                      Stil: {wizardContent.imagePrompt.style} • {wizardContent.imagePrompt.description}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Image Options */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Bildformat
+                  </label>
+                  <select
+                    value={imageAspectRatio}
+                    onChange={(e) => setImageAspectRatio(e.target.value as any)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  >
+                    <option value="1:1">Quadratisch (1:1) - Feed</option>
+                    <option value="9:16">Hochformat (9:16) - Story</option>
+                    <option value="16:9">Querformat (16:9) - Banner</option>
+                    <option value="4:5">Portrait (4:5) - Instagram</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Qualität
+                  </label>
+                  <select
+                    value={imageQuality}
+                    onChange={(e) => setImageQuality(e.target.value as any)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  >
+                    <option value="hd">HD - Maximale Qualität</option>
+                    <option value="standard">Standard</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Generated Image Preview */}
+              {wizardGeneratedImage && (
+                <div className="bg-gray-50 dark:bg-dark-200 rounded-xl p-4">
+                  <img
+                    src={wizardGeneratedImage.url}
+                    alt="Generated"
+                    className="max-w-full h-auto rounded-lg mx-auto"
+                    style={{ maxHeight: '400px' }}
+                  />
+                  {wizardGeneratedImage.revisedPrompt && (
+                    <p className="text-xs text-gray-500 mt-3 text-center italic">
+                      "{wizardGeneratedImage.revisedPrompt}"
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-between pt-4">
+                <button
+                  onClick={() => setWizardStep('analyze')}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
+                >
+                  Zurück
+                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={async () => {
+                      if (!wizardContent?.imagePrompt?.prompt) return;
+                      setWizardGeneratingImage(true);
+                      try {
+                        const image = await socialMediaApi.generateWizardImage({
+                          prompt: wizardContent.imagePrompt.prompt,
+                          aspectRatio: imageAspectRatio,
+                          style: wizardContent.imagePrompt.style || 'modern',
+                          quality: imageQuality
+                        });
+                        setWizardGeneratedImage(image);
+                      } catch (err: any) {
+                        setError(err.message || 'Fehler bei der Bildgenerierung');
+                      } finally {
+                        setWizardGeneratingImage(false);
+                      }
+                    }}
+                    disabled={wizardGeneratingImage || !wizardContent?.imagePrompt}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {wizardGeneratingImage ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Generiere Bild...
+                      </>
+                    ) : (
+                      <>
+                        <Image size={18} />
+                        {wizardGeneratedImage ? 'Neues Bild' : 'Bild generieren'}
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setWizardStep('preview')}
+                    className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:opacity-90"
+                  >
+                    {wizardGeneratedImage ? 'Weiter zur Vorschau' : 'Ohne Bild fortfahren'}
+                    <ArrowRight size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 5: Final Preview */}
+          {wizardStep === 'preview' && (
+            <div className="space-y-6">
+              {/* Final Post Preview */}
+              <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 overflow-hidden">
+                {wizardGeneratedImage && (
+                  <img
+                    src={wizardGeneratedImage.url}
+                    alt="Post image"
+                    className="w-full h-48 object-cover"
+                  />
+                )}
+                <div className="p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`p-2 rounded-full ${PLATFORM_COLORS[wizardPlatform]}`}>
+                      {PLATFORM_ICONS[wizardPlatform]}
+                    </div>
+                    <div>
+                      <span className="font-medium dark:text-white capitalize">{wizardPlatform}</span>
+                      {wizardContent?.bestPostingTime && (
+                        <p className="text-xs text-gray-500">
+                          Geplant: {wizardContent.bestPostingTime.day} um {wizardContent.bestPostingTime.time}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="dark:text-white whitespace-pre-wrap">{wizardEditedContent}</p>
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {wizardContent?.post.hashtags.map(tag => (
+                      <span key={tag} className="text-sm text-blue-600 dark:text-blue-400">#{tag}</span>
+                    ))}
+                  </div>
+                  {wizardContent?.post.callToAction && (
+                    <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                      <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
+                        Call-to-Action: {wizardContent.post.callToAction}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Analysis Summary */}
+              {wizardAnalysis && (
+                <div className="flex items-center justify-center gap-6 p-4 bg-gray-50 dark:bg-dark-200 rounded-xl">
+                  <div className="text-center">
+                    <div className={`text-3xl font-bold ${wizardAnalysis.overallScore >= 80 ? 'text-green-600' : wizardAnalysis.overallScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                      {wizardAnalysis.overallScore}
+                    </div>
+                    <div className="text-xs text-gray-500">Qualitäts-Score</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-purple-600">{wizardAnalysis.viralPotential || 0}</div>
+                    <div className="text-xs text-gray-500">Viral-Potenzial</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{wizardAnalysis.emotionalTone}</div>
+                    <div className="text-xs text-gray-500">Emotionale Tonalität</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-between pt-4">
+                <button
+                  onClick={() => setWizardStep(wizardIncludeImage ? 'image' : 'analyze')}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
+                >
+                  Zurück
+                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={async () => {
+                      // Save as draft
+                      try {
+                        await socialMediaApi.createPost({
+                          content: wizardEditedContent,
+                          platforms: [wizardPlatform],
+                          hashtags: wizardContent?.post.hashtags || [],
+                          mediaUrls: wizardGeneratedImage ? [wizardGeneratedImage.url] : [],
+                          aiGenerated: true,
+                          aiPrompt: wizardTopic
+                        });
+                        setShowContentWizard(false);
+                        loadData();
+                      } catch (err: any) {
+                        setError(err.message);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-200"
+                  >
+                    <Edit2 size={18} />
+                    Als Entwurf speichern
+                  </button>
+                  <button
+                    onClick={async () => {
+                      // Schedule post
+                      try {
+                        const scheduledAt = new Date();
+                        if (wizardContent?.bestPostingTime) {
+                          // Parse best posting time
+                          const [hours, minutes] = wizardContent.bestPostingTime.time.split(':').map(Number);
+                          scheduledAt.setHours(hours, minutes, 0, 0);
+                          // If time has passed, schedule for tomorrow
+                          if (scheduledAt <= new Date()) {
+                            scheduledAt.setDate(scheduledAt.getDate() + 1);
+                          }
+                        } else {
+                          scheduledAt.setDate(scheduledAt.getDate() + 1);
+                          scheduledAt.setHours(9, 0, 0, 0);
+                        }
+
+                        await socialMediaApi.createPost({
+                          content: wizardEditedContent,
+                          platforms: [wizardPlatform],
+                          hashtags: wizardContent?.post.hashtags || [],
+                          mediaUrls: wizardGeneratedImage ? [wizardGeneratedImage.url] : [],
+                          aiGenerated: true,
+                          aiPrompt: wizardTopic,
+                          scheduledAt: scheduledAt.toISOString()
+                        });
+                        setShowContentWizard(false);
+                        loadData();
+                      } catch (err: any) {
+                        setError(err.message);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:opacity-90 font-medium"
+                  >
+                    <Send size={18} />
+                    Planen & Veröffentlichen
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </Modal>

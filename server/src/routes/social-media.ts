@@ -2551,4 +2551,124 @@ router.post('/story-templates', authenticateToken, attachOrganization, requireOr
   }
 });
 
+// ============================================
+// Content Wizard Routes (Marketing Expert AI)
+// ============================================
+
+// POST /api/social-media/wizard/analyze - Analyze content with marketing expert
+router.post('/wizard/analyze', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { content, platform, goal, targetAudience } = req.body;
+
+    if (!content || !platform || !goal) {
+      return res.status(400).json({
+        error: 'Content, platform, and goal are required'
+      });
+    }
+
+    const analysis = await aiService.analyzeContentAsExpert(
+      userId,
+      content,
+      platform,
+      goal,
+      targetAudience
+    );
+
+    res.json(analysis);
+  } catch (error: any) {
+    console.error('Analyze content error:', error);
+    res.status(500).json({ error: error.message || 'Failed to analyze content' });
+  }
+});
+
+// POST /api/social-media/wizard/generate - Generate complete content package
+router.post('/wizard/generate', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const {
+      topic,
+      platform,
+      goal,
+      targetAudience,
+      tone,
+      includeImage,
+      includeHashtags,
+      contentLength
+    } = req.body;
+
+    if (!topic || !platform || !goal) {
+      return res.status(400).json({
+        error: 'Topic, platform, and goal are required'
+      });
+    }
+
+    const content = await aiService.generateWizardContent(userId, {
+      topic,
+      platform,
+      goal,
+      targetAudience,
+      tone,
+      includeImage: includeImage ?? true,
+      includeHashtags: includeHashtags ?? true,
+      contentLength: contentLength || 'medium'
+    });
+
+    res.json(content);
+  } catch (error: any) {
+    console.error('Generate wizard content error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate content' });
+  }
+});
+
+// POST /api/social-media/wizard/improve - Improve content based on feedback focus
+router.post('/wizard/improve', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { content, platform, improvementFocus } = req.body;
+
+    if (!content || !platform || !improvementFocus) {
+      return res.status(400).json({
+        error: 'Content, platform, and improvementFocus are required'
+      });
+    }
+
+    const improved = await aiService.improveContentWithExpert(
+      userId,
+      content,
+      platform,
+      improvementFocus
+    );
+
+    res.json(improved);
+  } catch (error: any) {
+    console.error('Improve content error:', error);
+    res.status(500).json({ error: error.message || 'Failed to improve content' });
+  }
+});
+
+// POST /api/social-media/wizard/generate-image - Generate image for content
+router.post('/wizard/generate-image', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { prompt, aspectRatio, style, quality } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    const image = await aiService.generateImage(userId, {
+      prompt,
+      aspectRatio: aspectRatio || '1:1',
+      style: style || 'modern',
+      quality: quality || 'standard'
+    });
+
+    res.json(image);
+  } catch (error: any) {
+    console.error('Generate wizard image error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate image' });
+  }
+});
+
 export default router;

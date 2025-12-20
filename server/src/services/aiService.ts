@@ -1956,7 +1956,7 @@ WICHTIG: Antworte NUR im JSON-Format:
 
 export interface ImageGenerationOptions {
   prompt: string;
-  provider: 'openai' | 'stability';
+  provider?: 'openai' | 'stability';
   style?: 'modern' | 'minimalist' | 'vibrant' | 'professional' | 'artistic' | 'photorealistic';
   aspectRatio: '1:1' | '9:16' | '16:9' | '4:5';
   quality?: 'standard' | 'hd';
@@ -2255,5 +2255,318 @@ WICHTIG: Antworte NUR im JSON-Format:
   } catch (error) {
     console.error('Failed to parse image prompt suggestions:', error);
     throw new Error('Fehler beim Generieren der Bildvorschläge');
+  }
+}
+
+// ============================================
+// Marketing Expert AI - Critical Analysis
+// ============================================
+
+const MARKETING_EXPERT_PROMPT = `Du bist ein erfahrener Social Media Marketing-Experte mit 15+ Jahren Erfahrung. Du analysierst Content kritisch und ehrlich - kein Sugarcoating. Du gibst konkretes, umsetzbares Feedback das die Performance verbessert.
+
+Deine Expertise umfasst:
+- Virale Content-Strategien
+- Plattform-spezifische Best Practices
+- Psychologie der Engagement-Trigger
+- Hook-Optimierung (erste 3 Sekunden/Zeilen)
+- Call-to-Action Formulierung
+- Hashtag-Strategien
+- Posting-Zeiten und Algorithmus-Verständnis`;
+
+export interface MarketingAnalysis {
+  overallScore: number; // 1-10
+  strengths: string[];
+  weaknesses: string[];
+  criticalIssues: string[];
+  improvements: Array<{
+    aspect: string;
+    current: string;
+    improved: string;
+    reason: string;
+  }>;
+  hookAnalysis: {
+    score: number;
+    feedback: string;
+    suggestedHook: string;
+  };
+  ctaAnalysis: {
+    hasEffectiveCTA: boolean;
+    feedback: string;
+    suggestedCTA: string;
+  };
+  platformFit: {
+    score: number;
+    feedback: string;
+  };
+  predictedEngagement: 'low' | 'medium' | 'high' | 'viral-potential';
+  finalRecommendation: string;
+}
+
+/**
+ * Analyze content like a marketing expert - critical and honest
+ */
+export async function analyzeContentAsExpert(
+  userId: string,
+  content: string,
+  platform: string,
+  goal: 'reach' | 'engagement' | 'leads' | 'branding',
+  targetAudience?: string
+): Promise<MarketingAnalysis> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.apiKey) {
+    throw new Error('AI-Konfiguration nicht gefunden');
+  }
+
+  const goalDescriptions: Record<string, string> = {
+    reach: 'Maximale Reichweite und Sichtbarkeit',
+    engagement: 'Likes, Kommentare, Shares - Community-Interaktion',
+    leads: 'Leads generieren, Newsletter-Anmeldungen, Website-Traffic',
+    branding: 'Markenbekanntheit und Positionierung stärken'
+  };
+
+  const prompt = `Analysiere diesen Social Media Post kritisch und ehrlich. Sei ein strenger aber fairer Experte.
+
+PLATTFORM: ${platform}
+ZIEL: ${goalDescriptions[goal]}
+${targetAudience ? `ZIELGRUPPE: ${targetAudience}` : ''}
+
+POST:
+"""
+${content}
+"""
+
+Analysiere nach diesen Kriterien:
+1. HOOK: Sind die ersten Zeilen stark genug um Scroll-Stopper zu sein?
+2. WERT: Bietet der Post echten Mehrwert für die Zielgruppe?
+3. EMOTION: Löst er eine emotionale Reaktion aus?
+4. CTA: Ist der Call-to-Action klar und motivierend?
+5. PLATTFORM-FIT: Passt Format/Länge/Stil zur Plattform?
+6. AUTHENTIZITÄT: Wirkt es authentisch oder wie Corporate-Blabla?
+
+SEI KRITISCH! Nenne konkrete Probleme und wie man sie behebt.
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "overallScore": 7,
+  "strengths": ["Stärke 1", "Stärke 2"],
+  "weaknesses": ["Schwäche 1", "Schwäche 2"],
+  "criticalIssues": ["Kritisches Problem falls vorhanden"],
+  "improvements": [
+    {
+      "aspect": "Hook",
+      "current": "Aktuelle Formulierung",
+      "improved": "Verbesserte Formulierung",
+      "reason": "Warum das besser ist"
+    }
+  ],
+  "hookAnalysis": {
+    "score": 6,
+    "feedback": "Ehrliches Feedback zum Hook",
+    "suggestedHook": "Besserer Hook-Vorschlag"
+  },
+  "ctaAnalysis": {
+    "hasEffectiveCTA": false,
+    "feedback": "Feedback zum CTA",
+    "suggestedCTA": "Besserer CTA"
+  },
+  "platformFit": {
+    "score": 8,
+    "feedback": "Wie gut passt es zur Plattform"
+  },
+  "predictedEngagement": "medium",
+  "finalRecommendation": "Zusammenfassende Empfehlung in 1-2 Sätzen"
+}`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(config.apiKey, config.model, prompt, 2000, 0.7, MARKETING_EXPERT_PROMPT);
+  } else {
+    result = await callOpenAI(config.apiKey, config.model, prompt, 2000, 0.7, MARKETING_EXPERT_PROMPT);
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    return JSON.parse(jsonStr) as MarketingAnalysis;
+  } catch (error) {
+    console.error('Failed to parse marketing analysis:', error);
+    throw new Error('Fehler bei der Marketing-Analyse');
+  }
+}
+
+export interface WizardContentGeneration {
+  post: {
+    content: string;
+    hashtags: string[];
+    hook: string;
+    cta: string;
+  };
+  imagePrompt: string;
+  imageSuggestions: string[];
+  bestPostingTimes: string[];
+  contentTips: string[];
+  alternativeVersions: Array<{
+    style: string;
+    content: string;
+  }>;
+}
+
+// Wizard options type
+export interface WizardOptions {
+  topic: string;
+  platform: string;
+  goal: string;
+  targetAudience?: string;
+  brandVoice?: string;
+  contentType?: 'educational' | 'promotional' | 'entertaining' | 'inspirational' | 'behind-the-scenes';
+  tone?: string;
+  includeImage?: boolean;
+  includeHashtags?: boolean;
+  contentLength?: 'short' | 'medium' | 'long';
+}
+
+/**
+ * Generate complete content package for the wizard
+ */
+export async function generateWizardContent(
+  userId: string,
+  options: WizardOptions
+): Promise<WizardContentGeneration> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.apiKey) {
+    throw new Error('AI-Konfiguration nicht gefunden');
+  }
+
+  const contentLength = options.contentLength || 'medium';
+  const lengthInstructions = {
+    short: 'Kurz und prägnant (max. 150 Wörter)',
+    medium: 'Mittlere Länge (150-300 Wörter)',
+    long: 'Ausführlich und detailliert (300+ Wörter)'
+  };
+
+  const prompt = `Erstelle einen perfekten Social Media Post als Marketing-Experte für maximale Lead-Generierung und Conversions.
+
+THEMA: ${options.topic}
+PLATTFORM: ${options.platform}
+ZIEL: ${options.goal}
+${options.contentType ? `CONTENT-TYP: ${options.contentType}` : ''}
+${options.tone ? `TONALITÄT: ${options.tone}` : ''}
+${options.targetAudience ? `ZIELGRUPPE: ${options.targetAudience}` : ''}
+${options.brandVoice ? `MARKENSTIMME: ${options.brandVoice}` : ''}
+LÄNGE: ${lengthInstructions[contentLength]}
+
+Erstelle einen Post der:
+1. Mit einem unwiderstehlichen Hook beginnt (Scroll-Stopper!)
+2. Echten Mehrwert bietet
+3. Emotional resoniert
+4. Einen klaren, motivierenden CTA hat
+5. Perfekt zur Plattform passt
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "post": {
+    "content": "Der komplette Post-Text mit Zeilenumbrüchen",
+    "hashtags": ["hashtag1", "hashtag2", "hashtag3"],
+    "hook": "Die ersten 1-2 Zeilen separat",
+    "cta": "Der Call-to-Action separat"
+  },
+  "imagePrompt": "Detaillierter englischer Prompt für DALL-E Bildgenerierung",
+  "imageSuggestions": ["Bildidee 1", "Bildidee 2", "Bildidee 3"],
+  "bestPostingTimes": ["Dienstag 9:00", "Donnerstag 12:00"],
+  "contentTips": ["Tipp 1 für diesen Post", "Tipp 2"],
+  "alternativeVersions": [
+    {
+      "style": "Mehr humorvoll",
+      "content": "Alternative Version des Posts"
+    },
+    {
+      "style": "Mehr emotional",
+      "content": "Andere Alternative"
+    }
+  ]
+}`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(config.apiKey, config.model, prompt, 3000, 0.8, MARKETING_EXPERT_PROMPT);
+  } else {
+    result = await callOpenAI(config.apiKey, config.model, prompt, 3000, 0.8, MARKETING_EXPERT_PROMPT);
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    return JSON.parse(jsonStr) as WizardContentGeneration;
+  } catch (error) {
+    console.error('Failed to parse wizard content:', error);
+    throw new Error('Fehler bei der Content-Generierung');
+  }
+}
+
+/**
+ * Improve content based on expert feedback
+ */
+export async function improveContentWithExpert(
+  userId: string,
+  originalContent: string,
+  platform: string,
+  improvementFocus: string
+): Promise<{ improvedContent: string; changes: string[] }> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.apiKey) {
+    throw new Error('AI-Konfiguration nicht gefunden');
+  }
+
+  const focusDescriptions: Record<string, string> = {
+    hook: 'Verbessere den Hook - mache die ersten Zeilen unwiderstehlich',
+    cta: 'Optimiere den Call-to-Action - mache ihn klar und motivierend',
+    value: 'Erhöhe den Mehrwert - was lernt/gewinnt der Leser?',
+    emotion: 'Verstärke die emotionale Resonanz',
+    all: 'Optimiere alle Aspekte für maximale Performance'
+  };
+
+  // Use predefined description if available, otherwise use the focus as-is
+  const focusDescription = focusDescriptions[improvementFocus] || `Verbessere: ${improvementFocus}`;
+
+  const prompt = `Verbessere diesen Social Media Post für ${platform}.
+
+FOKUS: ${focusDescription}
+
+ORIGINAL:
+"""
+${originalContent}
+"""
+
+Verbessere den Post signifikant. Behalte die Kernaussage, aber mache ihn viral-würdig.
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "improvedContent": "Der verbesserte Post-Text",
+  "changes": [
+    "Was wurde geändert und warum 1",
+    "Was wurde geändert und warum 2"
+  ]
+}`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(config.apiKey, config.model, prompt, 1500, 0.7, MARKETING_EXPERT_PROMPT);
+  } else {
+    result = await callOpenAI(config.apiKey, config.model, prompt, 1500, 0.7, MARKETING_EXPERT_PROMPT);
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    return JSON.parse(jsonStr) as { improvedContent: string; changes: string[] };
+  } catch (error) {
+    console.error('Failed to parse improvement:', error);
+    throw new Error('Fehler bei der Verbesserung');
   }
 }
