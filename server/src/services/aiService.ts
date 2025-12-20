@@ -2400,17 +2400,27 @@ export interface WizardContentGeneration {
   post: {
     content: string;
     hashtags: string[];
-    hook: string;
-    cta: string;
+    callToAction: string;
   };
-  imagePrompt: string;
-  imageSuggestions: string[];
-  bestPostingTimes: string[];
-  contentTips: string[];
-  alternativeVersions: Array<{
-    style: string;
+  alternatives: Array<{
     content: string;
+    style: string;
   }>;
+  imagePrompt?: {
+    prompt: string;
+    style: string;
+    description: string;
+  };
+  bestPostingTime: {
+    day: string;
+    time: string;
+    reason: string;
+  };
+  contentAnalysis: {
+    emotionalTone: string;
+    expectedEngagement: 'low' | 'medium' | 'high';
+    targetAudienceMatch: number;
+  };
 }
 
 // Wizard options type
@@ -2469,23 +2479,33 @@ WICHTIG: Antworte NUR im JSON-Format:
   "post": {
     "content": "Der komplette Post-Text mit Zeilenumbrüchen",
     "hashtags": ["hashtag1", "hashtag2", "hashtag3"],
-    "hook": "Die ersten 1-2 Zeilen separat",
-    "cta": "Der Call-to-Action separat"
+    "callToAction": "Der Call-to-Action Text"
   },
-  "imagePrompt": "Detaillierter englischer Prompt für DALL-E Bildgenerierung",
-  "imageSuggestions": ["Bildidee 1", "Bildidee 2", "Bildidee 3"],
-  "bestPostingTimes": ["Dienstag 9:00", "Donnerstag 12:00"],
-  "contentTips": ["Tipp 1 für diesen Post", "Tipp 2"],
-  "alternativeVersions": [
+  "alternatives": [
     {
-      "style": "Mehr humorvoll",
-      "content": "Alternative Version des Posts"
+      "content": "Alternative Version 1 des Posts",
+      "style": "Mehr humorvoll"
     },
     {
-      "style": "Mehr emotional",
-      "content": "Andere Alternative"
+      "content": "Alternative Version 2 des Posts",
+      "style": "Mehr emotional"
     }
-  ]
+  ],
+  "imagePrompt": {
+    "prompt": "Detaillierter englischer Prompt für DALL-E Bildgenerierung, professional, corporate style",
+    "style": "modern",
+    "description": "Kurze Beschreibung was das Bild zeigen soll"
+  },
+  "bestPostingTime": {
+    "day": "Dienstag",
+    "time": "09:00",
+    "reason": "Höchste Engagement-Rate für B2B-Content"
+  },
+  "contentAnalysis": {
+    "emotionalTone": "Inspirierend und professionell",
+    "expectedEngagement": "high",
+    "targetAudienceMatch": 85
+  }
 }`;
 
   let result: { content: string; tokensUsed: number };

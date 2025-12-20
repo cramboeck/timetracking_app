@@ -4035,12 +4035,12 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     Generierter Content
                   </h3>
                   <div className="flex items-center gap-2">
-                    {wizardContent.alternatives.map((_, idx) => (
+                    {(wizardContent.alternatives || []).length > 0 && [wizardContent, ...wizardContent.alternatives].map((_, idx) => (
                       <button
                         key={idx}
                         onClick={() => {
                           setWizardSelectedAlternative(idx);
-                          setWizardEditedContent(idx === 0 ? wizardContent.post.content : wizardContent.alternatives[idx - 1]?.content || wizardContent.post.content);
+                          setWizardEditedContent(idx === 0 ? wizardContent.post?.content || '' : wizardContent.alternatives?.[idx - 1]?.content || wizardContent.post?.content || '');
                         }}
                         className={`px-3 py-1 rounded-full text-sm ${
                           wizardSelectedAlternative === idx
@@ -4060,7 +4060,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   rows={6}
                 />
                 <div className="flex flex-wrap gap-2 mt-3">
-                  {wizardContent.post.hashtags.map(tag => (
+                  {(wizardContent.post?.hashtags || []).map(tag => (
                     <span key={tag} className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-sm">
                       #{tag}
                     </span>
@@ -4393,7 +4393,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   </div>
                   <p className="dark:text-white whitespace-pre-wrap">{wizardEditedContent}</p>
                   <div className="flex flex-wrap gap-2 mt-4">
-                    {wizardContent?.post.hashtags.map(tag => (
+                    {(wizardContent?.post?.hashtags || []).map(tag => (
                       <span key={tag} className="text-sm text-blue-600 dark:text-blue-400">#{tag}</span>
                     ))}
                   </div>
@@ -4443,7 +4443,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         await socialMediaApi.createPost({
                           content: wizardEditedContent,
                           platforms: [wizardPlatform],
-                          hashtags: wizardContent?.post.hashtags || [],
+                          hashtags: wizardContent?.post?.hashtags || [],
                           mediaUrls: wizardGeneratedImage ? [wizardGeneratedImage.url] : [],
                           aiGenerated: true,
                           aiPrompt: wizardTopic
@@ -4480,7 +4480,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         await socialMediaApi.createPost({
                           content: wizardEditedContent,
                           platforms: [wizardPlatform],
-                          hashtags: wizardContent?.post.hashtags || [],
+                          hashtags: wizardContent?.post?.hashtags || [],
                           mediaUrls: wizardGeneratedImage ? [wizardGeneratedImage.url] : [],
                           aiGenerated: true,
                           aiPrompt: wizardTopic,
