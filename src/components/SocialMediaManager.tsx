@@ -5796,11 +5796,49 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   {/* Improvement Suggestions */}
                   {wizardAnalysis.improvements?.length > 0 && (
                     <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-4 mb-4">
-                      <h4 className="text-sm font-medium dark:text-white flex items-center gap-2 mb-3">
-                        <Wand2 size={16} className="text-purple-600" />
-                        Konkrete Verbesserungsvorschläge
-                      </h4>
-                      <div className="space-y-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium dark:text-white flex items-center gap-2">
+                          <Wand2 size={16} className="text-purple-600" />
+                          Verbesserungsvorschläge
+                        </h4>
+                        {/* Main improve button - improves entire text */}
+                        <button
+                          onClick={async () => {
+                            setWizardImproving(true);
+                            try {
+                              const improved = await socialMediaApi.improveContent({
+                                content: wizardEditedContent,
+                                platform: wizardPlatform,
+                                improvementFocus: 'all'
+                              });
+                              setWizardImprovement(improved);
+                              setWizardEditedContent(improved.improvedContent);
+                              // Re-analyze
+                              const analysis = await socialMediaApi.analyzeContent({
+                                content: improved.improvedContent,
+                                platform: wizardPlatform,
+                                goal: wizardGoal,
+                                targetAudience: wizardTargetAudience
+                              });
+                              setWizardAnalysis(analysis);
+                            } catch (err: any) {
+                              setError(err.message);
+                            } finally {
+                              setWizardImproving(false);
+                            }
+                          }}
+                          disabled={wizardImproving}
+                          className="text-xs bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-1.5 rounded-full flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 font-medium"
+                        >
+                          {wizardImproving ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <Sparkles size={12} />
+                          )}
+                          Alles verbessern
+                        </button>
+                      </div>
+                      <div className="space-y-2">
                         {wizardAnalysis.improvements.map((imp, i) => (
                           <div key={i} className="border border-gray-200 dark:border-dark-100 rounded-lg p-3 hover:border-purple-300 transition-colors">
                             <div className="flex items-start gap-3">
@@ -5809,63 +5847,49 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                                 imp.priority === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
                                 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
                               }`}>
-                                {imp.priority === 'high' ? '🔥 Hoch' : imp.priority === 'medium' ? '⚡ Mittel' : 'Niedrig'}
+                                {imp.priority === 'high' ? '🔥' : imp.priority === 'medium' ? '⚡' : '○'}
                               </span>
                               <div className="flex-1">
-                                <p className="text-sm font-medium dark:text-white">{imp.area}</p>
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-medium dark:text-white">{imp.area}</p>
+                                  {/* Button to improve just this area */}
+                                  <button
+                                    onClick={async () => {
+                                      setWizardImproving(true);
+                                      try {
+                                        const improved = await socialMediaApi.improveContent({
+                                          content: wizardEditedContent,
+                                          platform: wizardPlatform,
+                                          improvementFocus: imp.area?.toLowerCase() || 'all'
+                                        });
+                                        setWizardImprovement(improved);
+                                        setWizardEditedContent(improved.improvedContent);
+                                        // Re-analyze
+                                        const analysis = await socialMediaApi.analyzeContent({
+                                          content: improved.improvedContent,
+                                          platform: wizardPlatform,
+                                          goal: wizardGoal,
+                                          targetAudience: wizardTargetAudience
+                                        });
+                                        setWizardAnalysis(analysis);
+                                      } catch (err: any) {
+                                        setError(err.message);
+                                      } finally {
+                                        setWizardImproving(false);
+                                      }
+                                    }}
+                                    disabled={wizardImproving}
+                                    className="text-[10px] bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded flex items-center gap-1 hover:bg-purple-200 disabled:opacity-50"
+                                  >
+                                    <Wand2 size={10} />
+                                    Verbessern
+                                  </button>
+                                </div>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{imp.suggestion}</p>
                                 {imp.improvedExample && (
-                                  <div className="mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2">
-                                    <p className="text-xs text-gray-500 mb-1">Vorschlag:</p>
-                                    <p className="text-sm text-green-800 dark:text-green-300 italic">"{imp.improvedExample}"</p>
-                                    <div className="flex gap-2 mt-2 flex-wrap">
-                                      {/* Hook suggestions go at the beginning */}
-                                      {imp.area?.toLowerCase().includes('hook') || imp.area?.toLowerCase().includes('einstieg') || imp.area?.toLowerCase().includes('anfang') ? (
-                                        <button
-                                          onClick={() => {
-                                            setWizardEditedContent(prev => imp.improvedExample! + '\n\n' + prev);
-                                          }}
-                                          className="text-xs bg-green-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-green-700"
-                                        >
-                                          <ArrowUp size={12} />
-                                          Als Hook verwenden
-                                        </button>
-                                      ) : imp.area?.toLowerCase().includes('cta') || imp.area?.toLowerCase().includes('call') || imp.area?.toLowerCase().includes('handlung') ? (
-                                        /* CTA suggestions go at the end */
-                                        <button
-                                          onClick={() => {
-                                            setWizardEditedContent(prev => prev + '\n\n' + imp.improvedExample!);
-                                          }}
-                                          className="text-xs bg-green-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-green-700"
-                                        >
-                                          <ArrowDown size={12} />
-                                          Als CTA anhängen
-                                        </button>
-                                      ) : (
-                                        /* Other suggestions: give user choice */
-                                        <>
-                                          <button
-                                            onClick={() => {
-                                              setWizardEditedContent(prev => imp.improvedExample! + '\n\n' + prev);
-                                            }}
-                                            className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full flex items-center gap-1 hover:bg-blue-200"
-                                          >
-                                            <ArrowUp size={12} />
-                                            Am Anfang
-                                          </button>
-                                          <button
-                                            onClick={() => {
-                                              setWizardEditedContent(prev => prev + '\n\n' + imp.improvedExample!);
-                                            }}
-                                            className="text-xs bg-green-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-green-700"
-                                          >
-                                            <ArrowDown size={12} />
-                                            Am Ende
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
+                                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 italic">
+                                    💡 Beispiel: "{imp.improvedExample}"
+                                  </p>
                                 )}
                               </div>
                             </div>
@@ -5875,12 +5899,12 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     </div>
                   )}
 
-                  {/* CTA Suggestions */}
+                  {/* CTA Suggestions - these ARE meant to be appended */}
                   {wizardAnalysis.callToActionEffectiveness?.suggestions?.length > 0 && (
                     <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
                       <h4 className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-2">
                         <MousePointer size={14} />
-                        CTA-Vorschläge
+                        CTA-Vorschläge zum Anhängen
                       </h4>
                       <div className="flex flex-wrap gap-2">
                         {wizardAnalysis.callToActionEffectiveness.suggestions.map((cta, i) => (
