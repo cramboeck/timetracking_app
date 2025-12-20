@@ -5666,12 +5666,41 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     rows={10}
                     placeholder="Bearbeite deinen Content hier..."
                   />
-                  <div className="flex flex-wrap gap-1.5 mt-3">
-                    {(wizardContent.post?.hashtags || []).map(tag => (
-                      <span key={tag} className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs">
-                        #{tag}
-                      </span>
-                    ))}
+                  <div className="flex items-center justify-between mt-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {(wizardContent.post?.hashtags || []).map(tag => (
+                        <span key={tag} className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setWizardAnalyzing(true);
+                        try {
+                          const newAnalysis = await socialMediaApi.analyzeContent({
+                            content: wizardEditedContent,
+                            platform: wizardPlatform,
+                            goal: wizardGoal,
+                            targetAudience: wizardTargetAudience
+                          });
+                          setWizardAnalysis(newAnalysis);
+                        } catch (err) {
+                          console.error('Re-analysis failed:', err);
+                        } finally {
+                          setWizardAnalyzing(false);
+                        }
+                      }}
+                      disabled={wizardAnalyzing}
+                      className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-purple-700 disabled:opacity-50"
+                    >
+                      {wizardAnalyzing ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={12} />
+                      )}
+                      Neu analysieren
+                    </button>
                   </div>
                 </div>
 
@@ -5767,42 +5796,10 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   {/* Improvement Suggestions */}
                   {wizardAnalysis.improvements?.length > 0 && (
                     <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-4 mb-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-medium dark:text-white flex items-center gap-2">
-                          <Wand2 size={16} className="text-purple-600" />
-                          Konkrete Verbesserungsvorschläge
-                        </h4>
-                        {wizardAnalysis.improvements.filter(imp => imp.improvedExample).length > 1 && (
-                          <button
-                            onClick={async () => {
-                              // Apply best improvement and re-analyze
-                              const bestImprovement = wizardAnalysis.improvements.find(imp => imp.priority === 'high' && imp.improvedExample);
-                              if (bestImprovement?.improvedExample) {
-                                setWizardEditedContent(bestImprovement.improvedExample);
-                                // Trigger re-analysis
-                                setWizardAnalyzing(true);
-                                try {
-                                  const newAnalysis = await socialMediaApi.analyzeContent({
-                                    content: bestImprovement.improvedExample,
-                                    platform: wizardPlatform,
-                                    goal: wizardGoal,
-                                    targetAudience: wizardTargetAudience
-                                  });
-                                  setWizardAnalysis(newAnalysis);
-                                } catch (err) {
-                                  console.error('Re-analysis failed:', err);
-                                } finally {
-                                  setWizardAnalyzing(false);
-                                }
-                              }
-                            }}
-                            className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-1 rounded-full flex items-center gap-1 hover:bg-purple-200"
-                          >
-                            <Zap size={12} />
-                            Beste übernehmen & neu analysieren
-                          </button>
-                        )}
-                      </div>
+                      <h4 className="text-sm font-medium dark:text-white flex items-center gap-2 mb-3">
+                        <Wand2 size={16} className="text-purple-600" />
+                        Konkrete Verbesserungsvorschläge
+                      </h4>
                       <div className="space-y-3">
                         {wizardAnalysis.improvements.map((imp, i) => (
                           <div key={i} className="border border-gray-200 dark:border-dark-100 rounded-lg p-3 hover:border-purple-300 transition-colors">
@@ -5819,31 +5816,17 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{imp.suggestion}</p>
                                 {imp.improvedExample && (
                                   <div className="mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2">
-                                    <p className="text-xs text-gray-500 mb-1">Verbesserter Text:</p>
+                                    <p className="text-xs text-gray-500 mb-1">Vorschlag:</p>
                                     <p className="text-sm text-green-800 dark:text-green-300 italic">"{imp.improvedExample}"</p>
                                     <button
-                                      onClick={async () => {
-                                        setWizardEditedContent(imp.improvedExample!);
-                                        // Re-analyze after applying
-                                        setWizardAnalyzing(true);
-                                        try {
-                                          const newAnalysis = await socialMediaApi.analyzeContent({
-                                            content: imp.improvedExample!,
-                                            platform: wizardPlatform,
-                                            goal: wizardGoal,
-                                            targetAudience: wizardTargetAudience
-                                          });
-                                          setWizardAnalysis(newAnalysis);
-                                        } catch (err) {
-                                          console.error('Re-analysis failed:', err);
-                                        } finally {
-                                          setWizardAnalyzing(false);
-                                        }
+                                      onClick={() => {
+                                        // Append to existing content
+                                        setWizardEditedContent(prev => prev + '\n\n' + imp.improvedExample!);
                                       }}
                                       className="mt-2 text-xs bg-green-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-green-700"
                                     >
-                                      <Check size={12} />
-                                      Übernehmen & neu analysieren
+                                      <Plus size={12} />
+                                      In Text einfügen
                                     </button>
                                   </div>
                                 )}
