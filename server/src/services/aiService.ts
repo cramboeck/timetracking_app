@@ -1949,3 +1949,311 @@ WICHTIG: Antworte NUR im JSON-Format:
     throw new Error('Fehler beim Generieren der Engagement-Antworten');
   }
 }
+
+// ============================================
+// AI Image Generation
+// ============================================
+
+export interface ImageGenerationOptions {
+  prompt: string;
+  provider: 'openai' | 'stability';
+  style?: 'modern' | 'minimalist' | 'vibrant' | 'professional' | 'artistic' | 'photorealistic';
+  aspectRatio: '1:1' | '9:16' | '16:9' | '4:5';
+  quality?: 'standard' | 'hd';
+}
+
+export interface GeneratedImage {
+  url: string;
+  revisedPrompt?: string;
+  provider: string;
+  model: string;
+  costCents: number;
+}
+
+const STYLE_DESCRIPTIONS: Record<string, string> = {
+  modern: 'Clean, contemporary design with bold colors and geometric shapes',
+  minimalist: 'Simple, elegant with lots of whitespace and subtle tones',
+  vibrant: 'Energetic, colorful with high contrast and dynamic elements',
+  professional: 'Polished, business-appropriate with refined aesthetics',
+  artistic: 'Creative, expressive with artistic flair and unique textures',
+  photorealistic: 'Ultra-realistic, photographic quality with natural lighting',
+};
+
+const ASPECT_RATIO_SIZES: Record<string, { openai: string; stability: { width: number; height: number } }> = {
+  '1:1': { openai: '1024x1024', stability: { width: 1024, height: 1024 } },
+  '9:16': { openai: '1024x1792', stability: { width: 768, height: 1344 } },
+  '16:9': { openai: '1792x1024', stability: { width: 1344, height: 768 } },
+  '4:5': { openai: '1024x1024', stability: { width: 896, height: 1120 } },
+};
+
+/**
+ * Generate an image using OpenAI's DALL-E 3
+ */
+async function generateImageWithOpenAI(
+  apiKey: string,
+  prompt: string,
+  size: string,
+  quality: 'standard' | 'hd'
+): Promise<GeneratedImage> {
+  const response = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'dall-e-3',
+      prompt,
+      n: 1,
+      size,
+      quality,
+      response_format: 'url',
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`OpenAI API Error: ${error.error?.message || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+  const costCents = quality === 'hd' ? 12 : 4; // DALL-E 3 pricing
+
+  return {
+    url: data.data[0].url,
+    revisedPrompt: data.data[0].revised_prompt,
+    provider: 'openai',
+    model: 'dall-e-3',
+    costCents,
+  };
+}
+
+/**
+ * Generate an image using Stability AI (Stable Diffusion)
+ */
+async function generateImageWithStability(
+  apiKey: string,
+  prompt: string,
+  width: number,
+  height: number
+): Promise<GeneratedImage> {
+  const response = await fetch('https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      text_prompts: [{ text: prompt, weight: 1 }],
+      cfg_scale: 7,
+      width,
+      height,
+      samples: 1,
+      steps: 30,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Stability API Error: ${error.message || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+
+  return {
+    url: `data:image/png;base64,${data.artifacts[0].base64}`,
+    provider: 'stability',
+    model: 'stable-diffusion-xl-1024-v1-0',
+    costCents: 2, // Approximate cost per image
+  };
+}
+
+/**
+ * Generate an AI image with the specified options
+ */
+export async function generateImage(
+  userId: string,
+  options: ImageGenerationOptions
+): Promise<GeneratedImage> {
+  // Get AI config for the API key
+  const config = await getAIConfig(userId);
+  if (!config || !config.apiKey) {
+    throw new Error('AI-Konfiguration nicht gefunden. Bitte API-Schlüssel in den Einstellungen hinterlegen.');
+  }
+
+  // Build the enhanced prompt
+  const styleDesc = STYLE_DESCRIPTIONS[options.style || 'modern'];
+  const enhancedPrompt = `${options.prompt}. Style: ${styleDesc}. High quality, professional, suitable for social media.`;
+
+  if (options.provider === 'stability') {
+    const size = ASPECT_RATIO_SIZES[options.aspectRatio].stability;
+    // For Stability, you'd need a separate API key - for now, we'll use OpenAI
+    // In production, you'd get the Stability API key from a separate config
+    throw new Error('Stability AI erfordert einen separaten API-Schlüssel. Bitte OpenAI verwenden.');
+  }
+
+  // Default to OpenAI DALL-E 3
+  const size = ASPECT_RATIO_SIZES[options.aspectRatio].openai;
+  return generateImageWithOpenAI(config.apiKey, enhancedPrompt, size, options.quality || 'hd');
+}
+
+// ============================================
+// Story Content Generation
+// ============================================
+
+export interface StoryGenerationOptions {
+  topic: string;
+  platform: 'instagram' | 'facebook' | 'linkedin';
+  storyType: 'promotional' | 'educational' | 'behind-the-scenes' | 'announcement' | 'poll' | 'quote';
+  brandVoice?: string;
+  targetAudience?: string;
+  includeCallToAction?: boolean;
+}
+
+export interface GeneratedStory {
+  title: string;
+  textOverlays: Array<{
+    text: string;
+    position: 'top' | 'center' | 'bottom';
+    style: 'bold' | 'normal' | 'highlight';
+  }>;
+  imagePrompt: string;
+  imageSuggestions: string[];
+  backgroundColor: string;
+  callToAction?: string;
+  hashtags: string[];
+  musicSuggestion?: string;
+  stickers: string[];
+}
+
+const STORY_SYSTEM_PROMPT = `Du bist ein Social Media Story-Experte. Du erstellst virale, engagement-starke Story-Konzepte für Instagram, Facebook und LinkedIn. Deine Stories sind kreativ, on-brand und optimiert für maximale Reichweite.`;
+
+/**
+ * Generate a complete story concept with AI
+ */
+export async function generateStoryContent(
+  userId: string,
+  options: StoryGenerationOptions
+): Promise<GeneratedStory> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.apiKey) {
+    throw new Error('AI-Konfiguration nicht gefunden');
+  }
+
+  const storyTypeDescriptions: Record<string, string> = {
+    promotional: 'Werbe-Story für ein Produkt/Service mit klarem CTA',
+    educational: 'Informative Story mit Tipps und Mehrwert',
+    'behind-the-scenes': 'Authentischer Einblick hinter die Kulissen',
+    announcement: 'Spannende Ankündigung mit Teaser-Elementen',
+    poll: 'Interaktive Story mit Umfrage/Abstimmung',
+    quote: 'Inspirierende Story mit Zitat und visuellem Design',
+  };
+
+  const prompt = `Erstelle ein detailliertes Story-Konzept für ${options.platform}.
+
+THEMA: ${options.topic}
+STORY-TYP: ${storyTypeDescriptions[options.storyType]}
+${options.brandVoice ? `MARKENSTIMME: ${options.brandVoice}` : ''}
+${options.targetAudience ? `ZIELGRUPPE: ${options.targetAudience}` : ''}
+
+Erstelle ein Story-Konzept mit:
+1. Kurzer, prägnanter Titel
+2. 2-4 Text-Overlays (kurz und impactful, max 15 Wörter pro Overlay)
+3. Detaillierter Bildprompt für AI-Generierung (auf Englisch, spezifisch und visuell)
+4. 3 konkrete Bildvorschläge (was könnte man fotografieren/gestalten)
+5. Passende Hintergrundfarbe (Hex-Code)
+${options.includeCallToAction ? '6. Call-to-Action Text' : ''}
+7. 3-5 relevante Hashtags
+8. Musik-Vorschlag (Stimmung/Genre)
+9. Passende Sticker-Empfehlungen (Emojis/GIFs)
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "title": "Story-Titel",
+  "textOverlays": [
+    {"text": "Text hier", "position": "top|center|bottom", "style": "bold|normal|highlight"}
+  ],
+  "imagePrompt": "Detailed English prompt for AI image generation...",
+  "imageSuggestions": ["Vorschlag 1", "Vorschlag 2", "Vorschlag 3"],
+  "backgroundColor": "#hexcode",
+  "callToAction": "CTA Text (optional)",
+  "hashtags": ["hashtag1", "hashtag2"],
+  "musicSuggestion": "Upbeat Pop / Ambient / etc.",
+  "stickers": ["emoji1", "emoji2"]
+}`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(config.apiKey, config.model, prompt, 2000, 0.8, STORY_SYSTEM_PROMPT);
+  } else {
+    result = await callOpenAI(config.apiKey, config.model, prompt, 2000, 0.8, STORY_SYSTEM_PROMPT);
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    return JSON.parse(jsonStr) as GeneratedStory;
+  } catch (error) {
+    console.error('Failed to parse story content:', error);
+    throw new Error('Fehler beim Generieren des Story-Inhalts');
+  }
+}
+
+/**
+ * Generate image prompt suggestions for a story topic
+ */
+export async function generateImagePromptSuggestions(
+  userId: string,
+  topic: string,
+  style: string,
+  count: number = 5
+): Promise<Array<{ prompt: string; description: string }>> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.apiKey) {
+    throw new Error('AI-Konfiguration nicht gefunden');
+  }
+
+  const prompt = `Du bist ein Experte für AI-Bildgenerierung. Erstelle ${count} kreative, detaillierte Bildprompts für das Thema: "${topic}".
+
+STIL: ${style}
+VERWENDUNGSZWECK: Social Media Story (9:16 Format, vertikale Bilder)
+
+Erstelle professionelle, spezifische Prompts die:
+- Auf Englisch sind (für DALL-E/Stable Diffusion)
+- Konkrete visuelle Details enthalten
+- Stimmung und Atmosphäre beschreiben
+- Kompositions-Hinweise geben
+- Social-Media-tauglich sind
+
+WICHTIG: Antworte NUR im JSON-Format:
+{
+  "suggestions": [
+    {
+      "prompt": "Detailed English prompt for AI image generation...",
+      "description": "Kurze deutsche Beschreibung was das Bild zeigt"
+    }
+  ]
+}`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(config.apiKey, config.model, prompt, 1500, 0.9, STORY_SYSTEM_PROMPT);
+  } else {
+    result = await callOpenAI(config.apiKey, config.model, prompt, 1500, 0.9, STORY_SYSTEM_PROMPT);
+  }
+
+  try {
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    const parsed = JSON.parse(jsonStr) as { suggestions: Array<{ prompt: string; description: string }> };
+    return parsed.suggestions;
+  } catch (error) {
+    console.error('Failed to parse image prompt suggestions:', error);
+    throw new Error('Fehler beim Generieren der Bildvorschläge');
+  }
+}

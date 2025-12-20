@@ -3657,6 +3657,77 @@ export interface SocialMediaHashtagGroup {
   createdAt: string;
 }
 
+export interface SocialMediaStory {
+  id: string;
+  title?: string;
+  contentType: 'image' | 'video' | 'carousel' | 'poll' | 'quiz' | 'countdown' | 'link';
+  mediaUrls: string[];
+  textOverlays: Array<{
+    text: string;
+    position: 'top' | 'center' | 'bottom';
+    style?: 'bold' | 'normal' | 'highlight';
+  }>;
+  backgroundColor?: string;
+  backgroundGradient?: string;
+  musicSuggestion?: string;
+  stickers: string[];
+  linkUrl?: string;
+  linkText?: string;
+  pollQuestion?: string;
+  pollOptions: string[];
+  scheduledAt?: string;
+  platforms: string[];
+  status: 'draft' | 'scheduled' | 'published' | 'failed' | 'expired';
+  durationSeconds: number;
+  aiGenerated: boolean;
+  aiPrompt?: string;
+  templateId?: string;
+  engagementData?: Record<string, any>;
+  expiresAt?: string;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GeneratedStoryContent {
+  title: string;
+  textOverlays: Array<{
+    text: string;
+    position: 'top' | 'center' | 'bottom';
+    style: 'bold' | 'normal' | 'highlight';
+  }>;
+  imagePrompt: string;
+  imageSuggestions: string[];
+  backgroundColor: string;
+  callToAction?: string;
+  hashtags: string[];
+  musicSuggestion?: string;
+  stickers: string[];
+}
+
+export interface GeneratedImage {
+  url: string;
+  revisedPrompt?: string;
+  provider: string;
+  model: string;
+  costCents: number;
+}
+
+export interface StoryTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  contentType: 'image' | 'video' | 'carousel' | 'poll' | 'quiz';
+  layout: Record<string, any>;
+  textStyles: Record<string, any>;
+  colorScheme: Record<string, any>;
+  isSystem: boolean;
+  previewUrl?: string;
+  usageCount: number;
+  createdAt: string;
+}
+
 export const socialMediaApi = {
   // Posts
   getPosts: async (filters?: { status?: string; customerId?: string; startDate?: string; endDate?: string }): Promise<SocialMediaPost[]> => {
@@ -4214,6 +4285,104 @@ export const socialMediaApi = {
     responseType: string;
   }): Promise<any> => {
     return authFetch('/social-media/engagement/log', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // ============================================
+  // Stories API
+  // ============================================
+
+  getStories: async (filters?: { status?: string; platform?: string }): Promise<SocialMediaStory[]> => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.platform) params.append('platform', filters.platform);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return authFetch(`/social-media/stories${query}`);
+  },
+
+  createStory: async (data: Partial<SocialMediaStory>): Promise<SocialMediaStory> => {
+    return authFetch('/social-media/stories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateStory: async (id: string, data: Partial<SocialMediaStory>): Promise<SocialMediaStory> => {
+    return authFetch(`/social-media/stories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteStory: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/stories/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  generateStoryContent: async (options: {
+    topic: string;
+    platform: 'instagram' | 'facebook' | 'linkedin';
+    storyType: 'promotional' | 'educational' | 'behind-the-scenes' | 'announcement' | 'poll' | 'quote';
+    brandVoice?: string;
+    targetAudience?: string;
+    includeCallToAction?: boolean;
+  }): Promise<GeneratedStoryContent> => {
+    return authFetch('/social-media/stories/generate', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  // ============================================
+  // AI Image Generation API
+  // ============================================
+
+  generateImage: async (options: {
+    prompt: string;
+    provider?: 'openai' | 'stability';
+    style?: 'modern' | 'minimalist' | 'vibrant' | 'professional' | 'artistic' | 'photorealistic';
+    aspectRatio: '1:1' | '9:16' | '16:9' | '4:5';
+    quality?: 'standard' | 'hd';
+  }): Promise<GeneratedImage> => {
+    return authFetch('/social-media/images/generate', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  getImagePromptSuggestions: async (options: {
+    topic: string;
+    style?: string;
+    count?: number;
+  }): Promise<{ suggestions: Array<{ prompt: string; description: string }> }> => {
+    return authFetch('/social-media/images/suggestions', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  getImageHistory: async (limit?: number): Promise<GeneratedImage[]> => {
+    const query = limit ? `?limit=${limit}` : '';
+    return authFetch(`/social-media/images/history${query}`);
+  },
+
+  // ============================================
+  // Story Templates API
+  // ============================================
+
+  getStoryTemplates: async (filters?: { category?: string; contentType?: string }): Promise<StoryTemplate[]> => {
+    const params = new URLSearchParams();
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.contentType) params.append('contentType', filters.contentType);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return authFetch(`/social-media/story-templates${query}`);
+  },
+
+  createStoryTemplate: async (data: Partial<StoryTemplate>): Promise<StoryTemplate> => {
+    return authFetch('/social-media/story-templates', {
       method: 'POST',
       body: JSON.stringify(data),
     });

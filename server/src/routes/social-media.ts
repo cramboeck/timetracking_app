@@ -2178,4 +2178,377 @@ router.post('/engagement/log', authenticateToken, attachOrganization, requireOrg
   }
 });
 
+// ============================================
+// Stories Routes
+// ============================================
+
+// Validation schemas for Stories
+const createStorySchema = z.object({
+  title: z.string().max(200).optional(),
+  contentType: z.enum(['image', 'video', 'carousel', 'poll', 'quiz', 'countdown', 'link']),
+  mediaUrls: z.array(z.string()).optional(),
+  textOverlays: z.array(z.object({
+    text: z.string(),
+    position: z.enum(['top', 'center', 'bottom']),
+    style: z.enum(['bold', 'normal', 'highlight']).optional()
+  })).optional(),
+  backgroundColor: z.string().optional(),
+  backgroundGradient: z.string().optional(),
+  musicSuggestion: z.string().optional(),
+  stickers: z.array(z.string()).optional(),
+  linkUrl: z.string().url().optional(),
+  linkText: z.string().optional(),
+  pollQuestion: z.string().optional(),
+  pollOptions: z.array(z.string()).optional(),
+  scheduledAt: z.string().datetime().optional(),
+  platforms: z.array(z.string()).optional(),
+  durationSeconds: z.number().min(1).max(60).optional(),
+  aiGenerated: z.boolean().optional(),
+  aiPrompt: z.string().optional()
+});
+
+const generateStorySchema = z.object({
+  topic: z.string().min(1).max(500),
+  platform: z.enum(['instagram', 'facebook', 'linkedin']),
+  storyType: z.enum(['promotional', 'educational', 'behind-the-scenes', 'announcement', 'poll', 'quote']),
+  brandVoice: z.string().optional(),
+  targetAudience: z.string().optional(),
+  includeCallToAction: z.boolean().optional()
+});
+
+const generateImageSchema = z.object({
+  prompt: z.string().min(1).max(1000),
+  provider: z.enum(['openai', 'stability']).optional(),
+  style: z.enum(['modern', 'minimalist', 'vibrant', 'professional', 'artistic', 'photorealistic']).optional(),
+  aspectRatio: z.enum(['1:1', '9:16', '16:9', '4:5']),
+  quality: z.enum(['standard', 'hd']).optional()
+});
+
+const imagePromptSuggestionsSchema = z.object({
+  topic: z.string().min(1).max(500),
+  style: z.string().optional(),
+  count: z.number().min(1).max(10).optional()
+});
+
+// GET /api/social-media/stories - Get all stories
+router.get('/stories', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { status, platform } = req.query;
+
+    let queryText = `SELECT * FROM social_media_stories WHERE organization_id = $1`;
+    const params: any[] = [organizationId];
+    let paramIndex = 2;
+
+    if (status) {
+      queryText += ` AND status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (platform) {
+      queryText += ` AND platforms ? $${paramIndex}`;
+      params.push(platform);
+    }
+
+    queryText += ` ORDER BY created_at DESC`;
+
+    const result = await pool.query(queryText, params);
+    res.json(transformRows(result.rows));
+  } catch (error) {
+    console.error('Get stories error:', error);
+    res.status(500).json({ error: 'Failed to get stories' });
+  }
+});
+
+// POST /api/social-media/stories - Create a new story
+router.post('/stories', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createStorySchema), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.userId;
+    const data = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO social_media_stories
+       (id, organization_id, user_id, title, content_type, media_urls, text_overlays,
+        background_color, background_gradient, music_suggestion, stickers, link_url, link_text,
+        poll_question, poll_options, scheduled_at, platforms, status, duration_seconds,
+        ai_generated, ai_prompt)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+       RETURNING *`,
+      [
+        crypto.randomUUID(), organizationId, userId, data.title, data.contentType,
+        JSON.stringify(data.mediaUrls || []), JSON.stringify(data.textOverlays || []),
+        data.backgroundColor, data.backgroundGradient, data.musicSuggestion,
+        JSON.stringify(data.stickers || []), data.linkUrl, data.linkText,
+        data.pollQuestion, JSON.stringify(data.pollOptions || []),
+        data.scheduledAt, JSON.stringify(data.platforms || ['instagram']),
+        data.scheduledAt ? 'scheduled' : 'draft', data.durationSeconds || 15,
+        data.aiGenerated || false, data.aiPrompt
+      ]
+    );
+
+    res.status(201).json(transformRow(result.rows[0]));
+  } catch (error) {
+    console.error('Create story error:', error);
+    res.status(500).json({ error: 'Failed to create story' });
+  }
+});
+
+// PUT /api/social-media/stories/:id - Update a story
+router.put('/stories/:id', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+    const data = req.body;
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    const allowedFields = [
+      'title', 'content_type', 'media_urls', 'text_overlays', 'background_color',
+      'background_gradient', 'music_suggestion', 'stickers', 'link_url', 'link_text',
+      'poll_question', 'poll_options', 'scheduled_at', 'platforms', 'status', 'duration_seconds'
+    ];
+
+    const fieldMap: Record<string, string> = {
+      title: 'title',
+      contentType: 'content_type',
+      mediaUrls: 'media_urls',
+      textOverlays: 'text_overlays',
+      backgroundColor: 'background_color',
+      backgroundGradient: 'background_gradient',
+      musicSuggestion: 'music_suggestion',
+      stickers: 'stickers',
+      linkUrl: 'link_url',
+      linkText: 'link_text',
+      pollQuestion: 'poll_question',
+      pollOptions: 'poll_options',
+      scheduledAt: 'scheduled_at',
+      platforms: 'platforms',
+      status: 'status',
+      durationSeconds: 'duration_seconds'
+    };
+
+    for (const [camelKey, snakeKey] of Object.entries(fieldMap)) {
+      if (data[camelKey] !== undefined) {
+        const value = ['mediaUrls', 'textOverlays', 'stickers', 'pollOptions', 'platforms'].includes(camelKey)
+          ? JSON.stringify(data[camelKey])
+          : data[camelKey];
+        updates.push(`${snakeKey} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updates.push(`updated_at = NOW()`);
+    values.push(id, organizationId);
+
+    const result = await pool.query(
+      `UPDATE social_media_stories SET ${updates.join(', ')}
+       WHERE id = $${paramIndex} AND organization_id = $${paramIndex + 1}
+       RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Story not found' });
+    }
+
+    res.json(transformRow(result.rows[0]));
+  } catch (error) {
+    console.error('Update story error:', error);
+    res.status(500).json({ error: 'Failed to update story' });
+  }
+});
+
+// DELETE /api/social-media/stories/:id - Delete a story
+router.delete('/stories/:id', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `DELETE FROM social_media_stories WHERE id = $1 AND organization_id = $2 RETURNING id`,
+      [id, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Story not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete story error:', error);
+    res.status(500).json({ error: 'Failed to delete story' });
+  }
+});
+
+// POST /api/social-media/stories/generate - Generate story content with AI
+router.post('/stories/generate', authenticateToken, attachOrganization, requireOrgRole('member'), validate(generateStorySchema), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const options = req.body;
+
+    const story = await aiService.generateStoryContent(userId, options);
+    res.json(story);
+  } catch (error: any) {
+    console.error('Generate story error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate story content' });
+  }
+});
+
+// ============================================
+// AI Image Generation Routes
+// ============================================
+
+// POST /api/social-media/images/generate - Generate an AI image
+router.post('/images/generate', authenticateToken, attachOrganization, requireOrgRole('member'), validate(generateImageSchema), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.userId;
+    const options = req.body;
+
+    const image = await aiService.generateImage(userId, {
+      prompt: options.prompt,
+      provider: options.provider || 'openai',
+      style: options.style || 'modern',
+      aspectRatio: options.aspectRatio,
+      quality: options.quality || 'hd'
+    });
+
+    // Save to history
+    await pool.query(
+      `INSERT INTO social_media_generated_images
+       (id, organization_id, user_id, prompt, revised_prompt, provider, model, image_url, aspect_ratio, style, cost_cents)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        crypto.randomUUID(), organizationId, userId, options.prompt, image.revisedPrompt,
+        image.provider, image.model, image.url, options.aspectRatio, options.style, image.costCents
+      ]
+    );
+
+    res.json(image);
+  } catch (error: any) {
+    console.error('Generate image error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate image' });
+  }
+});
+
+// POST /api/social-media/images/suggestions - Get AI-generated image prompt suggestions
+router.post('/images/suggestions', authenticateToken, attachOrganization, requireOrgRole('member'), validate(imagePromptSuggestionsSchema), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { topic, style, count } = req.body;
+
+    const suggestions = await aiService.generateImagePromptSuggestions(
+      userId,
+      topic,
+      style || 'modern',
+      count || 5
+    );
+
+    res.json({ suggestions });
+  } catch (error: any) {
+    console.error('Generate suggestions error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate suggestions' });
+  }
+});
+
+// GET /api/social-media/images/history - Get image generation history
+router.get('/images/history', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { limit = 50 } = req.query;
+
+    const result = await pool.query(
+      `SELECT * FROM social_media_generated_images
+       WHERE organization_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [organizationId, parseInt(limit as string)]
+    );
+
+    res.json(transformRows(result.rows));
+  } catch (error) {
+    console.error('Get image history error:', error);
+    res.status(500).json({ error: 'Failed to get image history' });
+  }
+});
+
+// ============================================
+// Story Templates Routes
+// ============================================
+
+// GET /api/social-media/story-templates - Get story templates
+router.get('/story-templates', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { category, contentType } = req.query;
+
+    let queryText = `SELECT * FROM social_media_story_templates
+                     WHERE (organization_id = $1 OR is_system = true)`;
+    const params: any[] = [organizationId];
+    let paramIndex = 2;
+
+    if (category) {
+      queryText += ` AND category = $${paramIndex}`;
+      params.push(category);
+      paramIndex++;
+    }
+
+    if (contentType) {
+      queryText += ` AND content_type = $${paramIndex}`;
+      params.push(contentType);
+    }
+
+    queryText += ` ORDER BY is_system DESC, usage_count DESC`;
+
+    const result = await pool.query(queryText, params);
+    res.json(transformRows(result.rows));
+  } catch (error) {
+    console.error('Get story templates error:', error);
+    res.status(500).json({ error: 'Failed to get story templates' });
+  }
+});
+
+// POST /api/social-media/story-templates - Create a story template
+router.post('/story-templates', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.userId;
+    const { name, description, category, contentType, layout, textStyles, colorScheme, previewUrl } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO social_media_story_templates
+       (id, organization_id, user_id, name, description, category, content_type, layout, text_styles, color_scheme, preview_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING *`,
+      [
+        crypto.randomUUID(), organizationId, userId, name, description, category,
+        contentType, JSON.stringify(layout), JSON.stringify(textStyles || {}),
+        JSON.stringify(colorScheme || {}), previewUrl
+      ]
+    );
+
+    res.status(201).json(transformRow(result.rows[0]));
+  } catch (error) {
+    console.error('Create story template error:', error);
+    res.status(500).json({ error: 'Failed to create story template' });
+  }
+});
+
 export default router;

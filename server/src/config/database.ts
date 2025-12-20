@@ -2702,6 +2702,98 @@ export async function initializeDatabase() {
       )
     `);
 
+    // Social Media Stories table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_stories (
+        id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT,
+        content_type TEXT NOT NULL CHECK(content_type IN ('image', 'video', 'carousel', 'poll', 'quiz', 'countdown', 'link')),
+        media_urls JSONB DEFAULT '[]',
+        text_overlays JSONB DEFAULT '[]',
+        background_color TEXT,
+        background_gradient TEXT,
+        music_suggestion TEXT,
+        stickers JSONB DEFAULT '[]',
+        link_url TEXT,
+        link_text TEXT,
+        poll_question TEXT,
+        poll_options JSONB DEFAULT '[]',
+        scheduled_at TIMESTAMP,
+        platforms JSONB DEFAULT '["instagram"]',
+        status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'scheduled', 'published', 'failed', 'expired')),
+        duration_seconds INTEGER DEFAULT 15,
+        ai_generated BOOLEAN DEFAULT false,
+        ai_prompt TEXT,
+        template_id TEXT,
+        engagement_data JSONB,
+        expires_at TIMESTAMP,
+        published_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // AI Image Generation Settings
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_image_settings (
+        id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+        organization_id TEXT UNIQUE NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        provider TEXT DEFAULT 'openai' CHECK(provider IN ('openai', 'stability', 'leonardo', 'replicate')),
+        api_key_encrypted TEXT,
+        default_style TEXT DEFAULT 'modern',
+        default_aspect_ratio TEXT DEFAULT '9:16',
+        quality TEXT DEFAULT 'hd' CHECK(quality IN ('standard', 'hd')),
+        credits_used INTEGER DEFAULT 0,
+        credits_limit INTEGER DEFAULT 100,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Generated Images History
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_generated_images (
+        id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        prompt TEXT NOT NULL,
+        revised_prompt TEXT,
+        provider TEXT NOT NULL,
+        model TEXT NOT NULL,
+        image_url TEXT NOT NULL,
+        image_data TEXT,
+        aspect_ratio TEXT DEFAULT '9:16',
+        style TEXT,
+        size TEXT,
+        cost_cents INTEGER,
+        used_in_story_id TEXT REFERENCES social_media_stories(id) ON DELETE SET NULL,
+        used_in_post_id TEXT REFERENCES social_media_posts(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Story Templates
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS social_media_story_templates (
+        id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        category TEXT,
+        content_type TEXT NOT NULL CHECK(content_type IN ('image', 'video', 'carousel', 'poll', 'quiz')),
+        layout JSONB NOT NULL,
+        text_styles JSONB DEFAULT '{}',
+        color_scheme JSONB DEFAULT '{}',
+        is_system BOOLEAN DEFAULT false,
+        preview_url TEXT,
+        usage_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
     // Create indexes for social media tables
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_accounts_user ON social_media_accounts(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_accounts_org ON social_media_accounts(organization_id)');
@@ -2714,6 +2806,12 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_hashtags_user ON social_media_hashtag_groups(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_competitors_org ON social_media_competitors(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_engagement_history_org ON social_media_engagement_history(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_stories_org ON social_media_stories(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_stories_user ON social_media_stories(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_stories_status ON social_media_stories(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_stories_scheduled ON social_media_stories(scheduled_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_generated_images_org ON social_media_generated_images(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_story_templates_org ON social_media_story_templates(organization_id)');
 
     console.log('✅ Social Media Manager tables created');
 

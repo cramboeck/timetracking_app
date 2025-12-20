@@ -5,9 +5,9 @@ import {
   Linkedin, Twitter, Facebook, Instagram, X, Loader2, AlertCircle,
   Layers, Lightbulb, ListOrdered, Zap, Upload, BarChart3, TrendingUp,
   Recycle, Search, RefreshCw, Rocket, Globe, FileCode, Users, MessageCircle,
-  Play, Pause, ThumbsUp, ThumbsDown, ExternalLink
+  Play, Pause, ThumbsUp, ThumbsDown, ExternalLink, Image, Wand2, Film
 } from 'lucide-react';
-import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount } from '../services/api';
+import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage } from '../services/api';
 import { Customer } from '../types';
 import { Modal } from './Modal';
 
@@ -15,8 +15,10 @@ interface SocialMediaManagerProps {
   customers?: Customer[];
 }
 
-type ViewMode = 'calendar' | 'list' | 'templates' | 'hashtags' | 'accounts' | 'queue' | 'batch' | 'analytics' | 'evergreen' | 'autopilot' | 'trends' | 'remix' | 'competitors' | 'engagement';
+type ViewMode = 'calendar' | 'list' | 'templates' | 'hashtags' | 'accounts' | 'queue' | 'batch' | 'analytics' | 'evergreen' | 'autopilot' | 'trends' | 'remix' | 'competitors' | 'engagement' | 'stories';
 type Platform = 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+type StoryType = 'promotional' | 'educational' | 'behind-the-scenes' | 'announcement' | 'poll' | 'quote';
+type ImageStyle = 'modern' | 'minimalist' | 'vibrant' | 'professional' | 'artistic' | 'photorealistic';
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   linkedin: <Linkedin size={16} />,
@@ -200,6 +202,29 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   const [engagementResponses, setEngagementResponses] = useState<Array<{ originalPost: string; author: string; response: string; responseType: string }>>([]);
   const [generatingEngagement, setGeneratingEngagement] = useState(false);
   const [newKeyword, setNewKeyword] = useState('');
+
+  // Stories state
+  const [stories, setStories] = useState<SocialMediaStory[]>([]);
+  const [showStoryCreator, setShowStoryCreator] = useState(false);
+  const [storyTopic, setStoryTopic] = useState('');
+  const [storyType, setStoryType] = useState<StoryType>('promotional');
+  const [storyPlatform, setStoryPlatform] = useState<'instagram' | 'facebook' | 'linkedin'>('instagram');
+  const [storyBrandVoice, setStoryBrandVoice] = useState('');
+  const [storyTargetAudience, setStoryTargetAudience] = useState('');
+  const [storyIncludeCTA, setStoryIncludeCTA] = useState(true);
+  const [generatingStory, setGeneratingStory] = useState(false);
+  const [generatedStory, setGeneratedStory] = useState<GeneratedStoryContent | null>(null);
+
+  // Image Generation state
+  const [showImageGenerator, setShowImageGenerator] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [imageStyle, setImageStyle] = useState<ImageStyle>('modern');
+  const [imageAspectRatio, setImageAspectRatio] = useState<'1:1' | '9:16' | '16:9' | '4:5'>('9:16');
+  const [imageQuality, setImageQuality] = useState<'standard' | 'hd'>('hd');
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
+  const [imageSuggestions, setImageSuggestions] = useState<Array<{ prompt: string; description: string }>>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Load data
   useEffect(() => {
@@ -840,6 +865,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         {[
           { id: 'calendar', label: 'Kalender', icon: Calendar },
           { id: 'list', label: 'Posts', icon: List },
+          { id: 'stories', label: 'Stories', icon: Film },
           { id: 'autopilot', label: 'Autopilot', icon: Rocket },
           { id: 'trends', label: 'Trends', icon: Globe },
           { id: 'remix', label: 'Remix', icon: FileCode },
@@ -2275,6 +2301,453 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Stories View */}
+      {viewMode === 'stories' && (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold dark:text-white">Stories & Bild-Generator</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Erstelle virale Stories mit KI-generierten Bildern</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowImageGenerator(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90"
+              >
+                <Image size={18} />
+                Bild generieren
+              </button>
+              <button
+                onClick={() => setShowStoryCreator(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:opacity-90"
+              >
+                <Film size={18} />
+                Story erstellen
+              </button>
+            </div>
+          </div>
+
+          {/* Story Creator */}
+          {showStoryCreator && (
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold dark:text-white flex items-center gap-2">
+                  <Wand2 size={20} className="text-orange-500" />
+                  Story-Konzept erstellen
+                </h3>
+                <button onClick={() => setShowStoryCreator(false)} className="text-gray-500">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Thema</label>
+                  <input
+                    type="text"
+                    value={storyTopic}
+                    onChange={(e) => setStoryTopic(e.target.value)}
+                    placeholder="z.B. Neue Produktvorstellung, Teambuilding-Event..."
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Plattform</label>
+                  <select
+                    value={storyPlatform}
+                    onChange={(e) => setStoryPlatform(e.target.value as 'instagram' | 'facebook' | 'linkedin')}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  >
+                    <option value="instagram">Instagram</option>
+                    <option value="facebook">Facebook</option>
+                    <option value="linkedin">LinkedIn</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Story-Typ</label>
+                  <select
+                    value={storyType}
+                    onChange={(e) => setStoryType(e.target.value as StoryType)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  >
+                    <option value="promotional">Werbung / Promo</option>
+                    <option value="educational">Tipps / Wissen</option>
+                    <option value="behind-the-scenes">Behind the Scenes</option>
+                    <option value="announcement">Ankündigung</option>
+                    <option value="poll">Umfrage</option>
+                    <option value="quote">Zitat / Inspiration</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Zielgruppe (optional)</label>
+                  <input
+                    type="text"
+                    value={storyTargetAudience}
+                    onChange={(e) => setStoryTargetAudience(e.target.value)}
+                    placeholder="z.B. Unternehmer, Startups, IT-Profis..."
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Markenstimme (optional)</label>
+                  <input
+                    type="text"
+                    value={storyBrandVoice}
+                    onChange={(e) => setStoryBrandVoice(e.target.value)}
+                    placeholder="z.B. Professionell aber nahbar, innovativ, vertrauenswürdig..."
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={storyIncludeCTA}
+                      onChange={(e) => setStoryIncludeCTA(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Call-to-Action einbinden</span>
+                  </label>
+                </div>
+              </div>
+
+              <button
+                onClick={async () => {
+                  if (!storyTopic.trim()) return;
+                  setGeneratingStory(true);
+                  try {
+                    const result = await socialMediaApi.generateStoryContent({
+                      topic: storyTopic,
+                      platform: storyPlatform,
+                      storyType,
+                      brandVoice: storyBrandVoice || undefined,
+                      targetAudience: storyTargetAudience || undefined,
+                      includeCallToAction: storyIncludeCTA,
+                    });
+                    setGeneratedStory(result);
+                  } catch (err: any) {
+                    setError(err.message || 'Story-Generierung fehlgeschlagen');
+                  } finally {
+                    setGeneratingStory(false);
+                  }
+                }}
+                disabled={generatingStory || !storyTopic.trim()}
+                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+              >
+                {generatingStory ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Generiere Story-Konzept...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={18} />
+                    Story-Konzept generieren
+                  </>
+                )}
+              </button>
+
+              {/* Generated Story Preview */}
+              {generatedStory && (
+                <div className="mt-6 p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                  <h4 className="font-semibold dark:text-white mb-3">{generatedStory.title}</h4>
+
+                  {/* Text Overlays */}
+                  <div className="space-y-2 mb-4">
+                    <p className="text-xs text-gray-500 uppercase">Text-Overlays:</p>
+                    {generatedStory.textOverlays.map((overlay, idx) => (
+                      <div key={idx} className={`p-2 rounded ${
+                        overlay.style === 'bold' ? 'bg-black/10 font-bold' :
+                        overlay.style === 'highlight' ? 'bg-yellow-100 dark:bg-yellow-900/30' :
+                        'bg-white dark:bg-dark-100'
+                      }`}>
+                        <span className="text-xs text-gray-400">{overlay.position}:</span>
+                        <p className="dark:text-white">{overlay.text}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Image Prompt */}
+                  <div className="mb-4">
+                    <p className="text-xs text-gray-500 uppercase mb-1">Bild-Prompt (für KI-Generierung):</p>
+                    <div className="flex gap-2">
+                      <p className="flex-1 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-100 p-2 rounded">
+                        {generatedStory.imagePrompt}
+                      </p>
+                      <button
+                        onClick={() => {
+                          setImagePrompt(generatedStory.imagePrompt);
+                          setShowImageGenerator(true);
+                        }}
+                        className="px-3 py-1 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
+                      >
+                        Bild generieren
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Image Suggestions */}
+                  <div className="mb-4">
+                    <p className="text-xs text-gray-500 uppercase mb-1">Bild-Vorschläge:</p>
+                    <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400">
+                      {generatedStory.imageSuggestions.map((suggestion, idx) => (
+                        <li key={idx}>{suggestion}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Hashtags & CTA */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {generatedStory.hashtags.map((tag, idx) => (
+                      <span key={idx} className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-sm">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+
+                  {generatedStory.callToAction && (
+                    <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded">
+                      <p className="text-xs text-gray-500 uppercase">Call-to-Action:</p>
+                      <p className="text-green-700 dark:text-green-400 font-medium">{generatedStory.callToAction}</p>
+                    </div>
+                  )}
+
+                  {/* Additional info */}
+                  <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-500">
+                    {generatedStory.musicSuggestion && (
+                      <span>🎵 Musik: {generatedStory.musicSuggestion}</span>
+                    )}
+                    {generatedStory.stickers.length > 0 && (
+                      <span>✨ Sticker: {generatedStory.stickers.join(' ')}</span>
+                    )}
+                    <span style={{ color: generatedStory.backgroundColor }}>
+                      🎨 Farbe: {generatedStory.backgroundColor}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Image Generator */}
+          {showImageGenerator && (
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold dark:text-white flex items-center gap-2">
+                  <Image size={20} className="text-purple-500" />
+                  KI-Bild generieren (DALL-E 3)
+                </h3>
+                <button onClick={() => setShowImageGenerator(false)} className="text-gray-500">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bild-Beschreibung</label>
+                  <textarea
+                    value={imagePrompt}
+                    onChange={(e) => setImagePrompt(e.target.value)}
+                    placeholder="Beschreibe das gewünschte Bild detailliert auf Englisch oder Deutsch..."
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stil</label>
+                  <select
+                    value={imageStyle}
+                    onChange={(e) => setImageStyle(e.target.value as ImageStyle)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  >
+                    <option value="modern">Modern & Clean</option>
+                    <option value="minimalist">Minimalistisch</option>
+                    <option value="vibrant">Lebendig & Bunt</option>
+                    <option value="professional">Professionell</option>
+                    <option value="artistic">Künstlerisch</option>
+                    <option value="photorealistic">Fotorealistisch</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Seitenverhältnis</label>
+                  <select
+                    value={imageAspectRatio}
+                    onChange={(e) => setImageAspectRatio(e.target.value as '1:1' | '9:16' | '16:9' | '4:5')}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  >
+                    <option value="9:16">9:16 (Story, Vertikal)</option>
+                    <option value="1:1">1:1 (Quadrat)</option>
+                    <option value="4:5">4:5 (Instagram Feed)</option>
+                    <option value="16:9">16:9 (Landscape)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Qualität</label>
+                  <select
+                    value={imageQuality}
+                    onChange={(e) => setImageQuality(e.target.value as 'standard' | 'hd')}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  >
+                    <option value="hd">HD (~$0.12)</option>
+                    <option value="standard">Standard (~$0.04)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <button
+                    onClick={async () => {
+                      setLoadingSuggestions(true);
+                      try {
+                        const result = await socialMediaApi.getImagePromptSuggestions({
+                          topic: imagePrompt || 'social media content',
+                          style: imageStyle,
+                          count: 5,
+                        });
+                        setImageSuggestions(result.suggestions);
+                      } catch (err) {
+                        console.error('Failed to get suggestions:', err);
+                      } finally {
+                        setLoadingSuggestions(false);
+                      }
+                    }}
+                    disabled={loadingSuggestions}
+                    className="w-full px-4 py-2 border border-purple-300 text-purple-600 rounded-lg hover:bg-purple-50 dark:border-purple-700 dark:text-purple-400 dark:hover:bg-purple-900/20"
+                  >
+                    {loadingSuggestions ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Prompt-Vorschläge'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Prompt Suggestions */}
+              {imageSuggestions.length > 0 && (
+                <div className="mt-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                  <p className="text-xs text-gray-500 uppercase mb-2">Prompt-Vorschläge:</p>
+                  <div className="space-y-2">
+                    {imageSuggestions.map((suggestion, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => setImagePrompt(suggestion.prompt)}
+                        className="p-2 bg-white dark:bg-dark-100 rounded cursor-pointer hover:ring-2 ring-purple-300"
+                      >
+                        <p className="text-xs text-gray-500">{suggestion.description}</p>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{suggestion.prompt}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={async () => {
+                  if (!imagePrompt.trim()) return;
+                  setGeneratingImage(true);
+                  try {
+                    const result = await socialMediaApi.generateImage({
+                      prompt: imagePrompt,
+                      style: imageStyle,
+                      aspectRatio: imageAspectRatio,
+                      quality: imageQuality,
+                    });
+                    setGeneratedImages(prev => [result, ...prev]);
+                  } catch (err: any) {
+                    setError(err.message || 'Bild-Generierung fehlgeschlagen');
+                  } finally {
+                    setGeneratingImage(false);
+                  }
+                }}
+                disabled={generatingImage || !imagePrompt.trim()}
+                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+              >
+                {generatingImage ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Generiere Bild (ca. 10-20 Sek.)...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 size={18} />
+                    Bild generieren
+                  </>
+                )}
+              </button>
+
+              {/* Generated Images Gallery */}
+              {generatedImages.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="font-semibold dark:text-white mb-3">Generierte Bilder</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {generatedImages.map((img, idx) => (
+                      <div key={idx} className="relative group">
+                        <img
+                          src={img.url}
+                          alt={`Generated ${idx}`}
+                          className="w-full aspect-[9/16] object-cover rounded-lg"
+                        />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                          <a
+                            href={img.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 bg-white rounded-full"
+                          >
+                            <ExternalLink size={16} />
+                          </a>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(img.url)}
+                            className="p-2 bg-white rounded-full"
+                          >
+                            <Copy size={16} />
+                          </button>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500 text-center">
+                          {img.provider} • ${(img.costCents / 100).toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Quick Tips */}
+          {!showStoryCreator && !showImageGenerator && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl p-6 text-white">
+                <Film size={32} className="mb-3" />
+                <h3 className="font-bold text-lg mb-2">Story-Tipps</h3>
+                <ul className="text-sm space-y-1 opacity-90">
+                  <li>• Erste 3 Sekunden entscheiden über Engagement</li>
+                  <li>• Vertikales Format (9:16) für Stories</li>
+                  <li>• Interaktive Elemente erhöhen Reichweite</li>
+                  <li>• Authentizität schlägt Perfektion</li>
+                </ul>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl p-6 text-white">
+                <Image size={32} className="mb-3" />
+                <h3 className="font-bold text-lg mb-2">Bild-Generierung</h3>
+                <ul className="text-sm space-y-1 opacity-90">
+                  <li>• DALL-E 3 für beste Qualität</li>
+                  <li>• Detaillierte Prompts = bessere Ergebnisse</li>
+                  <li>• HD-Qualität für Social Media empfohlen</li>
+                  <li>• Bilder in der Historie verfügbar</li>
+                </ul>
               </div>
             </div>
           )}
