@@ -1564,6 +1564,164 @@ Maximal 3 Issues nennen, die WICHTIGSTEN zuerst.`;
   }
 }
 
+/**
+ * Universal content quality checker for different content types
+ */
+type ContentType = 'post' | 'story' | 'carousel' | 'idea' | 'response';
+
+interface QualityCheckConfig {
+  contentType: ContentType;
+  platform: string;
+  minScore?: number;
+  customCriteria?: string;
+}
+
+async function universalQualityCheck(
+  apiKey: string,
+  provider: string,
+  model: string,
+  content: string,
+  config: QualityCheckConfig
+): Promise<{ score: number; issues: string[] }> {
+  const criteriaByType: Record<ContentType, string> = {
+    post: `1. HOOK (25%): Stoppt er den Scroll? Erste Zeile magnetisch?
+2. WERT (25%): Echter Mehrwert oder leere Worte?
+3. AUTHENTIZITÄT (25%): Klingt es echt oder wie Corporate-Blabla?
+4. CTA (25%): Klarer, motivierender Call-to-Action?`,
+    story: `1. VISUAL IMPACT (30%): Ist das Konzept visuell stark?
+2. HOOK (25%): Fängt es in 1 Sekunde die Aufmerksamkeit?
+3. MESSAGE (25%): Klare, prägnante Botschaft?
+4. ENGAGEMENT (20%): Regt es zu Interaktion an?`,
+    carousel: `1. HOOK-SLIDE (25%): Ist Slide 1 ein echter Stopper?
+2. FLOW (25%): Logischer, spannender Aufbau über alle Slides?
+3. VALUE (25%): Lernt der Leser etwas Konkretes?
+4. CTA (25%): Starker Abschluss mit klarer Handlungsaufforderung?`,
+    idea: `1. ORIGINALITÄT (30%): Ist die Idee frisch und nicht abgedroschen?
+2. RELEVANZ (30%): Passt sie zur Zielgruppe?
+3. UMSETZBARKEIT (20%): Kann man daraus guten Content machen?
+4. POTENZIAL (20%): Hat die Idee Engagement-Potenzial?`,
+    response: `1. RELEVANZ (30%): Beantwortet es die Frage/den Kommentar?
+2. TON (30%): Passend zur Marke und Situation?
+3. MEHRWERT (20%): Bietet es zusätzlichen Wert?
+4. ENGAGEMENT (20%): Fördert es weitere Interaktion?`
+  };
+
+  const prompt = `Bewerte diesen ${config.platform.toUpperCase()} ${config.contentType.toUpperCase()} SCHNELL und KRITISCH (0-100 Score).
+
+CONTENT:
+"""
+${typeof content === 'string' ? content : JSON.stringify(content, null, 2)}
+"""
+
+BEWERTUNGSKRITERIEN:
+${config.customCriteria || criteriaByType[config.contentType]}
+
+SEI STRENG! Die meisten Inhalte sind mittelmäßig (50-70).
+Ein Score über 75 bedeutet: "Das ist gut genug zum Veröffentlichen"
+Ein Score über 85 bedeutet: "Das hat virales Potenzial"
+
+Antworte NUR in diesem JSON-Format:
+{
+  "score": 65,
+  "issues": ["Problem 1", "Problem 2", "Problem 3"]
+}
+
+Maximal 3 Issues, die WICHTIGSTEN zuerst. Leeres Array wenn gut.`;
+
+  try {
+    let result: { content: string; tokensUsed: number };
+    if (provider === 'anthropic') {
+      result = await callAnthropic(apiKey, model, prompt, 500, 0.3, 'Du bist ein strenger Content-Kritiker.');
+    } else {
+      result = await callOpenAI(apiKey, model, prompt, 500, 0.3, 'Du bist ein strenger Content-Kritiker.');
+    }
+
+    let jsonStr = result.content.trim();
+    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+    const parsed = JSON.parse(jsonStr) as { score: number; issues: string[] };
+    return {
+      score: Math.min(100, Math.max(0, parsed.score)),
+      issues: parsed.issues || []
+    };
+  } catch (error) {
+    console.error('Universal quality check failed:', error);
+    return { score: 75, issues: [] };
+  }
+}
+
+/**
+ * Self-critique wrapper that can be applied to any content generation
+ * Generates content, checks quality, and regenerates if needed
+ */
+interface SelfCritiqueOptions<T> {
+  generateFn: (attempt: number, previousFeedback?: string[]) => Promise<T>;
+  extractContent: (result: T) => string;
+  qualityConfig: QualityCheckConfig;
+  apiKey: string;
+  provider: string;
+  model: string;
+  minScore?: number;
+  maxAttempts?: number;
+}
+
+async function withSelfCritique<T>(options: SelfCritiqueOptions<T>): Promise<T & { qualityScore: number; attempts: number }> {
+  const MIN_SCORE = options.minScore || 75;
+  const MAX_ATTEMPTS = options.maxAttempts || 3;
+
+  let bestResult: T | null = null;
+  let bestScore = 0;
+  let attempts: Array<{ result: T; score: number; feedback: string[] }> = [];
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    console.log(`Content generation attempt ${attempt}/${MAX_ATTEMPTS}...`);
+
+    // Generate content (with previous feedback if available)
+    const previousFeedback = attempt > 1 && attempts.length > 0
+      ? attempts[attempts.length - 1].feedback
+      : undefined;
+
+    const result = await options.generateFn(attempt, previousFeedback);
+    const content = options.extractContent(result);
+
+    // Quality check
+    const qualityCheck = await universalQualityCheck(
+      options.apiKey,
+      options.provider,
+      options.model,
+      content,
+      options.qualityConfig
+    );
+
+    console.log(`Attempt ${attempt} score: ${qualityCheck.score}/100`);
+
+    attempts.push({
+      result,
+      score: qualityCheck.score,
+      feedback: qualityCheck.issues
+    });
+
+    // Track best
+    if (qualityCheck.score > bestScore) {
+      bestScore = qualityCheck.score;
+      bestResult = result;
+    }
+
+    // If good enough, we're done
+    if (qualityCheck.score >= MIN_SCORE) {
+      console.log(`Quality threshold met on attempt ${attempt}!`);
+      break;
+    }
+  }
+
+  return {
+    ...(bestResult as T),
+    qualityScore: bestScore,
+    attempts: attempts.length
+  };
+}
+
 export interface BatchGenerationOptions {
   topics: string[];
   platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
@@ -1793,31 +1951,98 @@ WICHTIG: Antworte NUR im JSON-Format:
   ]
 }`;
 
-  let result: { content: string; tokensUsed: number };
-  if (config.provider === 'anthropic') {
-    result = await callAnthropic(config.apiKey, config.model, prompt, 6000, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
-  } else {
-    result = await callOpenAI(config.apiKey, config.model, prompt, 6000, 0.7, SOCIAL_MEDIA_SYSTEM_PROMPT);
+  // Self-critique loop for autopilot content
+  const MIN_QUALITY_SCORE = 75;
+  const MAX_ATTEMPTS = 2; // Lower for batch to avoid timeout
+
+  let bestPosts: AutopilotPost[] = [];
+  let overallScore = 0;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    console.log(`Autopilot generation attempt ${attempt}/${MAX_ATTEMPTS}...`);
+
+    // Add feedback from previous attempt
+    let currentPrompt = prompt;
+    if (attempt > 1 && bestPosts.length > 0) {
+      const lowScorePosts = bestPosts.filter((p: any) => (p.qualityScore || 0) < MIN_QUALITY_SCORE);
+      if (lowScorePosts.length > 0) {
+        currentPrompt = `${prompt}
+
+═══════════════════════════════════════
+⚠️ DIESE POSTS WAREN ZU SCHWACH (regeneriere bessere):
+${lowScorePosts.map((p, i) => `${i + 1}. "${p.content.substring(0, 50)}..." - Zu generisch/langweilig`).join('\n')}
+
+MACH ES BESSER! Jeder Post braucht:
+- Einen HOOK der stoppt
+- Echten Mehrwert (nicht nur Phrasen)
+- Persönlichkeit (nicht wie eine Maschine)
+═══════════════════════════════════════`;
+      }
+    }
+
+    let result: { content: string; tokensUsed: number };
+    if (config.provider === 'anthropic') {
+      result = await callAnthropic(config.apiKey, config.model, currentPrompt, 6000, 0.7 + (attempt * 0.1), SOCIAL_MEDIA_SYSTEM_PROMPT);
+    } else {
+      result = await callOpenAI(config.apiKey, config.model, currentPrompt, 6000, 0.7 + (attempt * 0.1), SOCIAL_MEDIA_SYSTEM_PROMPT);
+    }
+
+    try {
+      let jsonStr = result.content.trim();
+      if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+      const parsed = JSON.parse(jsonStr) as { posts: Array<{ content: string; theme: string; category: string }> };
+      const hashtagRegex = /#[\wäöüÄÖÜß]+/g;
+
+      // Quality check each post
+      const postsWithScores: AutopilotPost[] = [];
+      let totalScore = 0;
+
+      for (const post of parsed.posts) {
+        const qualityCheck = await universalQualityCheck(
+          config.apiKey,
+          config.provider,
+          config.model,
+          post.content,
+          { contentType: 'post', platform: options.platforms[0] || 'linkedin' }
+        );
+
+        postsWithScores.push({
+          content: post.content,
+          hashtags: (post.content.match(hashtagRegex) || []) as string[],
+          theme: post.theme,
+          category: post.category,
+          qualityScore: qualityCheck.score
+        } as AutopilotPost & { qualityScore: number });
+
+        totalScore += qualityCheck.score;
+      }
+
+      const avgScore = totalScore / postsWithScores.length;
+      console.log(`Autopilot attempt ${attempt} average score: ${avgScore.toFixed(1)}/100`);
+
+      // Keep better version
+      if (avgScore > overallScore) {
+        overallScore = avgScore;
+        bestPosts = postsWithScores;
+      }
+
+      // If good enough, stop
+      if (avgScore >= MIN_QUALITY_SCORE) {
+        console.log(`Autopilot quality threshold met on attempt ${attempt}!`);
+        break;
+      }
+    } catch (error) {
+      console.error(`Autopilot attempt ${attempt} failed:`, error);
+    }
   }
 
-  try {
-    let jsonStr = result.content.trim();
-    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
-
-    const parsed = JSON.parse(jsonStr) as { posts: Array<{ content: string; theme: string; category: string }> };
-    const hashtagRegex = /#[\wäöüÄÖÜß]+/g;
-
-    return parsed.posts.map(post => ({
-      content: post.content,
-      hashtags: (post.content.match(hashtagRegex) || []) as string[],
-      theme: post.theme,
-      category: post.category
-    }));
-  } catch (error) {
-    console.error('Failed to parse autopilot response:', error);
+  if (bestPosts.length === 0) {
     throw new Error('Fehler beim Generieren der Autopilot-Inhalte');
   }
+
+  return bestPosts;
 }
 
 // ============================================
@@ -2552,23 +2777,92 @@ WICHTIG: Antworte NUR im JSON-Format:
   "stickers": ["emoji1", "emoji2"]
 }`;
 
-  let result: { content: string; tokensUsed: number };
-  if (config.provider === 'anthropic') {
-    result = await callAnthropic(config.apiKey, config.model, prompt, 2000, 0.8, STORY_SYSTEM_PROMPT);
-  } else {
-    result = await callOpenAI(config.apiKey, config.model, prompt, 2000, 0.8, STORY_SYSTEM_PROMPT);
+  // Self-critique loop for story content
+  const MIN_QUALITY_SCORE = 75;
+  const MAX_ATTEMPTS = 3;
+
+  let bestStory: GeneratedStory | null = null;
+  let bestScore = 0;
+  let attempts: Array<{ content: GeneratedStory; score: number; feedback: string[] }> = [];
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    console.log(`Story generation attempt ${attempt}/${MAX_ATTEMPTS}...`);
+
+    let currentPrompt = prompt;
+    if (attempt > 1 && attempts.length > 0) {
+      const lastAttempt = attempts[attempts.length - 1];
+      currentPrompt = `${prompt}
+
+═══════════════════════════════════════
+⚠️ KRITISCHES FEEDBACK ZUM VORHERIGEN VERSUCH (Score: ${lastAttempt.score}/100):
+${lastAttempt.feedback.map(f => `- ${f}`).join('\n')}
+
+VORHERIGER TITEL WAR: "${lastAttempt.content.title}"
+VORHERIGE OVERLAYS: "${lastAttempt.content.textOverlays?.map(t => t.text).join(' | ')}"
+
+MACH ES BESSER! Die Story muss:
+- In 1 Sekunde fesseln
+- Emotional resonieren
+- Zum Handeln bewegen
+═══════════════════════════════════════`;
+    }
+
+    let result: { content: string; tokensUsed: number };
+    if (config.provider === 'anthropic') {
+      result = await callAnthropic(config.apiKey, config.model, currentPrompt, 2000, 0.8 + (attempt * 0.05), STORY_SYSTEM_PROMPT);
+    } else {
+      result = await callOpenAI(config.apiKey, config.model, currentPrompt, 2000, 0.8 + (attempt * 0.05), STORY_SYSTEM_PROMPT);
+    }
+
+    try {
+      let jsonStr = result.content.trim();
+      if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+      const story = JSON.parse(jsonStr) as GeneratedStory;
+
+      // Quality check the story
+      const storySummary = `TITEL: ${story.title}\nTEXT: ${story.textOverlays?.map(t => t.text).join(' → ')}\nCTA: ${story.callToAction || 'keiner'}`;
+
+      const qualityCheck = await universalQualityCheck(
+        config.apiKey,
+        config.provider,
+        config.model,
+        storySummary,
+        { contentType: 'story', platform: options.platform }
+      );
+
+      console.log(`Story attempt ${attempt} score: ${qualityCheck.score}/100`);
+
+      attempts.push({
+        content: story,
+        score: qualityCheck.score,
+        feedback: qualityCheck.issues
+      });
+
+      if (qualityCheck.score > bestScore) {
+        bestScore = qualityCheck.score;
+        bestStory = story;
+      }
+
+      if (qualityCheck.score >= MIN_QUALITY_SCORE) {
+        console.log(`Story quality threshold met on attempt ${attempt}!`);
+        break;
+      }
+    } catch (error) {
+      console.error(`Story attempt ${attempt} failed to parse:`, error);
+    }
   }
 
-  try {
-    let jsonStr = result.content.trim();
-    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
-
-    return JSON.parse(jsonStr) as GeneratedStory;
-  } catch (error) {
-    console.error('Failed to parse story content:', error);
+  if (!bestStory) {
     throw new Error('Fehler beim Generieren des Story-Inhalts');
   }
+
+  return {
+    ...bestStory,
+    qualityScore: bestScore,
+    attempts: attempts.length
+  } as GeneratedStory & { qualityScore: number; attempts: number };
 }
 
 /**
@@ -2881,23 +3175,88 @@ WICHTIG: Antworte NUR im JSON-Format:
   }
 }`;
 
-  let result: { content: string; tokensUsed: number };
-  if (config.provider === 'anthropic') {
-    result = await callAnthropic(config.apiKey, config.model, prompt, 3000, 0.8, MARKETING_EXPERT_PROMPT);
-  } else {
-    result = await callOpenAI(config.apiKey, config.model, prompt, 3000, 0.8, MARKETING_EXPERT_PROMPT);
+  // Self-critique loop for wizard content quality
+  const MIN_QUALITY_SCORE = 75;
+  const MAX_ATTEMPTS = 3;
+
+  let bestContent: WizardContentGeneration | null = null;
+  let bestScore = 0;
+  let attempts: Array<{ content: WizardContentGeneration; score: number; feedback: string[] }> = [];
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    console.log(`Wizard content generation attempt ${attempt}/${MAX_ATTEMPTS}...`);
+
+    // Add feedback from previous attempt if available
+    let currentPrompt = prompt;
+    if (attempt > 1 && attempts.length > 0) {
+      const lastAttempt = attempts[attempts.length - 1];
+      currentPrompt = `${prompt}
+
+═══════════════════════════════════════
+⚠️ KRITISCHES FEEDBACK ZUM VORHERIGEN VERSUCH (Score: ${lastAttempt.score}/100):
+${lastAttempt.feedback.map(f => `- ${f}`).join('\n')}
+
+VORHERIGER HOOK WAR: "${lastAttempt.content.post?.content?.substring(0, 100)}..."
+
+DU MUSST DIESE PROBLEME BEHEBEN! Schreibe KOMPLETT NEU - kein Copy-Paste!
+Denke wie ein Top-Performer mit 100k+ Followern. Was würde VIRAL gehen?
+═══════════════════════════════════════`;
+    }
+
+    let result: { content: string; tokensUsed: number };
+    if (config.provider === 'anthropic') {
+      result = await callAnthropic(config.apiKey, config.model, currentPrompt, 3000, 0.8 + (attempt * 0.05), MARKETING_EXPERT_PROMPT);
+    } else {
+      result = await callOpenAI(config.apiKey, config.model, currentPrompt, 3000, 0.8 + (attempt * 0.05), MARKETING_EXPERT_PROMPT);
+    }
+
+    try {
+      let jsonStr = result.content.trim();
+      if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+      const wizardContent = JSON.parse(jsonStr) as WizardContentGeneration;
+
+      // Quality check
+      const qualityCheck = await universalQualityCheck(
+        config.apiKey,
+        config.provider,
+        config.model,
+        wizardContent.post?.content || '',
+        { contentType: 'post', platform: options.platform }
+      );
+
+      console.log(`Wizard attempt ${attempt} score: ${qualityCheck.score}/100`);
+
+      attempts.push({
+        content: wizardContent,
+        score: qualityCheck.score,
+        feedback: qualityCheck.issues
+      });
+
+      if (qualityCheck.score > bestScore) {
+        bestScore = qualityCheck.score;
+        bestContent = wizardContent;
+      }
+
+      if (qualityCheck.score >= MIN_QUALITY_SCORE) {
+        console.log(`Wizard quality threshold met on attempt ${attempt}!`);
+        break;
+      }
+    } catch (error) {
+      console.error(`Wizard attempt ${attempt} failed to parse:`, error);
+    }
   }
 
-  try {
-    let jsonStr = result.content.trim();
-    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
-
-    return JSON.parse(jsonStr) as WizardContentGeneration;
-  } catch (error) {
-    console.error('Failed to parse wizard content:', error);
+  if (!bestContent) {
     throw new Error('Fehler bei der Content-Generierung');
   }
+
+  return {
+    ...bestContent,
+    qualityScore: bestScore,
+    attempts: attempts.length
+  } as WizardContentGeneration & { qualityScore: number; attempts: number };
 }
 
 /**
@@ -3104,23 +3463,88 @@ WICHTIG: Antworte NUR im JSON-Format:
   "totalSlides": ${options.slideCount}
 }`;
 
-  let result: { content: string; tokensUsed: number };
-  if (config.provider === 'anthropic') {
-    result = await callAnthropic(config.apiKey, config.model, prompt, 4000, 0.8, MARKETING_EXPERT_PROMPT);
-  } else {
-    result = await callOpenAI(config.apiKey, config.model, prompt, 4000, 0.8, MARKETING_EXPERT_PROMPT);
+  // Self-critique loop for carousel quality
+  const MIN_QUALITY_SCORE = 75;
+  const MAX_ATTEMPTS = 3;
+
+  let bestCarousel: CarouselContent | null = null;
+  let bestScore = 0;
+  let attempts: Array<{ content: CarouselContent; score: number; feedback: string[] }> = [];
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    console.log(`Carousel generation attempt ${attempt}/${MAX_ATTEMPTS}...`);
+
+    // Add feedback from previous attempt if available
+    let currentPrompt = prompt;
+    if (attempt > 1 && attempts.length > 0) {
+      const lastAttempt = attempts[attempts.length - 1];
+      currentPrompt = `${prompt}
+
+═══════════════════════════════════════
+⚠️ KRITISCHES FEEDBACK ZUM VORHERIGEN VERSUCH (Score: ${lastAttempt.score}/100):
+${lastAttempt.feedback.map(f => `- ${f}`).join('\n')}
+
+DU MUSST DIESE PROBLEME BEHEBEN! Erstelle ein KOMPLETT NEUES, BESSERES Carousel.
+═══════════════════════════════════════`;
+    }
+
+    let result: { content: string; tokensUsed: number };
+    if (config.provider === 'anthropic') {
+      result = await callAnthropic(config.apiKey, config.model, currentPrompt, 4000, 0.8, MARKETING_EXPERT_PROMPT);
+    } else {
+      result = await callOpenAI(config.apiKey, config.model, currentPrompt, 4000, 0.8, MARKETING_EXPERT_PROMPT);
+    }
+
+    try {
+      let jsonStr = result.content.trim();
+      if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+
+      const carousel = JSON.parse(jsonStr) as CarouselContent;
+
+      // Quality check the carousel
+      const carouselSummary = `HOOK: ${carousel.slides[0]?.headline}\nSLIDES: ${carousel.slides.map(s => s.headline).join(' → ')}\nCAPTION: ${carousel.caption}`;
+
+      const qualityCheck = await universalQualityCheck(
+        config.apiKey,
+        config.provider,
+        config.model,
+        carouselSummary,
+        { contentType: 'carousel', platform: options.platform }
+      );
+
+      console.log(`Carousel attempt ${attempt} score: ${qualityCheck.score}/100`);
+
+      attempts.push({
+        content: carousel,
+        score: qualityCheck.score,
+        feedback: qualityCheck.issues
+      });
+
+      if (qualityCheck.score > bestScore) {
+        bestScore = qualityCheck.score;
+        bestCarousel = carousel;
+      }
+
+      if (qualityCheck.score >= MIN_QUALITY_SCORE) {
+        console.log(`Carousel quality threshold met on attempt ${attempt}!`);
+        break;
+      }
+    } catch (error) {
+      console.error(`Carousel attempt ${attempt} failed to parse:`, error);
+      // Continue to next attempt
+    }
   }
 
-  try {
-    let jsonStr = result.content.trim();
-    if (jsonStr.startsWith('```json')) jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-    else if (jsonStr.startsWith('```')) jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
-
-    return JSON.parse(jsonStr) as CarouselContent;
-  } catch (error) {
-    console.error('Failed to parse carousel content:', error);
+  if (!bestCarousel) {
     throw new Error('Fehler bei der Carousel-Generierung');
   }
+
+  return {
+    ...bestCarousel,
+    qualityScore: bestScore,
+    attempts: attempts.length
+  } as CarouselContent & { qualityScore: number; attempts: number };
 }
 
 /**
