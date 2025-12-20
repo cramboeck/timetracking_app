@@ -5,7 +5,8 @@ import {
   Linkedin, Twitter, Facebook, Instagram, X, Loader2, AlertCircle,
   Layers, Lightbulb, ListOrdered, Zap, Upload, BarChart3, TrendingUp,
   Recycle, Search, RefreshCw, Rocket, Globe, FileCode, Users, MessageCircle,
-  Play, Pause, ThumbsUp, ThumbsDown, ExternalLink, Image, Wand2, Film
+  Play, Pause, ThumbsUp, ThumbsDown, ExternalLink, Image, Wand2, Film,
+  LayoutDashboard, PenTool, Bot, Library, ArrowRight, Target, Eye, CalendarDays
 } from 'lucide-react';
 import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage } from '../services/api';
 import { Customer } from '../types';
@@ -15,7 +16,14 @@ interface SocialMediaManagerProps {
   customers?: Customer[];
 }
 
-type ViewMode = 'calendar' | 'list' | 'templates' | 'hashtags' | 'accounts' | 'queue' | 'batch' | 'analytics' | 'evergreen' | 'autopilot' | 'trends' | 'remix' | 'competitors' | 'engagement' | 'stories';
+// Simplified view modes - grouped by function
+type ViewMode = 'dashboard' | 'calendar' | 'list' | 'create' | 'stories' | 'ai-tools' | 'engagement' | 'library' | 'analytics';
+// Sub-views for grouped sections
+type CreateSubView = 'post' | 'batch' | 'remix';
+type AIToolsSubView = 'autopilot' | 'trends' | 'ideas';
+type EngagementSubView = 'competitors' | 'bot';
+type LibrarySubView = 'evergreen' | 'templates' | 'hashtags';
+
 type Platform = 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
 type StoryType = 'promotional' | 'educational' | 'behind-the-scenes' | 'announcement' | 'poll' | 'quote';
 type ImageStyle = 'modern' | 'minimalist' | 'vibrant' | 'professional' | 'artistic' | 'photorealistic';
@@ -43,13 +51,19 @@ const PLATFORM_LIMITS: Record<string, number> = {
 };
 
 export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) => {
-  const [viewMode, setViewMode] = useState<ViewMode>('calendar');
+  const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
   const [posts, setPosts] = useState<SocialMediaPost[]>([]);
   const [templates, setTemplates] = useState<SocialMediaTemplate[]>([]);
   const [hashtagGroups, setHashtagGroups] = useState<SocialMediaHashtagGroup[]>([]);
   const [accounts, setAccounts] = useState<SocialMediaAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Sub-view states for grouped sections
+  const [createSubView, setCreateSubView] = useState<CreateSubView>('post');
+  const [aiToolsSubView, setAIToolsSubView] = useState<AIToolsSubView>('autopilot');
+  const [engagementSubView, setEngagementSubView] = useState<EngagementSubView>('competitors');
+  const [librarySubView, setLibrarySubView] = useState<LibrarySubView>('evergreen');
 
   // Calendar state
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
@@ -860,23 +874,17 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         </div>
       )}
 
-      {/* View Mode Tabs */}
+      {/* Simplified View Mode Tabs */}
       <div className="flex gap-2 border-b border-gray-200 dark:border-dark-200 pb-2 overflow-x-auto">
         {[
-          { id: 'calendar', label: 'Kalender', icon: Calendar },
-          { id: 'list', label: 'Posts', icon: List },
+          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+          { id: 'calendar', label: 'Planen', icon: CalendarDays },
+          { id: 'create', label: 'Erstellen', icon: PenTool },
           { id: 'stories', label: 'Stories', icon: Film },
-          { id: 'autopilot', label: 'Autopilot', icon: Rocket },
-          { id: 'trends', label: 'Trends', icon: Globe },
-          { id: 'remix', label: 'Remix', icon: FileCode },
-          { id: 'competitors', label: 'Konkurrenz', icon: Users },
-          { id: 'engagement', label: 'Engagement', icon: MessageCircle },
-          { id: 'queue', label: 'Queue', icon: ListOrdered },
-          { id: 'batch', label: 'Batch', icon: Layers },
-          { id: 'evergreen', label: 'Evergreen', icon: Recycle },
+          { id: 'ai-tools', label: 'KI-Tools', icon: Bot },
+          { id: 'engagement', label: 'Engagement', icon: Target },
+          { id: 'library', label: 'Bibliothek', icon: Library },
           { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-          { id: 'templates', label: 'Vorlagen', icon: FileText },
-          { id: 'hashtags', label: 'Hashtags', icon: Hash },
         ].map(tab => (
           <button
             key={tab.id}
@@ -892,6 +900,244 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           </button>
         ))}
       </div>
+
+      {/* Dashboard View */}
+      {viewMode === 'dashboard' && (
+        <div className="space-y-6">
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                  <CalendarDays size={20} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold dark:text-white">{posts.filter(p => p.status === 'scheduled').length}</p>
+                  <p className="text-xs text-gray-500">Geplant</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                  <Edit2 size={20} className="text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold dark:text-white">{posts.filter(p => p.status === 'draft').length}</p>
+                  <p className="text-xs text-gray-500">Entwürfe</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                  <Check size={20} className="text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold dark:text-white">{posts.filter(p => p.status === 'published').length}</p>
+                  <p className="text-xs text-gray-500">Veröffentlicht</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                  <Recycle size={20} className="text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold dark:text-white">{evergreenPosts.length}</p>
+                  <p className="text-xs text-gray-500">Evergreen</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white dark:bg-dark-100 rounded-xl p-6 border border-gray-200 dark:border-dark-200">
+            <h3 className="font-semibold dark:text-white mb-4">Schnellaktionen</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <button
+                onClick={() => { setViewMode('create'); setCreateSubView('post'); setShowPostEditor(true); }}
+                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl hover:opacity-90"
+              >
+                <Plus size={24} />
+                <span className="text-sm font-medium">Neuer Post</span>
+              </button>
+              <button
+                onClick={() => { setViewMode('create'); setCreateSubView('post'); setShowAiGenerator(true); }}
+                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90"
+              >
+                <Sparkles size={24} />
+                <span className="text-sm font-medium">KI-Post</span>
+              </button>
+              <button
+                onClick={() => setViewMode('stories')}
+                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-xl hover:opacity-90"
+              >
+                <Film size={24} />
+                <span className="text-sm font-medium">Story erstellen</span>
+              </button>
+              <button
+                onClick={() => { setViewMode('ai-tools'); setAIToolsSubView('trends'); }}
+                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-green-500 to-teal-500 text-white rounded-xl hover:opacity-90"
+              >
+                <TrendingUp size={24} />
+                <span className="text-sm font-medium">Trends nutzen</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Two Column Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Upcoming Posts */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl p-6 border border-gray-200 dark:border-dark-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold dark:text-white">Nächste Posts</h3>
+                <button
+                  onClick={() => setViewMode('calendar')}
+                  className="text-sm text-accent-primary hover:underline flex items-center gap-1"
+                >
+                  Alle anzeigen <ArrowRight size={14} />
+                </button>
+              </div>
+              <div className="space-y-3">
+                {posts
+                  .filter(p => p.status === 'scheduled' && p.scheduledAt)
+                  .sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime())
+                  .slice(0, 5)
+                  .map(post => (
+                    <div key={post.id} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                      <div className="flex-shrink-0 p-2 bg-blue-100 dark:bg-blue-900/30 rounded">
+                        <Clock size={16} className="text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm dark:text-white truncate">{post.content.substring(0, 60)}...</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(post.scheduledAt!).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => { setEditingPost(post); setShowPostEditor(true); setViewMode('create'); }}
+                        className="p-1 text-gray-400 hover:text-gray-600"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                {posts.filter(p => p.status === 'scheduled').length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-4">Keine geplanten Posts</p>
+                )}
+              </div>
+            </div>
+
+            {/* Draft Posts */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl p-6 border border-gray-200 dark:border-dark-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold dark:text-white">Entwürfe bearbeiten</h3>
+                <span className="text-xs px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded">
+                  {posts.filter(p => p.status === 'draft').length} offen
+                </span>
+              </div>
+              <div className="space-y-3">
+                {posts
+                  .filter(p => p.status === 'draft')
+                  .slice(0, 5)
+                  .map(post => (
+                    <div key={post.id} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                      <div className="flex-shrink-0 p-2 bg-amber-100 dark:bg-amber-900/30 rounded">
+                        <Edit2 size={16} className="text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm dark:text-white truncate">{post.content.substring(0, 60)}...</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Erstellt: {new Date(post.createdAt).toLocaleDateString('de-DE')}
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => { setEditingPost(post); setShowPostEditor(true); setViewMode('create'); }}
+                          className="p-1 text-gray-400 hover:text-blue-600"
+                          title="Bearbeiten"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const nextSlot = new Date();
+                            nextSlot.setDate(nextSlot.getDate() + 1);
+                            nextSlot.setHours(9, 0, 0, 0);
+                            await socialMediaApi.updatePost(post.id, { scheduledAt: nextSlot.toISOString(), status: 'scheduled' });
+                            loadData();
+                          }}
+                          className="p-1 text-gray-400 hover:text-green-600"
+                          title="Schnell planen"
+                        >
+                          <Clock size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                {posts.filter(p => p.status === 'draft').length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-4">Keine Entwürfe</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Workflow Suggestions */}
+          <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-6 border border-purple-200 dark:border-purple-800">
+            <h3 className="font-semibold dark:text-white mb-3 flex items-center gap-2">
+              <Lightbulb size={20} className="text-amber-500" />
+              Empfehlungen
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {autopilotSettings.enabled ? (
+                <div className="p-4 bg-white/50 dark:bg-dark-100/50 rounded-lg">
+                  <p className="text-sm font-medium dark:text-white">Autopilot aktiv</p>
+                  <p className="text-xs text-gray-500 mt-1">{autopilotSettings.postsPerWeek} Posts/Woche geplant</p>
+                  <button
+                    onClick={() => { setViewMode('ai-tools'); setAIToolsSubView('autopilot'); }}
+                    className="mt-2 text-xs text-accent-primary hover:underline"
+                  >
+                    Verwalten →
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 bg-white/50 dark:bg-dark-100/50 rounded-lg">
+                  <p className="text-sm font-medium dark:text-white">Autopilot aktivieren</p>
+                  <p className="text-xs text-gray-500 mt-1">Lass KI deine Posts automatisch erstellen</p>
+                  <button
+                    onClick={() => { setViewMode('ai-tools'); setAIToolsSubView('autopilot'); }}
+                    className="mt-2 text-xs text-accent-primary hover:underline"
+                  >
+                    Einrichten →
+                  </button>
+                </div>
+              )}
+              <div className="p-4 bg-white/50 dark:bg-dark-100/50 rounded-lg">
+                <p className="text-sm font-medium dark:text-white">Trends erkunden</p>
+                <p className="text-xs text-gray-500 mt-1">Finde aktuelle Themen für mehr Reichweite</p>
+                <button
+                  onClick={() => { setViewMode('ai-tools'); setAIToolsSubView('trends'); }}
+                  className="mt-2 text-xs text-accent-primary hover:underline"
+                >
+                  Trends ansehen →
+                </button>
+              </div>
+              <div className="p-4 bg-white/50 dark:bg-dark-100/50 rounded-lg">
+                <p className="text-sm font-medium dark:text-white">Content remixen</p>
+                <p className="text-xs text-gray-500 mt-1">Verwandle Blogposts in Social Content</p>
+                <button
+                  onClick={() => { setViewMode('create'); setCreateSubView('remix'); }}
+                  className="mt-2 text-xs text-accent-primary hover:underline"
+                >
+                  Content remixen →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Calendar View */}
       {viewMode === 'calendar' && (
