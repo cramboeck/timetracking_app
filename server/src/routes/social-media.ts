@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import crypto from 'crypto';
 import * as aiService from '../services/aiService';
+import { selectTheme, THEME_CATEGORIES, SUBTOPIC_LABELS, Platform, BusinessGoal, JourneyStage, ThemeCategory } from '../services/themeSelectionEngine';
 
 const router = Router();
 
@@ -2725,6 +2726,83 @@ router.post('/story-templates', authenticateToken, attachOrganization, requireOr
 // ============================================
 // Content Wizard Routes (Marketing Expert AI)
 // ============================================
+
+// GET /api/social-media/wizard/theme-categories - Get all available theme categories
+router.get('/wizard/theme-categories', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const categories = Object.values(THEME_CATEGORIES).map(cat => ({
+      id: cat.id,
+      nameDE: cat.nameDE,
+      emotion: cat.emotion,
+      subtopics: cat.subtopics.map(s => ({
+        id: s,
+        ...SUBTOPIC_LABELS[s]
+      }))
+    }));
+    res.json({ categories });
+  } catch (error: any) {
+    console.error('Get theme categories error:', error);
+    res.status(500).json({ error: error.message || 'Failed to get theme categories' });
+  }
+});
+
+// POST /api/social-media/wizard/select-theme - Strategic theme selection before content generation
+router.post('/wizard/select-theme', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const { platform, goal, journeyStage, targetAudience, previousThemes, topicHint } = req.body;
+
+    if (!platform || !goal) {
+      return res.status(400).json({
+        error: 'Platform and goal are required'
+      });
+    }
+
+    // Validate platform
+    const validPlatforms: Platform[] = ['linkedin', 'instagram'];
+    if (!validPlatforms.includes(platform.toLowerCase())) {
+      return res.status(400).json({
+        error: 'Platform must be linkedin or instagram'
+      });
+    }
+
+    // Map goal to BusinessGoal
+    const goalMapping: Record<string, BusinessGoal> = {
+      'reach': 'engagement',
+      'engagement': 'engagement',
+      'leads': 'lead',
+      'lead': 'lead',
+      'branding': 'branding',
+      'traffic': 'traffic'
+    };
+
+    const mappedGoal = goalMapping[goal.toLowerCase()];
+    if (!mappedGoal) {
+      return res.status(400).json({
+        error: 'Goal must be one of: reach, engagement, leads, branding, traffic'
+      });
+    }
+
+    // Validate journey stage
+    const validStages: JourneyStage[] = ['awareness', 'consideration', 'decision'];
+    const stage: JourneyStage = validStages.includes(journeyStage?.toLowerCase())
+      ? journeyStage.toLowerCase() as JourneyStage
+      : 'awareness';
+
+    const themeSelection = selectTheme({
+      platform: platform.toLowerCase() as Platform,
+      goal: mappedGoal,
+      journeyStage: stage,
+      targetAudience: targetAudience || 'B2B-Entscheider',
+      previousThemes: previousThemes as ThemeCategory[] | undefined,
+      topicHint
+    });
+
+    res.json(themeSelection);
+  } catch (error: any) {
+    console.error('Select theme error:', error);
+    res.status(500).json({ error: error.message || 'Failed to select theme' });
+  }
+});
 
 // POST /api/social-media/wizard/analyze - Analyze content with marketing expert
 router.post('/wizard/analyze', authenticateToken, async (req: AuthRequest, res) => {

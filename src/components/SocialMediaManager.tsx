@@ -9,7 +9,7 @@ import {
   LayoutDashboard, PenTool, Bot, Library, ArrowRight, ArrowUp, ArrowDown, Target, Eye, CalendarDays,
   Heart, MousePointer, MessageSquare
 } from 'lucide-react';
-import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement, AutoImprovementResult, CarouselContent, CarouselSlide } from '../services/api';
+import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement, AutoImprovementResult, CarouselContent, CarouselSlide, ThemeSelectionOutput } from '../services/api';
 import { Customer } from '../types';
 import { Modal } from './Modal';
 
@@ -267,6 +267,9 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   const [wizardGeneratingImage, setWizardGeneratingImage] = useState(false);
   const [wizardEditedContent, setWizardEditedContent] = useState('');
   const [wizardIncludeImage, setWizardIncludeImage] = useState(true);
+  const [wizardJourneyStage, setWizardJourneyStage] = useState<'awareness' | 'consideration' | 'decision'>('awareness');
+  const [wizardThemePreview, setWizardThemePreview] = useState<ThemeSelectionOutput | null>(null);
+  const [wizardLoadingTheme, setWizardLoadingTheme] = useState(false);
 
   // Carousel Generator state
   const [carouselTopic, setCarouselTopic] = useState('');
@@ -5501,7 +5504,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               </div>
 
               {/* Tone & Style */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Tonalität
@@ -5532,7 +5535,97 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     <option value="long">Ausführlich</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Buyer Journey
+                  </label>
+                  <select
+                    value={wizardJourneyStage}
+                    onChange={(e) => {
+                      setWizardJourneyStage(e.target.value as any);
+                      setWizardThemePreview(null); // Reset theme preview
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                  >
+                    <option value="awareness">Awareness (Problem erkennen)</option>
+                    <option value="consideration">Consideration (Lösungen suchen)</option>
+                    <option value="decision">Decision (Entscheidung treffen)</option>
+                  </select>
+                </div>
               </div>
+
+              {/* Theme Strategy Preview */}
+              {(wizardPlatform === 'linkedin' || wizardPlatform === 'instagram') && (
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium text-purple-800 dark:text-purple-200 flex items-center gap-2">
+                      <Lightbulb size={16} />
+                      Strategische Theme-Auswahl
+                    </h4>
+                    <button
+                      onClick={async () => {
+                        setWizardLoadingTheme(true);
+                        try {
+                          const theme = await socialMediaApi.selectTheme({
+                            platform: wizardPlatform as 'linkedin' | 'instagram',
+                            goal: wizardGoal === 'brand' ? 'branding' : wizardGoal === 'sales' ? 'lead' : wizardGoal,
+                            journeyStage: wizardJourneyStage,
+                            targetAudience: wizardTargetAudience || 'B2B-Entscheider',
+                            topicHint: wizardTopic
+                          });
+                          setWizardThemePreview(theme);
+                        } catch (err: any) {
+                          console.error('Theme preview error:', err);
+                        } finally {
+                          setWizardLoadingTheme(false);
+                        }
+                      }}
+                      disabled={wizardLoadingTheme}
+                      className="text-xs bg-purple-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-purple-700 disabled:opacity-50"
+                    >
+                      {wizardLoadingTheme ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <Target size={12} />
+                      )}
+                      Theme analysieren
+                    </button>
+                  </div>
+
+                  {wizardThemePreview ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <span className="px-3 py-1 bg-purple-600 text-white rounded-full text-sm font-medium">
+                          {wizardThemePreview.selectedTheme.category.replace('_', ' ')}
+                        </span>
+                        <span className="text-xs text-purple-600 dark:text-purple-400">
+                          Score: {wizardThemePreview.priorityScore}/100
+                        </span>
+                      </div>
+                      <div className="bg-white/50 dark:bg-black/20 rounded p-3">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                          <strong>Winkel:</strong> {wizardThemePreview.selectedTheme.angle}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {wizardThemePreview.reasoning.summary}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-[10px] text-gray-500">Alternativen:</span>
+                        {wizardThemePreview.alternatives.slice(0, 3).map((alt, i) => (
+                          <span key={i} className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-gray-600 dark:text-gray-400">
+                            {alt.category.replace('_', ' ')} ({alt.score})
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-purple-600 dark:text-purple-400">
+                      Klicke "Theme analysieren" um zu sehen, welches strategische Thema die KI für deine Konfiguration empfiehlt.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Image Toggle */}
               <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-dark-200 rounded-lg cursor-pointer">
@@ -5576,6 +5669,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         platform: wizardPlatform,
                         goal: goalMap[wizardGoal],
                         targetAudience: wizardTargetAudience || 'Business-Entscheider',
+                        journeyStage: wizardJourneyStage,
                         tone: toneMap[wizardTone],
                         includeImage: wizardIncludeImage,
                         includeHashtags: true,

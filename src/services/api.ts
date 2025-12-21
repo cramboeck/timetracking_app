@@ -3757,6 +3757,34 @@ export interface MarketingAnalysis {
   viralPotential: number;
 }
 
+export interface ThemeSelectionOutput {
+  selectedTheme: {
+    category: string;
+    subtopic: string;
+    angle: string;
+  };
+  priorityScore: number;
+  reasoning: {
+    platformReason: string;
+    goalReason: string;
+    journeyReason: string;
+    audienceReason: string;
+    summary: string;
+  };
+  alternatives: Array<{
+    category: string;
+    score: number;
+    whyNot: string;
+  }>;
+  contentDirectives: {
+    hookStyle: string;
+    ctaStyle: string;
+    avoidTopics: string[];
+    emphasize: string[];
+    toneGuidance: string;
+  };
+}
+
 export interface WizardContentGeneration {
   post: {
     content: string;
@@ -3781,6 +3809,18 @@ export interface WizardContentGeneration {
     emotionalTone: string;
     expectedEngagement: 'low' | 'medium' | 'high';
     targetAudienceMatch: number;
+  };
+  themeSelection?: {
+    category: string;
+    subtopic: string;
+    angle: string;
+    priorityScore: number;
+    reasoning: string;
+    alternatives: Array<{
+      category: string;
+      score: number;
+      whyNot: string;
+    }>;
   };
 }
 
@@ -4622,10 +4662,12 @@ export const socialMediaApi = {
     platform: string;
     goal: string;
     targetAudience?: string;
+    journeyStage?: 'awareness' | 'consideration' | 'decision';
     tone?: string;
     includeImage?: boolean;
     includeHashtags?: boolean;
     contentLength?: 'short' | 'medium' | 'long';
+    previousThemes?: string[];
   }): Promise<WizardContentGeneration> => {
     return authFetch('/social-media/wizard/generate', {
       method: 'POST',
@@ -4670,6 +4712,36 @@ export const socialMediaApi = {
       method: 'POST',
       body: JSON.stringify(options),
     });
+  },
+
+  // Theme Selection Engine
+  selectTheme: async (options: {
+    platform: 'linkedin' | 'instagram';
+    goal: 'lead' | 'branding' | 'engagement' | 'traffic' | 'reach' | 'leads';
+    journeyStage?: 'awareness' | 'consideration' | 'decision';
+    targetAudience?: string;
+    previousThemes?: string[];
+    topicHint?: string;
+  }): Promise<ThemeSelectionOutput> => {
+    return authFetch('/social-media/wizard/select-theme', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  getThemeCategories: async (): Promise<{
+    categories: Array<{
+      id: string;
+      nameDE: string;
+      emotion: string;
+      subtopics: Array<{
+        id: string;
+        de: string;
+        description: string;
+      }>;
+    }>;
+  }> => {
+    return authFetch('/social-media/wizard/theme-categories');
   },
 };
 

@@ -1,5 +1,13 @@
 import { query } from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  selectTheme,
+  getThemePromptSection,
+  ThemeSelectionOutput,
+  Platform,
+  BusinessGoal,
+  JourneyStage
+} from './themeSelectionEngine';
 
 // ============================================
 // Types
@@ -3155,6 +3163,18 @@ export interface WizardContentGeneration {
     expectedEngagement: 'low' | 'medium' | 'high';
     targetAudienceMatch: number;
   };
+  themeSelection?: {
+    category: string;
+    subtopic: string;
+    angle: string;
+    priorityScore: number;
+    reasoning: string;
+    alternatives: Array<{
+      category: string;
+      score: number;
+      whyNot: string;
+    }>;
+  };
 }
 
 // Wizard options type
@@ -3163,12 +3183,14 @@ export interface WizardOptions {
   platform: string;
   goal: string;
   targetAudience?: string;
+  journeyStage?: 'awareness' | 'consideration' | 'decision';
   brandVoice?: string;
   contentType?: 'educational' | 'promotional' | 'entertaining' | 'inspirational' | 'behind-the-scenes';
   tone?: string;
   includeImage?: boolean;
   includeHashtags?: boolean;
   contentLength?: 'short' | 'medium' | 'long';
+  previousThemes?: string[]; // For theme rotation
 }
 
 /**
@@ -3182,6 +3204,45 @@ export async function generateWizardContent(
   if (!config || !config.apiKey) {
     throw new Error('AI-Konfiguration nicht gefunden');
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP 1: STRATEGIC THEME SELECTION (NEW!)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Map goal to BusinessGoal type
+  const goalMapping: Record<string, BusinessGoal> = {
+    'reach': 'engagement', // reach maps to engagement
+    'engagement': 'engagement',
+    'leads': 'lead',
+    'lead': 'lead',
+    'branding': 'branding',
+    'traffic': 'traffic'
+  };
+
+  // Validate platform
+  const validPlatforms: Platform[] = ['linkedin', 'instagram'];
+  const platform: Platform = validPlatforms.includes(options.platform.toLowerCase() as Platform)
+    ? options.platform.toLowerCase() as Platform
+    : 'linkedin';
+
+  // Select theme strategically BEFORE content generation
+  let themeSelection: ThemeSelectionOutput | null = null;
+  try {
+    themeSelection = selectTheme({
+      platform,
+      goal: goalMapping[options.goal.toLowerCase()] || 'lead',
+      journeyStage: options.journeyStage || 'awareness',
+      targetAudience: options.targetAudience || 'B2B-Entscheider',
+      previousThemes: options.previousThemes as any,
+      topicHint: options.topic
+    });
+    console.log(`Theme selected: ${themeSelection.selectedTheme.category} / ${themeSelection.selectedTheme.subtopic} (Score: ${themeSelection.priorityScore})`);
+  } catch (err) {
+    console.warn('Theme selection failed, continuing without:', err);
+  }
+
+  // Get theme prompt section if theme was selected
+  const themePromptSection = themeSelection ? getThemePromptSection(themeSelection) : '';
 
   // Use dynamic system prompt with audience and platform context
   const systemPrompt = getMarketingExpertPrompt(options.targetAudience, options.platform);
@@ -3201,6 +3262,7 @@ export async function generateWizardContent(
   };
 
   const prompt = `Erstelle einen Social Media Post der WIRKLICH konvertiert.
+${themePromptSection}
 
 ═══════════════════════════════════════
 BRIEFING:
@@ -3350,11 +3412,30 @@ Denke wie ein Top-Performer mit 100k+ Followern. Was würde VIRAL gehen?
     throw new Error('Fehler bei der Content-Generierung');
   }
 
-  return {
+  // Add theme selection data to the output
+  const result: WizardContentGeneration & { qualityScore: number; attempts: number } = {
     ...bestContent,
     qualityScore: bestScore,
     attempts: attempts.length
-  } as WizardContentGeneration & { qualityScore: number; attempts: number };
+  };
+
+  // Include theme selection reasoning if available
+  if (themeSelection) {
+    result.themeSelection = {
+      category: themeSelection.selectedTheme.category,
+      subtopic: themeSelection.selectedTheme.subtopic,
+      angle: themeSelection.selectedTheme.angle,
+      priorityScore: themeSelection.priorityScore,
+      reasoning: themeSelection.reasoning.summary,
+      alternatives: themeSelection.alternatives.map(alt => ({
+        category: alt.category,
+        score: alt.score,
+        whyNot: alt.whyNot
+      }))
+    };
+  }
+
+  return result;
 }
 
 // Extended interface for improved content
