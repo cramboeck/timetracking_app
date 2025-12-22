@@ -198,6 +198,15 @@ const BillingTab = () => {
     loadData();
   }, [selectedMonth, billingPeriodType, selectedQuarter, selectedYear]);
 
+  // Helper to format date as YYYY-MM-DD in local timezone (not UTC)
+  // Using toISOString() would convert to UTC first, causing off-by-one errors in CET/CEST
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Calculate period dates based on billing type
   const getPeriodDates = () => {
     if (billingPeriodType === 'monthly') {
@@ -224,8 +233,8 @@ const BillingTab = () => {
       const { startDate, endDate } = getPeriodDates();
 
       const summaryResponse = await sevdeskApi.getBillingSummary(
-        startDate.toISOString().split('T')[0],
-        endDate.toISOString().split('T')[0]
+        formatDateLocal(startDate),
+        formatDateLocal(endDate)
       );
 
       // Get exports with higher limit to check for overlapping periods
@@ -339,8 +348,8 @@ const BillingTab = () => {
 
       await sevdeskApi.createInvoiceExport({
         customerId,
-        periodStart: startDate.toISOString().split('T')[0],
-        periodEnd: endDate.toISOString().split('T')[0],
+        periodStart: formatDateLocal(startDate),
+        periodEnd: formatDateLocal(endDate),
       });
 
       setSuccess(`${customerName} als abgerechnet markiert`);
