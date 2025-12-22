@@ -46,6 +46,17 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   const [showFilters, setShowFilters] = useState(false);
   const [filterCustomerId, setFilterCustomerId] = useState<string>('');
   const [filterProjectId, setFilterProjectId] = useState<string>('');
+  const [filterTimeframeType, setFilterTimeframeType] = useState<'month' | 'quarter' | 'year' | 'custom'>('month');
+  const [filterMonth, setFilterMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [filterQuarter, setFilterQuarter] = useState(() => {
+    const now = new Date();
+    const quarter = Math.floor(now.getMonth() / 3) + 1;
+    return `${now.getFullYear()}-Q${quarter}`;
+  });
+  const [filterYear, setFilterYear] = useState(() => String(new Date().getFullYear()));
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [filterDescription, setFilterDescription] = useState<string>('');
@@ -159,6 +170,39 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     return projects.filter(p => p.customerId === filterCustomerId);
   }, [filterCustomerId, projects]);
 
+  // Generate available months for filter
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    entries.forEach(entry => {
+      const date = new Date(entry.startTime);
+      const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      months.add(month);
+    });
+    return Array.from(months).sort().reverse();
+  }, [entries]);
+
+  // Generate available quarters for filter
+  const availableQuarters = useMemo(() => {
+    const quarters = new Set<string>();
+    entries.forEach(entry => {
+      const date = new Date(entry.startTime);
+      const year = date.getFullYear();
+      const quarter = Math.floor(date.getMonth() / 3) + 1;
+      quarters.add(`${year}-Q${quarter}`);
+    });
+    return Array.from(quarters).sort().reverse();
+  }, [entries]);
+
+  // Generate available years for filter
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    entries.forEach(entry => {
+      const date = new Date(entry.startTime);
+      years.add(String(date.getFullYear()));
+    });
+    return Array.from(years).sort().reverse();
+  }, [entries]);
+
   // Filter entries
   const filteredEntries = useMemo(() => {
     return entries.filter(entry => {
@@ -171,10 +215,27 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       // Project filter
       if (filterProjectId && entry.projectId !== filterProjectId) return false;
 
-      // Date range filter
-      const entryDate = new Date(entry.startTime).toISOString().split('T')[0];
-      if (filterDateFrom && entryDate < filterDateFrom) return false;
-      if (filterDateTo && entryDate > filterDateTo) return false;
+      // Timeframe filter
+      const entryDate = new Date(entry.startTime);
+      if (filterTimeframeType === 'month') {
+        const entryMonth = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}`;
+        if (entryMonth !== filterMonth) return false;
+      } else if (filterTimeframeType === 'quarter') {
+        const match = filterQuarter.match(/^(\d{4})-Q(\d)$/);
+        if (match) {
+          const filterQYear = parseInt(match[1]);
+          const filterQ = parseInt(match[2]);
+          const entryYear = entryDate.getFullYear();
+          const entryQuarter = Math.floor(entryDate.getMonth() / 3) + 1;
+          if (entryYear !== filterQYear || entryQuarter !== filterQ) return false;
+        }
+      } else if (filterTimeframeType === 'year') {
+        if (entryDate.getFullYear() !== parseInt(filterYear)) return false;
+      } else if (filterTimeframeType === 'custom') {
+        const entryDateStr = entryDate.toISOString().split('T')[0];
+        if (filterDateFrom && entryDateStr < filterDateFrom) return false;
+        if (filterDateTo && entryDateStr > filterDateTo) return false;
+      }
 
       // Description filter
       if (filterDescription) {
@@ -186,7 +247,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
       return true;
     });
-  }, [entries, filterCustomerId, filterProjectId, filterDateFrom, filterDateTo, filterDescription]);
+  }, [entries, filterCustomerId, filterProjectId, filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterDescription]);
 
   const sortedEntries = useMemo(() =>
     [...filteredEntries].sort(
@@ -208,11 +269,16 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   );
 
   const totalHours = filteredEntries.reduce((sum, entry) => sum + entry.duration, 0);
-  const hasActiveFilters = filterCustomerId || filterProjectId || filterDateFrom || filterDateTo || filterDescription;
+  const hasActiveFilters = filterCustomerId || filterProjectId || (filterTimeframeType === 'custom' && (filterDateFrom || filterDateTo)) || filterDescription;
 
   const clearFilters = () => {
     setFilterCustomerId('');
     setFilterProjectId('');
+    setFilterTimeframeType('month');
+    const now = new Date();
+    setFilterMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+    setFilterQuarter(`${now.getFullYear()}-Q${Math.floor(now.getMonth() / 3) + 1}`);
+    setFilterYear(String(now.getFullYear()));
     setFilterDateFrom('');
     setFilterDateTo('');
     setFilterDescription('');
@@ -462,7 +528,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
               {/* Customer Filter */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Kunde</label>
@@ -501,27 +567,104 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                 </select>
               </div>
 
-              {/* Date From Filter */}
+              {/* Timeframe Type Filter */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Von</label>
-                <input
-                  type="date"
-                  value={filterDateFrom}
-                  onChange={(e) => setFilterDateFrom(e.target.value)}
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Zeitraum</label>
+                <select
+                  value={filterTimeframeType}
+                  onChange={(e) => setFilterTimeframeType(e.target.value as 'month' | 'quarter' | 'year' | 'custom')}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                />
+                >
+                  <option value="month">Monat</option>
+                  <option value="quarter">Quartal</option>
+                  <option value="year">Jahr</option>
+                  <option value="custom">Benutzerdefiniert</option>
+                </select>
               </div>
 
-              {/* Date To Filter */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Bis</label>
-                <input
-                  type="date"
-                  value={filterDateTo}
-                  onChange={(e) => setFilterDateTo(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                />
-              </div>
+              {/* Month Selector */}
+              {filterTimeframeType === 'month' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Monat/Jahr</label>
+                  <select
+                    value={filterMonth}
+                    onChange={(e) => setFilterMonth(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  >
+                    {availableMonths.map(month => {
+                      const [year, m] = month.split('-');
+                      const date = new Date(parseInt(year), parseInt(m) - 1);
+                      return (
+                        <option key={month} value={month}>
+                          {date.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              {/* Quarter Selector */}
+              {filterTimeframeType === 'quarter' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Quartal</label>
+                  <select
+                    value={filterQuarter}
+                    onChange={(e) => setFilterQuarter(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  >
+                    {availableQuarters.map(q => {
+                      const match = q.match(/^(\d{4})-Q(\d)$/);
+                      const label = match ? `Q${match[2]} ${match[1]}` : q;
+                      return (
+                        <option key={q} value={q}>{label}</option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              {/* Year Selector */}
+              {filterTimeframeType === 'year' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Jahr</label>
+                  <select
+                    value={filterYear}
+                    onChange={(e) => setFilterYear(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  >
+                    {availableYears.map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Custom Date From Filter */}
+              {filterTimeframeType === 'custom' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Von</label>
+                  <input
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={(e) => setFilterDateFrom(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+              )}
+
+              {/* Custom Date To Filter */}
+              {filterTimeframeType === 'custom' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Bis</label>
+                  <input
+                    type="date"
+                    value={filterDateTo}
+                    onChange={(e) => setFilterDateTo(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+              )}
 
               {/* Description Search */}
               <div>
