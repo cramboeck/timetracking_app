@@ -304,6 +304,8 @@ export async function getBillingSummary(
   const defaultRate = config?.defaultHourlyRate || 95;
 
   // Get ALL entries (billed and unbilled) grouped by customer
+  // Only include completed entries (end_time IS NOT NULL) - running entries should not be billed
+  // Use DATE() cast to ensure full day inclusion for the end date
   const result = await query(
     `SELECT c.id as customer_id, c.name as customer_name, c.hourly_rate, c.sevdesk_customer_id,
             c.time_rounding_interval, c.payment_terms_days,
@@ -316,8 +318,9 @@ export async function getBillingSummary(
      JOIN time_entries te ON te.project_id = p.id
      LEFT JOIN tickets t ON te.ticket_id = t.id
      WHERE c.user_id = $1
-       AND te.start_time >= $2
-       AND te.start_time <= $3
+       AND DATE(te.start_time) >= $2::date
+       AND DATE(te.start_time) <= $3::date
+       AND te.end_time IS NOT NULL
      ORDER BY c.name, te.start_time`,
     [userId, startDate, endDate]
   );
