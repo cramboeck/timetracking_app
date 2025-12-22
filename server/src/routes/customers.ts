@@ -21,6 +21,7 @@ const createCustomerSchema = z.object({
   address: z.string().max(500).optional(),
   reportTitle: z.string().max(200).optional(),
   hourlyRate: z.number().min(0).optional(),
+  paymentTermsDays: z.number().min(1).max(365).optional(),
   ninjarmmOrganizationId: z.string().max(100).optional()
 });
 
@@ -33,6 +34,7 @@ const updateCustomerSchema = z.object({
   address: z.string().max(500).optional(),
   reportTitle: z.string().max(200).optional(),
   hourlyRate: z.number().min(0).nullable().optional(),
+  paymentTermsDays: z.number().min(1).max(365).nullable().optional(),
   ninjarmmOrganizationId: z.string().max(100).nullable().optional()
 });
 
@@ -61,15 +63,15 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { name, color, customerNumber, contactPerson, email, address, reportTitle, hourlyRate, timeRoundingInterval, ninjarmmOrganizationId } = req.body;
+    const { name, color, customerNumber, contactPerson, email, address, reportTitle, hourlyRate, timeRoundingInterval, paymentTermsDays, ninjarmmOrganizationId } = req.body;
 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, contact_person, email, address, report_title, hourly_rate, time_rounding_interval, ninjarmm_organization_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-      [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, timeRoundingInterval || 15, ninjarmmOrganizationId || null, createdAt]
+      `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, contact_person, email, address, report_title, hourly_rate, time_rounding_interval, payment_terms_days, ninjarmm_organization_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+      [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, timeRoundingInterval || 15, paymentTermsDays || 14, ninjarmmOrganizationId || null, createdAt]
     );
 
     const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
@@ -148,6 +150,10 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (updates.timeRoundingInterval !== undefined) {
       fields.push(`time_rounding_interval = $${paramCount++}`);
       values.push(updates.timeRoundingInterval || 15);
+    }
+    if (updates.paymentTermsDays !== undefined) {
+      fields.push(`payment_terms_days = $${paramCount++}`);
+      values.push(updates.paymentTermsDays || 14);
     }
     if (updates.ninjarmmOrganizationId !== undefined) {
       fields.push(`ninjarmm_organization_id = $${paramCount++}`);

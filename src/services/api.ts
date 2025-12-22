@@ -1849,6 +1849,7 @@ export interface BillingSummaryItem {
   hourlyRate: number | null;
   sevdeskCustomerId: string | null;
   timeRoundingInterval: number;
+  paymentTermsDays: number;
   totalSeconds: number;
   totalHours: number;
   roundedSeconds: number;
@@ -1926,7 +1927,24 @@ export const sevdeskApi = {
   },
 
   // Create invoice in sevDesk
-  createInvoice: async (customerId: string, entryIds: string[], periodStart: string, periodEnd: string): Promise<{
+  createInvoice: async (params: {
+    customerId: string;
+    entryIds: string[];
+    periodStart: string;
+    periodEnd: string;
+    // Optional custom texts and positions
+    header?: string;
+    headText?: string;
+    footText?: string;
+    positions?: Array<{
+      title: string;
+      description: string;
+      hours: number;
+      amount: number;
+      hourlyRate: number;
+      isHeader?: boolean; // Header positions (quantity 0) display as bold
+    }>;
+  }): Promise<{
     success: boolean;
     data: {
       exportId: string;
@@ -1938,7 +1956,7 @@ export const sevdeskApi = {
   }> => {
     return authFetch('/sevdesk/create-invoice', {
       method: 'POST',
-      body: JSON.stringify({ customerId, entryIds, periodStart, periodEnd }),
+      body: JSON.stringify(params),
     });
   },
 
@@ -1947,6 +1965,29 @@ export const sevdeskApi = {
     return authFetch('/sevdesk/record-export', {
       method: 'POST',
       body: JSON.stringify({ customerId, entryIds, periodStart, periodEnd, totalHours, totalAmount }),
+    });
+  },
+
+  // Generate AI-enhanced invoice texts
+  generateInvoiceTexts: async (params: {
+    customerId: string;
+    sevdeskContactId?: string;
+    periodStart: string;
+    periodEnd: string;
+    entries: Array<{ description: string; hours?: number; duration?: number; projectName?: string }>;
+  }): Promise<{
+    success: boolean;
+    data: {
+      header: string;
+      headText: string;
+      footText: string;
+      positionTexts: string[];
+      previousInvoicesCount: number;
+    };
+  }> => {
+    return authFetch('/sevdesk/generate-invoice-texts', {
+      method: 'POST',
+      body: JSON.stringify(params),
     });
   },
 
@@ -3495,6 +3536,1215 @@ export const contractsApi = {
   },
 };
 
+// Import API (Clockodo, etc.)
+export const importApi = {
+  // Preview Clockodo CSV import
+  previewClockodo: async (csvContent: string): Promise<{
+    success: boolean;
+    data: {
+      rowCount: number;
+      totalDuration: number;
+      totalHours: string;
+      customers: Array<{ name: string; nummer: string; matchedId?: string }>;
+      projects: Array<{ name: string; customerName: string; matchedId?: string }>;
+      sampleRows: Array<any>;
+      existingCustomers: Array<{ id: string; name: string }>;
+      existingProjects: Array<{ id: string; name: string; customerName: string; customerId: string }>;
+    };
+  }> => {
+    return authFetch('/import/clockodo/preview', {
+      method: 'POST',
+      body: JSON.stringify({ csvContent }),
+    });
+  },
+
+  // Execute Clockodo CSV import
+  executeClockodo: async (data: {
+    csvContent: string;
+    customerMapping?: Record<string, string>;
+    projectMapping?: Record<string, string>;
+    defaultProjectId?: string;
+    createMissingProjects?: boolean;
+    skipDuplicates?: boolean;
+  }): Promise<{
+    success: boolean;
+    data: {
+      importedCount: number;
+      skippedCount: number;
+      duplicateCount: number;
+      totalRows: number;
+      createdCustomers: number;
+      createdProjects: number;
+      errors: string[];
+    };
+  }> => {
+    return authFetch('/import/clockodo/execute', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ============================================
+// Social Media API
+// ============================================
+
+export interface SocialMediaPost {
+  id: string;
+  userId: string;
+  organizationId: string;
+  customerId?: string;
+  customerName?: string;
+  title?: string;
+  content: string;
+  mediaUrls: string[];
+  hashtags: string[];
+  status: 'draft' | 'scheduled' | 'published' | 'failed';
+  scheduledAt?: string;
+  publishedAt?: string;
+  aiGenerated: boolean;
+  aiPrompt?: string;
+  platforms?: SocialMediaPostPlatform[];
+  contentCategory?: string;
+  evergreen?: boolean;
+  recycleCount?: number;
+  lastRecycledAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialMediaPostPlatform {
+  id: string;
+  postId: string;
+  accountId: string;
+  platform: string;
+  accountName: string;
+  platformPostId?: string;
+  platformContent?: string;
+  status: 'pending' | 'published' | 'failed';
+  errorMessage?: string;
+  publishedAt?: string;
+  engagementLikes: number;
+  engagementComments: number;
+  engagementShares: number;
+}
+
+export interface SocialMediaAccount {
+  id: string;
+  platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram';
+  accountName: string;
+  accountId?: string;
+  isActive: boolean;
+  tokenExpired: boolean;
+  createdAt: string;
+}
+
+export interface SocialMediaTemplate {
+  id: string;
+  name: string;
+  content: string;
+  platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+  category?: string;
+  hashtags: string[];
+  createdAt: string;
+}
+
+export interface SocialMediaHashtagGroup {
+  id: string;
+  name: string;
+  hashtags: string[];
+  category?: string;
+  createdAt: string;
+}
+
+export interface SocialMediaStory {
+  id: string;
+  title?: string;
+  contentType: 'image' | 'video' | 'carousel' | 'poll' | 'quiz' | 'countdown' | 'link';
+  mediaUrls: string[];
+  textOverlays: Array<{
+    text: string;
+    position: 'top' | 'center' | 'bottom';
+    style?: 'bold' | 'normal' | 'highlight';
+  }>;
+  backgroundColor?: string;
+  backgroundGradient?: string;
+  musicSuggestion?: string;
+  stickers: string[];
+  linkUrl?: string;
+  linkText?: string;
+  pollQuestion?: string;
+  pollOptions: string[];
+  scheduledAt?: string;
+  platforms: string[];
+  status: 'draft' | 'scheduled' | 'published' | 'failed' | 'expired';
+  durationSeconds: number;
+  aiGenerated: boolean;
+  aiPrompt?: string;
+  templateId?: string;
+  engagementData?: Record<string, any>;
+  expiresAt?: string;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GeneratedStoryContent {
+  title: string;
+  textOverlays: Array<{
+    text: string;
+    position: 'top' | 'center' | 'bottom';
+    style: 'bold' | 'normal' | 'highlight';
+  }>;
+  imagePrompt: string;
+  imageSuggestions: string[];
+  backgroundColor: string;
+  callToAction?: string;
+  hashtags: string[];
+  musicSuggestion?: string;
+  stickers: string[];
+}
+
+export interface GeneratedImage {
+  url: string;
+  revisedPrompt?: string;
+  provider: string;
+  model: string;
+  costCents: number;
+}
+
+export interface StoryTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  contentType: 'image' | 'video' | 'carousel' | 'poll' | 'quiz';
+  layout: Record<string, any>;
+  textStyles: Record<string, any>;
+  colorScheme: Record<string, any>;
+  isSystem: boolean;
+  previewUrl?: string;
+  usageCount: number;
+  createdAt: string;
+}
+
+// Marketing Expert AI interfaces
+export interface MarketingAnalysis {
+  overallScore: number;
+  strengths: string[];
+  weaknesses: string[];
+  improvements: Array<{
+    area: string;
+    suggestion: string;
+    priority: 'high' | 'medium' | 'low';
+    improvedExample?: string;
+  }>;
+  platformFit: {
+    score: number;
+    feedback: string;
+  };
+  audienceAlignment: {
+    score: number;
+    feedback: string;
+  };
+  callToActionEffectiveness: {
+    score: number;
+    feedback: string;
+    suggestions: string[];
+  };
+  emotionalTone: string;
+  readabilityScore: number;
+  viralPotential: number;
+}
+
+export interface ThemeSelectionOutput {
+  selectedTheme: {
+    category: string;
+    subtopic: string;
+    angle: string;
+  };
+  priorityScore: number;
+  reasoning: {
+    platformReason: string;
+    goalReason: string;
+    journeyReason: string;
+    audienceReason: string;
+    summary: string;
+  };
+  alternatives: Array<{
+    category: string;
+    score: number;
+    whyNot: string;
+  }>;
+  contentDirectives: {
+    hookStyle: string;
+    ctaStyle: string;
+    avoidTopics: string[];
+    emphasize: string[];
+    toneGuidance: string;
+  };
+}
+
+export interface WizardContentGeneration {
+  post: {
+    content: string;
+    hashtags: string[];
+    callToAction: string;
+  };
+  alternatives: Array<{
+    content: string;
+    style: string;
+  }>;
+  imagePrompt?: {
+    prompt: string;
+    style: string;
+    description: string;
+  };
+  bestPostingTime: {
+    day: string;
+    time: string;
+    reason: string;
+  };
+  contentAnalysis: {
+    emotionalTone: string;
+    expectedEngagement: 'low' | 'medium' | 'high';
+    targetAudienceMatch: number;
+  };
+  themeSelection?: {
+    category: string;
+    subtopic: string;
+    angle: string;
+    priorityScore: number;
+    reasoning: string;
+    alternatives: Array<{
+      category: string;
+      score: number;
+      whyNot: string;
+    }>;
+  };
+}
+
+export interface ContentImprovement {
+  improvedContent: string;
+  alternativeHooks: string[];
+  ctaSuggestions: string[];
+  changes: string[];
+  reasoning: string;
+}
+
+export interface AutoImprovementIteration {
+  iteration: number;
+  focus: string;
+  beforeScore: number;
+  afterScore: number;
+  changes: string[];
+}
+
+export interface AutoImprovementResult {
+  finalContent: string;
+  finalScore: number;
+  initialScore: number;
+  iterations: AutoImprovementIteration[];
+  alternativeHooks: string[];
+  ctaSuggestions: string[];
+  totalImprovementTime: number;
+}
+
+// Carousel Types
+export interface CarouselSlide {
+  slideNumber: number;
+  type: 'hook' | 'content' | 'tip' | 'example' | 'cta';
+  headline: string;
+  body: string;
+  bulletPoints?: string[];
+  emoji?: string;
+  designNote?: string;
+}
+
+export interface CarouselContent {
+  title: string;
+  topic: string;
+  platform: 'instagram' | 'linkedin';
+  slides: CarouselSlide[];
+  hashtags: string[];
+  caption: string;
+  colorScheme: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    background: string;
+    text: string;
+  };
+  designTips: string[];
+  canvaInstructions: string;
+  totalSlides: number;
+}
+
+export const socialMediaApi = {
+  // Posts
+  getPosts: async (filters?: { status?: string; customerId?: string; startDate?: string; endDate?: string }): Promise<SocialMediaPost[]> => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.customerId) params.append('customerId', filters.customerId);
+    if (filters?.startDate) params.append('startDate', filters.startDate);
+    if (filters?.endDate) params.append('endDate', filters.endDate);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return authFetch(`/social-media/posts${query}`);
+  },
+
+  getPost: async (id: string): Promise<SocialMediaPost> => {
+    return authFetch(`/social-media/posts/${id}`);
+  },
+
+  createPost: async (data: {
+    title?: string;
+    content: string;
+    mediaUrls?: string[];
+    hashtags?: string[];
+    scheduledAt?: string;
+    customerId?: string;
+    platforms?: string[];
+    aiGenerated?: boolean;
+    aiPrompt?: string;
+  }): Promise<SocialMediaPost> => {
+    return authFetch('/social-media/posts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updatePost: async (id: string, data: {
+    title?: string;
+    content?: string;
+    mediaUrls?: string[];
+    hashtags?: string[];
+    scheduledAt?: string | null;
+    status?: 'draft' | 'scheduled' | 'published' | 'failed';
+  }): Promise<SocialMediaPost> => {
+    return authFetch(`/social-media/posts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deletePost: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/posts/${id}`, { method: 'DELETE' });
+  },
+
+  // Templates
+  getTemplates: async (): Promise<SocialMediaTemplate[]> => {
+    return authFetch('/social-media/templates');
+  },
+
+  createTemplate: async (data: {
+    name: string;
+    content: string;
+    platform?: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+    category?: string;
+    hashtags?: string[];
+  }): Promise<SocialMediaTemplate> => {
+    return authFetch('/social-media/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteTemplate: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/templates/${id}`, { method: 'DELETE' });
+  },
+
+  // Hashtag Groups
+  getHashtagGroups: async (): Promise<SocialMediaHashtagGroup[]> => {
+    return authFetch('/social-media/hashtags');
+  },
+
+  createHashtagGroup: async (data: {
+    name: string;
+    hashtags: string[];
+    category?: string;
+  }): Promise<SocialMediaHashtagGroup> => {
+    return authFetch('/social-media/hashtags', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteHashtagGroup: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/hashtags/${id}`, { method: 'DELETE' });
+  },
+
+  // Accounts
+  getAccounts: async (): Promise<SocialMediaAccount[]> => {
+    return authFetch('/social-media/accounts');
+  },
+
+  createAccount: async (data: {
+    platform: string;
+    accountName: string;
+    accountId?: string;
+    accessToken?: string;
+    refreshToken?: string;
+    tokenExpiresAt?: string;
+  }): Promise<SocialMediaAccount> => {
+    return authFetch('/social-media/accounts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteAccount: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/accounts/${id}`, { method: 'DELETE' });
+  },
+
+  // AI Generation
+  generateContent: async (data: {
+    topic: string;
+    platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+    tone?: 'professional' | 'casual' | 'humorous' | 'informative';
+    includeHashtags?: boolean;
+    includeEmoji?: boolean;
+    customerId?: string;
+    contentCategory?: string;
+  }): Promise<{ content: string; hashtags: string[]; platform: string; characterCount: number; prompt: string }> => {
+    return authFetch('/social-media/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Batch AI Generation
+  generateBatch: async (data: {
+    topics: string[];
+    platform: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+    tone?: 'professional' | 'casual' | 'humorous' | 'informative';
+    includeHashtags?: boolean;
+    includeEmoji?: boolean;
+    contentCategory?: string;
+    autoSchedule?: boolean;
+    startDate?: string;
+    postsPerDay?: number;
+  }): Promise<{
+    success: boolean;
+    posts: Array<{ id?: string; content: string; hashtags: string[]; platform?: string; characterCount?: number; topic: string; scheduledAt?: string }>;
+    message?: string;
+  }> => {
+    return authFetch('/social-media/generate-batch', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // AI Ideas Generation
+  generateIdeas: async (data: {
+    category: string;
+    count?: number;
+  }): Promise<{ success: boolean; ideas: string[]; category: string }> => {
+    return authFetch('/social-media/generate-ideas', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Queue Management
+  getQueue: async (): Promise<SocialMediaPost[]> => {
+    return authFetch('/social-media/queue');
+  },
+
+  addToQueue: async (data: {
+    content: string;
+    hashtags?: string[];
+    title?: string;
+    contentCategory?: string;
+  }): Promise<{ success: boolean; post: SocialMediaPost; scheduledAt: string }> => {
+    return authFetch('/social-media/queue/add', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getQueueSettings: async (): Promise<{
+    enabled: boolean;
+    postsPerDay: number;
+    preferredTimes: string[];
+    weekendPosting: boolean;
+    contentMix: { educational?: number; promotional?: number; behindTheScenes?: number; news?: number };
+  }> => {
+    return authFetch('/social-media/queue/settings');
+  },
+
+  updateQueueSettings: async (data: {
+    enabled: boolean;
+    postsPerDay: number;
+    preferredTimes?: string[];
+    weekendPosting?: boolean;
+    contentMix?: { educational?: number; promotional?: number; behindTheScenes?: number; news?: number };
+  }): Promise<{ success: boolean }> => {
+    return authFetch('/social-media/queue/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  reorderQueue: async (postIds: string[]): Promise<{ success: boolean }> => {
+    return authFetch('/social-media/queue/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ postIds }),
+    });
+  },
+
+  // Calendar
+  getCalendar: async (month: number, year: number): Promise<SocialMediaPost[]> => {
+    return authFetch(`/social-media/calendar?month=${month}&year=${year}`);
+  },
+
+  // Statistics
+  getStats: async (): Promise<{
+    posts: { drafts: number; scheduled: number; published: number; total: number };
+    platforms: Array<{ platform: string; postCount: number }>;
+    upcomingScheduled: number;
+  }> => {
+    return authFetch('/social-media/stats');
+  },
+
+  // CSV/Bulk Import
+  importPosts: async (posts: Array<{
+    content: string;
+    title?: string;
+    scheduledAt?: string;
+    hashtags?: string[];
+    platform?: string;
+    contentCategory?: string;
+  }>): Promise<{ success: boolean; imported: number; posts: Array<{ id: string; content: string; status: string }> }> => {
+    return authFetch('/social-media/import', {
+      method: 'POST',
+      body: JSON.stringify({ posts }),
+    });
+  },
+
+  // Analytics - Best Times
+  getBestTimes: async (): Promise<{
+    recommendedTimes: Array<{ dayOfWeek: number; dayName: string; hour: number; timeString: string; postCount: number; avgEngagement: number }>;
+    heatmap: number[][];
+    totalAnalyzedPosts: number;
+  }> => {
+    return authFetch('/social-media/analytics/best-times');
+  },
+
+  // Analytics - Hashtags
+  getHashtagAnalytics: async (): Promise<{
+    allHashtags: Array<{ hashtag: string; usageCount: number; avgEngagement: number }>;
+    topPerforming: Array<{ hashtag: string; usageCount: number; avgEngagement: number }>;
+    totalUniqueHashtags: number;
+  }> => {
+    return authFetch('/social-media/analytics/hashtags');
+  },
+
+  researchHashtags: async (topic: string, platform?: string, count?: number): Promise<{
+    success: boolean;
+    topic: string;
+    platform: string;
+    hashtags: Array<{ tag: string; reach: string; description: string }>;
+  }> => {
+    return authFetch('/social-media/analytics/hashtags/research', {
+      method: 'POST',
+      body: JSON.stringify({ topic, platform, count }),
+    });
+  },
+
+  // Evergreen Content
+  getEvergreenPosts: async (): Promise<SocialMediaPost[]> => {
+    return authFetch('/social-media/evergreen');
+  },
+
+  setEvergreen: async (postId: string, evergreen: boolean): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/posts/${postId}/evergreen`, {
+      method: 'PUT',
+      body: JSON.stringify({ evergreen }),
+    });
+  },
+
+  recycleEvergreen: async (postId: string, scheduledAt: string, modifyContent?: boolean): Promise<{
+    success: boolean;
+    newPostId: string;
+    scheduledAt: string;
+  }> => {
+    return authFetch('/social-media/evergreen/recycle', {
+      method: 'POST',
+      body: JSON.stringify({ postId, scheduledAt, modifyContent }),
+    });
+  },
+
+  // Analytics - Content Mix
+  getContentMix: async (): Promise<{
+    distribution: Array<{ category: string; count: number; percentage: number; publishedCount: number; avgEngagement: number }>;
+    targetMix: Record<string, number>;
+    totalPosts: number;
+    recommendations: string[];
+  }> => {
+    return authFetch('/social-media/analytics/content-mix');
+  },
+
+  // Analytics - Performance
+  getPerformance: async (period?: number): Promise<{
+    period: number;
+    metrics: {
+      totalPosts: number;
+      publishedPosts: number;
+      totalLikes: number;
+      totalComments: number;
+      totalShares: number;
+      totalEngagement: number;
+    };
+    topPosts: Array<{ id: string; title: string; content: string; publishedAt: string; engagement: number }>;
+    dailyTrend: Array<{ date: string; posts: number }>;
+  }> => {
+    return authFetch(`/social-media/analytics/performance${period ? `?period=${period}` : ''}`);
+  },
+
+  // ============================================
+  // AUTOPILOT MODE
+  // ============================================
+
+  getAutopilotSettings: async (): Promise<{
+    enabled: boolean;
+    postsPerWeek: number;
+    contentThemes: string[];
+    targetAudience: string;
+    brandVoice: string;
+    approvalMode: 'auto' | 'review';
+    platforms: string[];
+    contentMix: { educational: number; promotional: number; behindTheScenes: number; trending: number };
+    lastGenerated: string | null;
+  }> => {
+    return authFetch('/social-media/autopilot/settings');
+  },
+
+  updateAutopilotSettings: async (settings: {
+    enabled: boolean;
+    postsPerWeek: number;
+    contentThemes: string[];
+    targetAudience?: string;
+    brandVoice?: string;
+    approvalMode: 'auto' | 'review';
+    platforms: string[];
+    contentMix?: { educational: number; promotional: number; behindTheScenes: number; trending: number };
+  }): Promise<any> => {
+    return authFetch('/social-media/autopilot/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  },
+
+  generateAutopilotContent: async (): Promise<{
+    success: boolean;
+    generated: number;
+    posts: SocialMediaPost[];
+    message: string;
+  }> => {
+    return authFetch('/social-media/autopilot/generate', { method: 'POST' });
+  },
+
+  getAutopilotPending: async (): Promise<SocialMediaPost[]> => {
+    return authFetch('/social-media/autopilot/pending');
+  },
+
+  approveAutopilotPosts: async (postIds: string[], action: 'approve' | 'reject'): Promise<{ success: boolean; action: string; count: number }> => {
+    return authFetch('/social-media/autopilot/approve', {
+      method: 'POST',
+      body: JSON.stringify({ postIds, action }),
+    });
+  },
+
+  // ============================================
+  // TREND-SURFER
+  // ============================================
+
+  getTrends: async (industry?: string): Promise<{
+    trends: Array<{
+      topic: string;
+      description: string;
+      relevance: 'high' | 'medium' | 'low';
+      suggestedAngles: string[];
+    }>;
+  }> => {
+    return authFetch(`/social-media/trends${industry ? `?industry=${encodeURIComponent(industry)}` : ''}`);
+  },
+
+  generateTrendContent: async (options: {
+    trend: string;
+    platform?: string;
+    tone?: string;
+    angle?: string;
+  }): Promise<{ content: string; hashtags: string[] }> => {
+    return authFetch('/social-media/trends/generate', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  // ============================================
+  // CONTENT-REMIX-ENGINE
+  // ============================================
+
+  remixContent: async (options: {
+    sourceContent: string;
+    sourceType: 'blog' | 'transcript' | 'article' | 'newsletter';
+    outputFormats: Array<{ platform: string; count: number }>;
+    preserveLinks?: boolean;
+    includeHashtags?: boolean;
+  }): Promise<{
+    success: boolean;
+    sourceLength: number;
+    sourceType: string;
+    outputs: Array<{
+      platform: string;
+      posts: Array<{ content: string; hashtags: string[] }>;
+    }>;
+  }> => {
+    return authFetch('/social-media/remix', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  saveRemixedPosts: async (options: {
+    posts: Array<{ content: string; hashtags?: string[] }>;
+    autoSchedule?: boolean;
+    startDate?: string;
+    postsPerDay?: number;
+  }): Promise<{ success: boolean; created: number; posts: SocialMediaPost[] }> => {
+    return authFetch('/social-media/remix/save', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  // ============================================
+  // COMPETITOR ANALYSIS
+  // ============================================
+
+  getCompetitors: async (): Promise<Array<{
+    id: string;
+    name: string;
+    profiles: { linkedin?: string; twitter?: string; instagram?: string; facebook?: string; website?: string };
+    notes?: string;
+    lastAnalyzed?: string;
+    analysisData?: any;
+    createdAt: string;
+  }>> => {
+    return authFetch('/social-media/competitors');
+  },
+
+  addCompetitor: async (data: {
+    name: string;
+    profiles: { linkedin?: string; twitter?: string; instagram?: string; facebook?: string; website?: string };
+    notes?: string;
+  }): Promise<any> => {
+    return authFetch('/social-media/competitors', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteCompetitor: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/competitors/${id}`, { method: 'DELETE' });
+  },
+
+  analyzeCompetitor: async (id: string, options: {
+    samplePosts: string[];
+    platform?: string;
+  }): Promise<{
+    insights: {
+      postingFrequency: string;
+      contentTypes: string[];
+      topTopics: string[];
+      engagementTactics: string[];
+      strengths: string[];
+      opportunities: string[];
+    };
+    generatedPosts: Array<{ content: string; hashtags: string[]; inspiration: string }>;
+  }> => {
+    return authFetch(`/social-media/competitors/${id}/analyze`, {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  // ============================================
+  // SMART ENGAGEMENT BOT
+  // ============================================
+
+  getEngagementSettings: async (): Promise<{
+    enabled: boolean;
+    platforms: string[];
+    targetKeywords: string[];
+    targetAccounts: string[];
+    responseStyle: 'thoughtful' | 'supportive' | 'inquisitive' | 'expert';
+    dailyLimit: number;
+    excludeKeywords: string[];
+  }> => {
+    return authFetch('/social-media/engagement/settings');
+  },
+
+  updateEngagementSettings: async (settings: {
+    enabled: boolean;
+    platforms: string[];
+    targetKeywords: string[];
+    targetAccounts?: string[];
+    responseStyle: 'thoughtful' | 'supportive' | 'inquisitive' | 'expert';
+    dailyLimit: number;
+    excludeKeywords?: string[];
+  }): Promise<any> => {
+    return authFetch('/social-media/engagement/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  },
+
+  generateEngagementResponses: async (posts: Array<{ author: string; content: string; platform: string }>): Promise<{
+    responses: Array<{
+      originalPost: string;
+      author: string;
+      response: string;
+      responseType: 'comment' | 'compliment' | 'question' | 'insight';
+    }>;
+  }> => {
+    return authFetch('/social-media/engagement/generate', {
+      method: 'POST',
+      body: JSON.stringify({ posts }),
+    });
+  },
+
+  getEngagementHistory: async (): Promise<Array<{
+    id: string;
+    platform: string;
+    postUrl?: string;
+    authorName?: string;
+    originalContent?: string;
+    responseContent?: string;
+    responseType: string;
+    createdAt: string;
+  }>> => {
+    return authFetch('/social-media/engagement/history');
+  },
+
+  logEngagement: async (data: {
+    platform: string;
+    postUrl?: string;
+    authorName?: string;
+    originalContent?: string;
+    responseContent?: string;
+    responseType: string;
+  }): Promise<any> => {
+    return authFetch('/social-media/engagement/log', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // ============================================
+  // Carousel Generator API
+  // ============================================
+
+  generateCarousel: async (options: {
+    topic: string;
+    platform: 'instagram' | 'linkedin';
+    slideCount?: number;
+    style: 'educational' | 'storytelling' | 'listicle' | 'how-to' | 'tips' | 'myth-busting';
+    tone: 'professional' | 'casual' | 'inspirational' | 'bold';
+    targetAudience?: string;
+    brandColors?: { primary?: string; secondary?: string };
+    includeEmojis?: boolean;
+  }): Promise<CarouselContent> => {
+    return authFetch('/social-media/carousel/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...options,
+        slideCount: options.slideCount || 7,
+        includeEmojis: options.includeEmojis ?? true
+      }),
+    });
+  },
+
+  generateCarouselImages: async (data: {
+    slides: CarouselSlide[];
+    style?: 'modern' | 'minimalist' | 'vibrant' | 'professional';
+    colorScheme?: { primary: string; secondary: string };
+  }): Promise<{ images: Array<{ slideNumber: number; imageUrl: string; prompt: string }> }> => {
+    return authFetch('/social-media/carousel/generate-images', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  saveCarousel: async (data: {
+    carousel: CarouselContent;
+    scheduleAt?: string;
+  }): Promise<SocialMediaPost> => {
+    return authFetch('/social-media/carousel/save', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  exportCarousel: (carousel: CarouselContent, format: 'json' | 'text'): void => {
+    // Create downloadable file locally
+    if (format === 'json') {
+      const blob = new Blob([JSON.stringify(carousel, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `carousel-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      // Text format for Canva
+      let textContent = `# ${carousel.title}\n\n`;
+      textContent += `Platform: ${carousel.platform}\n`;
+      textContent += `Total Slides: ${carousel.totalSlides}\n\n`;
+      textContent += `## Farbschema\n`;
+      textContent += `Primär: ${carousel.colorScheme?.primary}\n`;
+      textContent += `Sekundär: ${carousel.colorScheme?.secondary}\n`;
+      textContent += `Akzent: ${carousel.colorScheme?.accent}\n`;
+      textContent += `Hintergrund: ${carousel.colorScheme?.background}\n`;
+      textContent += `Text: ${carousel.colorScheme?.text}\n\n`;
+      textContent += `---\n\n`;
+
+      carousel.slides?.forEach((slide) => {
+        textContent += `## Slide ${slide.slideNumber} (${slide.type})\n`;
+        if (slide.emoji) textContent += `Emoji: ${slide.emoji}\n`;
+        textContent += `### ${slide.headline}\n`;
+        textContent += `${slide.body}\n`;
+        if (slide.bulletPoints?.length) {
+          textContent += `\nBullet Points:\n`;
+          slide.bulletPoints.forEach((bp) => {
+            textContent += `• ${bp}\n`;
+          });
+        }
+        if (slide.designNote) textContent += `\nDesign-Hinweis: ${slide.designNote}\n`;
+        textContent += `\n---\n\n`;
+      });
+
+      textContent += `## Caption\n${carousel.caption}\n\n`;
+      textContent += `## Hashtags\n${carousel.hashtags?.map((h) => `#${h}`).join(' ')}\n\n`;
+      textContent += `## Canva-Anleitung\n${carousel.canvaInstructions}\n\n`;
+      textContent += `## Design-Tipps\n`;
+      carousel.designTips?.forEach((tip) => {
+        textContent += `• ${tip}\n`;
+      });
+
+      const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `carousel-${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  },
+
+  // ============================================
+  // Stories API
+  // ============================================
+
+  getStories: async (filters?: { status?: string; platform?: string }): Promise<SocialMediaStory[]> => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.platform) params.append('platform', filters.platform);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return authFetch(`/social-media/stories${query}`);
+  },
+
+  createStory: async (data: Partial<SocialMediaStory>): Promise<SocialMediaStory> => {
+    return authFetch('/social-media/stories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateStory: async (id: string, data: Partial<SocialMediaStory>): Promise<SocialMediaStory> => {
+    return authFetch(`/social-media/stories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteStory: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/social-media/stories/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  generateStoryContent: async (options: {
+    topic: string;
+    platform: 'instagram' | 'facebook' | 'linkedin';
+    storyType: 'promotional' | 'educational' | 'behind-the-scenes' | 'announcement' | 'poll' | 'quote';
+    brandVoice?: string;
+    targetAudience?: string;
+    includeCallToAction?: boolean;
+  }): Promise<GeneratedStoryContent> => {
+    return authFetch('/social-media/stories/generate', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  // ============================================
+  // AI Image Generation API
+  // ============================================
+
+  generateImage: async (options: {
+    prompt: string;
+    provider?: 'openai' | 'stability';
+    style?: 'modern' | 'minimalist' | 'vibrant' | 'professional' | 'artistic' | 'photorealistic';
+    aspectRatio: '1:1' | '9:16' | '16:9' | '4:5';
+    quality?: 'standard' | 'hd';
+  }): Promise<GeneratedImage> => {
+    return authFetch('/social-media/images/generate', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  getImagePromptSuggestions: async (options: {
+    topic: string;
+    style?: string;
+    count?: number;
+  }): Promise<{ suggestions: Array<{ prompt: string; description: string }> }> => {
+    return authFetch('/social-media/images/suggestions', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  getImageHistory: async (limit?: number): Promise<GeneratedImage[]> => {
+    const query = limit ? `?limit=${limit}` : '';
+    return authFetch(`/social-media/images/history${query}`);
+  },
+
+  // ============================================
+  // Story Templates API
+  // ============================================
+
+  getStoryTemplates: async (filters?: { category?: string; contentType?: string }): Promise<StoryTemplate[]> => {
+    const params = new URLSearchParams();
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.contentType) params.append('contentType', filters.contentType);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return authFetch(`/social-media/story-templates${query}`);
+  },
+
+  createStoryTemplate: async (data: Partial<StoryTemplate>): Promise<StoryTemplate> => {
+    return authFetch('/social-media/story-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // ============================================
+  // Content Wizard API (Marketing Expert AI)
+  // ============================================
+
+  analyzeContent: async (options: {
+    content: string;
+    platform: string;
+    goal: string;
+    targetAudience?: string;
+  }): Promise<MarketingAnalysis> => {
+    return authFetch('/social-media/wizard/analyze', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  generateWizardContent: async (options: {
+    topic: string;
+    platform: string;
+    goal: string;
+    targetAudience?: string;
+    journeyStage?: 'awareness' | 'consideration' | 'decision';
+    tone?: string;
+    includeImage?: boolean;
+    includeHashtags?: boolean;
+    contentLength?: 'short' | 'medium' | 'long';
+    previousThemes?: string[];
+  }): Promise<WizardContentGeneration> => {
+    return authFetch('/social-media/wizard/generate', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  improveContent: async (options: {
+    content: string;
+    platform: string;
+    improvementFocus: string;
+    targetAudience?: string;
+    goal?: string;
+  }): Promise<ContentImprovement> => {
+    return authFetch('/social-media/wizard/improve', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  autoImproveContent: async (options: {
+    content: string;
+    platform: string;
+    goal: string;
+    targetAudience?: string;
+    minScore?: number;
+    maxIterations?: number;
+  }): Promise<AutoImprovementResult> => {
+    return authFetch('/social-media/wizard/auto-improve', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  generateWizardImage: async (options: {
+    prompt: string;
+    aspectRatio?: '1:1' | '9:16' | '16:9' | '4:5';
+    style?: string;
+    quality?: 'standard' | 'hd';
+  }): Promise<GeneratedImage> => {
+    return authFetch('/social-media/wizard/generate-image', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  // Theme Selection Engine
+  selectTheme: async (options: {
+    platform: 'linkedin' | 'instagram';
+    goal: 'lead' | 'branding' | 'engagement' | 'traffic' | 'reach' | 'leads';
+    journeyStage?: 'awareness' | 'consideration' | 'decision';
+    targetAudience?: string;
+    previousThemes?: string[];
+    topicHint?: string;
+  }): Promise<ThemeSelectionOutput> => {
+    return authFetch('/social-media/wizard/select-theme', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  getThemeCategories: async (): Promise<{
+    categories: Array<{
+      id: string;
+      nameDE: string;
+      emotion: string;
+      subtopics: Array<{
+        id: string;
+        de: string;
+        description: string;
+      }>;
+    }>;
+  }> => {
+    return authFetch('/social-media/wizard/theme-categories');
+  },
+};
+
 export default {
   auth: authApi,
   user: userApi,
@@ -3510,4 +4760,6 @@ export default {
   organizations: organizationsApi,
   tasks: tasksApi,
   contracts: contractsApi,
+  import: importApi,
+  socialMedia: socialMediaApi,
 };

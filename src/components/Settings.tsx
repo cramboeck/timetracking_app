@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -13,6 +13,7 @@ import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 import { CustomerNinjaRMMLink } from './CustomerNinjaRMMLink';
 import { IOSSwitch } from './IOSSwitch';
 import { MFASettings } from './MFASettings';
+import { ClockodoImport } from './ClockodoImport';
 import { Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
@@ -40,6 +41,7 @@ interface SettingsProps {
   onAddActivity: (activity: Activity) => void;
   onUpdateActivity: (id: string, updates: Partial<Activity>) => void;
   onDeleteActivity: (id: string) => void;
+  onRefreshEntries?: () => void;
 }
 
 const COLORS = [
@@ -62,7 +64,8 @@ export const Settings = ({
   onDeleteProject,
   onAddActivity,
   onUpdateActivity,
-  onDeleteActivity
+  onDeleteActivity,
+  onRefreshEntries
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'ai'>('account');
@@ -105,6 +108,7 @@ export const Settings = ({
   const [customerReportTitle, setCustomerReportTitle] = useState('');
   const [customerHourlyRate, setCustomerHourlyRate] = useState('');
   const [customerTimeRoundingInterval, setCustomerTimeRoundingInterval] = useState('15');
+  const [customerPaymentTermsDays, setCustomerPaymentTermsDays] = useState('14');
   const [customerNinjarmmOrgId, setCustomerNinjarmmOrgId] = useState('');
 
   // CSV Import
@@ -183,6 +187,7 @@ export const Settings = ({
       setCustomerReportTitle(customer.reportTitle || '');
       setCustomerHourlyRate(customer.hourlyRate?.toString() || '');
       setCustomerTimeRoundingInterval(customer.timeRoundingInterval?.toString() || '15');
+      setCustomerPaymentTermsDays(customer.paymentTermsDays?.toString() || '14');
       setCustomerNinjarmmOrgId(customer.ninjarmmOrganizationId || '');
     } else {
       setEditingCustomer(null);
@@ -195,6 +200,7 @@ export const Settings = ({
       setCustomerReportTitle('');
       setCustomerHourlyRate('');
       setCustomerTimeRoundingInterval('15');
+      setCustomerPaymentTermsDays('14');
       setCustomerNinjarmmOrgId('');
     }
     setCustomerModalOpen(true);
@@ -311,6 +317,7 @@ export const Settings = ({
 
     const hourlyRateValue = customerHourlyRate.trim() ? parseFloat(customerHourlyRate) : undefined;
     const timeRoundingIntervalValue = customerTimeRoundingInterval.trim() ? parseInt(customerTimeRoundingInterval) : 15;
+    const paymentTermsDaysValue = customerPaymentTermsDays.trim() ? parseInt(customerPaymentTermsDays) : 14;
 
     if (editingCustomer) {
       onUpdateCustomer(editingCustomer.id, {
@@ -323,6 +330,7 @@ export const Settings = ({
         reportTitle: customerReportTitle.trim() || undefined,
         hourlyRate: hourlyRateValue,
         timeRoundingInterval: timeRoundingIntervalValue,
+        paymentTermsDays: paymentTermsDaysValue,
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined
       });
     } else {
@@ -338,6 +346,7 @@ export const Settings = ({
         reportTitle: customerReportTitle.trim() || undefined,
         hourlyRate: hourlyRateValue,
         timeRoundingInterval: timeRoundingIntervalValue,
+        paymentTermsDays: paymentTermsDaysValue,
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
         createdAt: new Date().toISOString()
       });
@@ -913,6 +922,12 @@ export const Settings = ({
         { id: 'portal', label: 'Kundenportal', icon: Book, desc: 'KB & Branding' },
         { id: 'ninjarmm', label: 'NinjaRMM', icon: Server, desc: 'Geräte & Alerts' },
         { id: 'ai', label: 'KI-Assistent', icon: Bot, desc: 'Lösungsvorschläge' }
+      ]
+    },
+    {
+      category: 'Daten',
+      items: [
+        { id: 'import', label: 'Datenimport', icon: Database, desc: 'Clockodo & mehr' }
       ]
     }
   ];
@@ -2434,6 +2449,29 @@ export const Settings = ({
           </div>
         )}
 
+        {/* Data Import Tab */}
+        {activeTab === 'import' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+                  <Database size={28} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Datenimport</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    Importiere Zeiteinträge aus anderen Systemen
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Clockodo Import */}
+            <ClockodoImport onImportComplete={onRefreshEntries} />
+          </div>
+        )}
+
         {/* Billing tab removed - now in Finanzen section */}
 
         {activeTab === 'appearance' && (
@@ -2740,6 +2778,27 @@ export const Settings = ({
               </select>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Zeiteinträge werden auf dieses Intervall aufgerundet (z.B. 7 Min. → 15 Min.)
+              </p>
+            </div>
+          )}
+
+          {/* Payment Terms - only show if billing is enabled */}
+          {billingEnabled && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Zahlungsziel (Tage)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="365"
+                value={customerPaymentTermsDays}
+                onChange={(e) => setCustomerPaymentTermsDays(e.target.value)}
+                placeholder="14"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Zahlungsfrist in Tagen ab Rechnungsdatum (Standard: 14 Tage)
               </p>
             </div>
           )}

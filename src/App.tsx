@@ -14,6 +14,7 @@ import { AlertsView } from './components/AlertsView';
 import MaintenanceView from './components/MaintenanceView';
 import TaskHub from './components/TaskHub';
 import Contracts from './components/Contracts';
+import SocialMediaManager from './components/SocialMediaManager';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
@@ -187,6 +188,18 @@ function App() {
 
     loadData();
   }, [currentUser]);
+
+  // Refresh entries (used after import)
+  const refreshEntries = async () => {
+    try {
+      console.log('🔄 [DATA] Refreshing time entries...');
+      const response = await entriesApi.getAll();
+      setEntries(response.data || []);
+      console.log('✅ [DATA] Time entries refreshed:', response.data?.length || 0, 'entries');
+    } catch (error) {
+      console.error('❌ [DATA] Error refreshing entries:', error);
+    }
+  };
 
   // Handle pending organization invitation after login
   useEffect(() => {
@@ -663,10 +676,17 @@ function App() {
   };
 
   // Get visible areas for swipe navigation
-  const visibleAreas: Area[] = ['arbeiten', 'support', 'business']; // TODO: Filter by enabled packages
+  const visibleAreas: Area[] = ['arbeiten', 'support', 'business'];
 
-  // Swipe between areas
-  const handleSwipeLeft = useCallback(() => {
+  // SubView configuration for each area (matching AreaNavigation)
+  const subViewConfig: Record<Area, SubView[]> = {
+    arbeiten: ['stopwatch', 'tasks', 'list', 'calendar'],
+    support: ['tickets', 'devices', 'alerts', 'maintenance'],
+    business: ['dashboard', 'contracts', 'billing', 'social-media', 'reports'],
+  };
+
+  // Swipe between areas (Bottom zone - bottom 30%)
+  const handleSwipeLeftArea = useCallback(() => {
     const currentIndex = visibleAreas.indexOf(currentArea);
     if (currentIndex < visibleAreas.length - 1) {
       haptics.light();
@@ -674,7 +694,7 @@ function App() {
     }
   }, [currentArea, visibleAreas]);
 
-  const handleSwipeRight = useCallback(() => {
+  const handleSwipeRightArea = useCallback(() => {
     const currentIndex = visibleAreas.indexOf(currentArea);
     if (currentIndex > 0) {
       haptics.light();
@@ -682,10 +702,36 @@ function App() {
     }
   }, [currentArea, visibleAreas]);
 
+  // Swipe between subviews (Top zone - top 30%)
+  const handleSwipeLeftSubView = useCallback(() => {
+    const currentSubViews = subViewConfig[currentArea];
+    const currentIndex = currentSubViews.indexOf(currentSubView);
+    if (currentIndex < currentSubViews.length - 1) {
+      haptics.light();
+      handleSubViewChange(currentSubViews[currentIndex + 1]);
+    }
+  }, [currentArea, currentSubView]);
+
+  const handleSwipeRightSubView = useCallback(() => {
+    const currentSubViews = subViewConfig[currentArea];
+    const currentIndex = currentSubViews.indexOf(currentSubView);
+    if (currentIndex > 0) {
+      haptics.light();
+      handleSubViewChange(currentSubViews[currentIndex - 1]);
+    }
+  }, [currentArea, currentSubView]);
+
   const swipeHandlers = useSwipeGesture({
-    onSwipeLeft: handleSwipeLeft,
-    onSwipeRight: handleSwipeRight,
+    // Top zone (30%): Navigate between subviews
+    onSwipeLeftTop: handleSwipeLeftSubView,
+    onSwipeRightTop: handleSwipeRightSubView,
+    // Bottom zone (30%): Navigate between areas
+    onSwipeLeftBottom: handleSwipeLeftArea,
+    onSwipeRightBottom: handleSwipeRightArea,
+    // Middle zone (40%): No swipe navigation - allows normal scrolling
     minSwipeDistance: 75,
+    topZoneThreshold: 0.30,
+    bottomZoneThreshold: 0.30,
   });
 
   // FAB handlers
@@ -863,6 +909,9 @@ function App() {
         {currentSubView === 'contracts' && (
           <Contracts />
         )}
+        {currentSubView === 'social-media' && (
+          <SocialMediaManager />
+        )}
         {currentSubView === 'reports' && (
           <div className="p-4 text-center text-gray-500 dark:text-gray-400">
             <p>Berichte-Modul kommt bald...</p>
@@ -885,6 +934,7 @@ function App() {
             onAddActivity={handleAddActivity}
             onUpdateActivity={handleUpdateActivity}
             onDeleteActivity={handleDeleteActivity}
+            onRefreshEntries={refreshEntries}
           />
         )}
       </main>

@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  esbuild: {
+    // Keep console statements in production build
+    drop: [],
+  },
   plugins: [
     react(),
     VitePWA({

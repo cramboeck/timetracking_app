@@ -48,8 +48,41 @@ const getWeekdayAbbr = (date: Date): string => {
 
 // Helper to format date range
 const formatDateRange = (start: Date, end: Date): string => {
+  const startMonth = start.getMonth();
+  const endMonth = end.getMonth();
+  const startYear = start.getFullYear();
+  const endYear = end.getFullYear();
+
+  // Check if it's a full quarter (Q1: Jan-Mar, Q2: Apr-Jun, Q3: Jul-Sep, Q4: Oct-Dec)
+  const isFirstOfMonth = start.getDate() === 1;
+  const isLastOfMonth = end.getDate() === new Date(endYear, endMonth + 1, 0).getDate();
+  const monthDiff = (endYear - startYear) * 12 + (endMonth - startMonth);
+
+  if (isFirstOfMonth && isLastOfMonth && monthDiff === 2 && startMonth % 3 === 0 && startYear === endYear) {
+    const quarter = Math.floor(startMonth / 3) + 1;
+    return `Q${quarter} ${startYear}`;
+  }
+
+  // Check if it's a full year
+  if (isFirstOfMonth && isLastOfMonth && startMonth === 0 && endMonth === 11 && startYear === endYear) {
+    return `Jahr ${startYear}`;
+  }
+
+  // Check if it's a full month
+  if (isFirstOfMonth && isLastOfMonth && startMonth === endMonth && startYear === endYear) {
+    return start.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  }
+
+  // Different months or years - show full dates
+  if (startMonth !== endMonth || startYear !== endYear) {
+    const startStr = start.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' });
+    const endStr = end.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
+    return `${startStr} – ${endStr}`;
+  }
+
+  // Same month - show abbreviated format
   const startStr = start.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric' });
-  const endStr = end.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const endStr = end.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
   return `${startStr} – ${endStr}`;
 };
 
@@ -344,7 +377,7 @@ export const ReportAssistant = ({
 
   // Generate Modern PDF Report
   const generateModernPDF = async (customerData: CustomerReportData, config: PdfConfig = pdfConfig) => {
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     const customerEntries = getCustomerEntries(customerData.customer.id);
 
     // Use config for report title
@@ -362,7 +395,7 @@ export const ReportAssistant = ({
     const lightGray = { r: 243, g: 244, b: 246 }; // Light gray (#f3f4f6)
     const accent = { r: 249, g: 115, b: 22 }; // App accent (#f97316)
 
-    // Helper to add logo with proper scaling
+    // Helper to add logo with proper scaling and compression
     const addLogo = async (x: number, y: number, maxW: number, maxH: number) => {
       if (companyInfo?.logo) {
         try {
@@ -376,7 +409,34 @@ export const ReportAssistant = ({
             h = maxH;
             w = maxH * ratio;
           }
-          doc.addImage(companyInfo.logo, 'AUTO', x, y, w, h);
+
+          // Only resize very large logos to reduce PDF size (keep format to preserve transparency)
+          let logoData = companyInfo.logo;
+          const maxDimension = 300;
+          if (dims.width > maxDimension || dims.height > maxDimension) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              const scale = Math.min(maxDimension / dims.width, maxDimension / dims.height);
+              canvas.width = Math.round(dims.width * scale);
+              canvas.height = Math.round(dims.height * scale);
+
+              const img = new Image();
+              await new Promise<void>((resolve) => {
+                img.onload = () => {
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  resolve();
+                };
+                img.onerror = () => resolve();
+                img.src = companyInfo.logo!;
+              });
+
+              // Keep PNG format to preserve transparency
+              logoData = canvas.toDataURL('image/png');
+            }
+          }
+
+          doc.addImage(logoData, 'PNG', x, y, w, h);
         } catch {
           // Ignore logo errors
         }
@@ -466,8 +526,142 @@ export const ReportAssistant = ({
       doc.setTextColor(dark.r, dark.g, dark.b);
       doc.text(customerData.projectCount.toString(), margin + (cardWidth + 8) * 2 + 10, y + 35);
 
-      // Signature section
-      y = 230;
+      // ============ DONUT CHART SECTION ============
+      y = 210;
+
+      // Calculate project breakdown
+      const projectBreakdown = new Map<string, { name: string; hours: number }>();
+      customerEntries.forEach(entry => {
+        const existing = projectBreakdown.get(entry.project.id);
+        if (existing) {
+          existing.hours += entry.hours;
+        } else {
+          projectBreakdown.set(entry.project.id, {
+            name: entry.project.name,
+            hours: entry.hours
+          });
+        }
+      });
+
+      const projectData = Array.from(projectBreakdown.values()).sort((a, b) => b.hours - a.hours);
+
+      if (projectData.length > 0) {
+        // Donut chart configuration (compact size to avoid overlap)
+        const centerX = margin + 30;
+        const centerY = y + 25;
+        const outerRadius = 22;
+        const innerRadius = 10; // Creates donut hole
+
+        // Draw chart title
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        doc.text('Zeitverteilung nach Projekten', margin, y);
+
+        // Calculate total hours
+        const totalHours = projectData.reduce((sum, p) => sum + p.hours, 0);
+
+        // High-contrast color palette (always used for better visibility)
+        const chartColors = [
+          { r: 249, g: 115, b: 22 },   // Orange #f97316
+          { r: 59, g: 130, b: 246 },   // Blue #3b82f6
+          { r: 16, g: 185, b: 129 },   // Green #10b981
+          { r: 139, g: 92, b: 246 },   // Purple #8b5cf6
+          { r: 239, g: 68, b: 68 },    // Red #ef4444
+          { r: 245, g: 158, b: 11 },   // Amber #f59e0b
+          { r: 6, g: 182, b: 212 },    // Cyan #06b6d4
+          { r: 236, g: 72, b: 153 },   // Pink #ec4899
+          { r: 132, g: 204, b: 22 },   // Lime #84cc16
+          { r: 99, g: 102, b: 241 },   // Indigo #6366f1
+        ];
+
+        // Draw donut segments
+        let startAngle = -Math.PI / 2; // Start at 12 o'clock
+
+        projectData.forEach((project, index) => {
+          const percentage = project.hours / totalHours;
+          const sweepAngle = percentage * 2 * Math.PI;
+          const rgb = chartColors[index % chartColors.length];
+
+          doc.setFillColor(rgb.r, rgb.g, rgb.b);
+
+          // Draw segment with fewer steps for smaller file size (12-24 triangles per segment is enough)
+          const steps = Math.max(12, Math.min(24, Math.floor(sweepAngle * 8)));
+          const angleStep = sweepAngle / steps;
+
+          // Draw outer arc triangles
+          for (let i = 0; i < steps; i++) {
+            const a1 = startAngle + angleStep * i;
+            const a2 = startAngle + angleStep * (i + 1);
+            doc.triangle(
+              centerX, centerY,
+              centerX + outerRadius * Math.cos(a1), centerY + outerRadius * Math.sin(a1),
+              centerX + outerRadius * Math.cos(a2), centerY + outerRadius * Math.sin(a2),
+              'F'
+            );
+          }
+
+          startAngle += sweepAngle;
+        });
+
+        // Draw white center circle to create donut effect (fewer triangles)
+        doc.setFillColor(255, 255, 255);
+        const circleSteps = 24; // Reduced from 60
+        for (let i = 0; i < circleSteps; i++) {
+          const a1 = (i / circleSteps) * 2 * Math.PI;
+          const a2 = ((i + 1) / circleSteps) * 2 * Math.PI;
+          doc.triangle(
+            centerX, centerY,
+            centerX + innerRadius * Math.cos(a1), centerY + innerRadius * Math.sin(a1),
+            centerX + innerRadius * Math.cos(a2), centerY + innerRadius * Math.sin(a2),
+            'F'
+          );
+        }
+
+        // Draw legend on the right side
+        const legendX = margin + 65;
+        let legendY = y + 10;
+        const legendItemHeight = 12;
+        const maxLegendItems = 5;
+
+        const displayProjects = projectData.slice(0, maxLegendItems);
+        const hasMore = projectData.length > maxLegendItems;
+
+        displayProjects.forEach((project, index) => {
+          const percentage = (project.hours / totalHours * 100).toFixed(1);
+          const rgb = chartColors[index % chartColors.length];
+
+          // Color box (rounded)
+          doc.setFillColor(rgb.r, rgb.g, rgb.b);
+          doc.roundedRect(legendX, legendY - 3, 5, 5, 1, 1, 'F');
+
+          // Project name (longer text allowed)
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.setTextColor(dark.r, dark.g, dark.b);
+          const maxNameLength = 35;
+          const nameText = project.name.length > maxNameLength
+            ? project.name.substring(0, maxNameLength - 3) + '...'
+            : project.name;
+          doc.text(nameText, legendX + 8, legendY);
+
+          // Hours and percentage
+          doc.setTextColor(gray.r, gray.g, gray.b);
+          doc.text(`${formatHoursMinutes(project.hours)} (${percentage}%)`, legendX + 8, legendY + 5);
+
+          legendY += legendItemHeight;
+        });
+
+        if (hasMore) {
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(8);
+          doc.setTextColor(gray.r, gray.g, gray.b);
+          doc.text(`+ ${projectData.length - maxLegendItems} weitere Projekte`, legendX + 8, legendY);
+        }
+      }
+
+      // Signature section (positioned below donut chart)
+      y = 270;
       doc.setDrawColor(200, 200, 200);
       doc.setLineWidth(0.5);
 

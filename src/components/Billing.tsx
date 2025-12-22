@@ -20,6 +20,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { sevdeskApi, BillingSummaryItem, InvoiceExport } from '../services/api';
+import { InvoiceCreationDialog } from './InvoiceCreationDialog';
 
 interface BillingProps {
   onBack?: () => void;
@@ -51,6 +52,9 @@ export const Billing = ({ onBack }: BillingProps) => {
   // Filter state
   const [showCompleted, setShowCompleted] = useState(false);
 
+  // Invoice creation dialog
+  const [invoiceDialogCustomer, setInvoiceDialogCustomer] = useState<BillingSummaryItem | null>(null);
+
   // Check billing feature access
   useEffect(() => {
     const checkFeatureAccess = async () => {
@@ -77,6 +81,8 @@ export const Billing = ({ onBack }: BillingProps) => {
 
       // Check config
       const configResponse = await sevdeskApi.getConfig();
+      console.warn('[Billing] Config response:', configResponse.data);
+      console.warn('[Billing] Setting hasConfig to:', !!configResponse.data?.hasToken);
       setHasConfig(!!configResponse.data?.hasToken);
 
       // Get billing summary for selected month
@@ -87,6 +93,11 @@ export const Billing = ({ onBack }: BillingProps) => {
         startDate.toISOString().split('T')[0],
         endDate.toISOString().split('T')[0]
       );
+      console.warn('[Billing] Summary response:', summaryResponse.data?.map((c: any) => ({
+        name: c.customerName,
+        sevdeskId: c.sevdeskCustomerId,
+        isBilled: c.isBilled
+      })));
       setBillingSummary(summaryResponse.data);
 
       // Get recent exports
@@ -130,37 +141,23 @@ export const Billing = ({ onBack }: BillingProps) => {
     setSelectedCustomers(new Set());
   };
 
-  const handleCreateInvoice = async (customer: BillingSummaryItem) => {
+  const handleCreateInvoice = (customer: BillingSummaryItem) => {
+    console.warn('[Billing] handleCreateInvoice called for:', customer.customerName);
+    console.warn('[Billing] hasConfig:', hasConfig, 'sevdeskCustomerId:', customer.sevdeskCustomerId);
+
     if (!customer.sevdeskCustomerId) {
-      setError(`${customer.customerName} ist nicht mit sevDesk verknüpft`);
+      setError(`${customer.customerName} ist nicht mit sevDesk verknüpkt`);
       return;
     }
+    // Open dialog instead of directly creating invoice
+    console.warn('[Billing] Opening invoice dialog');
+    setInvoiceDialogCustomer(customer);
+  };
 
-    try {
-      setProcessing(customer.customerId);
-      setError(null);
-
-      const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
-      const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
-
-      const entryIds = customer.entries.map(e => e.id);
-
-      const response = await sevdeskApi.createInvoice(
-        customer.customerId,
-        entryIds,
-        startDate.toISOString().split('T')[0],
-        endDate.toISOString().split('T')[0]
-      );
-
-      setSuccess(`Rechnung ${response.data.invoiceNumber} für ${customer.customerName} erstellt`);
-
-      // Reload data
-      await loadData();
-    } catch (err: any) {
-      setError(err.message || 'Fehler beim Erstellen der Rechnung');
-    } finally {
-      setProcessing(null);
-    }
+  const handleInvoiceCreated = async (invoiceNumber: string) => {
+    setSuccess(`Rechnung ${invoiceNumber} für ${invoiceDialogCustomer?.customerName} erstellt`);
+    setInvoiceDialogCustomer(null);
+    await loadData();
   };
 
   const handleMarkAsBilled = async (customer: BillingSummaryItem) => {
@@ -622,6 +619,18 @@ export const Billing = ({ onBack }: BillingProps) => {
           )
         )}
       </div>
+
+      {/* Invoice Creation Dialog */}
+      {invoiceDialogCustomer && (
+        <InvoiceCreationDialog
+          isOpen={true}
+          onClose={() => setInvoiceDialogCustomer(null)}
+          customer={invoiceDialogCustomer}
+          periodStart={new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1)}
+          periodEnd={new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0)}
+          onSuccess={handleInvoiceCreated}
+        />
+      )}
     </div>
   );
 };

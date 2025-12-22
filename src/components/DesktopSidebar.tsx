@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Clock, List, Calendar,
   Ticket, Monitor, Bell, Wrench,
-  BarChart3, Wallet, FileText, FileSignature,
+  BarChart3, Wallet, FileText, FileSignature, Share2,
   Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo,
   ChevronLeft, ChevronRight
 } from 'lucide-react';
@@ -46,6 +46,7 @@ const areaConfig = {
       { view: 'dashboard' as SubView, icon: BarChart3, label: 'Dashboard' },
       { view: 'contracts' as SubView, icon: FileSignature, label: 'Verträge' },
       { view: 'billing' as SubView, icon: Wallet, label: 'Finanzen' },
+      { view: 'social-media' as SubView, icon: Share2, label: 'Social Media' },
       { view: 'reports' as SubView, icon: FileText, label: 'Berichte' },
     ],
   },

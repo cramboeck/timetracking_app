@@ -11,6 +11,7 @@ export interface Customer {
   sevdeskCustomerId?: string; // Link to sevDesk contact
   hourlyRate?: number; // Customer-specific hourly rate (Business feature)
   timeRoundingInterval?: number; // Time rounding interval in minutes for billing (e.g., 15 = round up to nearest 15 min)
+  paymentTermsDays?: number; // Payment terms in days for invoices (default: 14)
   ninjarmmOrganizationId?: string; // Link to NinjaRMM organization (Support feature)
   createdAt: string;
 }

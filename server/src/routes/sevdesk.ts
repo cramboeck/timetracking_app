@@ -2,6 +2,7 @@ import express, { Response } from 'express';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { query } from '../config/database';
 import * as sevdeskService from '../services/sevdeskService';
+import * as aiService from '../services/aiService';
 
 const router = express.Router();
 
@@ -199,9 +200,14 @@ router.get('/billing-summary', authenticateToken, requireBillingFeature, async (
 router.post('/create-invoice', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { customerId, entryIds, periodStart, periodEnd } = req.body;
+    const { customerId, entryIds, periodStart, periodEnd, header, headText, footText, positions } = req.body;
+
+    console.log('[create-invoice] Starting invoice creation for customer:', customerId);
+    console.log('[create-invoice] Custom texts provided:', !!header, !!headText, !!footText);
+    console.log('[create-invoice] Custom positions:', positions?.length || 0);
 
     if (!customerId || !entryIds || !periodStart || !periodEnd) {
+      console.log('[create-invoice] Missing required fields');
       return res.status(400).json({
         success: false,
         error: 'customerId, entryIds, periodStart, and periodEnd are required',
@@ -211,22 +217,27 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
     // Get config
     const config = await sevdeskService.getConfig(userId);
     if (!config?.apiToken) {
+      console.log('[create-invoice] No sevDesk API token configured');
       return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
     }
+    console.log('[create-invoice] Config loaded, API token exists:', !!config.apiToken);
 
     // Get customer info
     const customerResult = await query(
-      'SELECT id, name, hourly_rate, sevdesk_customer_id FROM customers WHERE id = $1 AND user_id = $2',
+      'SELECT id, name, hourly_rate, sevdesk_customer_id, time_rounding_interval FROM customers WHERE id = $1 AND user_id = $2',
       [customerId, userId]
     );
 
     if (customerResult.rows.length === 0) {
+      console.log('[create-invoice] Customer not found');
       return res.status(404).json({ success: false, error: 'Customer not found' });
     }
 
     const customer = customerResult.rows[0];
+    console.log('[create-invoice] Customer:', customer.name, 'sevDesk ID:', customer.sevdesk_customer_id);
 
     if (!customer.sevdesk_customer_id) {
+      console.log('[create-invoice] Customer not linked to sevDesk');
       return res.status(400).json({
         success: false,
         error: 'Customer is not linked to a sevDesk contact',
@@ -234,21 +245,41 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
     }
 
     const hourlyRate = customer.hourly_rate ? parseFloat(customer.hourly_rate) : config.defaultHourlyRate;
+    console.log('[create-invoice] Hourly rate:', hourlyRate);
 
-    // Get time entries
+    // Get time entries to verify they exist
     const entries = await sevdeskService.getUnbilledTimeEntries(userId, customerId, periodStart, periodEnd);
     const selectedEntries = entries.filter(e => entryIds.includes(e.id));
+    console.log('[create-invoice] Found', entries.length, 'entries, selected', selectedEntries.length);
 
     if (selectedEntries.length === 0) {
+      console.log('[create-invoice] No valid entries selected');
       return res.status(400).json({ success: false, error: 'No valid time entries selected' });
     }
 
-    // Calculate totals
-    const totalSeconds = selectedEntries.reduce((sum, e) => sum + e.duration, 0);
-    const totalHours = Math.round((totalSeconds / 3600) * 100) / 100;
-    const totalAmount = Math.round(totalHours * hourlyRate * 100) / 100;
+    // Calculate totals - use grouped positions if provided, otherwise calculate from entries
+    let totalHours: number;
+    let totalAmount: number;
 
-    // Create invoice in sevDesk
+    if (positions && positions.length > 0) {
+      // Use the grouped positions data from frontend
+      totalHours = positions.reduce((sum: number, p: any) => sum + (p.hours || 0), 0);
+      totalAmount = positions.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+      console.log('[create-invoice] Using grouped positions - Total hours:', totalHours, 'amount:', totalAmount);
+    } else {
+      // Fallback: calculate from entries
+      const roundingInterval = customer.time_rounding_interval || 15;
+      const roundedSeconds = selectedEntries.reduce((sum, e) => {
+        const intervalSeconds = roundingInterval * 60;
+        return sum + Math.ceil(e.duration / intervalSeconds) * intervalSeconds;
+      }, 0);
+      totalHours = Math.round((roundedSeconds / 3600) * 100) / 100;
+      totalAmount = Math.round(totalHours * hourlyRate * 100) / 100;
+      console.log('[create-invoice] Calculated from entries - Total hours:', totalHours, 'amount:', totalAmount);
+    }
+
+    // Create invoice in sevDesk with custom texts and positions
+    console.log('[create-invoice] Calling sevdeskService.createInvoice...');
     const invoice = await sevdeskService.createInvoice(
       config.apiToken,
       config,
@@ -256,10 +287,18 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       selectedEntries,
       hourlyRate,
       periodStart,
-      periodEnd
+      periodEnd,
+      {
+        header,
+        headText,
+        footText,
+        positions,
+      }
     );
+    console.log('[create-invoice] Invoice created:', invoice.invoiceId, invoice.invoiceNumber);
 
     // Record the export
+    console.log('[create-invoice] Recording export...');
     const exportId = await sevdeskService.recordInvoiceExport(
       userId,
       customerId,
@@ -271,6 +310,7 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       totalHours,
       totalAmount
     );
+    console.log('[create-invoice] Export recorded:', exportId);
 
     res.json({
       success: true,
@@ -283,7 +323,7 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       },
     });
   } catch (error: any) {
-    console.error('Create invoice error:', error);
+    console.error('[create-invoice] ERROR:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -319,6 +359,71 @@ router.post('/record-export', authenticateToken, requireBillingFeature, async (r
     });
   } catch (error: any) {
     console.error('Record export error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/generate-invoice-texts - Generate AI-enhanced invoice texts
+router.post('/generate-invoice-texts', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { customerId, sevdeskContactId, periodStart, periodEnd, entries } = req.body;
+
+    if (!customerId || !periodStart || !periodEnd || !entries) {
+      return res.status(400).json({
+        success: false,
+        error: 'customerId, periodStart, periodEnd, and entries are required',
+      });
+    }
+
+    // Get customer name
+    const customerResult = await query(
+      'SELECT name FROM customers WHERE id = $1 AND user_id = $2',
+      [customerId, userId]
+    );
+    const customerName = customerResult.rows[0]?.name || 'Kunde';
+
+    // Get previous invoices for this customer from local DB
+    let previousInvoices: any[] = [];
+    if (sevdeskContactId) {
+      previousInvoices = await sevdeskService.getPreviousInvoicesForContact(
+        userId,
+        sevdeskContactId,
+        5
+      );
+    }
+
+    // Calculate total hours
+    const totalHours = entries.reduce((sum: number, e: any) => sum + (e.hours || e.duration / 3600 || 0), 0);
+
+    // Generate AI texts
+    const generatedTexts = await aiService.generateInvoiceTexts(userId, {
+      customerName,
+      periodStart,
+      periodEnd,
+      totalHours,
+      entries: entries.map((e: any) => ({
+        description: e.description || '',
+        hours: e.hours || e.duration / 3600 || 0,
+        projectName: e.projectName || '',
+      })),
+      previousInvoices: previousInvoices.map(inv => ({
+        header: inv.header,
+        headText: inv.headText,
+        footText: inv.footText,
+        positions: inv.positions,
+      })),
+    });
+
+    res.json({
+      success: true,
+      data: {
+        ...generatedTexts,
+        previousInvoicesCount: previousInvoices.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Generate invoice texts error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

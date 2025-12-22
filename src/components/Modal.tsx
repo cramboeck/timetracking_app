@@ -7,7 +7,7 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | 'full';
 }
 
 export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'md' }: ModalProps) => {
@@ -36,6 +36,12 @@ export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'md
     md: 'max-w-md',
     lg: 'max-w-lg',
     xl: 'max-w-xl',
+    '2xl': 'max-w-2xl',
+    '3xl': 'max-w-3xl',
+    '4xl': 'max-w-4xl',
+    '5xl': 'max-w-5xl',
+    '6xl': 'max-w-6xl',
+    'full': 'max-w-full mx-4',
   };
 
   return (
@@ -47,17 +53,27 @@ export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'md
       />
 
       {/* Modal */}
-      <div className={`relative bg-white rounded-xl shadow-2xl w-full ${maxWidthClasses[maxWidth]} max-h-[90vh] flex flex-col`}>
+      <div className={`relative bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-full ${maxWidthClasses[maxWidth]} max-h-[90vh] flex flex-col`}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+        {title && (
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-200">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h2>
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        )}
+        {!title && (
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors z-10"
           >
             <X size={20} />
           </button>
-        </div>
+        )}
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 min-h-0">
@@ -66,7 +82,7 @@ export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'md
 
         {/* Footer - fixed at bottom, outside scrollable area */}
         {footer && (
-          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 bg-white pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-dark-200 bg-white dark:bg-dark-100 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             {footer}
           </div>
         )}

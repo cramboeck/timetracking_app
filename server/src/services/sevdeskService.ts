@@ -290,6 +290,7 @@ export async function getBillingSummary(
   hourlyRate: number | null;
   sevdeskCustomerId: string | null;
   timeRoundingInterval: number;
+  paymentTermsDays: number;
   totalSeconds: number;
   totalHours: number;
   roundedSeconds: number;
@@ -303,9 +304,11 @@ export async function getBillingSummary(
   const defaultRate = config?.defaultHourlyRate || 95;
 
   // Get ALL entries (billed and unbilled) grouped by customer
+  // Only include completed entries (end_time IS NOT NULL) - running entries should not be billed
+  // Use DATE() cast to ensure full day inclusion for the end date
   const result = await query(
     `SELECT c.id as customer_id, c.name as customer_name, c.hourly_rate, c.sevdesk_customer_id,
-            c.time_rounding_interval,
+            c.time_rounding_interval, c.payment_terms_days,
             te.id as entry_id, te.duration, te.description, te.start_time,
             te.invoice_export_id,
             t.ticket_number, t.title as ticket_title,
@@ -315,8 +318,9 @@ export async function getBillingSummary(
      JOIN time_entries te ON te.project_id = p.id
      LEFT JOIN tickets t ON te.ticket_id = t.id
      WHERE c.user_id = $1
-       AND te.start_time >= $2
-       AND te.start_time <= $3
+       AND DATE(te.start_time) >= $2::date
+       AND DATE(te.start_time) <= $3::date
+       AND te.end_time IS NOT NULL
      ORDER BY c.name, te.start_time`,
     [userId, startDate, endDate]
   );
@@ -328,6 +332,7 @@ export async function getBillingSummary(
     hourlyRate: number | null;
     sevdeskCustomerId: string | null;
     timeRoundingInterval: number;
+    paymentTermsDays: number;
     totalSeconds: number;
     roundedSeconds: number;
     isBilled: boolean;
@@ -338,6 +343,7 @@ export async function getBillingSummary(
     const isBilled = row.invoice_export_id !== null;
     const key = `${row.customer_id}_${isBilled ? 'billed' : 'unbilled'}`;
     const roundingInterval = row.time_rounding_interval || 15; // Default 15 minutes
+    const paymentTermsDays = row.payment_terms_days || 14; // Default 14 days
 
     if (!customerMap.has(key)) {
       customerMap.set(key, {
@@ -346,6 +352,7 @@ export async function getBillingSummary(
         hourlyRate: row.hourly_rate ? parseFloat(row.hourly_rate) : null,
         sevdeskCustomerId: row.sevdesk_customer_id,
         timeRoundingInterval: roundingInterval,
+        paymentTermsDays: paymentTermsDays,
         totalSeconds: 0,
         roundedSeconds: 0,
         isBilled,
@@ -384,6 +391,21 @@ export async function getBillingSummary(
   });
 }
 
+// Custom invoice data interface
+interface CustomInvoiceData {
+  header?: string;
+  headText?: string;
+  footText?: string;
+  positions?: Array<{
+    title: string;
+    description: string;
+    hours: number;
+    amount: number;
+    hourlyRate?: number;
+    isHeader?: boolean; // Header positions have quantity 0 and display as bold
+  }>;
+}
+
 // Create invoice in sevDesk
 export async function createInvoice(
   apiToken: string,
@@ -392,86 +414,252 @@ export async function createInvoice(
   entries: TimeEntryForBilling[],
   hourlyRate: number,
   periodStart: string,
-  periodEnd: string
+  periodEnd: string,
+  customData?: CustomInvoiceData
 ): Promise<{ invoiceId: string; invoiceNumber: string }> {
   // Format the period for display
   const startDate = new Date(periodStart);
   const endDate = new Date(periodEnd);
   const periodLabel = `${startDate.toLocaleDateString('de-DE')} - ${endDate.toLocaleDateString('de-DE')}`;
 
-  // Create invoice positions
-  const positions = entries.map((entry, index) => {
-    const hours = entry.duration / 3600;
-    let name = entry.description || 'Dienstleistung';
+  console.log(`Creating sevDesk invoice for contact ${sevdeskCustomerId}, period ${periodLabel}, ${entries.length} entries`);
+  console.log('Custom data provided:', !!customData, 'custom positions:', customData?.positions?.length || 0);
 
-    if (entry.ticketNumber) {
-      name = `${entry.ticketNumber}: ${entry.ticketTitle || entry.description || 'Support'}`;
-    } else if (entry.projectName) {
-      name = `${entry.projectName}: ${entry.description || 'Arbeitszeit'}`;
-    }
+  // Create invoice positions - use custom positions if provided, otherwise create from entries
+  let positions: any[];
 
-    return {
-      objectName: 'InvoicePos',
-      mapAll: true,
-      quantity: Math.round(hours * 100) / 100,
-      price: hourlyRate,
-      name: name,
-      unity: {
-        id: 9, // Hours in sevDesk
-        objectName: 'Unity',
-      },
-      taxRate: config.taxRate,
-      positionNumber: index + 1,
-    };
-  });
+  if (customData?.positions && customData.positions.length > 0) {
+    // Use grouped positions from frontend
+    console.log('Using custom grouped positions');
+    positions = customData.positions.map((pos, index) => {
+      // Header positions (quantity 0) are displayed as bold headers in sevDesk
+      if (pos.isHeader || pos.hours === 0) {
+        return {
+          objectName: 'InvoicePos',
+          mapAll: true,
+          quantity: 0,
+          price: 0,
+          name: pos.title,
+          text: pos.description || null,
+          unity: {
+            id: 1, // Stück for header positions
+            objectName: 'Unity',
+          },
+          taxRate: config.taxRate,
+          positionNumber: index,
+        };
+      }
 
-  // Create the invoice
-  const invoiceData = {
-    objectName: 'Invoice',
-    mapAll: true,
-    contact: {
-      id: parseInt(sevdeskCustomerId),
-      objectName: 'Contact',
-    },
-    invoiceDate: new Date().toISOString().split('T')[0],
-    header: `Leistungen ${periodLabel}`,
-    headText: `Abrechnung für den Zeitraum ${periodLabel}`,
-    footText: 'Vielen Dank für Ihr Vertrauen.',
-    timeToPay: config.paymentTermsDays,
-    discount: 0,
-    status: config.createAsFinal ? 200 : 100, // 100 = Draft, 200 = Open
-    taxRate: config.taxRate,
-    taxType: 'default',
-    invoiceType: 'RE', // Regular invoice
-    currency: 'EUR',
-  };
-
-  // Create invoice
-  const invoiceResponse = await sevdeskFetch(apiToken, '/Invoice', {
-    method: 'POST',
-    body: JSON.stringify(invoiceData),
-  });
-
-  const invoiceId = invoiceResponse.objects.id;
-
-  // Add positions to invoice
-  for (const position of positions) {
-    await sevdeskFetch(apiToken, '/InvoicePos', {
-      method: 'POST',
-      body: JSON.stringify({
-        ...position,
-        invoice: {
-          id: invoiceId,
-          objectName: 'Invoice',
+      // Regular positions with hours
+      const posHourlyRate = pos.hourlyRate || hourlyRate;
+      return {
+        objectName: 'InvoicePos',
+        mapAll: true,
+        quantity: Math.round(pos.hours * 100) / 100,
+        price: posHourlyRate,
+        name: pos.title,
+        text: pos.description || null,
+        unity: {
+          id: 9, // Stunden for regular positions
+          objectName: 'Unity',
         },
-      }),
+        taxRate: config.taxRate,
+        positionNumber: index,
+      };
+    });
+  } else {
+    // Fallback: create positions from individual entries
+    console.log('Using individual entry positions (fallback)');
+    positions = entries.map((entry, index) => {
+      const hours = entry.duration / 3600;
+      let name = entry.description || 'Dienstleistung';
+
+      if (entry.ticketNumber) {
+        name = `${entry.ticketNumber}: ${entry.ticketTitle || entry.description || 'Support'}`;
+      } else if (entry.projectName) {
+        name = `${entry.projectName}: ${entry.description || 'Arbeitszeit'}`;
+      }
+
+      return {
+        objectName: 'InvoicePos',
+        mapAll: true,
+        quantity: Math.round(hours * 100) / 100,
+        price: hourlyRate,
+        name: name,
+        unity: {
+          id: 9, // Hours in sevDesk
+          objectName: 'Unity',
+        },
+        taxRate: config.taxRate,
+        positionNumber: index + 1,
+      };
     });
   }
 
-  return {
-    invoiceId: invoiceId.toString(),
-    invoiceNumber: invoiceResponse.objects.invoiceNumber || `RE-${invoiceId}`,
+  // Use custom texts if provided, otherwise use defaults
+  const invoiceHeader = customData?.header || `Leistungen ${periodLabel}`;
+  const invoiceHeadText = customData?.headText || `Abrechnung für den Zeitraum ${periodLabel}`;
+  const invoiceFootText = customData?.footText || 'Vielen Dank für Ihr Vertrauen.';
+
+  // Fetch required data: SevUser (for contactPerson), contact with address
+  const [userResponse, contactResponse, addressResponse] = await Promise.all([
+    sevdeskFetch(apiToken, '/SevUser'),
+    sevdeskFetch(apiToken, `/Contact/${sevdeskCustomerId}`),
+    sevdeskFetch(apiToken, `/ContactAddress?contact[id]=${sevdeskCustomerId}&contact[objectName]=Contact`),
+  ]);
+
+  const sevUser = userResponse.objects?.[0];
+  if (!sevUser) {
+    throw new Error('Could not get sevDesk user for contactPerson');
+  }
+
+  const contact = contactResponse.objects;
+  const addresses = addressResponse.objects || [];
+  const mainAddress = addresses[0] || {};
+
+  // Build address fields
+  const addressName = contact?.name || `${contact?.surename || ''} ${contact?.familyname || ''}`.trim() || '';
+  const addressStreet = mainAddress.street || null;
+  const addressZip = mainAddress.zip || null;
+  const addressCity = mainAddress.city || null;
+
+  // Build combined address
+  const addressParts: string[] = [];
+  if (addressName) addressParts.push(addressName);
+  if (addressStreet) addressParts.push(addressStreet);
+  if (addressZip || addressCity) addressParts.push([addressZip, addressCity].filter(Boolean).join(' '));
+  const fullAddress = addressParts.join('\n');
+
+  console.log('[sevDesk] Using SevUser as contactPerson:', sevUser.id);
+  console.log('[sevDesk] Address:', fullAddress);
+
+  // Use Unix timestamp for date (like the quote creation)
+  const invoiceDateTimestamp = Math.floor(new Date().getTime() / 1000);
+  const taxRate = config.taxRate || 19;
+
+  // Build invoice data structure matching sevDesk format (similar to quote creation)
+  const invoiceData: Record<string, unknown> = {
+    invoice: {
+      objectName: 'Invoice',
+      contact: {
+        id: parseInt(sevdeskCustomerId),
+        objectName: 'Contact',
+      },
+      invoiceDate: invoiceDateTimestamp,
+      header: invoiceHeader,
+      headText: invoiceHeadText,
+      footText: invoiceFootText,
+      timeToPay: config.paymentTermsDays,
+      discount: 0,
+      status: config.createAsFinal ? 200 : 100,
+      // Address fields
+      addressName: addressName,
+      addressStreet: addressStreet,
+      addressZip: addressZip,
+      addressCity: addressCity,
+      address: fullAddress,
+      addressCountry: {
+        id: mainAddress.country?.id || 1,
+        objectName: 'StaticCountry',
+      },
+      // Contact person (SevUser, not Contact)
+      contactPerson: {
+        id: parseInt(sevUser.id),
+        objectName: 'SevUser',
+      },
+      taxRate: 0,
+      taxType: null,
+      taxRule: {
+        id: 1,
+        objectName: 'TaxRule',
+      },
+      invoiceType: 'RE',
+      currency: 'EUR',
+      showNet: false,
+      mapAll: true,
+      version: 0,
+      smallSettlement: false,
+    },
+    invoicePosSave: positions.map((pos, index) => ({
+      quantity: pos.quantity,
+      price: pos.price,
+      priceNet: pos.price,
+      priceTax: 0,
+      priceGross: pos.price * (1 + taxRate / 100),
+      name: pos.name || null,
+      unity: {
+        id: 9, // Stunden
+        objectName: 'Unity',
+      },
+      positionNumber: index,
+      text: pos.text || '',
+      discount: null,
+      taxRate: taxRate,
+      objectName: 'InvoicePos',
+      mapAll: true,
+    })),
+    invoicePosDelete: null,
   };
+
+  // Convert to form-urlencoded format (like quote creation)
+  const formBody = objectToFormData(invoiceData);
+
+  console.log('[sevDesk] Creating invoice with form-urlencoded data');
+  console.log('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
+
+  // Create invoice with retry mechanism
+  let response: Response;
+  let retries = 0;
+  const maxRetries = 3;
+
+  while (retries < maxRetries) {
+    try {
+      response = await fetch(`${SEVDESK_API_URL}/Invoice/Factory/saveInvoice`, {
+        method: 'POST',
+        headers: {
+          'Authorization': apiToken,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formBody,
+      });
+
+      const responseText = await response.text();
+      console.log('[sevDesk] Response:', response.status, responseText.substring(0, 500));
+
+      if (!response.ok) {
+        const errorMessage = responseText;
+        // Check if retryable error
+        if (errorMessage.includes('Correct number abort') && retries < maxRetries - 1) {
+          retries++;
+          console.log(`Invoice creation attempt ${retries} failed, retrying in ${retries * 2000}ms...`);
+          await new Promise(resolve => setTimeout(resolve, retries * 2000));
+          continue;
+        }
+        throw new Error(`Failed to create invoice: ${responseText}`);
+      }
+
+      const invoiceResponse = JSON.parse(responseText) as { objects: { invoice: { id: string; invoiceNumber: string } } };
+      const invoiceId = invoiceResponse.objects.invoice.id;
+      const invoiceNumber = invoiceResponse.objects.invoice.invoiceNumber;
+
+      console.log('[sevDesk] Invoice created:', invoiceId, invoiceNumber);
+
+      return {
+        invoiceId,
+        invoiceNumber,
+      };
+    } catch (error: any) {
+      if (error.message?.includes('Correct number abort') && retries < maxRetries - 1) {
+        retries++;
+        console.log(`Invoice creation attempt ${retries} failed:`, error.message);
+        await new Promise(resolve => setTimeout(resolve, retries * 2000));
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error('Failed to create invoice after maximum retries');
 }
 
 // Record invoice export
@@ -1445,4 +1633,42 @@ export async function createQuote(
     quoteId,
     quoteNumber,
   };
+}
+
+// Get previous invoices for a contact (from local DB)
+export async function getPreviousInvoicesForContact(
+  userId: string,
+  contactId: string,
+  limit: number = 10
+): Promise<Array<{
+  documentNumber: string;
+  documentDate: string;
+  header: string;
+  headText: string;
+  footText: string;
+  positions: Array<{ name: string; quantity: number; price: number }>;
+}>> {
+  const result = await query(
+    `SELECT document_number, document_date, header, head_text, foot_text, positions_json
+     FROM sevdesk_documents
+     WHERE user_id = $1
+       AND contact_id = $2
+       AND document_type = 'invoice'
+     ORDER BY document_date DESC
+     LIMIT $3`,
+    [userId, contactId, limit]
+  );
+
+  return result.rows.map(row => ({
+    documentNumber: row.document_number,
+    documentDate: row.document_date,
+    header: row.header || '',
+    headText: row.head_text || '',
+    footText: row.foot_text || '',
+    positions: (row.positions_json || []).map((p: any) => ({
+      name: p.name || '',
+      quantity: parseFloat(p.quantity) || 0,
+      price: parseFloat(p.price) || 0,
+    })),
+  }));
 }
