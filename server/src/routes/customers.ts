@@ -22,7 +22,9 @@ const createCustomerSchema = z.object({
   reportTitle: z.string().max(200).optional(),
   hourlyRate: z.number().min(0).optional(),
   paymentTermsDays: z.number().min(1).max(365).optional(),
-  ninjarmmOrganizationId: z.string().max(100).optional()
+  ninjarmmOrganizationId: z.string().max(100).optional(),
+  displayName: z.string().max(100).optional(),
+  importAliases: z.array(z.string().max(200)).optional()
 });
 
 const updateCustomerSchema = z.object({
@@ -35,7 +37,9 @@ const updateCustomerSchema = z.object({
   reportTitle: z.string().max(200).optional(),
   hourlyRate: z.number().min(0).nullable().optional(),
   paymentTermsDays: z.number().min(1).max(365).nullable().optional(),
-  ninjarmmOrganizationId: z.string().max(100).nullable().optional()
+  ninjarmmOrganizationId: z.string().max(100).nullable().optional(),
+  displayName: z.string().max(100).nullable().optional(),
+  importAliases: z.array(z.string().max(200)).nullable().optional()
 });
 
 // GET /api/customers - Get all customers for current organization
@@ -63,15 +67,15 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { name, color, customerNumber, contactPerson, email, address, reportTitle, hourlyRate, timeRoundingInterval, paymentTermsDays, ninjarmmOrganizationId } = req.body;
+    const { name, color, customerNumber, contactPerson, email, address, reportTitle, hourlyRate, timeRoundingInterval, paymentTermsDays, ninjarmmOrganizationId, displayName, importAliases } = req.body;
 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, contact_person, email, address, report_title, hourly_rate, time_rounding_interval, payment_terms_days, ninjarmm_organization_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
-      [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, timeRoundingInterval || 15, paymentTermsDays || 14, ninjarmmOrganizationId || null, createdAt]
+      `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, contact_person, email, address, report_title, hourly_rate, time_rounding_interval, payment_terms_days, ninjarmm_organization_id, display_name, import_aliases, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+      [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, timeRoundingInterval || 15, paymentTermsDays || 14, ninjarmmOrganizationId || null, displayName || null, importAliases || [], createdAt]
     );
 
     const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
@@ -158,6 +162,14 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (updates.ninjarmmOrganizationId !== undefined) {
       fields.push(`ninjarmm_organization_id = $${paramCount++}`);
       values.push(updates.ninjarmmOrganizationId || null);
+    }
+    if (updates.displayName !== undefined) {
+      fields.push(`display_name = $${paramCount++}`);
+      values.push(updates.displayName || null);
+    }
+    if (updates.importAliases !== undefined) {
+      fields.push(`import_aliases = $${paramCount++}`);
+      values.push(updates.importAliases || []);
     }
 
     if (fields.length === 0) {

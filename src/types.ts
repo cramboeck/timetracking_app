@@ -13,6 +13,8 @@ export interface Customer {
   timeRoundingInterval?: number; // Time rounding interval in minutes for billing (e.g., 15 = round up to nearest 15 min)
   paymentTermsDays?: number; // Payment terms in days for invoices (default: 14)
   ninjarmmOrganizationId?: string; // Link to NinjaRMM organization (Support feature)
+  displayName?: string; // Short display name for PDFs (instead of full name)
+  importAliases?: string[]; // Alternative names for CSV import matching (e.g., ["IHE", "IHE GmbH"])
   createdAt: string;
 }
 

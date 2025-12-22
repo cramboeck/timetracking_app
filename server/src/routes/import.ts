@@ -194,7 +194,7 @@ router.post('/clockodo/preview', authenticateToken, attachOrganization, requireO
 
     // Get existing customers and projects
     const customersResult = await pool.query(
-      'SELECT id, name, customer_number FROM customers WHERE organization_id = $1',
+      'SELECT id, name, customer_number, import_aliases FROM customers WHERE organization_id = $1',
       [organizationId]
     );
     const customers = customersResult.rows;
@@ -205,23 +205,53 @@ router.post('/clockodo/preview', authenticateToken, attachOrganization, requireO
     );
     const projects = projectsResult.rows;
 
+    // Helper function to match customer by number, name, or aliases
+    const findMatchingCustomer = (csvName: string, csvNumber: string) => {
+      // Priority 1: Match by customer number (if provided and not empty)
+      if (csvNumber && csvNumber.trim()) {
+        const byNumber = customers.find(c => c.customer_number === csvNumber);
+        if (byNumber) return byNumber;
+      }
+
+      // Priority 2: Match by exact name (case-insensitive)
+      const byName = customers.find(c => c.name.toLowerCase() === csvName.toLowerCase());
+      if (byName) return byName;
+
+      // Priority 3: Match by import aliases
+      const byAlias = customers.find(c =>
+        c.import_aliases && Array.isArray(c.import_aliases) &&
+        c.import_aliases.some((alias: string) => alias.toLowerCase() === csvName.toLowerCase())
+      );
+      if (byAlias) return byAlias;
+
+      return null;
+    };
+
     // Analyze rows and find matches
-    const uniqueCustomers = new Map<string, { name: string; nummer: string; matchedId?: string }>();
+    const uniqueCustomers = new Map<string, { name: string; nummer: string; matchedId?: string; matchedName?: string; matchedBy?: string }>();
     const uniqueProjects = new Map<string, { name: string; customerName: string; matchedId?: string }>();
 
     for (const row of rows) {
       // Track unique customers
       const customerKey = row.kunde;
       if (!uniqueCustomers.has(customerKey)) {
-        // Try to match by customer number or name
-        const matchedCustomer = customers.find(
-          c => c.customer_number === row.kundennummer ||
-               c.name.toLowerCase() === row.kunde.toLowerCase()
-        );
+        const matchedCustomer = findMatchingCustomer(row.kunde, row.kundennummer);
+        let matchedBy: string | undefined;
+        if (matchedCustomer) {
+          if (row.kundennummer && matchedCustomer.customer_number === row.kundennummer) {
+            matchedBy = 'Kundennummer';
+          } else if (matchedCustomer.name.toLowerCase() === row.kunde.toLowerCase()) {
+            matchedBy = 'Name';
+          } else {
+            matchedBy = 'Alias';
+          }
+        }
         uniqueCustomers.set(customerKey, {
           name: row.kunde,
           nummer: row.kundennummer,
-          matchedId: matchedCustomer?.id
+          matchedId: matchedCustomer?.id,
+          matchedName: matchedCustomer?.name,
+          matchedBy
         });
       }
 
@@ -259,7 +289,7 @@ router.post('/clockodo/preview', authenticateToken, attachOrganization, requireO
         customers: Array.from(uniqueCustomers.values()),
         projects: Array.from(uniqueProjects.values()),
         sampleRows: rows.slice(0, 20), // Show first 20 rows instead of 5
-        existingCustomers: customers.map(c => ({ id: c.id, name: c.name })),
+        existingCustomers: customers.map(c => ({ id: c.id, name: c.name, customerNumber: c.customer_number, importAliases: c.import_aliases || [] })),
         existingProjects: projects.map(p => ({ id: p.id, name: p.name, customerName: p.customer_name, customerId: p.customer_id }))
       }
     });
@@ -294,10 +324,30 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
 
     // Get existing data
     const customersResult = await pool.query(
-      'SELECT id, name, customer_number FROM customers WHERE organization_id = $1',
+      'SELECT id, name, customer_number, import_aliases FROM customers WHERE organization_id = $1',
       [organizationId]
     );
-    const existingCustomers = new Map(customersResult.rows.map(c => [c.name.toLowerCase(), c]));
+    const allCustomers = customersResult.rows;
+    const existingCustomers = new Map(allCustomers.map(c => [c.name.toLowerCase(), c]));
+
+    // Helper function to find customer by number, name, or aliases
+    const findCustomer = (csvName: string, csvNumber: string) => {
+      // Priority 1: Match by customer number
+      if (csvNumber && csvNumber.trim()) {
+        const byNumber = allCustomers.find(c => c.customer_number === csvNumber);
+        if (byNumber) return byNumber;
+      }
+      // Priority 2: Match by exact name
+      const byName = existingCustomers.get(csvName.toLowerCase());
+      if (byName) return byName;
+      // Priority 3: Match by import aliases
+      const byAlias = allCustomers.find(c =>
+        c.import_aliases && Array.isArray(c.import_aliases) &&
+        c.import_aliases.some((alias: string) => alias.toLowerCase() === csvName.toLowerCase())
+      );
+      if (byAlias) return byAlias;
+      return null;
+    };
 
     const projectsResult = await pool.query(
       'SELECT p.id, p.name, p.customer_id, c.name as customer_name FROM projects p JOIN customers c ON p.customer_id = c.id WHERE p.organization_id = $1',
@@ -365,17 +415,24 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
         if (projectIdMap.has(projectKey)) {
           projectId = projectIdMap.get(projectKey);
         } else if (row.projekt && row.projekt !== '-') {
-          // Try to find existing project
-          const existingProject = existingProjects.get(`${customerKey}|${row.projekt.toLowerCase()}`);
+          // First try to find the customer to get their actual name (might be matched via alias)
+          const matchedCustomer = findCustomer(row.kunde, row.kundennummer);
+          const actualCustomerName = matchedCustomer?.name.toLowerCase() || customerKey;
+
+          // Try to find existing project using both CSV customer name and actual matched customer name
+          let existingProject = existingProjects.get(`${customerKey}|${row.projekt.toLowerCase()}`);
+          if (!existingProject && actualCustomerName !== customerKey) {
+            existingProject = existingProjects.get(`${actualCustomerName}|${row.projekt.toLowerCase()}`);
+          }
           if (existingProject) {
             projectId = existingProject.id;
           } else if (createMissingProjects) {
             // Create customer if needed
             let customerId = customerIdMap.get(row.kunde);
             if (!customerId) {
-              const existingCustomer = existingCustomers.get(customerKey);
-              if (existingCustomer) {
-                customerId = existingCustomer.id;
+              // Reuse the matched customer from above (already found via number, name, or alias)
+              if (matchedCustomer) {
+                customerId = matchedCustomer.id;
               } else if (createdCustomers.has(customerKey)) {
                 customerId = createdCustomers.get(customerKey);
               } else {

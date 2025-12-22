@@ -20,6 +20,7 @@ interface ProjectStats {
   projectId: string;
   projectName: string;
   customerName: string;
+  customerDisplayName?: string; // Short name for PDFs
   customerColor: string;
   totalSeconds: number;
   totalAmount: number;
@@ -491,6 +492,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
           projectId: entry.projectId,
           projectName: project.name,
           customerName: customer.name,
+          customerDisplayName: customer.displayName,
           customerColor: customer.color,
           totalSeconds: entry.duration,
           totalAmount: amount,
@@ -889,8 +891,8 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
 
         const hours = stat.totalSeconds / 3600;
 
-        // Customer (truncate if needed) - max width 65 for 70-wide column
-        let customerName = stat.customerName;
+        // Customer (use displayName if available, truncate if needed) - max width 65 for 70-wide column
+        let customerName = stat.customerDisplayName || stat.customerName;
         while (doc.getTextWidth(customerName) > 65 && customerName.length > 3) {
           customerName = customerName.substring(0, customerName.length - 4) + '...';
         }

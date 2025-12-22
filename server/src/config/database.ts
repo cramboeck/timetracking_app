@@ -568,6 +568,25 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add display_name and import_aliases to customers (for PDFs and import)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'display_name'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN display_name TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'import_aliases'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN import_aliases TEXT[] DEFAULT '{}';
+        END IF;
+      END $$;
+    `);
+
     // Migration: Add missing columns to ninjarmm_alerts
     await client.query(`
       DO $$

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, Loader2, X, ArrowRight } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, Loader2, X, ArrowRight, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { importApi } from '../services/api';
 
 interface ClockodoImportProps {
@@ -12,10 +12,10 @@ interface PreviewData {
   skippedRows: Array<{ line: number; reason: string; data: string }>;
   totalDuration: number;
   totalHours: string;
-  customers: Array<{ name: string; nummer: string; matchedId?: string }>;
+  customers: Array<{ name: string; nummer: string; matchedId?: string; matchedName?: string; matchedBy?: string }>;
   projects: Array<{ name: string; customerName: string; matchedId?: string }>;
   sampleRows: Array<any>;
-  existingCustomers: Array<{ id: string; name: string }>;
+  existingCustomers: Array<{ id: string; name: string; customerNumber?: string; importAliases?: string[] }>;
   existingProjects: Array<{ id: string; name: string; customerName: string; customerId: string }>;
 }
 
@@ -43,6 +43,9 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
   const [defaultProjectId, setDefaultProjectId] = useState<string>('');
   const [createMissingProjects, setCreateMissingProjects] = useState(true);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
+
+  // Help panel state
+  const [showHelp, setShowHelp] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -146,7 +149,49 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
 
   return (
     <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
-      <h3 className="text-lg font-semibold mb-4 dark:text-white">Clockodo Import</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold dark:text-white">Clockodo Import</h3>
+        <button
+          onClick={() => setShowHelp(!showHelp)}
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-accent-primary dark:text-gray-400 dark:hover:text-accent-primary transition-colors"
+        >
+          <HelpCircle size={18} />
+          <span>Hilfe</span>
+          {showHelp ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+      </div>
+
+      {/* Sticky Help Panel */}
+      {showHelp && (
+        <div className="sticky top-0 z-10 mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
+            <HelpCircle size={18} />
+            Import-Anleitung
+          </h4>
+          <div className="space-y-3 text-sm text-blue-700 dark:text-blue-400">
+            <div>
+              <strong>CSV-Format:</strong>
+              <p className="mt-1">Die Clockodo-CSV muss folgende Spalten enthalten: <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Kunde</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Kundennummer</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Tag</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Stunden (hh:mm)</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Beschreibung</code>.</p>
+            </div>
+            <div>
+              <strong>Kunden-Matching (Priorität):</strong>
+              <ol className="mt-1 ml-4 list-decimal space-y-1">
+                <li><strong>Kundennummer:</strong> Exakte Übereinstimmung der Kundennummer</li>
+                <li><strong>Kundenname:</strong> Exakte Übereinstimmung des Namens (ohne Groß/Klein)</li>
+                <li><strong>Import-Alias:</strong> Übereinstimmung mit einem konfigurierten Alias</li>
+              </ol>
+            </div>
+            <div>
+              <strong>Import-Aliase konfigurieren:</strong>
+              <p className="mt-1">Sie können für jeden Kunden alternative Namen (Aliase) hinterlegen unter <em>Kunden → Bearbeiten → Import-Aliase</em>. Nützlich für abgekürzte Namen wie "IHE" statt "IHE-INNOVATIVE-HYBRID-ELEKTROPLANUNG".</p>
+            </div>
+            <div>
+              <strong>Mehrere Kunden importieren:</strong>
+              <p className="mt-1">Sie können CSV-Dateien mit mehreren Kunden importieren. Stellen Sie sicher, dass alle Kunden entweder bereits existieren (mit passender Kundennummer/Name/Alias) oder die Option "Fehlende Kunden erstellen" aktiviert ist.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 text-red-700 dark:text-red-400">
@@ -257,13 +302,24 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
               {previewData.customers.map((customer, idx) => (
                 <div key={idx} className="flex items-center gap-2 text-sm">
                   {customer.matchedId ? (
-                    <CheckCircle size={16} className="text-green-500" />
+                    <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
                   ) : (
-                    <AlertCircle size={16} className="text-amber-500" />
+                    <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
                   )}
                   <span className="dark:text-gray-300">{customer.name}</span>
+                  {customer.nummer && (
+                    <span className="text-gray-400 dark:text-gray-500 text-xs">(Nr. {customer.nummer})</span>
+                  )}
                   {customer.matchedId ? (
-                    <span className="text-green-600 dark:text-green-400 text-xs">(gefunden)</span>
+                    <span className="text-green-600 dark:text-green-400 text-xs flex items-center gap-1">
+                      <ArrowRight size={12} />
+                      {customer.matchedName || 'gefunden'}
+                      {customer.matchedBy && (
+                        <span className="bg-green-100 dark:bg-green-900/50 px-1 rounded text-xs">
+                          via {customer.matchedBy}
+                        </span>
+                      )}
+                    </span>
                   ) : (
                     <span className="text-amber-600 dark:text-amber-400 text-xs">(wird erstellt)</span>
                   )}

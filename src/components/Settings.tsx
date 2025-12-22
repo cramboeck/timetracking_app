@@ -110,6 +110,8 @@ export const Settings = ({
   const [customerTimeRoundingInterval, setCustomerTimeRoundingInterval] = useState('15');
   const [customerPaymentTermsDays, setCustomerPaymentTermsDays] = useState('14');
   const [customerNinjarmmOrgId, setCustomerNinjarmmOrgId] = useState('');
+  const [customerDisplayName, setCustomerDisplayName] = useState('');
+  const [customerImportAliases, setCustomerImportAliases] = useState('');
 
   // CSV Import
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -189,6 +191,8 @@ export const Settings = ({
       setCustomerTimeRoundingInterval(customer.timeRoundingInterval?.toString() || '15');
       setCustomerPaymentTermsDays(customer.paymentTermsDays?.toString() || '14');
       setCustomerNinjarmmOrgId(customer.ninjarmmOrganizationId || '');
+      setCustomerDisplayName(customer.displayName || '');
+      setCustomerImportAliases(customer.importAliases?.join(', ') || '');
     } else {
       setEditingCustomer(null);
       setCustomerName('');
@@ -197,6 +201,8 @@ export const Settings = ({
       setCustomerContactPerson('');
       setCustomerEmail('');
       setCustomerAddress('');
+      setCustomerDisplayName('');
+      setCustomerImportAliases('');
       setCustomerReportTitle('');
       setCustomerHourlyRate('');
       setCustomerTimeRoundingInterval('15');
@@ -318,6 +324,10 @@ export const Settings = ({
     const hourlyRateValue = customerHourlyRate.trim() ? parseFloat(customerHourlyRate) : undefined;
     const timeRoundingIntervalValue = customerTimeRoundingInterval.trim() ? parseInt(customerTimeRoundingInterval) : 15;
     const paymentTermsDaysValue = customerPaymentTermsDays.trim() ? parseInt(customerPaymentTermsDays) : 14;
+    // Parse import aliases from comma-separated string
+    const importAliasesValue = customerImportAliases.trim()
+      ? customerImportAliases.split(',').map(a => a.trim()).filter(a => a.length > 0)
+      : undefined;
 
     if (editingCustomer) {
       onUpdateCustomer(editingCustomer.id, {
@@ -331,7 +341,9 @@ export const Settings = ({
         hourlyRate: hourlyRateValue,
         timeRoundingInterval: timeRoundingIntervalValue,
         paymentTermsDays: paymentTermsDaysValue,
-        ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined
+        ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
+        displayName: customerDisplayName.trim() || undefined,
+        importAliases: importAliasesValue
       });
     } else {
       onAddCustomer({
@@ -348,6 +360,8 @@ export const Settings = ({
         timeRoundingInterval: timeRoundingIntervalValue,
         paymentTermsDays: paymentTermsDaysValue,
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
+        displayName: customerDisplayName.trim() || undefined,
+        importAliases: importAliasesValue,
         createdAt: new Date().toISOString()
       });
     }
@@ -2733,6 +2747,38 @@ export const Settings = ({
             />
             <p className="text-xs text-gray-500 mt-1">
               Optional: Individueller Titel für PDF-Reports dieses Kunden (Standard: "Stundenbericht")
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Anzeigename (für PDF)
+            </label>
+            <input
+              type="text"
+              value={customerDisplayName}
+              onChange={(e) => setCustomerDisplayName(e.target.value)}
+              placeholder="z.B. IHE (statt langer Firmenname)"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Optional: Kurzer Name für PDF-Reports (Standard: Kundenname)
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Import-Aliase
+            </label>
+            <input
+              type="text"
+              value={customerImportAliases}
+              onChange={(e) => setCustomerImportAliases(e.target.value)}
+              placeholder="z.B. IHE, IHE GmbH, IHE Planung"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Komma-getrennte alternative Namen für den CSV-Import (z.B. aus Clockodo)
             </p>
           </div>
 
