@@ -28,6 +28,26 @@ function parseDurationToSeconds(durationStr: string): number {
   return (hours * 3600) + (minutes * 60);
 }
 
+// Parse German date format (DD.MM.YYYY) or ISO format (YYYY-MM-DD) to YYYY-MM-DD
+function parseDateToISO(dateStr: string): string | null {
+  // Try German format: DD.MM.YYYY
+  const germanMatch = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (germanMatch) {
+    const day = germanMatch[1].padStart(2, '0');
+    const month = germanMatch[2].padStart(2, '0');
+    const year = germanMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  // Try ISO format: YYYY-MM-DD
+  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return dateStr;
+  }
+
+  return null;
+}
+
 // Parse CSV with semicolon separator and quoted fields
 function parseClockodoCsv(csvContent: string): { rows: ClockodoRow[]; skippedRows: Array<{ line: number; reason: string; data: string }> } {
   const lines = csvContent.trim().split('\n');
@@ -90,6 +110,17 @@ function parseClockodoCsv(csvContent: string): { rows: ClockodoRow[]; skippedRow
         line: i + 1,
         reason: `Fehlende Felder: ${missingFields.join(', ')}`,
         data: `${row.kunde || '?'} | ${row.tag || '?'} | ${row.stunden || '?'}`
+      });
+      continue;
+    }
+
+    // Check if date is valid
+    const parsedDate = parseDateToISO(row.tag);
+    if (!parsedDate) {
+      skippedRows.push({
+        line: i + 1,
+        reason: `Ungültiges Datum: "${row.tag}" (erwartet: DD.MM.YYYY oder YYYY-MM-DD)`,
+        data: `${row.kunde} | ${row.tag} | ${row.stunden}`
       });
       continue;
     }
@@ -388,8 +419,14 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
         }
 
         // Parse date and create times (start at 08:00)
-        const date = row.tag; // Already in YYYY-MM-DD format
+        const date = parseDateToISO(row.tag);
         const durationSeconds = parseDurationToSeconds(row.stunden);
+
+        if (!date) {
+          errors.push(`Row ${importedCount + skippedCount + duplicateCount + 1}: Ungültiges Datum "${row.tag}"`);
+          skippedCount++;
+          continue;
+        }
 
         if (durationSeconds <= 0) {
           skippedCount++;
