@@ -180,7 +180,13 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(16);
     doc.setTextColor(gray.r, gray.g, gray.b);
-    doc.text(report.customer_name, margin, y);
+    // Handle long customer names with line wrap
+    const savedReportMaxWidth = pageWidth - margin * 2;
+    const savedNameLines = doc.splitTextToSize(report.customer_name, savedReportMaxWidth);
+    savedNameLines.forEach((line: string, idx: number) => {
+      doc.text(line, margin, y + (idx * 7));
+    });
+    y += (savedNameLines.length - 1) * 7;
 
     y += 10;
     doc.setFontSize(12);
@@ -222,11 +228,16 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
       const lMargin = 15;
       let ly = 20;
 
-      // Header
+      // Header (truncate if combined title + name is too long)
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
       doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text(`${report.report_title} - ${report.customer_name}`, lMargin, ly);
+      let combinedHeader = `${report.report_title} - ${report.customer_name}`;
+      const maxSavedHeaderWidth = lPageW - lMargin * 2;
+      while (doc.getTextWidth(combinedHeader) > maxSavedHeaderWidth && combinedHeader.length > 20) {
+        combinedHeader = combinedHeader.substring(0, combinedHeader.length - 4) + '...';
+      }
+      doc.text(combinedHeader, lMargin, ly);
 
       ly += 15;
 
@@ -689,17 +700,24 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
     doc.setTextColor(gray.r, gray.g, gray.b);
     doc.text(reportTitle, margin + 12, y + 8);
 
-    // Customer name or "Alle Kunden"
+    // Customer name or "Alle Kunden" (with automatic line wrap for long names)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(26);
     doc.setTextColor(dark.r, dark.g, dark.b);
-    doc.text(customerFilter?.name || 'Alle Kunden', margin + 12, y + 24);
+    const customerName = customerFilter?.name || 'Alle Kunden';
+    const maxNameWidth = contentWidth - 60; // Leave space for logo
+    const nameLines = doc.splitTextToSize(customerName, maxNameWidth);
+    let nameY = y + 24;
+    nameLines.forEach((line: string, index: number) => {
+      doc.text(line, margin + 12, nameY + (index * 10));
+    });
 
-    // Date range
+    // Date range (adjust position based on number of name lines)
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(12);
     doc.setTextColor(gray.r, gray.g, gray.b);
-    doc.text(periodLabel, margin + 12, y + 35);
+    const dateY = nameY + ((nameLines.length - 1) * 10) + 11;
+    doc.text(periodLabel, margin + 12, dateY);
 
     // Summary cards
     y = 150;
@@ -790,11 +808,16 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
         doc.setFillColor(accent.r, accent.g, accent.b);
         doc.rect(0, 0, lWidth, 3, 'F');
 
-        // Header content
+        // Header content (truncate long names for header)
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(14);
         doc.setTextColor(dark.r, dark.g, dark.b);
-        doc.text(customerFilter?.name || 'Alle Kunden', margin, 18);
+        let headerName = customerFilter?.name || 'Alle Kunden';
+        const maxHeaderWidth = lWidth - margin * 2 - 50; // Leave space for logo
+        while (doc.getTextWidth(headerName) > maxHeaderWidth && headerName.length > 10) {
+          headerName = headerName.substring(0, headerName.length - 4) + '...';
+        }
+        doc.text(headerName, margin, 18);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
