@@ -5598,8 +5598,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         <span className="px-3 py-1 bg-purple-600 text-white rounded-full text-sm font-medium">
                           {wizardThemePreview.selectedTheme.category.replace('_', ' ')}
                         </span>
-                        <span className="text-xs text-purple-600 dark:text-purple-400">
-                          Score: {wizardThemePreview.priorityScore}/100
+                        <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded">
+                          Beste Wahl
                         </span>
                       </div>
                       <div className="bg-white/50 dark:bg-black/20 rounded p-3">

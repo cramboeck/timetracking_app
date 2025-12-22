@@ -846,6 +846,12 @@ export function selectTheme(input: ThemeSelectionInput): ThemeSelectionOutput {
   // Step 6: Sort by final score
   weightedThemes.sort((a, b) => b.score - a.score);
 
+  // Step 6b: Normalize scores to 0-100 range
+  const maxScore = weightedThemes[0].score;
+  weightedThemes.forEach(t => {
+    t.score = Math.round((t.score / maxScore) * 100);
+  });
+
   // Step 7: Select top theme and specific subtopic
   const selected = weightedThemes[0];
   const themeCategory = THEME_CATEGORIES[selected.theme];
