@@ -227,10 +227,33 @@ const BillingTab = () => {
         startDate.toISOString().split('T')[0],
         endDate.toISOString().split('T')[0]
       );
-      setBillingSummary(summaryResponse.data);
 
-      const exportsResponse = await sevdeskApi.getInvoiceExports(20);
-      setInvoiceExports(exportsResponse.data);
+      // Get exports with higher limit to check for overlapping periods
+      const exportsResponse = await sevdeskApi.getInvoiceExports(100);
+      const exports = exportsResponse.data;
+      setInvoiceExports(exports);
+
+      // Check for overlapping billing periods
+      // If viewing monthly and a quarterly export covers this period, mark as billed
+      const enhancedSummary = summaryResponse.data.map((item: BillingSummaryItem) => {
+        if (item.isBilled) return item;
+
+        // Check if any export for this customer covers the current period
+        const hasOverlappingExport = exports.some((exp: InvoiceExport) => {
+          if (exp.customerId !== item.customerId) return false;
+          const expStart = new Date(exp.periodStart);
+          const expEnd = new Date(exp.periodEnd);
+          // Current period is covered if export period contains it
+          return expStart <= startDate && expEnd >= endDate;
+        });
+
+        if (hasOverlappingExport) {
+          return { ...item, isBilled: true, billedViaOverlap: true };
+        }
+        return item;
+      });
+
+      setBillingSummary(enhancedSummary);
     } catch (err: any) {
       setError(err.message || 'Fehler beim Laden der Daten');
     } finally {
@@ -567,52 +590,59 @@ const BillingTab = () => {
             </h3>
           </div>
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {billedItems.map((item) => (
-              <div key={item.customerId} className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                        {item.customerName}
-                        {item.sevdeskCustomerId && (
-                          <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                            <ExternalLink size={10} /> sevDesk
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {formatHours(item.totalHours)}
-                        {item.roundedHours && item.roundedHours !== item.totalHours && (
-                          <span className="text-accent-primary ml-1">
-                            → {formatHours(item.roundedHours)}
-                          </span>
-                        )}
+            {billedItems.map((item) => {
+              const billedViaOverlap = (item as BillingSummaryItem & { billedViaOverlap?: boolean }).billedViaOverlap;
+              return (
+                <div key={item.customerId} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                          {item.customerName}
+                          {item.sevdeskCustomerId && (
+                            <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                              <ExternalLink size={10} /> sevDesk
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {formatHours(item.totalHours)}
+                          {item.roundedHours && item.roundedHours !== item.totalHours && (
+                            <span className="text-accent-primary ml-1">
+                              → {formatHours(item.roundedHours)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</div>
-                      <div className="text-xs text-green-600 dark:text-green-400">Abgerechnet</div>
-                    </div>
-                    <button
-                      onClick={() => handleRevertBilling(item.customerId, item.customerName)}
-                      disabled={processing === item.customerId}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg text-sm hover:bg-amber-200 dark:hover:bg-amber-900/50 disabled:opacity-50"
-                      title="Abrechnung zurücksetzen"
-                    >
-                      {processing === item.customerId ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <RotateCcw size={14} />
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</div>
+                        <div className="text-xs text-green-600 dark:text-green-400">
+                          {billedViaOverlap ? 'Abgerechnet (via Quartal)' : 'Abgerechnet'}
+                        </div>
+                      </div>
+                      {!billedViaOverlap && (
+                        <button
+                          onClick={() => handleRevertBilling(item.customerId, item.customerName)}
+                          disabled={processing === item.customerId}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg text-sm hover:bg-amber-200 dark:hover:bg-amber-900/50 disabled:opacity-50"
+                          title="Abrechnung zurücksetzen"
+                        >
+                          {processing === item.customerId ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <RotateCcw size={14} />
+                          )}
+                          Zurücksetzen
+                        </button>
                       )}
-                      Zurücksetzen
-                    </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
