@@ -40,6 +40,12 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [selectedQuarter, setSelectedQuarter] = useState(() => {
+    const now = new Date();
+    const quarter = Math.floor(now.getMonth() / 3) + 1;
+    return `${now.getFullYear()}-Q${quarter}`;
+  });
+  const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
   const [reportAssistantOpen, setReportAssistantOpen] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
@@ -576,14 +582,6 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
     });
     return Array.from(years).sort().reverse();
   }, [entries]);
-
-  // State for quarter/year selection
-  const [selectedQuarter, setSelectedQuarter] = useState(() => {
-    const now = new Date();
-    const quarter = Math.floor(now.getMonth() / 3) + 1;
-    return `${now.getFullYear()}-Q${quarter}`;
-  });
-  const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
 
   // Get period label for PDF
   const getPeriodLabel = () => {
