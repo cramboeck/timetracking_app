@@ -795,11 +795,11 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
       const lHeight = 210;
       let pageNum = 2;
 
-      // Column positions for landscape
+      // Column positions for landscape - adjusted for longer customer/project names
       const colCustomer = margin;
-      const colProject = margin + 60;
-      const colHours = margin + 145;
-      const colRate = margin + 185;
+      const colProject = margin + 70;
+      const colHours = margin + 160;
+      const colRate = margin + 195;
       const colAmount = lWidth - margin;
 
       // Header function for detail pages
@@ -889,16 +889,16 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
 
         const hours = stat.totalSeconds / 3600;
 
-        // Customer (truncate if needed)
+        // Customer (truncate if needed) - max width 65 for 70-wide column
         let customerName = stat.customerName;
-        while (doc.getTextWidth(customerName) > 55 && customerName.length > 3) {
+        while (doc.getTextWidth(customerName) > 65 && customerName.length > 3) {
           customerName = customerName.substring(0, customerName.length - 4) + '...';
         }
         doc.text(customerName, colCustomer, y);
 
-        // Project (truncate if needed)
+        // Project (truncate if needed) - max width 85 for 90-wide column
         let projectName = stat.projectName;
-        while (doc.getTextWidth(projectName) > 80 && projectName.length > 3) {
+        while (doc.getTextWidth(projectName) > 85 && projectName.length > 3) {
           projectName = projectName.substring(0, projectName.length - 4) + '...';
         }
         doc.text(projectName, colProject, y);
