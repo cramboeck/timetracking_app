@@ -399,11 +399,16 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
     return project ? hours * project.hourlyRate : 0;
   };
 
-  // Get current quarter/year based on selected month
+  // Get current quarter/year based on selection
   const getCurrentQuarter = () => {
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const quarter = Math.floor((month - 1) / 3) + 1;
-    return { year, quarter };
+    // Parse from selectedQuarter format "YYYY-QN"
+    const match = selectedQuarter.match(/^(\d{4})-Q(\d)$/);
+    if (match) {
+      return { year: parseInt(match[1]), quarter: parseInt(match[2]) };
+    }
+    // Fallback to current quarter
+    const now = new Date();
+    return { year: now.getFullYear(), quarter: Math.floor(now.getMonth() / 3) + 1 };
   };
 
   // Filter entries based on all criteria
@@ -434,8 +439,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
         const entryQuarter = Math.floor(entryDate.getMonth() / 3) + 1;
         return entryYear === year && entryQuarter === quarter;
       } else if (timeframeType === 'year') {
-        const [year] = selectedMonth.split('-').map(Number);
-        return entryDate.getFullYear() === year;
+        return entryDate.getFullYear() === parseInt(selectedYear);
       } else if (timeframeType === 'custom') {
         if (!customStartDate || !customEndDate) return true;
         const start = new Date(customStartDate);
@@ -446,7 +450,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
 
       return true;
     });
-  }, [entries, selectedMonth, selectedCustomer, selectedProject, timeframeType, customStartDate, customEndDate, projects]);
+  }, [entries, selectedMonth, selectedQuarter, selectedYear, selectedCustomer, selectedProject, timeframeType, customStartDate, customEndDate, projects]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -551,6 +555,36 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
     return Array.from(months).sort().reverse();
   }, [entries]);
 
+  // Generate available quarters
+  const availableQuarters = useMemo(() => {
+    const quarters = new Set<string>();
+    entries.forEach(entry => {
+      const date = new Date(entry.startTime);
+      const year = date.getFullYear();
+      const quarter = Math.floor(date.getMonth() / 3) + 1;
+      quarters.add(`${year}-Q${quarter}`);
+    });
+    return Array.from(quarters).sort().reverse();
+  }, [entries]);
+
+  // Generate available years
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    entries.forEach(entry => {
+      const date = new Date(entry.startTime);
+      years.add(String(date.getFullYear()));
+    });
+    return Array.from(years).sort().reverse();
+  }, [entries]);
+
+  // State for quarter/year selection
+  const [selectedQuarter, setSelectedQuarter] = useState(() => {
+    const now = new Date();
+    const quarter = Math.floor(now.getMonth() / 3) + 1;
+    return `${now.getFullYear()}-Q${quarter}`;
+  });
+  const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
+
   // Get period label for PDF
   const getPeriodLabel = () => {
     if (timeframeType === 'custom' && customStartDate && customEndDate) {
@@ -558,13 +592,13 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
       const end = new Date(customEndDate).toLocaleDateString('de-DE');
       return `${start} - ${end}`;
     }
-    const [year, month] = selectedMonth.split('-');
     if (timeframeType === 'year') {
-      return year;
+      return selectedYear;
     } else if (timeframeType === 'quarter') {
-      const { quarter } = getCurrentQuarter();
+      const { year, quarter } = getCurrentQuarter();
       return `Q${quarter} ${year}`;
     }
+    const [year, month] = selectedMonth.split('-');
     return new Date(parseInt(year), parseInt(month) - 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' });
   };
 
@@ -993,11 +1027,11 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
             </select>
           </div>
 
-          {/* Month/Year Selector (shown for month/quarter/year) */}
-          {timeframeType !== 'custom' && (
+          {/* Month Selector (shown for month) */}
+          {timeframeType === 'month' && (
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                {timeframeType === 'year' ? 'Jahr' : 'Monat/Jahr'}
+                Monat/Jahr
               </label>
               <select
                 value={selectedMonth}
@@ -1007,15 +1041,56 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                 {availableMonths.map(month => {
                   const [year, m] = month.split('-');
                   const date = new Date(parseInt(year), parseInt(m) - 1);
-                  const label = timeframeType === 'year'
-                    ? year
-                    : date.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
                   return (
                     <option key={month} value={month}>
+                      {date.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* Quarter Selector (shown for quarter) */}
+          {timeframeType === 'quarter' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Quartal
+              </label>
+              <select
+                value={selectedQuarter}
+                onChange={(e) => setSelectedQuarter(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {availableQuarters.map(q => {
+                  const match = q.match(/^(\d{4})-Q(\d)$/);
+                  const label = match ? `Q${match[2]} ${match[1]}` : q;
+                  return (
+                    <option key={q} value={q}>
                       {label}
                     </option>
                   );
                 })}
+              </select>
+            </div>
+          )}
+
+          {/* Year Selector (shown for year) */}
+          {timeframeType === 'year' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Jahr
+              </label>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {availableYears.map(year => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
               </select>
             </div>
           )}
