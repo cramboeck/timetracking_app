@@ -3640,16 +3640,26 @@ export async function autoImproveContent(
       bestContent = currentContent;
     }
 
-    // Step 2: Check if score is good enough
-    if (currentScore >= minScore) {
-      console.log(`✓ Score ${currentScore} meets minimum ${minScore} - stopping loop`);
+    // Step 2: Check if there are high/medium priority improvements
+    const hasHighPriorityImprovements = analysis.improvements?.some(
+      imp => imp.priority === 'high' || imp.priority === 'medium'
+    );
+
+    // Step 3: Only stop if score is good AND no high-priority issues remain
+    if (currentScore >= minScore && !hasHighPriorityImprovements) {
+      console.log(`✓ Score ${currentScore} meets minimum ${minScore} and no high-priority issues - stopping loop`);
       break;
     }
 
-    // Step 3: Find highest priority weakness to fix
+    // Also stop if no improvements at all
     if (!analysis.improvements || analysis.improvements.length === 0) {
       console.log('No improvements suggested - stopping loop');
       break;
+    }
+
+    // Log why we continue
+    if (currentScore >= minScore && hasHighPriorityImprovements) {
+      console.log(`Score ${currentScore} meets minimum but high-priority issues remain - continuing improvement`);
     }
 
     // Sort by priority and get the most critical issue
