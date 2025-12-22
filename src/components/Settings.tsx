@@ -41,6 +41,7 @@ interface SettingsProps {
   onAddActivity: (activity: Activity) => void;
   onUpdateActivity: (id: string, updates: Partial<Activity>) => void;
   onDeleteActivity: (id: string) => void;
+  onRefreshEntries?: () => void;
 }
 
 const COLORS = [
@@ -63,7 +64,8 @@ export const Settings = ({
   onDeleteProject,
   onAddActivity,
   onUpdateActivity,
-  onDeleteActivity
+  onDeleteActivity,
+  onRefreshEntries
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'ai'>('account');
@@ -2466,7 +2468,7 @@ export const Settings = ({
             </div>
 
             {/* Clockodo Import */}
-            <ClockodoImport />
+            <ClockodoImport onImportComplete={onRefreshEntries} />
           </div>
         )}
 

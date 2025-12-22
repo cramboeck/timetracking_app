@@ -189,6 +189,18 @@ function App() {
     loadData();
   }, [currentUser]);
 
+  // Refresh entries (used after import)
+  const refreshEntries = async () => {
+    try {
+      console.log('🔄 [DATA] Refreshing time entries...');
+      const response = await entriesApi.getAll();
+      setEntries(response.data || []);
+      console.log('✅ [DATA] Time entries refreshed:', response.data?.length || 0, 'entries');
+    } catch (error) {
+      console.error('❌ [DATA] Error refreshing entries:', error);
+    }
+  };
+
   // Handle pending organization invitation after login
   useEffect(() => {
     const handlePendingInvitation = async () => {
@@ -922,6 +934,7 @@ function App() {
             onAddActivity={handleAddActivity}
             onUpdateActivity={handleUpdateActivity}
             onDeleteActivity={handleDeleteActivity}
+            onRefreshEntries={refreshEntries}
           />
         )}
       </main>

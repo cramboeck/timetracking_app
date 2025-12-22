@@ -1,7 +1,10 @@
 import { useState, useRef } from 'react';
 import { Upload, FileText, AlertCircle, CheckCircle, Loader2, X, ArrowRight } from 'lucide-react';
 import { importApi } from '../services/api';
-import { Modal } from './Modal';
+
+interface ClockodoImportProps {
+  onImportComplete?: () => void;
+}
 
 interface PreviewData {
   rowCount: number;
@@ -26,7 +29,7 @@ interface ImportResult {
   errors: string[];
 }
 
-export const ClockodoImport = () => {
+export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
   const [step, setStep] = useState<'upload' | 'preview' | 'mapping' | 'importing' | 'done'>('upload');
   const [csvContent, setCsvContent] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
@@ -109,6 +112,8 @@ export const ClockodoImport = () => {
       if (response.success) {
         setImportResult(response.data);
         setStep('done');
+        // Trigger refresh of time entries
+        onImportComplete?.();
       } else {
         setError('Import fehlgeschlagen');
         setStep('mapping');
