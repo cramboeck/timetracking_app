@@ -162,6 +162,8 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
 };
 
 // ==================== Billing Tab ====================
+type BillingPeriodType = 'monthly' | 'quarterly';
+
 const BillingTab = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -172,16 +174,44 @@ const BillingTab = () => {
   const [hasConfig, setHasConfig] = useState(false);
   const [processing, setProcessing] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+
+  // Billing period type (monthly or quarterly)
+  const [billingPeriodType, setBillingPeriodType] = useState<BillingPeriodType>('monthly');
+
+  // For monthly billing
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+
+  // For quarterly billing
+  const [selectedQuarter, setSelectedQuarter] = useState(() => {
+    const now = new Date();
+    return Math.floor(now.getMonth() / 3) + 1; // 1-4
+  });
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+
   // Invoice creation dialog
   const [invoiceDialogCustomer, setInvoiceDialogCustomer] = useState<BillingSummaryItem | null>(null);
 
   useEffect(() => {
     loadData();
-  }, [selectedMonth]);
+  }, [selectedMonth, billingPeriodType, selectedQuarter, selectedYear]);
+
+  // Calculate period dates based on billing type
+  const getPeriodDates = () => {
+    if (billingPeriodType === 'monthly') {
+      const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
+      const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
+      return { startDate, endDate };
+    } else {
+      // Quarterly: Q1 = Jan-Mar, Q2 = Apr-Jun, Q3 = Jul-Sep, Q4 = Oct-Dec
+      const startMonth = (selectedQuarter - 1) * 3;
+      const startDate = new Date(selectedYear, startMonth, 1);
+      const endDate = new Date(selectedYear, startMonth + 3, 0);
+      return { startDate, endDate };
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -191,8 +221,7 @@ const BillingTab = () => {
       const configResponse = await sevdeskApi.getConfig();
       setHasConfig(!!configResponse.data?.hasToken);
 
-      const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
-      const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
+      const { startDate, endDate } = getPeriodDates();
 
       const summaryResponse = await sevdeskApi.getBillingSummary(
         startDate.toISOString().split('T')[0],
@@ -209,6 +238,7 @@ const BillingTab = () => {
     }
   };
 
+  // Navigation for monthly
   const handlePrevMonth = () => {
     setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
     setSelectedCustomers(new Set());
@@ -217,6 +247,36 @@ const BillingTab = () => {
   const handleNextMonth = () => {
     setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1));
     setSelectedCustomers(new Set());
+  };
+
+  // Navigation for quarterly
+  const handlePrevQuarter = () => {
+    if (selectedQuarter === 1) {
+      setSelectedQuarter(4);
+      setSelectedYear(selectedYear - 1);
+    } else {
+      setSelectedQuarter(selectedQuarter - 1);
+    }
+    setSelectedCustomers(new Set());
+  };
+
+  const handleNextQuarter = () => {
+    if (selectedQuarter === 4) {
+      setSelectedQuarter(1);
+      setSelectedYear(selectedYear + 1);
+    } else {
+      setSelectedQuarter(selectedQuarter + 1);
+    }
+    setSelectedCustomers(new Set());
+  };
+
+  // Get period display name
+  const getPeriodName = () => {
+    if (billingPeriodType === 'monthly') {
+      return selectedMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    } else {
+      return `Q${selectedQuarter} ${selectedYear}`;
+    }
   };
 
   const toggleCustomerSelection = (customerId: string) => {
@@ -252,8 +312,7 @@ const BillingTab = () => {
       setProcessing(customerId);
       setError(null);
 
-      const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
-      const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
+      const { startDate, endDate } = getPeriodDates();
 
       await sevdeskApi.createInvoiceExport({
         customerId,
@@ -293,7 +352,7 @@ const BillingTab = () => {
 
   const formatHours = (hours: number) => `${hours.toFixed(2)}h`;
   const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('de-DE');
-  const monthName = selectedMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  const periodName = getPeriodName();
 
   if (loading) {
     return (
@@ -311,12 +370,16 @@ const BillingTab = () => {
       setProcessing(customerId);
       setError(null);
 
+      const { startDate, endDate } = getPeriodDates();
+
       // Find the export for this customer and period, then delete it
-      const matchingExport = invoiceExports.find(exp =>
-        exp.customerId === customerId &&
-        new Date(exp.periodStart).getMonth() === selectedMonth.getMonth() &&
-        new Date(exp.periodStart).getFullYear() === selectedMonth.getFullYear()
-      );
+      const matchingExport = invoiceExports.find(exp => {
+        const expStart = new Date(exp.periodStart);
+        const expEnd = new Date(exp.periodEnd);
+        return exp.customerId === customerId &&
+          expStart >= startDate &&
+          expEnd <= endDate;
+      });
 
       if (matchingExport) {
         await sevdeskApi.deleteExport(matchingExport.id);
@@ -324,7 +387,7 @@ const BillingTab = () => {
         await loadData();
         setTimeout(() => setSuccess(null), 3000);
       } else {
-        setError(`Kein Export für ${customerName} in diesem Monat gefunden`);
+        setError(`Kein Export für ${customerName} in diesem Zeitraum gefunden`);
       }
     } catch (err: any) {
       setError(err.message || 'Fehler beim Zurücksetzen');
@@ -364,16 +427,49 @@ const BillingTab = () => {
         </div>
       )}
 
-      {/* Month Selector */}
+      {/* Period Type Toggle */}
+      <div className="flex items-center justify-center gap-2 mb-2">
+        <span className="text-sm text-gray-500 dark:text-gray-400">Abrechnungszeitraum:</span>
+        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+          <button
+            onClick={() => setBillingPeriodType('monthly')}
+            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+              billingPeriodType === 'monthly'
+                ? 'bg-accent-primary text-white'
+                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+          >
+            Monatlich
+          </button>
+          <button
+            onClick={() => setBillingPeriodType('quarterly')}
+            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+              billingPeriodType === 'quarterly'
+                ? 'bg-accent-primary text-white'
+                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+          >
+            Quartalsweise
+          </button>
+        </div>
+      </div>
+
+      {/* Period Selector */}
       <div className="flex items-center justify-center gap-4">
-        <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+        <button
+          onClick={billingPeriodType === 'monthly' ? handlePrevMonth : handlePrevQuarter}
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+        >
           <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
         </button>
         <div className="flex items-center gap-2 text-lg font-medium text-gray-900 dark:text-white">
           <Clock size={20} className="text-accent-primary" />
-          {monthName}
+          {periodName}
         </div>
-        <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+        <button
+          onClick={billingPeriodType === 'monthly' ? handleNextMonth : handleNextQuarter}
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+        >
           <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
         </button>
       </div>
@@ -386,7 +482,7 @@ const BillingTab = () => {
         {unbilledItems.length === 0 ? (
           <div className="p-8 text-center text-gray-500 dark:text-gray-400">
             <Check size={48} className="mx-auto mb-4 text-green-500" />
-            <p>Alle Zeiten für {monthName} wurden abgerechnet!</p>
+            <p>Alle Zeiten für {periodName} wurden abgerechnet!</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -467,7 +563,7 @@ const BillingTab = () => {
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
             <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <CheckCircle size={18} className="text-green-500" />
-              Abgerechnete Zeiten in {monthName} ({billedItems.length})
+              Abgerechnete Zeiten in {periodName} ({billedItems.length})
             </h3>
           </div>
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -572,16 +668,19 @@ const BillingTab = () => {
       </div>
 
       {/* Invoice Creation Dialog */}
-      {invoiceDialogCustomer && (
-        <InvoiceCreationDialog
-          isOpen={true}
-          onClose={() => setInvoiceDialogCustomer(null)}
-          customer={invoiceDialogCustomer}
-          periodStart={new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1)}
-          periodEnd={new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0)}
-          onSuccess={handleInvoiceCreated}
-        />
-      )}
+      {invoiceDialogCustomer && (() => {
+        const { startDate, endDate } = getPeriodDates();
+        return (
+          <InvoiceCreationDialog
+            isOpen={true}
+            onClose={() => setInvoiceDialogCustomer(null)}
+            customer={invoiceDialogCustomer}
+            periodStart={startDate}
+            periodEnd={endDate}
+            onSuccess={handleInvoiceCreated}
+          />
+        );
+      })()}
     </div>
   );
 };
