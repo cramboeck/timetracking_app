@@ -54,12 +54,32 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
   // Generate AI description
   const generateAiDescription = async () => {
-    if (!aiConfigured) return;
+    console.log('🤖 [STOPWATCH] generateAiDescription called', { aiConfigured, projectId, activityId, customerId });
+
+    if (!aiConfigured) {
+      console.warn('🤖 [STOPWATCH] AI not configured');
+      return;
+    }
+
+    // Check if we have enough context
+    if (!projectId && !activityId) {
+      console.warn('🤖 [STOPWATCH] No project or activity selected');
+      alert('Bitte wähle zuerst ein Projekt oder eine Tätigkeit aus');
+      return;
+    }
+
     setGeneratingDescription(true);
     try {
       const selectedProject = projects.find(p => p.id === projectId);
       const selectedCustomer = customers.find(c => c.id === customerId);
       const selectedActivity = activities.find(a => a.id === activityId);
+
+      console.log('🤖 [STOPWATCH] Calling AI with context:', {
+        projectName: selectedProject?.name,
+        customerName: selectedCustomer?.name,
+        activityName: selectedActivity?.name,
+        existingDescription: description || undefined,
+      });
 
       const response = await aiApi.suggestTimeEntryDescription({
         projectName: selectedProject?.name,
@@ -68,11 +88,17 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
         existingDescription: description || undefined,
       });
 
+      console.log('🤖 [STOPWATCH] AI response:', response);
+
       if (response.success && response.data.suggestion) {
         setDescription(response.data.suggestion);
+      } else {
+        console.warn('🤖 [STOPWATCH] No suggestion in response:', response);
+        alert('KI konnte keinen Vorschlag generieren. Bitte versuche es später erneut.');
       }
-    } catch (err) {
-      console.error('Failed to generate description:', err);
+    } catch (err: any) {
+      console.error('🤖 [STOPWATCH] Failed to generate description:', err);
+      alert(`Fehler beim Generieren: ${err.message || 'Unbekannter Fehler'}`);
     } finally {
       setGeneratingDescription(false);
     }
@@ -364,7 +390,12 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 </label>
                 {aiConfigured && (projectId || activityId) && (
                   <button
-                    onClick={generateAiDescription}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      generateAiDescription();
+                    }}
                     disabled={generatingDescription}
                     className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
                     title="KI-Vorschlag generieren"
