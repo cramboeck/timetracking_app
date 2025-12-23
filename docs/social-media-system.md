@@ -1067,18 +1067,63 @@ Die Theme Selection Engine empfiehlt jetzt spezifische CTA-Formeln basierend auf
 - `ctaFormulaDetails` in `ContentDirectives`
 - Automatische Einbindung in `getThemePromptSection()`
 
-### 10.3 Tonalität nicht durchgängig
+### ✅ 10.3 Tonalität durchgängig geprüft (GELÖST)
 
-**Problem:**
-Die `toneGuidance` aus der Theme Selection wird zwar im Generierungs-Prompt verwendet, aber:
-- Nicht explizit in der Analyse geprüft
-- Nicht im Auto-Improve berücksichtigt
+**Status:** ✅ Implementiert
 
-### 10.4 Platform-spezifische Limitierungen
+Die `toneGuidance` wird jetzt durchgängig berücksichtigt:
+- ✅ `expectedTonality` Parameter in `analyzeContentAsExpert()`
+- ✅ Tonalitäts-Score in der Analyse-Response (`tonalityFit`)
+- ✅ `expectedTonality` wird durch `autoImproveContent()` durchgereicht
+- ✅ API-Routes aktualisiert für `/wizard/analyze` und `/wizard/auto-improve`
+
+**Response-Struktur:**
+```json
+{
+  "tonalityFit": {
+    "score": 85,
+    "expected": "Sachlich, souverän",
+    "actual": "sachlich-professionell",
+    "feedback": "Tonalität passt gut zur gewünschten Ausrichtung"
+  }
+}
+```
+
+### ✅ 10.4 Platform Character Limits (GELÖST)
+
+**Status:** ✅ Implementiert
+
+Character Limits werden jetzt aktiv geprüft:
+
+| Platform | Limit |
+|----------|-------|
+| LinkedIn | 3.000 |
+| Instagram | 2.200 |
+| Twitter | 280 |
+| Facebook | 63.206 |
+| Threads | 500 |
+
+**Features:**
+- ✅ `PLATFORM_LIMITS` Konstante in `aiService.ts`
+- ✅ Automatische Berechnung in `analyzeContentAsExpert()`
+- ✅ Warnung bei Überschreitung im Analyse-Prompt
+- ✅ `characterCount` in der Response
+
+**Response-Struktur:**
+```json
+{
+  "characterCount": {
+    "current": 1850,
+    "limit": 3000,
+    "isWithinLimit": true
+  }
+}
+```
+
+### 10.5 Verbleibende Limitierungen
 
 - **Instagram:** Keine direkte API-Integration (nur Content-Vorbereitung)
 - **LinkedIn:** Keine direkte Posting-API
-- **Character Limits:** Werden empfohlen, aber nicht enforced
 
 ---
 
@@ -1086,6 +1131,12 @@ Die `toneGuidance` aus der Theme Selection wird zwar im Generierungs-Prompt verw
 
 | Version | Datum | Änderungen |
 |---------|-------|------------|
+| 1.3 | Dez 2024 | **Tonalität & Character Limits** |
+| - | - | `expectedTonality` in Analyse integriert |
+| - | - | `tonalityFit` Score in Response |
+| - | - | Platform Character Limits enforced |
+| - | - | `characterCount` in Response |
+| - | - | Warnungen bei Limit-Überschreitung |
 | 1.2 | Dez 2024 | **Theme → Formula Integration** |
 | - | - | Hook-Formeln mit Theme-Kategorien verknüpft |
 | - | - | CTA-Formeln mit Business Goals verknüpft |

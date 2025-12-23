@@ -2808,7 +2808,7 @@ router.post('/wizard/select-theme', authenticateToken, async (req: AuthRequest, 
 router.post('/wizard/analyze', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { content, platform, goal, targetAudience } = req.body;
+    const { content, platform, goal, targetAudience, expectedTonality } = req.body;
 
     if (!content || !platform || !goal) {
       return res.status(400).json({
@@ -2821,7 +2821,8 @@ router.post('/wizard/analyze', authenticateToken, async (req: AuthRequest, res) 
       content,
       platform,
       goal,
-      targetAudience
+      targetAudience,
+      expectedTonality
     );
 
     res.json(analysis);
@@ -2902,7 +2903,7 @@ router.post('/wizard/improve', authenticateToken, async (req: AuthRequest, res) 
 router.post('/wizard/auto-improve', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { content, platform, goal, targetAudience, minScore, maxIterations } = req.body;
+    const { content, platform, goal, targetAudience, minScore, maxIterations, expectedTonality } = req.body;
 
     if (!content || !platform || !goal) {
       return res.status(400).json({
@@ -2917,7 +2918,8 @@ router.post('/wizard/auto-improve', authenticateToken, async (req: AuthRequest, 
       goal,
       targetAudience,
       minScore || 90,
-      maxIterations || 5
+      maxIterations || 5,
+      expectedTonality
     );
 
     res.json(result);

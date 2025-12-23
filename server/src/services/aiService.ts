@@ -3028,7 +3028,28 @@ export interface MarketingAnalysis {
   emotionalTone: string;
   readabilityScore: number;
   viralPotential: number;
+  // NEW: Tonality and character limit checks
+  tonalityFit?: {
+    score: number;
+    expected: string;
+    actual: string;
+    feedback: string;
+  };
+  characterCount?: {
+    current: number;
+    limit: number;
+    isWithinLimit: boolean;
+  };
 }
+
+// Platform character limits
+const PLATFORM_LIMITS: Record<string, number> = {
+  linkedin: 3000,
+  instagram: 2200,
+  twitter: 280,
+  facebook: 63206,
+  threads: 500
+};
 
 /**
  * Analyze content like a marketing expert - critical and honest
@@ -3038,7 +3059,8 @@ export async function analyzeContentAsExpert(
   content: string,
   platform: string,
   goal: 'reach' | 'engagement' | 'leads' | 'branding',
-  targetAudience?: string
+  targetAudience?: string,
+  expectedTonality?: string
 ): Promise<MarketingAnalysis> {
   const config = await getAIConfig(userId);
   if (!config || !config.apiKey) {
@@ -3055,15 +3077,37 @@ export async function analyzeContentAsExpert(
   // Use dynamic system prompt with audience and platform context
   const systemPrompt = getMarketingExpertPrompt(targetAudience, platform);
 
+  // Calculate character count and limit
+  const characterCount = content.length;
+  const platformKey = platform.toLowerCase();
+  const characterLimit = PLATFORM_LIMITS[platformKey] || 3000;
+  const isWithinLimit = characterCount <= characterLimit;
+
+  // Build tonality section if expected tonality is provided
+  const tonalitySection = expectedTonality
+    ? `7. TONALITÄT (0-100): Passt die Tonalität zum gewünschten Stil "${expectedTonality}"?`
+    : '';
+
+  const tonalityJsonSection = expectedTonality
+    ? `"tonalityFit": {
+    "score": 80,
+    "expected": "${expectedTonality}",
+    "actual": "erkannte Tonalität des Posts",
+    "feedback": "Passt die Tonalität? Was sollte angepasst werden?"
+  },`
+    : '';
+
   const prompt = `Analysiere diesen Social Media Post wie ein professioneller Social Media Manager.
 Sei kritisch aber konstruktiv - gib konkretes, umsetzbares Feedback.
 
 ═══════════════════════════════════════
 KONTEXT:
 ═══════════════════════════════════════
-PLATTFORM: ${platform}
+PLATTFORM: ${platform} (Max. ${characterLimit} Zeichen)
 ZIEL: ${goalDescriptions[goal]}
 ${targetAudience ? `ZIELGRUPPE: ${targetAudience}` : 'ZIELGRUPPE: B2B-Entscheider'}
+${expectedTonality ? `GEWÜNSCHTE TONALITÄT: ${expectedTonality}` : ''}
+ZEICHENANZAHL: ${characterCount}/${characterLimit} ${isWithinLimit ? '✓' : '⚠️ ZU LANG!'}
 
 ═══════════════════════════════════════
 ZU ANALYSIERENDER POST:
@@ -3081,12 +3125,14 @@ BEWERTUNGSKRITERIEN:
 4. CTA (0-100): Ist der Call-to-Action logisch zum Hook passend und handlungsauslösend?
 5. CONVERSION-FIT (0-100): Wird die Zielgruppe zur gewünschten Aktion motiviert?
 6. AUTHENTIZITÄT: Wirkt es wie Expertenwissen oder wie Werbung?
+${tonalitySection}
 
 ═══════════════════════════════════════
 DEINE ANALYSE:
 ═══════════════════════════════════════
 Bewerte EHRLICH. Ein guter Score ist 70+, exzellent ist 85+.
 Bei Verbesserungsvorschlägen: Gib KONKRETE Beispiele wie es besser wäre.
+${!isWithinLimit ? `\n⚠️ WICHTIG: Der Post ist ${characterCount - characterLimit} Zeichen zu lang! Schlage Kürzungen vor.\n` : ''}
 
 WICHTIG: Antworte NUR im JSON-Format:
 {
@@ -3114,9 +3160,15 @@ WICHTIG: Antworte NUR im JSON-Format:
     "feedback": "Konkrete Bewertung des CTA",
     "suggestions": ["Konkreter CTA-Vorschlag 1", "Konkreter CTA-Vorschlag 2"]
   },
+  ${tonalityJsonSection}
   "emotionalTone": "sachlich-professionell/inspirierend/etc.",
   "readabilityScore": 85,
-  "viralPotential": 45
+  "viralPotential": 45,
+  "characterCount": {
+    "current": ${characterCount},
+    "limit": ${characterLimit},
+    "isWithinLimit": ${isWithinLimit}
+  }
 }`;
 
   let result: { content: string; tokensUsed: number };
@@ -3695,7 +3747,8 @@ export async function autoImproveContent(
   goal: string,
   targetAudience?: string,
   minScore: number = 90,
-  maxIterations: number = 5
+  maxIterations: number = 5,
+  expectedTonality?: string
 ): Promise<AutoImprovementResult> {
   const startTime = Date.now();
 
@@ -3718,7 +3771,8 @@ export async function autoImproveContent(
       currentContent,
       platform,
       goal as 'reach' | 'engagement' | 'leads' | 'branding',
-      targetAudience
+      targetAudience,
+      expectedTonality
     );
 
     const currentScore = analysis.overallScore;
@@ -3803,7 +3857,8 @@ export async function autoImproveContent(
         improvement.improvedContent,
         platform,
         goal as 'reach' | 'engagement' | 'leads' | 'branding',
-        targetAudience
+        targetAudience,
+        expectedTonality
       );
 
       const newScore = newAnalysis.overallScore;
@@ -3842,7 +3897,8 @@ export async function autoImproveContent(
             comprehensiveImprovement.improvedContent,
             platform,
             goal as 'reach' | 'engagement' | 'leads' | 'branding',
-            targetAudience
+            targetAudience,
+            expectedTonality
           );
 
           if (comprehensiveAnalysis.overallScore > currentScore) {
@@ -3864,7 +3920,8 @@ export async function autoImproveContent(
     currentContent,
     platform,
     goal as 'reach' | 'engagement' | 'leads' | 'branding',
-    targetAudience
+    targetAudience,
+    expectedTonality
   );
 
   // Use best version if final isn't better
