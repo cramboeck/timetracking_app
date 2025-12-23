@@ -1592,10 +1592,10 @@ async function universalQualityCheck(
   config: QualityCheckConfig
 ): Promise<{ score: number; issues: string[] }> {
   const criteriaByType: Record<ContentType, string> = {
-    post: `1. HOOK (25%): Stoppt er den Scroll? Erste Zeile magnetisch?
-2. WERT (25%): Echter Mehrwert oder leere Worte?
-3. AUTHENTIZITÄT (25%): Klingt es echt oder wie Corporate-Blabla?
-4. CTA (25%): Klarer, motivierender Call-to-Action?`,
+    post: `1. HOOK (30%): Nutzt er eine bewährte Formel (Zahlen, Frage, Kontrast, Story, Pattern-Interrupt)? Ist er KONKRET und SPEZIFISCH? Generische Aussagen wie "X ist wichtig" = maximal 30/100!
+2. WERT (25%): Liefert der Hauptteil echten Mehrwert? Praxisnahe Tipps oder nur Behauptungen?
+3. ROTER FADEN (20%): Führt der Content logisch vom Hook über den Hauptteil zum CTA?
+4. CTA (25%): Konkrete Handlung mit klarem Nutzen? Niedrigschwellig? "Kontaktieren Sie uns" = 0 Punkte!`,
     story: `1. VISUAL IMPACT (30%): Ist das Konzept visuell stark?
 2. HOOK (25%): Fängt es in 1 Sekunde die Aufmerksamkeit?
 3. MESSAGE (25%): Klare, prägnante Botschaft?
@@ -3279,25 +3279,56 @@ LÄNGE: ${lengthInstructions[contentLength]}
 ═══════════════════════════════════════
 QUALITÄTSANFORDERUNGEN:
 ═══════════════════════════════════════
-HOOK (erste 1-2 Zeilen):
-- Konkret und spezifisch (keine generischen Aussagen)
-- Dringlichkeit oder Neugier wecken (OHNE Clickbait!)
-- Direkt relevant für die Zielgruppe
-- Beispiel SCHLECHT: "Digitalisierung ist wichtig"
-- Beispiel GUT: "3 von 4 KMU verlieren Aufträge durch veraltete IT-Prozesse"
+
+🎯 HOOK (erste 1-2 Zeilen) - KRITISCH FÜR ERFOLG:
+Wähle EINE dieser bewährten Hook-Formeln:
+
+1. ZAHLEN-HOOK: "[Überraschende Zahl] + [Konsequenz]"
+   ✅ "87% der KMU haben keinen IT-Notfallplan. Bei einem Ausfall kostet jede Stunde 10.000€."
+   ❌ "IT-Sicherheit ist wichtig für Unternehmen."
+
+2. FRAGEN-HOOK: "[Provozierende Frage die Schmerz adressiert]"
+   ✅ "Hand aufs Herz: Wie lange würde Ihr Unternehmen ohne IT überleben?"
+   ❌ "Haben Sie schon mal über IT-Sicherheit nachgedacht?"
+
+3. KONTRAST-HOOK: "[Erwartung] vs. [Realität]"
+   ✅ "Alle reden von KI-Revolution. Die Realität? 90% scheitern an fehlenden Basics."
+   ❌ "KI ist ein wichtiges Thema."
+
+4. STORY-HOOK: "[Konkretes Ereignis/Moment]"
+   ✅ "Montag, 6:47 Uhr. Der Anruf kam vom Geschäftsführer: 'Nichts geht mehr.'"
+   ❌ "Ich möchte heute über IT-Probleme sprechen."
+
+5. PATTERN-INTERRUPT: "[Unerwartete Aussage]"
+   ✅ "Vergessen Sie alles, was Sie über Backups wissen."
+   ❌ "Backups sind wichtig."
 
 HAUPTTEIL:
 - Echten Mehrwert liefern (nicht nur behaupten)
 - Praxisnahe Insights oder konkrete Tipps
 - Positioniert als Experte, nicht als Verkäufer
-- Keine leeren Marketing-Phrasen
+- Keine leeren Marketing-Phrasen ("innovative Lösungen", "ganzheitlicher Ansatz")
+- ROTER FADEN: Hauptteil muss logisch vom Hook zum CTA führen
 
-CTA (Call-to-Action):
-- Logisch zum Hook passend (roter Faden!)
-- Konkrete, niedrigschwellige Handlung
-- Klar formuliert was der Leser bekommt
-- Beispiel SCHLECHT: "Kontaktieren Sie uns"
-- Beispiel GUT: "Laden Sie unsere IT-Sicherheits-Checkliste herunter (kostenlos, 2 Min. Lesezeit)"
+🎯 CTA (Call-to-Action) - KRITISCH FÜR KONVERSION:
+Der CTA MUSS zum Hook passen und eine KONKRETE Handlung sein:
+
+1. RESSOURCEN-CTA: "[Konkretes Asset] + [Zeitaufwand] + [Ergebnis]"
+   ✅ "📥 IT-Notfallplan-Template downloaden (5 Min. Aufwand, Stunden gespart im Ernstfall)"
+   ✅ "🔗 Link in Bio: Kostenlose Checkliste mit den 7 kritischsten Sicherheitslücken"
+
+2. ENGAGEMENT-CTA: "[Einfache Frage die zum Kommentieren einlädt]"
+   ✅ "Was ist Ihre größte IT-Sorge? 💬 Schreiben Sie es in die Kommentare."
+   ✅ "Welcher Punkt trifft auf Ihr Unternehmen zu? 1, 2 oder 3?"
+
+3. GESPRÄCH-CTA: "[Niedrigschwelliges Angebot]"
+   ✅ "DM 'CHECK' und ich schicke Ihnen unsere kostenlose Erstanalyse."
+   ✅ "Kommentieren Sie 'INTERESSE' für ein unverbindliches 15-Min-Gespräch."
+
+VERBOTEN im CTA:
+❌ "Kontaktieren Sie uns" (zu vage)
+❌ "Besuchen Sie unsere Website" (kein konkreter Nutzen)
+❌ "Mehr Infos auf Anfrage" (zu hohe Hürde)
 
 ═══════════════════════════════════════
 OUTPUT (NUR JSON):
@@ -3468,8 +3499,18 @@ export async function improveContentWithExpert(
   const systemPrompt = getMarketingExpertPrompt(targetAudience, platform);
 
   const focusDescriptions: Record<string, string> = {
-    hook: 'FOKUS: Hook optimieren - konkret, dringlich, neugierig machend (KEIN Clickbait)',
-    cta: 'FOKUS: CTA optimieren - logisch zum Hook passend, klare Handlungsaufforderung',
+    hook: `FOKUS: Hook KOMPLETT neu schreiben mit bewährter Formel:
+    1. ZAHLEN-HOOK: "[Überraschende Zahl] + [Konsequenz]" z.B. "87% der KMU haben keinen IT-Notfallplan."
+    2. FRAGEN-HOOK: Provokative Frage die Schmerz adressiert z.B. "Wie lange überlebt Ihr Unternehmen ohne IT?"
+    3. KONTRAST-HOOK: "[Erwartung] vs. [Realität]" z.B. "Alle reden von KI. Die Realität? 90% scheitern an Basics."
+    4. STORY-HOOK: Konkreter Moment z.B. "Montag, 6:47 Uhr. Der Anruf: 'Nichts geht mehr.'"
+    5. PATTERN-INTERRUPT: Unerwartete Aussage z.B. "Vergessen Sie alles über Backups."
+    VERBOTEN: Generische Aussagen wie "X ist wichtig" oder "Heute möchte ich..."`,
+    cta: `FOKUS: CTA KOMPLETT neu schreiben mit konkreter Handlung:
+    1. RESSOURCEN-CTA: "[Asset] + [Zeitaufwand] + [Nutzen]" z.B. "📥 IT-Checkliste downloaden (5 Min. Aufwand)"
+    2. ENGAGEMENT-CTA: Einfache Frage z.B. "Welcher Punkt trifft auf Sie zu? 1, 2 oder 3?"
+    3. GESPRÄCH-CTA: Niedrigschwellig z.B. "DM 'CHECK' für kostenlose Erstanalyse"
+    VERBOTEN: "Kontaktieren Sie uns", "Besuchen Sie unsere Website", "Mehr Infos auf Anfrage"`,
     value: 'FOKUS: Mehrwert erhöhen - was lernt/gewinnt der Leser konkret?',
     emotion: 'FOKUS: Emotionale Resonanz verstärken - authentisch, nicht manipulativ',
     clarity: 'FOKUS: Klarheit verbessern - Kernbotschaft sofort verständlich',
