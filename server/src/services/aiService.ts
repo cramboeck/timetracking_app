@@ -3653,8 +3653,8 @@ export async function autoImproveContent(
   platform: string,
   goal: string,
   targetAudience?: string,
-  minScore: number = 75,
-  maxIterations: number = 3
+  minScore: number = 90,
+  maxIterations: number = 5
 ): Promise<AutoImprovementResult> {
   const startTime = Date.now();
 

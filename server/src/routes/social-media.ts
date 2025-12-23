@@ -2916,8 +2916,8 @@ router.post('/wizard/auto-improve', authenticateToken, async (req: AuthRequest, 
       platform,
       goal,
       targetAudience,
-      minScore || 75,
-      maxIterations || 3
+      minScore || 90,
+      maxIterations || 5
     );
 
     res.json(result);
