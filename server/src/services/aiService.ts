@@ -3456,7 +3456,8 @@ export async function improveContentWithExpert(
   platform: string,
   improvementFocus: string,
   targetAudience?: string,
-  goal?: string
+  goal?: string,
+  currentScores?: { platform?: number; viral?: number; cta?: number; overall?: number }
 ): Promise<ContentImprovement> {
   const config = await getAIConfig(userId);
   if (!config || !config.apiKey) {
@@ -3472,12 +3473,62 @@ export async function improveContentWithExpert(
     value: 'FOKUS: Mehrwert erhöhen - was lernt/gewinnt der Leser konkret?',
     emotion: 'FOKUS: Emotionale Resonanz verstärken - authentisch, nicht manipulativ',
     clarity: 'FOKUS: Klarheit verbessern - Kernbotschaft sofort verständlich',
-    all: 'FOKUS: Vollständige Optimierung aller Aspekte'
+    all: 'FOKUS: Gezielte Optimierung der schwachen Bereiche'
   };
 
   const focusDescription = focusDescriptions[improvementFocus.toLowerCase()] || `FOKUS: ${improvementFocus}`;
 
-  const prompt = `Optimiere diesen Social Media Post wie ein professioneller Social Media Manager.
+  // Build preservation instructions based on current scores
+  let preserveInstructions = '';
+  let weakAreasInstructions = '';
+
+  if (currentScores) {
+    const strongAreas: string[] = [];
+    const weakAreas: string[] = [];
+
+    if (currentScores.platform !== undefined) {
+      if (currentScores.platform >= 75) {
+        strongAreas.push(`Platform-Optimierung (Score: ${currentScores.platform}/100)`);
+      } else {
+        weakAreas.push(`Platform-Optimierung (aktuell: ${currentScores.platform}/100)`);
+      }
+    }
+    if (currentScores.viral !== undefined) {
+      if (currentScores.viral >= 75) {
+        strongAreas.push(`Viralitätspotential/Hook (Score: ${currentScores.viral}/100)`);
+      } else {
+        weakAreas.push(`Viralitätspotential/Hook (aktuell: ${currentScores.viral}/100)`);
+      }
+    }
+    if (currentScores.cta !== undefined) {
+      if (currentScores.cta >= 75) {
+        strongAreas.push(`Call-to-Action (Score: ${currentScores.cta}/100)`);
+      } else {
+        weakAreas.push(`Call-to-Action (aktuell: ${currentScores.cta}/100)`);
+      }
+    }
+
+    if (strongAreas.length > 0) {
+      preserveInstructions = `
+═══════════════════════════════════════
+⚠️ WICHTIG - DIESE ELEMENTE SIND GUT UND MÜSSEN ERHALTEN BLEIBEN:
+═══════════════════════════════════════
+${strongAreas.map(a => `✓ ${a} - NICHT VERSCHLECHTERN!`).join('\n')}
+
+Die guten Elemente dürfen NICHT verändert werden, außer sie passen nicht mehr zum verbesserten Teil.
+Fokussiere dich NUR auf die Verbesserung der schwachen Bereiche!`;
+    }
+
+    if (weakAreas.length > 0) {
+      weakAreasInstructions = `
+═══════════════════════════════════════
+🎯 DIESE BEREICHE MÜSSEN VERBESSERT WERDEN:
+═══════════════════════════════════════
+${weakAreas.map(a => `✗ ${a} - MUSS auf mindestens 75 verbessert werden`).join('\n')}`;
+    }
+  }
+
+  const prompt = `Optimiere diesen Social Media Post GEZIELT wie ein professioneller Social Media Manager.
 
 ═══════════════════════════════════════
 KONTEXT:
@@ -3486,6 +3537,8 @@ PLATTFORM: ${platform}
 ${targetAudience ? `ZIELGRUPPE: ${targetAudience}` : 'ZIELGRUPPE: B2B-Entscheider (Geschäftsführer, IT-Leiter in KMU)'}
 ${goal ? `ZIEL: ${goal}` : ''}
 ${focusDescription}
+${preserveInstructions}
+${weakAreasInstructions}
 
 ═══════════════════════════════════════
 ORIGINAL-POST:
@@ -3497,6 +3550,8 @@ ${originalContent}
 ═══════════════════════════════════════
 OPTIMIERUNGSRICHTLINIEN:
 ═══════════════════════════════════════
+⚠️ KRITISCH: Verändere NUR die schwachen Bereiche! Behalte die Stärken bei!
+
 1. HOOK: Konkret, dringlich, neugierig machend - KEIN Clickbait
    - SCHLECHT: "Digitalisierung ist wichtig"
    - GUT: "73% der KMU unterschätzen dieses IT-Risiko"
@@ -3519,20 +3574,19 @@ OPTIMIERUNGSRICHTLINIEN:
 OUTPUT (NUR JSON):
 ═══════════════════════════════════════
 {
-  "improvedContent": "Der KOMPLETT überarbeitete Post-Text mit allen Verbesserungen eingebaut",
+  "improvedContent": "Der Post mit GEZIELTEN Verbesserungen - gute Teile BEIBEHALTEN, nur schwache Bereiche verbessert",
   "alternativeHooks": [
-    "Alternativer Hook 1 (z.B. Frage-Format)",
-    "Alternativer Hook 2 (z.B. Statistik-Format)"
+    "Alternativer Hook 1 (nur falls Hook schwach war)",
+    "Alternativer Hook 2 (nur falls Hook schwach war)"
   ],
   "ctaSuggestions": [
-    "Konkreter CTA-Vorschlag 1",
-    "Konkreter CTA-Vorschlag 2"
+    "Konkreter CTA-Vorschlag (nur falls CTA schwach war)"
   ],
   "changes": [
-    "Was wurde geändert und warum (konkret)",
-    "Weitere Änderung und Begründung"
+    "GENAU welcher Teil geändert wurde und warum",
+    "Welche Teile bewusst NICHT geändert wurden (weil sie gut waren)"
   ],
-  "reasoning": "Kurze Erklärung warum diese Optimierung besser konvertiert (1-2 Sätze)"
+  "reasoning": "Warum diese gezielte Änderung den Score verbessert ohne die Stärken zu verlieren"
 }`;
 
   let result: { content: string; tokensUsed: number };
@@ -3673,7 +3727,16 @@ export async function autoImproveContent(
     console.log(`Focus area: "${focusArea.area}" (priority: ${focusArea.priority})`);
     console.log(`Suggestion: ${focusArea.suggestion}`);
 
-    // Step 4: Improve content with targeted focus
+    // Extract current scores to tell the AI what to preserve
+    const currentScores = {
+      platform: analysis.platformFit?.score,
+      viral: analysis.viralPotential,
+      cta: analysis.callToActionEffectiveness?.score,
+      overall: analysis.overallScore
+    };
+    console.log(`Current scores - Platform: ${currentScores.platform}, Viral: ${currentScores.viral}, CTA: ${currentScores.cta}`);
+
+    // Step 4: Improve content with targeted focus - pass scores so AI knows what to preserve
     try {
       const improvement = await improveContentWithExpert(
         userId,
@@ -3681,7 +3744,8 @@ export async function autoImproveContent(
         platform,
         focusName,
         targetAudience,
-        goal
+        goal,
+        currentScores
       );
 
       // Collect alternative hooks and CTA suggestions
@@ -3721,14 +3785,15 @@ export async function autoImproveContent(
         console.log(`✗ Improvement rejected (score didn't improve)`);
         // Try a different approach - focus on "all" if specific focus didn't help
         if (focusName !== 'all' && i < maxIterations - 1) {
-          console.log(`Trying comprehensive improvement...`);
+          console.log(`Trying comprehensive improvement with score preservation...`);
           const comprehensiveImprovement = await improveContentWithExpert(
             userId,
             currentContent,
             platform,
             'all',
             targetAudience,
-            goal
+            goal,
+            currentScores // Pass scores so AI knows what to preserve
           );
 
           const comprehensiveAnalysis = await analyzeContentAsExpert(
