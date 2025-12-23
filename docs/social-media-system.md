@@ -1029,40 +1029,43 @@ const AUTO_IMPROVE_DEFAULTS = {
 
 ## 10. Bekannte Limitierungen
 
-### 10.1 Theme → Hook-Formel Integration
+### ✅ 10.1 Theme → Hook-Formel Integration (GELÖST)
 
-**Problem:**
-Die Theme Selection Engine gibt generische `hookStyle` Direktiven (z.B. "Business-Outcome fokussiert"), die nicht mit den konkreten Hook-Formeln (Zahlen, Fragen, Kontrast, Story, Pattern-Interrupt) verbunden sind.
+**Status:** ✅ Implementiert
 
-**Auswirkung:**
-Die AI muss selbst entscheiden, welche Formel am besten passt.
+Die Theme Selection Engine empfiehlt jetzt spezifische Hook-Formeln basierend auf der gewählten Themen-Kategorie:
 
-**Geplante Lösung:**
-Mapping von Theme-Kategorien zu empfohlenen Hook-Formeln:
+| Kategorie | Primary | Secondary | Begründung |
+|-----------|---------|-----------|------------|
+| PAIN_POINTS | Fragen, Story | Zahlen | Empathie und Wiedererkennung |
+| RISKS | Zahlen, Pattern-Interrupt | Story | Fakten und Aufmerksamkeit |
+| COST_ROI | Zahlen, Kontrast | Fragen | Zahlenbasiert, Vorher/Nachher |
+| AUTHORITY | Kontrast, Pattern-Interrupt | Zahlen | Mythen-Widerlegung |
+| EFFICIENCY | Kontrast, Zahlen | Story | Transformation zeigen |
+| HUMAN_REALITY | Story | Fragen, Kontrast | Emotionale Identifikation |
 
-| Kategorie | Empfohlene Hook-Formeln |
-|-----------|------------------------|
-| PAIN_POINTS | Fragen-Hook, Story-Hook |
-| RISKS | Zahlen-Hook, Pattern-Interrupt |
-| COST_ROI | Zahlen-Hook, Kontrast-Hook |
-| AUTHORITY | Kontrast-Hook, Pattern-Interrupt |
-| EFFICIENCY | Kontrast-Hook, Zahlen-Hook |
-| HUMAN_REALITY | Story-Hook |
+**Implementation:**
+- `THEME_HOOK_MAPPING` in `themeSelectionEngine.ts`
+- `hookFormulaDetails` in `ContentDirectives`
+- Automatische Einbindung in `getThemePromptSection()`
 
-### 10.2 Theme → CTA-Formel Integration
+### ✅ 10.2 Theme → CTA-Formel Integration (GELÖST)
 
-**Problem:**
-Ähnlich wie bei Hooks gibt es keine direkte Verbindung zwischen `ctaStyle` und den konkreten CTA-Formeln.
+**Status:** ✅ Implementiert
 
-**Geplante Lösung:**
-Mapping basierend auf Goal:
+Die Theme Selection Engine empfiehlt jetzt spezifische CTA-Formeln basierend auf dem Business Goal:
 
-| Goal | Empfohlene CTA-Formel |
-|------|----------------------|
-| leads | Gespräch-CTA, Ressourcen-CTA |
-| engagement | Engagement-CTA |
-| branding | Engagement-CTA |
-| traffic | Ressourcen-CTA |
+| Goal | Primary | Secondary | Begründung |
+|------|---------|-----------|------------|
+| lead | Gespräch, Ressourcen | Engagement | Konkreter nächster Schritt |
+| branding | Engagement | Ressourcen | Sichtbarkeit und Interaktion |
+| engagement | Engagement | Gespräch | Kommentare fördern |
+| traffic | Ressourcen | Engagement | Link-Anreiz |
+
+**Implementation:**
+- `GOAL_CTA_MAPPING` in `themeSelectionEngine.ts`
+- `ctaFormulaDetails` in `ContentDirectives`
+- Automatische Einbindung in `getThemePromptSection()`
 
 ### 10.3 Tonalität nicht durchgängig
 
@@ -1083,9 +1086,16 @@ Die `toneGuidance` aus der Theme Selection wird zwar im Generierungs-Prompt verw
 
 | Version | Datum | Änderungen |
 |---------|-------|------------|
-| 1.0 | Dez 2024 | Initiale Dokumentation |
+| 1.2 | Dez 2024 | **Theme → Formula Integration** |
+| - | - | Hook-Formeln mit Theme-Kategorien verknüpft |
+| - | - | CTA-Formeln mit Business Goals verknüpft |
+| - | - | `THEME_HOOK_MAPPING` implementiert |
+| - | - | `GOAL_CTA_MAPPING` implementiert |
+| - | - | `getThemePromptSection()` zeigt empfohlene Formeln |
+| 1.1 | Dez 2024 | **Quality Improvements** |
 | - | - | Hook-Formeln hinzugefügt (5 Typen) |
 | - | - | CTA-Formeln hinzugefügt (3 Typen) |
 | - | - | Auto-Improve Ziel auf 90% erhöht |
 | - | - | Max Iterations auf 5 erhöht |
 | - | - | Score-Preservation (≥75) implementiert |
+| 1.0 | Dez 2024 | Initiale Dokumentation |

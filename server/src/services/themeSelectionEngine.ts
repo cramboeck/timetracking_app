@@ -15,6 +15,10 @@ export type JourneyStage = 'awareness' | 'consideration' | 'decision';
 export type ThemeCategory = 'PAIN_POINTS' | 'RISKS' | 'COST_ROI' | 'AUTHORITY' | 'EFFICIENCY' | 'HUMAN_REALITY';
 export type AudienceType = 'ceo' | 'it_dm' | 'sme_owner' | 'generic';
 
+// Hook and CTA Formula Types
+export type HookFormula = 'zahlen' | 'fragen' | 'kontrast' | 'story' | 'pattern_interrupt';
+export type CTAFormula = 'ressourcen' | 'engagement' | 'gespraech';
+
 export interface ThemeSelectionInput {
   platform: Platform;
   goal: BusinessGoal;
@@ -44,12 +48,33 @@ export interface ThemeAlternative {
   whyNot: string;
 }
 
+export interface HookFormulaDefinition {
+  id: HookFormula;
+  nameDE: string;
+  pattern: string;
+  example: string;
+  whenToUse: string;
+}
+
+export interface CTAFormulaDefinition {
+  id: CTAFormula;
+  nameDE: string;
+  pattern: string;
+  example: string;
+  whenToUse: string;
+}
+
 export interface ContentDirectives {
   hookStyle: string;
   ctaStyle: string;
   avoidTopics: string[];
   emphasize: string[];
   toneGuidance: string;
+  // NEW: Specific formula recommendations
+  recommendedHookFormulas: HookFormula[];
+  recommendedCTAFormulas: CTAFormula[];
+  hookFormulaDetails: HookFormulaDefinition[];
+  ctaFormulaDetails: CTAFormulaDefinition[];
 }
 
 export interface ThemeSelectionOutput {
@@ -166,6 +191,140 @@ export const THEME_CATEGORIES: Record<ThemeCategory, {
       'honest_mistakes'
     ],
     psychologicalTrigger: 'Creates emotional connection through shared experience'
+  }
+};
+
+// ============================================================================
+// HOOK FORMULAS DEFINITION
+// ============================================================================
+
+export const HOOK_FORMULAS: Record<HookFormula, HookFormulaDefinition> = {
+  zahlen: {
+    id: 'zahlen',
+    nameDE: 'Zahlen-Hook',
+    pattern: '[Überraschende Zahl] + [Konsequenz]',
+    example: '87% der KMU haben keinen IT-Notfallplan. Bei einem Ausfall kostet jede Stunde 10.000€.',
+    whenToUse: 'Faktenbasierte Themen, Risiken, Kosten, ROI'
+  },
+  fragen: {
+    id: 'fragen',
+    nameDE: 'Fragen-Hook',
+    pattern: '[Provozierende Frage die Schmerz adressiert]',
+    example: 'Hand aufs Herz: Wie lange würde Ihr Unternehmen ohne IT überleben?',
+    whenToUse: 'Schmerzpunkte, Selbstreflexion, Awareness'
+  },
+  kontrast: {
+    id: 'kontrast',
+    nameDE: 'Kontrast-Hook',
+    pattern: '[Erwartung] vs. [Realität]',
+    example: 'Alle reden von KI-Revolution. Die Realität? 90% scheitern an fehlenden Basics.',
+    whenToUse: 'Mythen aufbrechen, Expertise zeigen, Differenzierung'
+  },
+  story: {
+    id: 'story',
+    nameDE: 'Story-Hook',
+    pattern: '[Konkretes Ereignis/Moment]',
+    example: 'Montag, 6:47 Uhr. Der Anruf kam vom Geschäftsführer: "Nichts geht mehr."',
+    whenToUse: 'Emotionale Themen, Menschliche Realität, Case Studies'
+  },
+  pattern_interrupt: {
+    id: 'pattern_interrupt',
+    nameDE: 'Pattern-Interrupt',
+    pattern: '[Unerwartete Aussage]',
+    example: 'Vergessen Sie alles, was Sie über Backups wissen.',
+    whenToUse: 'Aufmerksamkeit maximieren, Kontroverse Meinungen, Autorität'
+  }
+};
+
+// ============================================================================
+// CTA FORMULAS DEFINITION
+// ============================================================================
+
+export const CTA_FORMULAS: Record<CTAFormula, CTAFormulaDefinition> = {
+  ressourcen: {
+    id: 'ressourcen',
+    nameDE: 'Ressourcen-CTA',
+    pattern: '[Konkretes Asset] + [Zeitaufwand] + [Ergebnis]',
+    example: '📥 IT-Notfallplan-Template downloaden (5 Min. Aufwand, Stunden gespart im Ernstfall)',
+    whenToUse: 'Lead-Generierung, Traffic, Awareness'
+  },
+  engagement: {
+    id: 'engagement',
+    nameDE: 'Engagement-CTA',
+    pattern: '[Einfache Frage die zum Kommentieren einlädt]',
+    example: 'Was ist Ihre größte IT-Sorge? 💬 Schreiben Sie es in die Kommentare.',
+    whenToUse: 'Engagement, Branding, Community-Building'
+  },
+  gespraech: {
+    id: 'gespraech',
+    nameDE: 'Gespräch-CTA',
+    pattern: '[Niedrigschwelliges Angebot]',
+    example: 'DM "CHECK" und ich schicke Ihnen unsere kostenlose Erstanalyse.',
+    whenToUse: 'Lead-Generierung, Decision-Phase, Direct Response'
+  }
+};
+
+// ============================================================================
+// THEME → HOOK FORMULA MAPPING
+// ============================================================================
+
+export const THEME_HOOK_MAPPING: Record<ThemeCategory, { primary: HookFormula[]; secondary: HookFormula[]; reasoning: string }> = {
+  PAIN_POINTS: {
+    primary: ['fragen', 'story'],
+    secondary: ['zahlen'],
+    reasoning: 'Schmerzpunkte brauchen Empathie (Fragen) oder Wiedererkennung (Story). Zahlen als Verstärker.'
+  },
+  RISKS: {
+    primary: ['zahlen', 'pattern_interrupt'],
+    secondary: ['story'],
+    reasoning: 'Risiken mit Fakten untermauern (Zahlen) oder Aufmerksamkeit erzwingen (Pattern-Interrupt).'
+  },
+  COST_ROI: {
+    primary: ['zahlen', 'kontrast'],
+    secondary: ['fragen'],
+    reasoning: 'Kosten/ROI sind zahlenbasiert. Kontrast zeigt Vorher/Nachher oder versteckte Kosten.'
+  },
+  AUTHORITY: {
+    primary: ['kontrast', 'pattern_interrupt'],
+    secondary: ['zahlen'],
+    reasoning: 'Expertise durch Mythen-Widerlegung (Kontrast) oder unerwartete Perspektiven zeigen.'
+  },
+  EFFICIENCY: {
+    primary: ['kontrast', 'zahlen'],
+    secondary: ['story'],
+    reasoning: 'Effizienz zeigt Transformation (Kontrast: vorher/nachher) oder messbare Verbesserungen.'
+  },
+  HUMAN_REALITY: {
+    primary: ['story'],
+    secondary: ['fragen', 'kontrast'],
+    reasoning: 'Menschliche Realität lebt von Storytelling und emotionaler Identifikation.'
+  }
+};
+
+// ============================================================================
+// GOAL → CTA FORMULA MAPPING
+// ============================================================================
+
+export const GOAL_CTA_MAPPING: Record<BusinessGoal, { primary: CTAFormula[]; secondary: CTAFormula[]; reasoning: string }> = {
+  lead: {
+    primary: ['gespraech', 'ressourcen'],
+    secondary: ['engagement'],
+    reasoning: 'Lead-Generierung braucht konkreten nächsten Schritt: Gespräch oder Download.'
+  },
+  branding: {
+    primary: ['engagement'],
+    secondary: ['ressourcen'],
+    reasoning: 'Branding fokussiert auf Sichtbarkeit und Interaktion, nicht auf direkte Conversion.'
+  },
+  engagement: {
+    primary: ['engagement'],
+    secondary: ['gespraech'],
+    reasoning: 'Engagement-Ziel = Kommentare und Diskussion fördern.'
+  },
+  traffic: {
+    primary: ['ressourcen'],
+    secondary: ['engagement'],
+    reasoning: 'Traffic braucht klaren Link-Anreiz mit konkretem Nutzen.'
   }
 };
 
@@ -874,7 +1033,18 @@ export function selectTheme(input: ThemeSelectionInput): ThemeSelectionOutput {
     };
   });
 
-  // Step 9: Build content directives
+  // Step 9: Build content directives with formula recommendations
+  const hookMapping = THEME_HOOK_MAPPING[selected.theme];
+  const ctaMapping = GOAL_CTA_MAPPING[input.goal];
+
+  // Get all recommended hook formulas (primary first, then secondary)
+  const recommendedHookFormulas: HookFormula[] = [...hookMapping.primary, ...hookMapping.secondary];
+  const recommendedCTAFormulas: CTAFormula[] = [...ctaMapping.primary, ...ctaMapping.secondary];
+
+  // Get detailed formula definitions for the prompt
+  const hookFormulaDetails: HookFormulaDefinition[] = recommendedHookFormulas.map(f => HOOK_FORMULAS[f]);
+  const ctaFormulaDetails: CTAFormulaDefinition[] = recommendedCTAFormulas.map(f => CTA_FORMULAS[f]);
+
   const contentDirectives: ContentDirectives = {
     hookStyle: audienceProfile.contentRules.hookStyle,
     ctaStyle: audienceProfile.contentRules.ctaStyle,
@@ -883,7 +1053,12 @@ export function selectTheme(input: ThemeSelectionInput): ThemeSelectionOutput {
       ...audienceProfile.contentRules.avoid
     ],
     emphasize: audienceProfile.contentRules.prefer,
-    toneGuidance: getToneGuidance(input.platform, audienceType)
+    toneGuidance: getToneGuidance(input.platform, audienceType),
+    // NEW: Specific formula recommendations
+    recommendedHookFormulas,
+    recommendedCTAFormulas,
+    hookFormulaDetails,
+    ctaFormulaDetails
   };
 
   // Step 10: Return complete output
@@ -907,6 +1082,27 @@ export function selectTheme(input: ThemeSelectionInput): ThemeSelectionOutput {
 export function getThemePromptSection(themeOutput: ThemeSelectionOutput): string {
   const category = THEME_CATEGORIES[themeOutput.selectedTheme.category];
   const subtopicLabel = SUBTOPIC_LABELS[themeOutput.selectedTheme.subtopic];
+  const { hookFormulaDetails, ctaFormulaDetails } = themeOutput.contentDirectives;
+
+  // Build hook formulas section
+  const hookFormulasSection = hookFormulaDetails.length > 0
+    ? hookFormulaDetails.map((f, i) => {
+        const priority = i === 0 ? '⭐ EMPFOHLEN' : (i === 1 ? '✓ ALTERNATIV' : '○ MÖGLICH');
+        return `${priority}: ${f.nameDE}
+   Muster: ${f.pattern}
+   Beispiel: "${f.example}"`;
+      }).join('\n\n')
+    : 'Keine spezifische Empfehlung';
+
+  // Build CTA formulas section
+  const ctaFormulasSection = ctaFormulaDetails.length > 0
+    ? ctaFormulaDetails.map((f, i) => {
+        const priority = i === 0 ? '⭐ EMPFOHLEN' : (i === 1 ? '✓ ALTERNATIV' : '○ MÖGLICH');
+        return `${priority}: ${f.nameDE}
+   Muster: ${f.pattern}
+   Beispiel: "${f.example}"`;
+      }).join('\n\n')
+    : 'Keine spezifische Empfehlung';
 
   return `
 THEMA-VORGABE (STRATEGISCH AUSGEWÄHLT):
@@ -923,10 +1119,19 @@ Mechanismus: ${category.psychologicalTrigger}
 WARUM DIESES THEMA:
 ${themeOutput.reasoning.summary}
 
-CONTENT-RICHTLINIEN:
-━━━━━━━━━━━━━━━━━━━━
-Hook-Stil: ${themeOutput.contentDirectives.hookStyle}
-CTA-Stil: ${themeOutput.contentDirectives.ctaStyle}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 HOOK-FORMEL (VERWENDE EINE DAVON!):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${hookFormulasSection}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 CTA-FORMEL (VERWENDE EINE DAVON!):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${ctaFormulasSection}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEITERE RICHTLINIEN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Tonalität: ${themeOutput.contentDirectives.toneGuidance}
 
 BETONEN:
@@ -934,5 +1139,8 @@ ${themeOutput.contentDirectives.emphasize.map(e => `- ${e}`).join('\n')}
 
 VERMEIDEN:
 ${themeOutput.contentDirectives.avoidTopics.map(a => `- ${a}`).join('\n')}
+
+⚠️ WICHTIG: Der Hook MUSS eine der empfohlenen Formeln nutzen!
+⚠️ WICHTIG: Der CTA MUSS konkret und niedrigschwellig sein!
 `;
 }
