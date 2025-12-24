@@ -1002,8 +1002,8 @@ const DocumentsTab = () => {
       setError(null);
 
       const [invoicesRes, quotesRes] = await Promise.all([
-        sevdeskApi.getInvoices({ limit: 100 }),
-        sevdeskApi.getQuotes({ limit: 100 }),
+        sevdeskApi.getInvoices({ limit: 500 }),
+        sevdeskApi.getQuotes({ limit: 500 }),
       ]);
 
       setInvoices(invoicesRes.data || []);

@@ -880,6 +880,8 @@ export async function getInvoices(
   const params = new URLSearchParams();
   params.append('depth', '1');
   params.append('embed', 'contact');
+  // Sort by invoice date descending (newest first)
+  params.append('countAll', 'true');
 
   if (options.limit) params.append('limit', options.limit.toString());
   if (options.offset) params.append('offset', options.offset.toString());
@@ -890,7 +892,8 @@ export async function getInvoices(
 
   const response = await sevdeskFetch(apiToken, `/Invoice?${params.toString()}`);
 
-  return (response.objects || []).map((inv: any) => ({
+  // Sort by invoiceDate descending (newest first) since sevDesk doesn't guarantee order
+  const invoices = (response.objects || []).map((inv: any) => ({
     id: inv.id?.toString(),
     invoiceNumber: inv.invoiceNumber || '',
     contact: inv.contact ? {
@@ -910,6 +913,15 @@ export async function getInvoices(
     currency: inv.currency || 'EUR',
     positions: [], // Will be loaded separately if needed
   }));
+
+  // Sort by date descending
+  invoices.sort((a: SevdeskInvoiceDetail, b: SevdeskInvoiceDetail) => {
+    const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
+    const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  return invoices;
 }
 
 // Get single invoice with positions
@@ -981,6 +993,7 @@ export async function getQuotes(
   const params = new URLSearchParams();
   params.append('depth', '1');
   params.append('embed', 'contact');
+  params.append('countAll', 'true');
 
   if (options.limit) params.append('limit', options.limit.toString());
   if (options.offset) params.append('offset', options.offset.toString());
@@ -989,7 +1002,7 @@ export async function getQuotes(
 
   const response = await sevdeskFetch(apiToken, `/Order?${params.toString()}`);
 
-  return (response.objects || []).map((quote: any) => ({
+  const quotes = (response.objects || []).map((quote: any) => ({
     id: quote.id?.toString(),
     quoteNumber: quote.orderNumber || '',
     contact: quote.contact ? {
@@ -1007,6 +1020,15 @@ export async function getQuotes(
     currency: quote.currency || 'EUR',
     positions: [],
   }));
+
+  // Sort by date descending (newest first)
+  quotes.sort((a: SevdeskQuoteDetail, b: SevdeskQuoteDetail) => {
+    const dateA = a.quoteDate ? new Date(a.quoteDate).getTime() : 0;
+    const dateB = b.quoteDate ? new Date(b.quoteDate).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  return quotes;
 }
 
 // Get single quote with positions
