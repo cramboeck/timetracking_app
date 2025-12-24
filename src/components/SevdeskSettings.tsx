@@ -8,16 +8,23 @@ import {
   TestTube,
   AlertTriangle,
   Info,
+  Download,
 } from 'lucide-react';
 import { sevdeskApi, SevdeskConfig } from '../services/api';
+import { SevdeskCustomerImport } from './SevdeskCustomerImport';
 
-export const SevdeskSettings = () => {
+interface SevdeskSettingsProps {
+  onCustomersChanged?: () => void;
+}
+
+export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) => {
   const [config, setConfig] = useState<SevdeskConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   // Form state
   const [apiToken, setApiToken] = useState('');
@@ -295,6 +302,36 @@ export const SevdeskSettings = () => {
           </label>
         </div>
       </div>
+
+      {/* Customer Import */}
+      {connectionStatus.success && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-900 dark:text-white">Kunden importieren</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Importieren Sie Kontakte aus sevDesk als Kunden
+              </p>
+            </div>
+            <button
+              onClick={() => setShowImportDialog(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Download size={18} />
+              Kunden importieren
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Import Dialog */}
+      <SevdeskCustomerImport
+        isOpen={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        onImportComplete={() => {
+          onCustomersChanged?.();
+        }}
+      />
 
       {/* Info Box */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">

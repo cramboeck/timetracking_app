@@ -2473,6 +2473,119 @@ export async function initializeDatabase() {
     console.log('✅ Contract Management tables created');
 
     // ============================================
+    // sevDesk Integration
+    // ============================================
+
+    // sevDesk configuration per user
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sevdesk_config (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        api_token TEXT,
+        default_hourly_rate DECIMAL(10, 2) DEFAULT 95.00,
+        payment_terms_days INTEGER DEFAULT 14,
+        tax_rate DECIMAL(5, 2) DEFAULT 19.00,
+        auto_sync_customers BOOLEAN DEFAULT FALSE,
+        create_as_final BOOLEAN DEFAULT FALSE,
+        last_sync_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id)
+      )
+    `);
+
+    // sevDesk synced documents (invoices & quotes for search)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sevdesk_documents (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        sevdesk_id TEXT NOT NULL,
+        document_type TEXT NOT NULL CHECK(document_type IN ('invoice', 'quote')),
+        document_number TEXT,
+        contact_id TEXT,
+        contact_name TEXT,
+        document_date TIMESTAMP,
+        status INTEGER,
+        status_name TEXT,
+        header TEXT,
+        head_text TEXT,
+        foot_text TEXT,
+        sum_net DECIMAL(12, 2),
+        sum_gross DECIMAL(12, 2),
+        sum_tax DECIMAL(12, 2),
+        currency TEXT DEFAULT 'EUR',
+        positions_json JSONB DEFAULT '[]',
+        full_text TEXT,
+        search_vector TSVECTOR,
+        synced_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, sevdesk_id, document_type)
+      )
+    `);
+
+    // Create search vector trigger for sevdesk_documents
+    await client.query(`
+      CREATE OR REPLACE FUNCTION update_sevdesk_documents_search_vector()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        NEW.search_vector := to_tsvector('german',
+          COALESCE(NEW.document_number, '') || ' ' ||
+          COALESCE(NEW.contact_name, '') || ' ' ||
+          COALESCE(NEW.header, '') || ' ' ||
+          COALESCE(NEW.full_text, '')
+        );
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_sevdesk_documents_search_vector') THEN
+          CREATE TRIGGER trigger_sevdesk_documents_search_vector
+          BEFORE INSERT OR UPDATE ON sevdesk_documents
+          FOR EACH ROW EXECUTE FUNCTION update_sevdesk_documents_search_vector();
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Add sevdesk_customer_id to customers
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'sevdesk_customer_id'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN sevdesk_customer_id TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Add hourly_rate to customers
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'hourly_rate'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN hourly_rate DECIMAL(10, 2);
+        END IF;
+      END $$;
+    `);
+
+    // Create indexes for sevDesk tables
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_config_user ON sevdesk_config(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_user ON sevdesk_documents(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_type ON sevdesk_documents(document_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_contact ON sevdesk_documents(contact_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_search ON sevdesk_documents USING GIN(search_vector)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customers_sevdesk ON customers(sevdesk_customer_id)');
+
+    console.log('✅ sevDesk Integration tables created');
+
+    // ============================================
     // Invoice Export System (for Billing/Finanzen)
     // ============================================
 

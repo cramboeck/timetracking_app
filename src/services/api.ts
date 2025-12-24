@@ -2103,6 +2103,68 @@ export const sevdeskApi = {
       body: JSON.stringify(data),
     });
   },
+
+  // Customer Import
+  getImportPreview: async (): Promise<{
+    success: boolean;
+    data: {
+      customers: Array<{
+        sevdeskId: string;
+        sevdeskCustomerNumber: string;
+        name: string;
+        email?: string;
+        phone?: string;
+        address?: string;
+        matchStatus: 'new' | 'linked' | 'name_match';
+        localCustomerId?: string;
+        localCustomerName?: string;
+      }>;
+      counts: {
+        new: number;
+        name_match: number;
+        linked: number;
+        total: number;
+      };
+    };
+  }> => {
+    return authFetch('/sevdesk/import/preview');
+  },
+
+  executeImport: async (imports: Array<{
+    sevdeskId: string;
+    action: 'import' | 'link' | 'skip';
+    linkToCustomerId?: string;
+    color?: string;
+    hourlyRate?: number;
+  }>): Promise<{
+    success: boolean;
+    data: {
+      imported: number;
+      linked: number;
+      skipped: number;
+      errors: string[];
+    };
+  }> => {
+    return authFetch('/sevdesk/import/execute', {
+      method: 'POST',
+      body: JSON.stringify({ imports }),
+    });
+  },
+
+  importSingleCustomer: async (data: {
+    sevdeskId: string;
+    name: string;
+    customerNumber?: string;
+    email?: string;
+    address?: string;
+    color?: string;
+    hourlyRate?: number;
+  }): Promise<{ success: boolean; data: { customerId: string } }> => {
+    return authFetch('/sevdesk/import/single', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // ============================================

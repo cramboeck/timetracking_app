@@ -1672,3 +1672,267 @@ export async function getPreviousInvoicesForContact(
     })),
   }));
 }
+
+// ============================================
+// Customer Import Functions
+// ============================================
+
+export interface CustomerImportPreview {
+  sevdeskId: string;
+  sevdeskCustomerNumber: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  // Matching info
+  matchStatus: 'new' | 'linked' | 'name_match';
+  localCustomerId?: string;
+  localCustomerName?: string;
+}
+
+// Get import preview - compare sevDesk contacts with local customers
+export async function getCustomerImportPreview(
+  userId: string,
+  apiToken: string
+): Promise<CustomerImportPreview[]> {
+  // Get all sevDesk contacts
+  const sevdeskCustomers = await getSevdeskCustomers(apiToken);
+
+  // Get all local customers with their sevdesk links
+  const localResult = await query(
+    `SELECT id, name, sevdesk_customer_id, import_aliases
+     FROM customers
+     WHERE user_id = $1`,
+    [userId]
+  );
+  const localCustomers = localResult.rows;
+
+  // Build lookup maps
+  const linkedSevdeskIds = new Map<string, { id: string; name: string }>();
+  const localNameMap = new Map<string, { id: string; name: string }>();
+
+  for (const local of localCustomers) {
+    if (local.sevdesk_customer_id) {
+      linkedSevdeskIds.set(local.sevdesk_customer_id, { id: local.id, name: local.name });
+    }
+    // Normalize name for matching
+    const normalizedName = local.name.toLowerCase().trim();
+    localNameMap.set(normalizedName, { id: local.id, name: local.name });
+
+    // Also check import_aliases
+    if (local.import_aliases && Array.isArray(local.import_aliases)) {
+      for (const alias of local.import_aliases) {
+        localNameMap.set(alias.toLowerCase().trim(), { id: local.id, name: local.name });
+      }
+    }
+  }
+
+  // Get addresses for sevDesk contacts
+  const contactAddresses = new Map<string, string>();
+  try {
+    const addressResponse = await sevdeskFetch(apiToken, '/ContactAddress');
+    for (const addr of addressResponse.objects || []) {
+      if (addr.contact?.id) {
+        const parts = [
+          addr.street,
+          [addr.zip, addr.city].filter(Boolean).join(' '),
+          addr.country?.name
+        ].filter(Boolean);
+        contactAddresses.set(addr.contact.id.toString(), parts.join(', '));
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch contact addresses:', err);
+  }
+
+  // Build preview list
+  const preview: CustomerImportPreview[] = [];
+
+  for (const sevdesk of sevdeskCustomers) {
+    const sevdeskId = sevdesk.id.toString();
+
+    // Check if already linked
+    if (linkedSevdeskIds.has(sevdeskId)) {
+      const local = linkedSevdeskIds.get(sevdeskId)!;
+      preview.push({
+        sevdeskId,
+        sevdeskCustomerNumber: sevdesk.customerNumber,
+        name: sevdesk.name,
+        email: sevdesk.email,
+        phone: sevdesk.phone,
+        address: contactAddresses.get(sevdeskId),
+        matchStatus: 'linked',
+        localCustomerId: local.id,
+        localCustomerName: local.name,
+      });
+      continue;
+    }
+
+    // Check if name matches an existing customer
+    const normalizedName = sevdesk.name.toLowerCase().trim();
+    if (localNameMap.has(normalizedName)) {
+      const local = localNameMap.get(normalizedName)!;
+      preview.push({
+        sevdeskId,
+        sevdeskCustomerNumber: sevdesk.customerNumber,
+        name: sevdesk.name,
+        email: sevdesk.email,
+        phone: sevdesk.phone,
+        address: contactAddresses.get(sevdeskId),
+        matchStatus: 'name_match',
+        localCustomerId: local.id,
+        localCustomerName: local.name,
+      });
+      continue;
+    }
+
+    // New customer
+    preview.push({
+      sevdeskId,
+      sevdeskCustomerNumber: sevdesk.customerNumber,
+      name: sevdesk.name,
+      email: sevdesk.email,
+      phone: sevdesk.phone,
+      address: contactAddresses.get(sevdeskId),
+      matchStatus: 'new',
+    });
+  }
+
+  // Sort: new first, then name_match, then linked
+  const statusOrder = { new: 0, name_match: 1, linked: 2 };
+  preview.sort((a, b) => statusOrder[a.matchStatus] - statusOrder[b.matchStatus]);
+
+  return preview;
+}
+
+// Import a single sevDesk contact as a new customer
+export async function importSevdeskCustomer(
+  userId: string,
+  sevdeskContact: {
+    sevdeskId: string;
+    name: string;
+    customerNumber?: string;
+    email?: string;
+    address?: string;
+  },
+  options: {
+    color?: string;
+    hourlyRate?: number;
+  } = {}
+): Promise<{ customerId: string }> {
+  const customerId = uuidv4();
+  const color = options.color || '#3B82F6'; // Default blue
+
+  await query(
+    `INSERT INTO customers (id, user_id, name, color, customer_number, email, address, sevdesk_customer_id, hourly_rate, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+    [
+      customerId,
+      userId,
+      sevdeskContact.name,
+      color,
+      sevdeskContact.customerNumber || null,
+      sevdeskContact.email || null,
+      sevdeskContact.address || null,
+      sevdeskContact.sevdeskId,
+      options.hourlyRate || null,
+    ]
+  );
+
+  return { customerId };
+}
+
+// Link an existing local customer to a sevDesk contact
+export async function linkExistingCustomerToSevdesk(
+  userId: string,
+  customerId: string,
+  sevdeskId: string
+): Promise<void> {
+  const result = await query(
+    `UPDATE customers
+     SET sevdesk_customer_id = $1, updated_at = NOW()
+     WHERE id = $2 AND user_id = $3`,
+    [sevdeskId, customerId, userId]
+  );
+
+  if (result.rowCount === 0) {
+    throw new Error('Customer not found');
+  }
+}
+
+// Batch import multiple customers
+export async function batchImportSevdeskCustomers(
+  userId: string,
+  apiToken: string,
+  imports: Array<{
+    sevdeskId: string;
+    action: 'import' | 'link' | 'skip';
+    linkToCustomerId?: string;  // For 'link' action
+    color?: string;             // For 'import' action
+    hourlyRate?: number;        // For 'import' action
+  }>
+): Promise<{
+  imported: number;
+  linked: number;
+  skipped: number;
+  errors: string[];
+}> {
+  const result = { imported: 0, linked: 0, skipped: 0, errors: [] as string[] };
+
+  // Get full sevDesk customer data
+  const allCustomers = await getSevdeskCustomers(apiToken);
+  const customerMap = new Map(allCustomers.map(c => [c.id.toString(), c]));
+
+  // Get addresses
+  const addressMap = new Map<string, string>();
+  try {
+    const addressResponse = await sevdeskFetch(apiToken, '/ContactAddress');
+    for (const addr of addressResponse.objects || []) {
+      if (addr.contact?.id) {
+        const parts = [
+          addr.street,
+          [addr.zip, addr.city].filter(Boolean).join(' ')
+        ].filter(Boolean);
+        addressMap.set(addr.contact.id.toString(), parts.join(', '));
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch addresses:', err);
+  }
+
+  for (const item of imports) {
+    try {
+      if (item.action === 'skip') {
+        result.skipped++;
+        continue;
+      }
+
+      const sevdeskCustomer = customerMap.get(item.sevdeskId);
+      if (!sevdeskCustomer) {
+        result.errors.push(`sevDesk contact ${item.sevdeskId} not found`);
+        continue;
+      }
+
+      if (item.action === 'import') {
+        await importSevdeskCustomer(userId, {
+          sevdeskId: item.sevdeskId,
+          name: sevdeskCustomer.name,
+          customerNumber: sevdeskCustomer.customerNumber,
+          email: sevdeskCustomer.email,
+          address: addressMap.get(item.sevdeskId),
+        }, {
+          color: item.color,
+          hourlyRate: item.hourlyRate,
+        });
+        result.imported++;
+      } else if (item.action === 'link' && item.linkToCustomerId) {
+        await linkExistingCustomerToSevdesk(userId, item.linkToCustomerId, item.sevdeskId);
+        result.linked++;
+      }
+    } catch (err: any) {
+      result.errors.push(`${item.sevdeskId}: ${err.message}`);
+    }
+  }
+
+  return result;
+}

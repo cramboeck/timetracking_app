@@ -910,4 +910,100 @@ router.post('/quotes/create', authenticateToken, requireBillingFeature, async (r
   }
 });
 
+// ============================================
+// Customer Import Routes
+// ============================================
+
+// GET /api/sevdesk/import/preview - Get preview of customers to import
+router.get('/import/preview', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    // Get config
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    const preview = await sevdeskService.getCustomerImportPreview(userId, config.apiToken);
+
+    // Count by status
+    const counts = {
+      new: preview.filter(p => p.matchStatus === 'new').length,
+      name_match: preview.filter(p => p.matchStatus === 'name_match').length,
+      linked: preview.filter(p => p.matchStatus === 'linked').length,
+      total: preview.length,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        customers: preview,
+        counts,
+      },
+    });
+  } catch (error: any) {
+    console.error('Import preview error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/import/execute - Execute customer import
+router.post('/import/execute', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { imports } = req.body;
+
+    if (!imports || !Array.isArray(imports)) {
+      return res.status(400).json({ success: false, error: 'imports array is required' });
+    }
+
+    // Get config
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    const result = await sevdeskService.batchImportSevdeskCustomers(
+      userId,
+      config.apiToken,
+      imports
+    );
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Import execute error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/import/single - Import a single customer
+router.post('/import/single', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { sevdeskId, name, customerNumber, email, address, color, hourlyRate } = req.body;
+
+    if (!sevdeskId || !name) {
+      return res.status(400).json({ success: false, error: 'sevdeskId and name are required' });
+    }
+
+    const result = await sevdeskService.importSevdeskCustomer(
+      userId,
+      { sevdeskId, name, customerNumber, email, address },
+      { color, hourlyRate }
+    );
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Single import error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
