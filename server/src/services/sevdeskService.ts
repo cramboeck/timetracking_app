@@ -1864,7 +1864,7 @@ export async function linkExistingCustomerToSevdesk(
 ): Promise<void> {
   const result = await query(
     `UPDATE customers
-     SET sevdesk_customer_id = $1, updated_at = NOW()
+     SET sevdesk_customer_id = $1
      WHERE id = $2 AND user_id = $3`,
     [sevdeskId, customerId, userId]
   );
