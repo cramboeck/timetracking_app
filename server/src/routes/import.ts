@@ -4,8 +4,39 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { auditLog } from '../services/auditLog';
 import { transformRows } from '../utils/dbTransform';
+import fs from 'fs';
+import path from 'path';
 
 const router = Router();
+
+// Import log file path
+const IMPORT_LOG_PATH = process.env.IMPORT_LOG_PATH || path.join(__dirname, '../../logs/import.log');
+
+// Ensure log directory exists
+try {
+  const logDir = path.dirname(IMPORT_LOG_PATH);
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('Could not create import log directory:', err);
+}
+
+// Helper function to log import events
+function logImport(message: string, data?: any) {
+  const timestamp = new Date().toISOString();
+  const logLine = data
+    ? `[${timestamp}] ${message} | ${JSON.stringify(data)}\n`
+    : `[${timestamp}] ${message}\n`;
+
+  console.log(`📥 Import: ${message}`, data || '');
+
+  try {
+    fs.appendFileSync(IMPORT_LOG_PATH, logLine);
+  } catch (err) {
+    // Silently fail if we can't write to log file
+  }
+}
 
 interface ClockodoRow {
   kunde: string;
@@ -307,16 +338,29 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
     const organizationId = orgReq.organization.id;
     const { csvContent, customerMapping, projectMapping, defaultProjectId, createMissingProjects, skipDuplicates } = req.body;
 
+    logImport('=== CLOCKODO IMPORT STARTED ===', { userId, organizationId });
+
     if (!csvContent) {
+      logImport('ERROR: CSV content is required');
       return res.status(400).json({ error: 'CSV content is required' });
     }
 
     if (!defaultProjectId && !createMissingProjects) {
+      logImport('ERROR: No default project or createMissingProjects option');
       return res.status(400).json({ error: 'Either defaultProjectId or createMissingProjects must be provided' });
     }
 
     // Parse CSV
-    const { rows } = parseClockodoCsv(csvContent);
+    const { rows, skippedRows } = parseClockodoCsv(csvContent);
+    logImport('CSV parsed', { totalRows: rows.length, skippedRows: skippedRows.length });
+
+    // Log all skipped rows from CSV parsing
+    if (skippedRows.length > 0) {
+      logImport('Skipped rows during CSV parsing:');
+      skippedRows.forEach(sr => {
+        logImport(`  Line ${sr.line}: ${sr.reason}`, { data: sr.data });
+      });
+    }
 
     if (rows.length === 0) {
       return res.status(400).json({ error: 'No valid entries found in CSV' });
@@ -470,7 +514,9 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
         }
 
         if (!projectId) {
-          errors.push(`Row ${importedCount + skippedCount + 1}: No project found for "${row.kunde} - ${row.projekt}"`);
+          const errorMsg = `No project found for "${row.kunde} - ${row.projekt}"`;
+          logImport(`SKIP Row: ${errorMsg}`, { row });
+          errors.push(`Row ${importedCount + skippedCount + 1}: ${errorMsg}`);
           skippedCount++;
           continue;
         }
@@ -480,12 +526,15 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
         const durationSeconds = parseDurationToSeconds(row.stunden);
 
         if (!date) {
-          errors.push(`Row ${importedCount + skippedCount + duplicateCount + 1}: Ungültiges Datum "${row.tag}"`);
+          const errorMsg = `Ungültiges Datum "${row.tag}"`;
+          logImport(`SKIP Row: ${errorMsg}`, { row });
+          errors.push(`Row ${importedCount + skippedCount + duplicateCount + 1}: ${errorMsg}`);
           skippedCount++;
           continue;
         }
 
         if (durationSeconds <= 0) {
+          logImport(`SKIP Row: Invalid duration "${row.stunden}"`, { row });
           skippedCount++;
           continue;
         }
@@ -493,6 +542,7 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
         // Check for duplicates
         const entryKey = `${date}|${durationSeconds}|${(row.beschreibung || '').substring(0, 100)}|${projectId}`;
         if (skipDuplicates !== false && existingEntryKeys.has(entryKey)) {
+          logImport(`DUPLICATE: ${row.kunde} | ${row.tag} | ${row.stunden}`, { entryKey });
           duplicateCount++;
           continue;
         }
@@ -503,8 +553,8 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
         // Create time entry
         const entryId = crypto.randomUUID();
         await pool.query(
-          `INSERT INTO time_entries (id, user_id, organization_id, project_id, start_time, end_time, duration, description, is_running, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, NOW())`,
+          `INSERT INTO time_entries (id, user_id, organization_id, project_id, start_time, end_time, duration, description, is_running, is_billable, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, true, NOW())`,
           [entryId, userId, organizationId, projectId, startTime, endTime, durationSeconds, row.beschreibung || '']
         );
 
@@ -512,11 +562,22 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
         existingEntryKeys.add(entryKey);
         importedCount++;
       } catch (err) {
-        console.error('Error importing row:', err);
-        errors.push(`Row ${importedCount + skippedCount + 1}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        logImport(`ERROR importing row: ${errorMsg}`, { row, error: errorMsg });
+        errors.push(`Row ${importedCount + skippedCount + 1}: ${errorMsg}`);
         skippedCount++;
       }
     }
+
+    logImport('=== CLOCKODO IMPORT COMPLETED ===', {
+      importedCount,
+      skippedCount,
+      duplicateCount,
+      totalRows: rows.length,
+      createdCustomers: createdCustomers.size,
+      createdProjects: createdProjects.size,
+      errors: errors.length
+    });
 
     auditLog.log({
       userId,
@@ -535,10 +596,12 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
         totalRows: rows.length,
         createdCustomers: createdCustomers.size,
         createdProjects: createdProjects.size,
-        errors: errors.slice(0, 10) // Only return first 10 errors
+        errors // Return all errors now
       }
     });
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    logImport('=== CLOCKODO IMPORT FAILED ===', { error: errorMsg, stack: error instanceof Error ? error.stack : undefined });
     console.error('Clockodo import error:', error);
     res.status(500).json({ error: 'Failed to import data' });
   }
