@@ -162,7 +162,7 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
 };
 
 // ==================== Billing Tab ====================
-type BillingPeriodType = 'monthly' | 'quarterly';
+type BillingPeriodType = 'monthly' | 'quarterly' | 'yearly';
 
 const BillingTab = () => {
   const [loading, setLoading] = useState(true);
@@ -213,11 +213,16 @@ const BillingTab = () => {
       const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
       const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
       return { startDate, endDate };
-    } else {
+    } else if (billingPeriodType === 'quarterly') {
       // Quarterly: Q1 = Jan-Mar, Q2 = Apr-Jun, Q3 = Jul-Sep, Q4 = Oct-Dec
       const startMonth = (selectedQuarter - 1) * 3;
       const startDate = new Date(selectedYear, startMonth, 1);
       const endDate = new Date(selectedYear, startMonth + 3, 0);
+      return { startDate, endDate };
+    } else {
+      // Yearly: full year
+      const startDate = new Date(selectedYear, 0, 1);
+      const endDate = new Date(selectedYear, 11, 31);
       return { startDate, endDate };
     }
   };
@@ -302,12 +307,25 @@ const BillingTab = () => {
     setSelectedCustomers(new Set());
   };
 
+  // Navigation for yearly
+  const handlePrevYear = () => {
+    setSelectedYear(selectedYear - 1);
+    setSelectedCustomers(new Set());
+  };
+
+  const handleNextYear = () => {
+    setSelectedYear(selectedYear + 1);
+    setSelectedCustomers(new Set());
+  };
+
   // Get period display name
   const getPeriodName = () => {
     if (billingPeriodType === 'monthly') {
       return selectedMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-    } else {
+    } else if (billingPeriodType === 'quarterly') {
       return `Q${selectedQuarter} ${selectedYear}`;
+    } else {
+      return `Jahr ${selectedYear}`;
     }
   };
 
@@ -483,13 +501,29 @@ const BillingTab = () => {
           >
             Quartalsweise
           </button>
+          <button
+            onClick={() => setBillingPeriodType('yearly')}
+            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+              billingPeriodType === 'yearly'
+                ? 'bg-accent-primary text-white'
+                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+          >
+            Jährlich
+          </button>
         </div>
       </div>
 
       {/* Period Selector */}
       <div className="flex items-center justify-center gap-4">
         <button
-          onClick={billingPeriodType === 'monthly' ? handlePrevMonth : handlePrevQuarter}
+          onClick={
+            billingPeriodType === 'monthly'
+              ? handlePrevMonth
+              : billingPeriodType === 'quarterly'
+              ? handlePrevQuarter
+              : handlePrevYear
+          }
           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
         >
           <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
@@ -499,7 +533,13 @@ const BillingTab = () => {
           {periodName}
         </div>
         <button
-          onClick={billingPeriodType === 'monthly' ? handleNextMonth : handleNextQuarter}
+          onClick={
+            billingPeriodType === 'monthly'
+              ? handleNextMonth
+              : billingPeriodType === 'quarterly'
+              ? handleNextQuarter
+              : handleNextYear
+          }
           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
         >
           <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
