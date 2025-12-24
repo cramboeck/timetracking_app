@@ -303,7 +303,7 @@ export const SevdeskCustomerImport = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Kunden aus sevDesk importieren"
-      maxWidth="lg"
+      maxWidth="4xl"
     >
       <div className="space-y-4">
         {/* Error Message */}
