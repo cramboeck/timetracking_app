@@ -215,15 +215,26 @@ export async function testConnection(apiToken: string): Promise<{ success: boole
 
 // Get customers from sevDesk
 // sevDesk category IDs: 3 = Customer, 4 = Supplier, 28 = Partner
+// Only returns companies (not contact persons)
 export async function getSevdeskCustomers(apiToken: string, options?: { includeSuppliers?: boolean }): Promise<SevdeskCustomer[]> {
   // By default, only fetch customers (category 3), not suppliers
   const categoryFilter = options?.includeSuppliers ? '' : '&category[id]=3&category[objectName]=Category';
-  const response = await sevdeskFetch(apiToken, `/Contact?depth=1&embed=category${categoryFilter}`);
+  const response = await sevdeskFetch(apiToken, `/Contact?depth=1&embed=category,parent${categoryFilter}`);
 
-  return (response.objects || []).map((contact: any) => ({
+  // Filter: Only companies (contacts with 'name' field, not just surename/familyname)
+  // and only top-level contacts (no parent = not a contact person of another company)
+  const companies = (response.objects || []).filter((contact: any) => {
+    // Must have a company name (not just a person name)
+    const hasCompanyName = contact.name && contact.name.trim() !== '';
+    // Must not be a sub-contact of another company
+    const isTopLevel = !contact.parent || !contact.parent.id;
+    return hasCompanyName && isTopLevel;
+  });
+
+  return companies.map((contact: any) => ({
     id: contact.id,
     customerNumber: contact.customerNumber || '',
-    name: contact.name || `${contact.surename || ''} ${contact.familyname || ''}`.trim(),
+    name: contact.name,
     category: contact.category ? { id: contact.category.id, name: contact.category.name } : undefined,
     email: contact.email,
     phone: contact.phone,
