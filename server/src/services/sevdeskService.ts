@@ -1248,7 +1248,7 @@ export async function uploadVoucherFile(
     throw new Error(`Upload failed: ${errorText}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as { objects?: { id?: string | number; filename?: string } };
   return {
     id: data.objects?.id?.toString() || '',
     filename: data.objects?.filename || filename,
@@ -1337,7 +1337,7 @@ export async function createVoucherFromFile(
     throw new Error(`Failed to create voucher: ${errorText}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as { objects?: { voucher?: { id?: string | number } } };
   return {
     voucherId: data.objects?.voucher?.id?.toString() || '',
   };
