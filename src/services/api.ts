@@ -641,6 +641,13 @@ export const ticketsApi = {
     });
   },
 
+  setContactPassword: async (customerId: string, contactId: string, password: string): Promise<{ success: boolean }> => {
+    return authFetch(`/customers/${customerId}/contacts/${contactId}/set-password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+  },
+
   // Canned Responses (Textbausteine)
   getCannedResponses: async (category?: string): Promise<{ success: boolean; data: CannedResponse[] }> => {
     const params = category ? `?category=${category}` : '';

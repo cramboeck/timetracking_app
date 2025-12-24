@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { transformRow, transformRows } from '../utils/dbTransform';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -647,6 +648,61 @@ router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, a
     });
   } catch (error) {
     console.error('Send invite error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/customers/:customerId/contacts/:contactId/set-password - Set password directly (requires admin role)
+router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { customerId, contactId } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    // Verify customer belongs to organization
+    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Get contact
+    const contactResult = await pool.query(
+      'SELECT * FROM customer_contacts WHERE id = $1 AND customer_id = $2',
+      [contactId, customerId]
+    );
+    if (contactResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const contact = contactResult.rows[0];
+
+    // Hash password and update
+    const passwordHash = await bcrypt.hash(password, 10);
+    await pool.query(
+      'UPDATE customer_contacts SET password_hash = $1 WHERE id = $2',
+      [passwordHash, contactId]
+    );
+
+    auditLog.log({
+      userId,
+      action: 'customer_contact.set_password',
+      details: JSON.stringify({ customerId, contactId, email: contact.email }),
+      ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      message: 'Password set successfully'
+    });
+  } catch (error) {
+    console.error('Set password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

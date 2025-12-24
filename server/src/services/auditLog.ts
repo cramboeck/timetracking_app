@@ -23,6 +23,7 @@ export type AuditAction =
   | 'customer_contact.update'
   | 'customer_contact.delete'
   | 'customer_contact.send_invite'
+  | 'customer_contact.set_password'
   // Project actions
   | 'project.create'
   | 'project.update'
