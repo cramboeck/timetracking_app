@@ -684,10 +684,14 @@ router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, 
 
     // Hash password and update
     const passwordHash = await bcrypt.hash(password, 10);
-    await pool.query(
-      'UPDATE customer_contacts SET password_hash = $1 WHERE id = $2',
+    console.log(`🔑 Setting password for contact "${contact.email}" (id: ${contactId}), hash length: ${passwordHash.length}`);
+
+    const updateResult = await pool.query(
+      'UPDATE customer_contacts SET password_hash = $1 WHERE id = $2 RETURNING id, password_hash IS NOT NULL as has_password',
       [passwordHash, contactId]
     );
+
+    console.log(`🔑 Password set result:`, updateResult.rows[0]);
 
     auditLog.log({
       userId,
