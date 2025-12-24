@@ -30,6 +30,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   const [editDate, setEditDate] = useState('');
   const [editStartTime, setEditStartTime] = useState('');
   const [editEndTime, setEditEndTime] = useState('');
+  const [editIsBillable, setEditIsBillable] = useState(true);
 
   // Confirm dialogs
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string; name: string }>({
@@ -351,6 +352,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     setEditingEntry(entry);
     setEditProjectId(entry.projectId);
     setEditDescription(entry.description);
+    setEditIsBillable(entry.isBillable ?? true);
 
     // Extract date and times
     const startDate = new Date(entry.startTime);
@@ -378,7 +380,8 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       description: editDescription,
       startTime: startDateTime,
       endTime: endDateTime,
-      duration
+      duration,
+      isBillable: editIsBillable
     });
 
     setEditingEntry(null);
@@ -1003,6 +1006,25 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               rows={3}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
             />
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Abrechenbar
+            </label>
+            <button
+              type="button"
+              onClick={() => setEditIsBillable(!editIsBillable)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                editIsBillable ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  editIsBillable ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
         </div>
       </Modal>

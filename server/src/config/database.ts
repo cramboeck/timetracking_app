@@ -2627,6 +2627,20 @@ export async function initializeDatabase() {
 
     console.log('✅ Invoice Export tables created');
 
+    // Add is_billable column to time_entries (defaults to true for backward compatibility)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'is_billable'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN is_billable BOOLEAN DEFAULT TRUE;
+        END IF;
+      END $$;
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_billable ON time_entries(is_billable)');
+
     // ============================================
     // Social Media Manager
     // ============================================

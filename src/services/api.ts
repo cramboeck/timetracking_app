@@ -332,7 +332,7 @@ export const entriesApi = {
     });
   },
 
-  bulkUpdate: async (entryIds: string[], updates: { projectId?: string; description?: string }): Promise<{ success: boolean; data: { updatedCount: number } }> => {
+  bulkUpdate: async (entryIds: string[], updates: { projectId?: string; description?: string; isBillable?: boolean }): Promise<{ success: boolean; data: { updatedCount: number } }> => {
     return authFetch('/entries/bulk-update', {
       method: 'PUT',
       body: JSON.stringify({ entryIds, updates }),

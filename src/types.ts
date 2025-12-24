@@ -156,6 +156,7 @@ export interface TimeEntry {
   ticketId?: string; // Optional: link to ticket
   description: string;
   isRunning: boolean;
+  isBillable: boolean; // Whether this entry should be included in billing/reports
   createdAt: string;
 }
 
