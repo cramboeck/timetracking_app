@@ -840,6 +840,32 @@ export interface SevdeskQuoteDetail {
   }>;
 }
 
+// Voucher (Beleg) interface
+export interface SevdeskVoucherDetail {
+  id: string;
+  voucherNumber: string;
+  voucherDate: string;
+  description: string;
+  status: number;
+  statusName: string;
+  voucherType: string; // VOU = Beleg, VOU_R = Recurring
+  creditDebit: string; // C = Credit (Gutschrift), D = Debit (Ausgabe)
+  supplier: {
+    id: string;
+    name: string;
+  } | null;
+  sumNet: number;
+  sumGross: number;
+  sumTax: number;
+  taxRate: number;
+  currency: string;
+  paidAt: string | null;
+  document: {
+    id: string;
+    filename: string;
+  } | null;
+}
+
 // Get status name for invoices
 function getInvoiceStatusName(status: number): string {
   switch (status) {
@@ -861,6 +887,16 @@ function getQuoteStatusName(status: number): string {
     case 500: return 'Teilberechnet';
     case 750: return 'Abgeschlossen';
     case 1000: return 'Storniert';
+    default: return `Status ${status}`;
+  }
+}
+
+// Get status name for vouchers
+function getVoucherStatusName(status: number): string {
+  switch (status) {
+    case 50: return 'Entwurf';
+    case 100: return 'Unpaid';
+    case 1000: return 'Bezahlt';
     default: return `Status ${status}`;
   }
 }
@@ -1082,6 +1118,228 @@ export async function getQuoteWithPositions(
       price: parseFloat(pos.price) || 0,
       sumNet: parseFloat(pos.sumNet) || 0,
     })),
+  };
+}
+
+// ============================================
+// Voucher (Beleg) Functions
+// ============================================
+
+// Get vouchers from sevDesk
+export async function getVouchers(
+  apiToken: string,
+  options: {
+    limit?: number;
+    offset?: number;
+    status?: number;
+    creditDebit?: 'C' | 'D'; // C = Credit, D = Debit
+  } = {}
+): Promise<SevdeskVoucherDetail[]> {
+  const params = new URLSearchParams();
+  params.append('depth', '1');
+  params.append('embed', 'supplier,document');
+  params.append('countAll', 'true');
+
+  if (options.limit) params.append('limit', options.limit.toString());
+  if (options.offset) params.append('offset', options.offset.toString());
+  if (options.status) params.append('status', options.status.toString());
+  if (options.creditDebit) params.append('creditDebit', options.creditDebit);
+
+  const response = await sevdeskFetch(apiToken, `/Voucher?${params.toString()}`);
+
+  const vouchers = (response.objects || []).map((v: any) => ({
+    id: v.id?.toString(),
+    voucherNumber: v.voucherNumber || v.description || '',
+    voucherDate: v.voucherDate,
+    description: v.description || '',
+    status: parseInt(v.status) || 0,
+    statusName: getVoucherStatusName(parseInt(v.status) || 0),
+    voucherType: v.voucherType || 'VOU',
+    creditDebit: v.creditDebit || 'D',
+    supplier: v.supplier ? {
+      id: v.supplier.id?.toString(),
+      name: v.supplier.name || 'Unbekannt',
+    } : null,
+    sumNet: parseFloat(v.sumNet) || 0,
+    sumGross: parseFloat(v.sumGross) || 0,
+    sumTax: parseFloat(v.sumTax) || 0,
+    taxRate: parseFloat(v.taxRate) || 0,
+    currency: v.currency || 'EUR',
+    paidAt: v.paidDate || null,
+    document: v.document ? {
+      id: v.document.id?.toString(),
+      filename: v.document.filename || '',
+    } : null,
+  }));
+
+  // Sort by date descending (newest first)
+  vouchers.sort((a: SevdeskVoucherDetail, b: SevdeskVoucherDetail) => {
+    const dateA = a.voucherDate ? new Date(a.voucherDate).getTime() : 0;
+    const dateB = b.voucherDate ? new Date(b.voucherDate).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  return vouchers;
+}
+
+// Get single voucher details
+export async function getVoucherDetail(
+  apiToken: string,
+  voucherId: string
+): Promise<SevdeskVoucherDetail | null> {
+  const response = await sevdeskFetch(apiToken, `/Voucher/${voucherId}?depth=1&embed=supplier,document`);
+
+  let v = response.objects;
+  if (Array.isArray(v)) {
+    v = v[0];
+  }
+
+  if (!v) {
+    return null;
+  }
+
+  return {
+    id: v.id?.toString(),
+    voucherNumber: v.voucherNumber || v.description || '',
+    voucherDate: v.voucherDate,
+    description: v.description || '',
+    status: parseInt(v.status) || 0,
+    statusName: getVoucherStatusName(parseInt(v.status) || 0),
+    voucherType: v.voucherType || 'VOU',
+    creditDebit: v.creditDebit || 'D',
+    supplier: v.supplier ? {
+      id: v.supplier.id?.toString(),
+      name: v.supplier.name || 'Unbekannt',
+    } : null,
+    sumNet: parseFloat(v.sumNet) || 0,
+    sumGross: parseFloat(v.sumGross) || 0,
+    sumTax: parseFloat(v.sumTax) || 0,
+    taxRate: parseFloat(v.taxRate) || 0,
+    currency: v.currency || 'EUR',
+    paidAt: v.paidDate || null,
+    document: v.document ? {
+      id: v.document.id?.toString(),
+      filename: v.document.filename || '',
+    } : null,
+  };
+}
+
+// Upload voucher file to sevDesk
+export async function uploadVoucherFile(
+  apiToken: string,
+  file: Buffer,
+  filename: string,
+  mimeType: string
+): Promise<{ id: string; filename: string }> {
+  const formData = new FormData();
+  const blob = new Blob([file], { type: mimeType });
+  formData.append('file', blob, filename);
+
+  const response = await fetch(`${SEVDESK_API_URL}/Voucher/Factory/uploadTempFile`, {
+    method: 'POST',
+    headers: {
+      'Authorization': apiToken,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Upload failed: ${errorText}`);
+  }
+
+  const data = await response.json();
+  return {
+    id: data.objects?.id?.toString() || '',
+    filename: data.objects?.filename || filename,
+  };
+}
+
+// Create voucher from uploaded file
+export async function createVoucherFromFile(
+  apiToken: string,
+  fileId: string,
+  voucherData: {
+    voucherDate: string;
+    description?: string;
+    supplierName?: string;
+    sumNet?: number;
+    sumGross?: number;
+    taxRate?: number;
+    creditDebit?: 'C' | 'D';
+  }
+): Promise<{ voucherId: string }> {
+  // First, we need to get or create the supplier if provided
+  let supplierId: string | null = null;
+
+  if (voucherData.supplierName) {
+    // Search for existing supplier
+    const searchResponse = await sevdeskFetch(
+      apiToken,
+      `/Contact?name=${encodeURIComponent(voucherData.supplierName)}&category[id]=4&category[objectName]=Category`
+    );
+
+    if (searchResponse.objects && searchResponse.objects.length > 0) {
+      supplierId = searchResponse.objects[0].id?.toString();
+    }
+    // If no supplier found, we'll create the voucher without one
+  }
+
+  // Build voucher data
+  const taxRate = voucherData.taxRate || 19;
+  const sumNet = voucherData.sumNet || 0;
+  const sumGross = voucherData.sumGross || (sumNet * (1 + taxRate / 100));
+
+  const voucherPayload: Record<string, unknown> = {
+    voucher: {
+      objectName: 'Voucher',
+      mapAll: true,
+      voucherDate: Math.floor(new Date(voucherData.voucherDate).getTime() / 1000),
+      description: voucherData.description || 'Beleg',
+      status: 50, // Draft
+      voucherType: 'VOU',
+      creditDebit: voucherData.creditDebit || 'D',
+      taxType: 'default',
+      currency: 'EUR',
+    },
+    voucherPosSave: [{
+      objectName: 'VoucherPos',
+      mapAll: true,
+      taxRate: taxRate,
+      sum: sumNet,
+      net: true,
+      accountingType: {
+        id: 26, // Default: Sonstige betriebliche Aufwendungen
+        objectName: 'AccountingType',
+      },
+    }],
+    filename: fileId,
+  };
+
+  if (supplierId) {
+    (voucherPayload.voucher as Record<string, unknown>).supplier = {
+      id: parseInt(supplierId),
+      objectName: 'Contact',
+    };
+  }
+
+  const response = await fetch(`${SEVDESK_API_URL}/Voucher/Factory/saveVoucher`, {
+    method: 'POST',
+    headers: {
+      'Authorization': apiToken,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(voucherPayload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to create voucher: ${errorText}`);
+  }
+
+  const data = await response.json();
+  return {
+    voucherId: data.objects?.voucher?.id?.toString() || '',
   };
 }
 

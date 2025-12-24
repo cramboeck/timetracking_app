@@ -662,6 +662,135 @@ router.get('/quotes/:id', authenticateToken, requireBillingFeature, async (req: 
 });
 
 // ============================================
+// Voucher (Beleg) Routes
+// ============================================
+
+// GET /api/sevdesk/vouchers - Get vouchers from sevDesk
+router.get('/vouchers', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const limit = parseInt(req.query.limit as string) || 500;
+    const creditDebit = req.query.creditDebit as 'C' | 'D' | undefined;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk not configured' });
+    }
+
+    const vouchers = await sevdeskService.getVouchers(config.apiToken, {
+      limit,
+      creditDebit,
+    });
+
+    res.json({
+      success: true,
+      data: vouchers,
+    });
+  } catch (error: any) {
+    console.error('Get vouchers error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/vouchers/:id - Get single voucher
+router.get('/vouchers/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const voucherId = req.params.id;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk not configured' });
+    }
+
+    const voucher = await sevdeskService.getVoucherDetail(config.apiToken, voucherId);
+    if (!voucher) {
+      return res.status(404).json({ success: false, error: 'Voucher not found' });
+    }
+
+    res.json({
+      success: true,
+      data: voucher,
+    });
+  } catch (error: any) {
+    console.error('Get voucher detail error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/vouchers/upload - Upload a voucher file
+router.post('/vouchers/upload', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk not configured' });
+    }
+
+    // Check if file data is provided (base64 encoded)
+    const { fileData, filename, mimeType } = req.body;
+    if (!fileData || !filename) {
+      return res.status(400).json({ success: false, error: 'File data and filename required' });
+    }
+
+    // Convert base64 to buffer
+    const buffer = Buffer.from(fileData, 'base64');
+
+    const result = await sevdeskService.uploadVoucherFile(
+      config.apiToken,
+      buffer,
+      filename,
+      mimeType || 'application/pdf'
+    );
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Upload voucher file error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/vouchers/create - Create voucher from uploaded file
+router.post('/vouchers/create', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk not configured' });
+    }
+
+    const { fileId, voucherDate, description, supplierName, sumNet, sumGross, taxRate, creditDebit } = req.body;
+
+    if (!fileId || !voucherDate) {
+      return res.status(400).json({ success: false, error: 'fileId and voucherDate are required' });
+    }
+
+    const result = await sevdeskService.createVoucherFromFile(config.apiToken, fileId, {
+      voucherDate,
+      description,
+      supplierName,
+      sumNet: sumNet ? parseFloat(sumNet) : undefined,
+      sumGross: sumGross ? parseFloat(sumGross) : undefined,
+      taxRate: taxRate ? parseFloat(taxRate) : undefined,
+      creditDebit,
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Create voucher error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
 // Document Sync & Search Routes
 // ============================================
 

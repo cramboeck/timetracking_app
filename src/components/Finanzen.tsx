@@ -26,13 +26,13 @@ import {
   Database,
   CheckCircle,
 } from 'lucide-react';
-import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, DocumentSearchResult } from '../services/api';
+import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, DocumentSearchResult } from '../services/api';
 import { QuoteEditor } from './QuoteEditor';
 import { SevdeskSettings } from './SevdeskSettings';
 import { InvoiceCreationDialog } from './InvoiceCreationDialog';
 
 type FinanzenTab = 'billing' | 'documents' | 'settings';
-type DocumentType = 'invoices' | 'quotes';
+type DocumentType = 'invoices' | 'quotes' | 'vouchers';
 
 interface FinanzenProps {
   onBack?: () => void;
@@ -767,13 +767,13 @@ const BillingTab = () => {
 // ==================== Document Detail Modal ====================
 interface DocumentDetailProps {
   type: DocumentType;
-  document: SevdeskInvoice | SevdeskQuote;
+  document: SevdeskInvoice | SevdeskQuote | SevdeskVoucher;
   onClose: () => void;
 }
 
 const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
   const [loading, setLoading] = useState(true);
-  const [detail, setDetail] = useState<SevdeskInvoice | SevdeskQuote | null>(null);
+  const [detail, setDetail] = useState<SevdeskInvoice | SevdeskQuote | SevdeskVoucher | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedPositions, setExpandedPositions] = useState<Set<string>>(new Set());
 
@@ -797,9 +797,14 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
     try {
       setLoading(true);
       setError(null);
-      const response = type === 'invoices'
-        ? await sevdeskApi.getInvoice(document.id)
-        : await sevdeskApi.getQuote(document.id);
+      let response;
+      if (type === 'invoices') {
+        response = await sevdeskApi.getInvoice(document.id);
+      } else if (type === 'quotes') {
+        response = await sevdeskApi.getQuote(document.id);
+      } else {
+        response = await sevdeskApi.getVoucher(document.id);
+      }
       setDetail(response.data);
     } catch (err: any) {
       setError(err.message || 'Fehler beim Laden des Dokuments');
@@ -822,7 +827,12 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
       <div className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {type === 'invoices' ? 'Rechnung' : 'Angebot'} {type === 'invoices' ? (document as SevdeskInvoice).invoiceNumber : (document as SevdeskQuote).quoteNumber}
+            {type === 'invoices' ? 'Rechnung' : type === 'quotes' ? 'Angebot' : 'Beleg'}{' '}
+            {type === 'invoices'
+              ? (document as SevdeskInvoice).invoiceNumber
+              : type === 'quotes'
+              ? (document as SevdeskQuote).quoteNumber
+              : (document as SevdeskVoucher).voucherNumber || (document as SevdeskVoucher).description}
           </h3>
           <button
             onClick={onClose}
@@ -846,36 +856,92 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
             <div className="space-y-4">
               {/* Header Info */}
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400">Kunde:</span>
-                  <p className="font-medium text-gray-900 dark:text-white">{detail.contact.name}</p>
-                </div>
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400">Datum:</span>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {formatDate(type === 'invoices' ? (detail as SevdeskInvoice).invoiceDate : (detail as SevdeskQuote).quoteDate)}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400">Status:</span>
-                  <p className="font-medium text-gray-900 dark:text-white">{detail.statusName}</p>
-                </div>
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400">Betrag:</span>
-                  <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(detail.sumGross)}</p>
-                </div>
+                {type === 'vouchers' ? (
+                  <>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Lieferant:</span>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {(detail as SevdeskVoucher).supplier?.name || 'Nicht angegeben'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Datum:</span>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {formatDate((detail as SevdeskVoucher).voucherDate)}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Status:</span>
+                      <p className="font-medium text-gray-900 dark:text-white">{detail.statusName}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Betrag:</span>
+                      <p className={`font-medium ${(detail as SevdeskVoucher).creditDebit === 'C' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                        {(detail as SevdeskVoucher).creditDebit === 'C' ? '+' : '-'}{formatCurrency(detail.sumGross)}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Netto:</span>
+                      <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(detail.sumNet)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">MwSt ({(detail as SevdeskVoucher).taxRate}%):</span>
+                      <p className="font-medium text-gray-900 dark:text-white">{formatCurrency((detail as SevdeskVoucher).sumTax)}</p>
+                    </div>
+                    {(detail as SevdeskVoucher).paidAt && (
+                      <div className="col-span-2">
+                        <span className="text-gray-500 dark:text-gray-400">Bezahlt am:</span>
+                        <p className="font-medium text-green-600 dark:text-green-400">
+                          {formatDate((detail as SevdeskVoucher).paidAt!)}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Kunde:</span>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {(detail as SevdeskInvoice | SevdeskQuote).contact.name}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Datum:</span>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {formatDate(type === 'invoices' ? (detail as SevdeskInvoice).invoiceDate : (detail as SevdeskQuote).quoteDate)}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Status:</span>
+                      <p className="font-medium text-gray-900 dark:text-white">{detail.statusName}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Betrag:</span>
+                      <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(detail.sumGross)}</p>
+                    </div>
+                  </>
+                )}
               </div>
 
-              {/* Header Text */}
-              {detail.header && (
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400 text-sm">Betreff:</span>
-                  <p className="text-gray-900 dark:text-white">{detail.header}</p>
-                </div>
+              {/* Header Text / Description */}
+              {type === 'vouchers' ? (
+                (detail as SevdeskVoucher).description && (
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400 text-sm">Beschreibung:</span>
+                    <p className="text-gray-900 dark:text-white">{(detail as SevdeskVoucher).description}</p>
+                  </div>
+                )
+              ) : (
+                (detail as SevdeskInvoice | SevdeskQuote).header && (
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400 text-sm">Betreff:</span>
+                    <p className="text-gray-900 dark:text-white">{(detail as SevdeskInvoice | SevdeskQuote).header}</p>
+                  </div>
+                )
               )}
 
-              {/* Positions */}
-              {detail.positions && detail.positions.length > 0 && (
+              {/* Positions - only for invoices and quotes */}
+              {type !== 'vouchers' && (detail as SevdeskInvoice | SevdeskQuote).positions && (detail as SevdeskInvoice | SevdeskQuote).positions.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Positionen</h4>
                   <div className="bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden">
@@ -890,7 +956,7 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                         </tr>
                       </thead>
                       <tbody>
-                        {detail.positions.map((pos) => {
+                        {(detail as SevdeskInvoice | SevdeskQuote).positions.map((pos) => {
                           const isExpanded = expandedPositions.has(pos.id);
                           const hasText = pos.text && pos.text.trim().length > 0;
                           const isHeading = pos.quantity === 0;
@@ -939,23 +1005,25 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                 </div>
               )}
 
-              {/* Totals */}
-              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">Netto:</span>
-                  <span className="text-gray-900 dark:text-white">{formatCurrency(detail.sumNet)}</span>
-                </div>
-                {type === 'invoices' && (
+              {/* Totals - only for invoices and quotes (vouchers show this info in header) */}
+              {type !== 'vouchers' && (
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500 dark:text-gray-400">MwSt:</span>
-                    <span className="text-gray-900 dark:text-white">{formatCurrency((detail as SevdeskInvoice).sumTax)}</span>
+                    <span className="text-gray-500 dark:text-gray-400">Netto:</span>
+                    <span className="text-gray-900 dark:text-white">{formatCurrency(detail.sumNet)}</span>
                   </div>
-                )}
-                <div className="flex justify-between font-semibold mt-2">
-                  <span className="text-gray-900 dark:text-white">Brutto:</span>
-                  <span className="text-gray-900 dark:text-white">{formatCurrency(detail.sumGross)}</span>
+                  {type === 'invoices' && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500 dark:text-gray-400">MwSt:</span>
+                      <span className="text-gray-900 dark:text-white">{formatCurrency((detail as SevdeskInvoice).sumTax)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-semibold mt-2">
+                    <span className="text-gray-900 dark:text-white">Brutto:</span>
+                    <span className="text-gray-900 dark:text-white">{formatCurrency(detail.sumGross)}</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ) : (
             <p className="text-gray-500 dark:text-gray-400 text-center py-8">
@@ -975,8 +1043,9 @@ const DocumentsTab = () => {
   const [error, setError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<SevdeskInvoice[]>([]);
   const [quotes, setQuotes] = useState<SevdeskQuote[]>([]);
+  const [vouchers, setVouchers] = useState<SevdeskVoucher[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDocument, setSelectedDocument] = useState<{ type: DocumentType; doc: SevdeskInvoice | SevdeskQuote } | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<{ type: DocumentType; doc: SevdeskInvoice | SevdeskQuote | SevdeskVoucher } | null>(null);
 
   // Sync state
   const [syncStatus, setSyncStatus] = useState<{ lastSync: string | null; invoiceCount: number; quoteCount: number } | null>(null);
@@ -1001,13 +1070,15 @@ const DocumentsTab = () => {
       setLoading(true);
       setError(null);
 
-      const [invoicesRes, quotesRes] = await Promise.all([
+      const [invoicesRes, quotesRes, vouchersRes] = await Promise.all([
         sevdeskApi.getInvoices({ limit: 500 }),
         sevdeskApi.getQuotes({ limit: 500 }),
+        sevdeskApi.getVouchers({ limit: 500 }),
       ]);
 
       setInvoices(invoicesRes.data || []);
       setQuotes(quotesRes.data || []);
+      setVouchers(vouchersRes.data || []);
     } catch (err: any) {
       setError(err.message || 'Fehler beim Laden der Dokumente');
     } finally {
@@ -1112,6 +1183,21 @@ const DocumentsTab = () => {
     quote.header?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredVouchers = vouchers.filter(voucher =>
+    voucher.voucherNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    voucher.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    voucher.supplier?.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getVoucherStatusColor = (status: number) => {
+    switch (status) {
+      case 50: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+      case 100: return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+      case 1000: return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Header with Actions */}
@@ -1193,10 +1279,10 @@ const DocumentsTab = () => {
       )}
 
       {/* Document Type Tabs */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700">
+      <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
         <button
           onClick={() => setActiveDocType('invoices')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
             activeDocType === 'invoices'
               ? 'border-accent-primary text-accent-primary'
               : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
@@ -1207,7 +1293,7 @@ const DocumentsTab = () => {
         </button>
         <button
           onClick={() => setActiveDocType('quotes')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
             activeDocType === 'quotes'
               ? 'border-accent-primary text-accent-primary'
               : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
@@ -1215,6 +1301,17 @@ const DocumentsTab = () => {
         >
           <FileText size={18} />
           Angebote ({quotes.length})
+        </button>
+        <button
+          onClick={() => setActiveDocType('vouchers')}
+          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
+            activeDocType === 'vouchers'
+              ? 'border-accent-primary text-accent-primary'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+          }`}
+        >
+          <CreditCard size={18} />
+          Belege ({vouchers.length})
         </button>
       </div>
 
@@ -1371,7 +1468,8 @@ const DocumentsTab = () => {
       ) : (
         /* Live Mode - Direct from sevDesk */
         <div className="space-y-2">
-          {activeDocType === 'invoices' ? (
+          {/* Invoices Tab */}
+          {activeDocType === 'invoices' && (
             filteredInvoices.length === 0 ? (
               <p className="text-center py-8 text-gray-500 dark:text-gray-400">
                 Keine Rechnungen gefunden
@@ -1411,7 +1509,10 @@ const DocumentsTab = () => {
                 </div>
               ))
             )
-          ) : (
+          )}
+
+          {/* Quotes Tab */}
+          {activeDocType === 'quotes' && (
             filteredQuotes.length === 0 ? (
               <div className="text-center py-8">
                 <FileText size={32} className="mx-auto mb-2 text-gray-400" />
@@ -1452,6 +1553,55 @@ const DocumentsTab = () => {
                     </p>
                     <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(quote.quoteDate)}
+                    </p>
+                  </div>
+                  <ChevronRight size={18} className="text-gray-400 flex-shrink-0 hidden sm:block" />
+                </div>
+              ))
+            )
+          )}
+
+          {/* Vouchers Tab */}
+          {activeDocType === 'vouchers' && (
+            filteredVouchers.length === 0 ? (
+              <div className="text-center py-8">
+                <CreditCard size={32} className="mx-auto mb-2 text-gray-400" />
+                <p className="text-gray-500 dark:text-gray-400">Keine Belege gefunden</p>
+              </div>
+            ) : (
+              filteredVouchers.map((voucher) => (
+                <div
+                  key={voucher.id}
+                  onClick={() => setSelectedDocument({ type: 'vouchers', doc: voucher })}
+                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                >
+                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex-shrink-0 hidden sm:block">
+                    <CreditCard size={20} className="text-gray-500 dark:text-gray-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
+                        {voucher.voucherNumber || voucher.description || `Beleg #${voucher.id}`}
+                      </span>
+                      <span className={`px-2 py-0.5 text-xs rounded-full ${getVoucherStatusColor(voucher.status)}`}>
+                        {voucher.statusName}
+                      </span>
+                      {voucher.creditDebit === 'C' && (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                          Gutschrift
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
+                      {voucher.supplier?.name || voucher.description || 'Kein Lieferant'}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className={`font-medium text-sm sm:text-base ${voucher.creditDebit === 'C' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                      {voucher.creditDebit === 'C' ? '+' : '-'}{formatCurrency(voucher.sumGross)}
+                    </p>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                      {formatDate(voucher.voucherDate)}
                     </p>
                   </div>
                   <ChevronRight size={18} className="text-gray-400 flex-shrink-0 hidden sm:block" />

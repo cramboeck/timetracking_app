@@ -1794,6 +1794,31 @@ export interface SevdeskQuote {
   }>;
 }
 
+export interface SevdeskVoucher {
+  id: string;
+  voucherNumber: string;
+  voucherDate: string;
+  description: string;
+  status: number;
+  statusName: string;
+  voucherType: string;
+  creditDebit: string;
+  supplier: {
+    id: string;
+    name: string;
+  } | null;
+  sumNet: number;
+  sumGross: number;
+  sumTax: number;
+  taxRate: number;
+  currency: string;
+  paidAt: string | null;
+  document: {
+    id: string;
+    filename: string;
+  } | null;
+}
+
 export interface DocumentSearchResult {
   id: string;
   sevdeskId: string;
@@ -2055,6 +2080,48 @@ export const sevdeskApi = {
   // Get single quote with positions
   getQuote: async (id: string): Promise<{ success: boolean; data: SevdeskQuote }> => {
     return authFetch(`/sevdesk/quotes/${id}`);
+  },
+
+  // Get vouchers from sevDesk
+  getVouchers: async (options?: {
+    limit?: number;
+    creditDebit?: 'C' | 'D';
+  }): Promise<{ success: boolean; data: SevdeskVoucher[] }> => {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.creditDebit) params.append('creditDebit', options.creditDebit);
+    const queryString = params.toString();
+    return authFetch(`/sevdesk/vouchers${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get single voucher
+  getVoucher: async (id: string): Promise<{ success: boolean; data: SevdeskVoucher }> => {
+    return authFetch(`/sevdesk/vouchers/${id}`);
+  },
+
+  // Upload voucher file
+  uploadVoucherFile: async (fileData: string, filename: string, mimeType: string): Promise<{ success: boolean; data: { id: string; filename: string } }> => {
+    return authFetch('/sevdesk/vouchers/upload', {
+      method: 'POST',
+      body: JSON.stringify({ fileData, filename, mimeType }),
+    });
+  },
+
+  // Create voucher from uploaded file
+  createVoucher: async (data: {
+    fileId: string;
+    voucherDate: string;
+    description?: string;
+    supplierName?: string;
+    sumNet?: number;
+    sumGross?: number;
+    taxRate?: number;
+    creditDebit?: 'C' | 'D';
+  }): Promise<{ success: boolean; data: { voucherId: string } }> => {
+    return authFetch('/sevdesk/vouchers/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 
   // Document Sync & Search
