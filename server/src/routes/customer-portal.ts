@@ -2335,10 +2335,43 @@ router.get('/debug/contact-status', async (req, res) => {
       [email]
     );
 
+    // Try to read security log for recent login attempts
+    let recentLoginAttempts: string[] = [];
+    try {
+      const logPath = process.env.SECURITY_LOG_PATH || path.join(__dirname, '../../logs/security.log');
+      if (fs.existsSync(logPath)) {
+        const logContent = fs.readFileSync(logPath, 'utf-8');
+        const lines = logContent.split('\n').filter(line => line.includes(`portal:${email.toLowerCase()}`));
+        recentLoginAttempts = lines.slice(-10); // Last 10 entries for this email
+      }
+    } catch (logError) {
+      console.error('Could not read security log:', logError);
+    }
+
+    // Check audit logs for this contact
+    let auditLogs: any[] = [];
+    if (result.rows.length > 0) {
+      try {
+        const auditResult = await pool.query(
+          `SELECT action, details, created_at, ip_address
+           FROM audit_logs
+           WHERE details LIKE $1 OR details LIKE $2
+           ORDER BY created_at DESC
+           LIMIT 10`,
+          [`%${result.rows[0].id}%`, `%${email}%`]
+        );
+        auditLogs = auditResult.rows;
+      } catch (auditError) {
+        console.error('Could not read audit logs:', auditError);
+      }
+    }
+
     if (result.rows.length === 0) {
       return res.json({
         found: false,
-        message: `No contact found with email: ${email}`
+        message: `No contact found with email: ${email}`,
+        recentLoginAttempts,
+        auditLogs
       });
     }
 
@@ -2357,7 +2390,9 @@ router.get('/debug/contact-status', async (req, res) => {
         lastLogin: contact.last_login,
         createdAt: contact.created_at,
         canLogin: contact.has_password === true
-      }
+      },
+      recentLoginAttempts,
+      auditLogs
     });
   } catch (error) {
     console.error('Debug contact status error:', error);
