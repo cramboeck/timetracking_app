@@ -214,8 +214,11 @@ export async function testConnection(apiToken: string): Promise<{ success: boole
 }
 
 // Get customers from sevDesk
-export async function getSevdeskCustomers(apiToken: string): Promise<SevdeskCustomer[]> {
-  const response = await sevdeskFetch(apiToken, '/Contact?depth=1&embed=category');
+// sevDesk category IDs: 3 = Customer, 4 = Supplier, 28 = Partner
+export async function getSevdeskCustomers(apiToken: string, options?: { includeSuppliers?: boolean }): Promise<SevdeskCustomer[]> {
+  // By default, only fetch customers (category 3), not suppliers
+  const categoryFilter = options?.includeSuppliers ? '' : '&category[id]=3&category[objectName]=Category';
+  const response = await sevdeskFetch(apiToken, `/Contact?depth=1&embed=category${categoryFilter}`);
 
   return (response.objects || []).map((contact: any) => ({
     id: contact.id,
