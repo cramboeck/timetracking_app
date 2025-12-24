@@ -25,6 +25,9 @@ import {
   RefreshCw,
   Database,
   CheckCircle,
+  Upload,
+  Camera,
+  X,
 } from 'lucide-react';
 import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, DocumentSearchResult } from '../services/api';
 import { QuoteEditor } from './QuoteEditor';
@@ -1060,6 +1063,9 @@ const DocumentsTab = () => {
   // Quote Editor
   const [showQuoteEditor, setShowQuoteEditor] = useState(false);
 
+  // Voucher Upload
+  const [showVoucherUpload, setShowVoucherUpload] = useState(false);
+
   useEffect(() => {
     loadDocuments();
     loadSyncStatus();
@@ -1226,6 +1232,16 @@ const DocumentsTab = () => {
           >
             <Plus size={14} />
             <span className="hidden xs:inline sm:inline">Angebot</span>
+          </button>
+
+          {/* New Voucher Button */}
+          <button
+            onClick={() => setShowVoucherUpload(true)}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            title="Neuen Beleg hochladen"
+          >
+            <Camera size={14} />
+            <span className="hidden xs:inline sm:inline">Beleg</span>
           </button>
 
           {/* Sync Button */}
@@ -1632,6 +1648,386 @@ const DocumentsTab = () => {
           }}
         />
       )}
+
+      {/* Voucher Upload Modal */}
+      {showVoucherUpload && (
+        <VoucherUploadDialog
+          onClose={() => setShowVoucherUpload(false)}
+          onSuccess={() => {
+            setShowVoucherUpload(false);
+            loadDocuments();
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// ==================== Voucher Upload Dialog ====================
+interface VoucherUploadDialogProps {
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<'upload' | 'details'>('upload');
+
+  // Form fields
+  const [voucherDate, setVoucherDate] = useState(new Date().toISOString().split('T')[0]);
+  const [description, setDescription] = useState('');
+  const [supplierName, setSupplierName] = useState('');
+  const [sumGross, setSumGross] = useState('');
+  const [taxRate, setTaxRate] = useState('19');
+  const [creditDebit, setCreditDebit] = useState<'C' | 'D'>('D');
+
+  const handleFileSelect = (selectedFile: File) => {
+    if (!selectedFile.type.match(/^(image\/(jpeg|png|gif|webp)|application\/pdf)$/)) {
+      setError('Nur Bilder (JPG, PNG, GIF, WebP) oder PDF-Dateien sind erlaubt');
+      return;
+    }
+
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      setError('Datei darf maximal 10 MB groß sein');
+      return;
+    }
+
+    setFile(selectedFile);
+    setError(null);
+
+    // Create preview for images
+    if (selectedFile.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => setPreview(e.target?.result as string);
+      reader.readAsDataURL(selectedFile);
+    } else {
+      setPreview(null);
+    }
+
+    setStep('details');
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) {
+      handleFileSelect(droppedFile);
+    }
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      handleFileSelect(selectedFile);
+    }
+  };
+
+  const calculateNet = () => {
+    const gross = parseFloat(sumGross) || 0;
+    const tax = parseFloat(taxRate) || 0;
+    return gross / (1 + tax / 100);
+  };
+
+  const handleSubmit = async () => {
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      setError(null);
+
+      // Convert file to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Remove data:mimetype;base64, prefix
+          const base64 = result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(file);
+      const fileData = await base64Promise;
+
+      // Upload file to sevDesk
+      const uploadResult = await sevdeskApi.uploadVoucherFile(fileData, file.name, file.type);
+
+      if (!uploadResult.success || !uploadResult.data.id) {
+        throw new Error('Datei konnte nicht hochgeladen werden');
+      }
+
+      // Create voucher with the uploaded file
+      const createResult = await sevdeskApi.createVoucher({
+        fileId: uploadResult.data.id,
+        voucherDate,
+        description: description || file.name,
+        supplierName: supplierName || undefined,
+        sumNet: calculateNet(),
+        sumGross: parseFloat(sumGross) || undefined,
+        taxRate: parseFloat(taxRate) || 19,
+        creditDebit,
+      });
+
+      if (!createResult.success) {
+        throw new Error('Beleg konnte nicht erstellt werden');
+      }
+
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Hochladen');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {step === 'upload' ? 'Beleg hochladen' : 'Beleg-Details'}
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-4 overflow-y-auto max-h-[70vh]">
+          {error && (
+            <div className="mb-4 flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
+              <AlertTriangle size={16} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {step === 'upload' ? (
+            /* Upload Step */
+            <div
+              onDrop={handleDrop}
+              onDragOver={(e) => e.preventDefault()}
+              className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center hover:border-accent-primary transition-colors cursor-pointer"
+            >
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={handleFileInput}
+                className="hidden"
+                id="voucher-file-input"
+              />
+              <label htmlFor="voucher-file-input" className="cursor-pointer">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="p-4 bg-gray-100 dark:bg-gray-700 rounded-full">
+                    <Camera size={32} className="text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="text-gray-900 dark:text-white font-medium">
+                      Foto aufnehmen oder Datei auswählen
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      Oder per Drag & Drop hier ablegen
+                    </p>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    JPG, PNG, GIF, WebP oder PDF • Max. 10 MB
+                  </p>
+                </div>
+              </label>
+            </div>
+          ) : (
+            /* Details Step */
+            <div className="space-y-4">
+              {/* File Preview */}
+              {file && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  {preview ? (
+                    <img src={preview} alt="Vorschau" className="w-16 h-16 object-cover rounded" />
+                  ) : (
+                    <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
+                      <FileText size={24} className="text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-white truncate">{file.name}</p>
+                    <p className="text-sm text-gray-500">
+                      {(file.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setFile(null);
+                      setPreview(null);
+                      setStep('upload');
+                    }}
+                    className="p-2 text-gray-400 hover:text-red-500"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
+
+              {/* Form Fields */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Belegdatum *
+                  </label>
+                  <input
+                    type="date"
+                    value={voucherDate}
+                    onChange={(e) => setVoucherDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Beschreibung
+                  </label>
+                  <input
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="z.B. Büromaterial, Tankquittung..."
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Lieferant
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierName}
+                    onChange={(e) => setSupplierName(e.target.value)}
+                    placeholder="Name des Lieferanten"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Brutto-Betrag *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={sumGross}
+                      onChange={(e) => setSumGross(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">€</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    MwSt-Satz
+                  </label>
+                  <select
+                    value={taxRate}
+                    onChange={(e) => setTaxRate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  >
+                    <option value="19">19%</option>
+                    <option value="7">7%</option>
+                    <option value="0">0%</option>
+                  </select>
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Art
+                  </label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={creditDebit === 'D'}
+                        onChange={() => setCreditDebit('D')}
+                        className="text-accent-primary"
+                      />
+                      <span className="text-gray-900 dark:text-white">Ausgabe</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={creditDebit === 'C'}
+                        onChange={() => setCreditDebit('C')}
+                        className="text-accent-primary"
+                      />
+                      <span className="text-gray-900 dark:text-white">Gutschrift</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary */}
+              {sumGross && (
+                <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Netto:</span>
+                    <span className="text-gray-900 dark:text-white">{formatCurrency(calculateNet())}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">MwSt ({taxRate}%):</span>
+                    <span className="text-gray-900 dark:text-white">
+                      {formatCurrency((parseFloat(sumGross) || 0) - calculateNet())}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-semibold pt-1 border-t border-gray-200 dark:border-gray-700">
+                    <span className="text-gray-900 dark:text-white">Brutto:</span>
+                    <span className={creditDebit === 'C' ? 'text-green-600' : 'text-gray-900 dark:text-white'}>
+                      {creditDebit === 'C' ? '+' : '-'}{formatCurrency(parseFloat(sumGross) || 0)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {step === 'details' && (
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+            <button
+              onClick={() => setStep('upload')}
+              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            >
+              Zurück
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={uploading || !file || !sumGross || !voucherDate}
+              className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Wird hochgeladen...
+                </>
+              ) : (
+                <>
+                  <Upload size={16} />
+                  Beleg erstellen
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
