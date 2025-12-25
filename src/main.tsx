@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App.tsx'
-// import { ErrorBoundary } from './components/ErrorBoundary.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import { ReportApprovalReview } from './components/ReportApprovalReview.tsx'
 import { CustomerPortal } from './components/portal/CustomerPortal.tsx'
 import MaintenanceApproval from './components/MaintenanceApproval.tsx'
@@ -33,26 +33,27 @@ initializeTheme();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {/* ErrorBoundary temporarily disabled for debugging */}
-    <BrowserRouter>
-      <AuthProvider>
-        <FeaturesProvider>
-          <Routes>
-            {/* Public route for report approval */}
-            <Route path="/approve/:token" element={<ReportApprovalReview />} />
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <FeaturesProvider>
+            <Routes>
+              {/* Public route for report approval */}
+              <Route path="/approve/:token" element={<ReportApprovalReview />} />
 
-            {/* Public route for maintenance approval */}
-            <Route path="/maintenance/approve/:token" element={<MaintenanceApproval />} />
+              {/* Public route for maintenance approval */}
+              <Route path="/maintenance/approve/:token" element={<MaintenanceApproval />} />
 
-            {/* Customer Portal (separate from main app) */}
-            <Route path="/portal" element={<CustomerPortal />} />
-            <Route path="/portal/activate" element={<CustomerPortal />} />
+              {/* Customer Portal (separate from main app) */}
+              <Route path="/portal" element={<CustomerPortal />} />
+              <Route path="/portal/activate" element={<CustomerPortal />} />
 
-            {/* Main app */}
-            <Route path="/*" element={<App />} />
-          </Routes>
-        </FeaturesProvider>
-      </AuthProvider>
-    </BrowserRouter>
+              {/* Main app */}
+              <Route path="/*" element={<App />} />
+            </Routes>
+          </FeaturesProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

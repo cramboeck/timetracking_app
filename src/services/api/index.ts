@@ -3,15 +3,23 @@
  * Re-exports all API modules for easy imports
  */
 
+// Import APIs used in default export
+import { authApi, mfaApi, passwordResetApi } from './auth';
+import { userApi, teamsApi, organizationsApi, featuresApi } from './user';
+import { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi } from './core';
+import { ticketsApi } from './tickets';
+import { customerPortalApi } from './portal';
+import { contractsApi, importApi, socialMediaApi } from './business';
+
 // Base utilities
 export { API_BASE_URL, getApiBaseUrl, getAuthToken, handleResponse, authFetch, authFetchMultipart } from './base';
 
 // Authentication API
-export { authApi, mfaApi, passwordResetApi } from './auth';
+export { authApi, mfaApi, passwordResetApi };
 export type { TrustedDevice } from './auth';
 
 // User API
-export { userApi, teamsApi, organizationsApi, featuresApi } from './user';
+export { userApi, teamsApi, organizationsApi, featuresApi };
 export type {
   Organization,
   OrganizationMember,
@@ -21,7 +29,7 @@ export type {
 } from './user';
 
 // Core API (entries, projects, customers, activities, tasks)
-export { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi } from './core';
+export { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi };
 export type { CreateTaskInput, UpdateTaskInput, SimilarTasksResponse } from './core';
 
 // Tickets API
