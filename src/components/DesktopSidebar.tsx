@@ -4,9 +4,10 @@ import {
   Ticket, Monitor, Bell, Wrench,
   BarChart3, Wallet, FileText, FileSignature, Share2,
   Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Shield
 } from 'lucide-react';
 import { useFeatures } from '../contexts/FeaturesContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Area, SubView } from './AreaNavigation';
 
 interface DesktopSidebarProps {
@@ -59,6 +60,8 @@ export const DesktopSidebar = ({
   onSubViewChange
 }: DesktopSidebarProps) => {
   const { hasPackage } = useFeatures();
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
     return saved === 'true';
@@ -178,6 +181,23 @@ export const DesktopSidebar = ({
 
       {/* Bottom Section */}
       <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+        {/* Admin Portal - only for admins */}
+        {isAdmin && (
+          <button
+            onClick={() => onSubViewChange('admin')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors mb-1
+              ${collapsed ? 'justify-center' : ''}
+              ${currentSubView === 'admin'
+                ? 'bg-purple-600 text-white'
+                : 'text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30'}
+            `}
+            title={collapsed ? 'Admin Portal' : undefined}
+          >
+            <Shield size={18} />
+            {!collapsed && <span className="text-sm">Admin Portal</span>}
+          </button>
+        )}
+
         {/* Settings */}
         <button
           onClick={() => onSubViewChange('settings')}

@@ -2,7 +2,7 @@ import {
   Clock, List, Calendar,
   Ticket, Monitor, Bell, Wrench,
   BarChart3, Wallet, FileText, FileSignature, Share2,
-  Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo
+  Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo, Shield
 } from 'lucide-react';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { DesktopSidebar } from './DesktopSidebar';
@@ -16,8 +16,8 @@ export type SubView =
   | 'tickets' | 'devices' | 'alerts' | 'maintenance'
   // Business
   | 'dashboard' | 'billing' | 'reports' | 'contracts' | 'social-media'
-  // Settings (special)
-  | 'settings';
+  // Settings & Admin (special)
+  | 'settings' | 'admin';
 
 interface AreaNavigationProps {
   currentArea: Area;

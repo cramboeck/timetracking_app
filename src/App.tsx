@@ -15,6 +15,7 @@ import MaintenanceView from './components/MaintenanceView';
 import TaskHub from './components/TaskHub';
 import Contracts from './components/Contracts';
 import SocialMediaManager from './components/SocialMediaManager';
+import AdminPortal from './components/AdminPortal';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
@@ -1047,6 +1048,9 @@ function App() {
             onDeleteActivity={handleDeleteActivity}
             onRefreshEntries={refreshEntries}
           />
+        )}
+        {currentSubView === 'admin' && (
+          <AdminPortal />
         )}
       </main>
 
