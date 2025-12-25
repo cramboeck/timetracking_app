@@ -6,6 +6,8 @@ import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import { ReportApprovalReview } from './components/ReportApprovalReview.tsx'
 import { CustomerPortal } from './components/portal/CustomerPortal.tsx'
 import MaintenanceApproval from './components/MaintenanceApproval.tsx'
+import AdminPortal from './components/AdminPortal.tsx'
+import AdminRoute from './components/AdminRoute.tsx'
 import { AuthProvider } from './contexts/AuthContext.tsx'
 import { FeaturesProvider } from './contexts/FeaturesContext.tsx'
 import { accentColor } from './utils/accentColor.ts'
@@ -47,6 +49,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               {/* Customer Portal (separate from main app) */}
               <Route path="/portal" element={<CustomerPortal />} />
               <Route path="/portal/activate" element={<CustomerPortal />} />
+
+              {/* Admin Portal (separate from main app, with auth) */}
+              <Route path="/admin" element={<AdminRoute />} />
 
               {/* Main app */}
               <Route path="/*" element={<App />} />
