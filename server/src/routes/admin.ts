@@ -613,4 +613,204 @@ router.delete('/maintenance/bulk', async (req: AuthRequest, res) => {
   }
 });
 
+// ============================================
+// FEATURE MANAGEMENT
+// ============================================
+
+// Package definitions (mirrored from features.ts)
+const PACKAGES = {
+  support: {
+    name: 'support',
+    label: 'Support Paket',
+    description: 'Tickets, Geräte/NinjaRMM, Alerts',
+    features: ['tickets', 'devices', 'alerts', 'customer_portal_admin'],
+  },
+  business: {
+    name: 'business',
+    label: 'Business Paket',
+    description: 'Dashboard, Finanzen, sevDesk, Berichte',
+    features: ['dashboard_advanced', 'billing', 'sevdesk', 'reports'],
+  },
+} as const;
+
+// GET /api/admin/features - Get all users with their feature packages
+router.get('/features', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const search = req.query.search as string || '';
+    const offset = (page - 1) * limit;
+
+    let query = `
+      SELECT
+        u.id, u.username, u.email, u.account_type, u.created_at,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'packageName', fp.package_name,
+              'enabled', fp.enabled,
+              'enabledAt', fp.enabled_at,
+              'expiresAt', fp.expires_at
+            )
+          ) FILTER (WHERE fp.id IS NOT NULL),
+          '[]'
+        ) as packages
+      FROM users u
+      LEFT JOIN feature_packages fp ON u.id = fp.user_id
+    `;
+
+    const params: any[] = [];
+    let paramCount = 0;
+
+    if (search) {
+      paramCount++;
+      query += ` WHERE (u.username ILIKE $${paramCount} OR u.email ILIKE $${paramCount})`;
+      params.push(`%${search}%`);
+    }
+
+    query += ` GROUP BY u.id ORDER BY u.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
+
+    // Get total count
+    let countQuery = 'SELECT COUNT(*) as count FROM users';
+    const countParams: any[] = [];
+    if (search) {
+      countQuery += ' WHERE (username ILIKE $1 OR email ILIKE $1)';
+      countParams.push(`%${search}%`);
+    }
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      users: result.rows,
+      packages: Object.values(PACKAGES),
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching features:', error);
+    res.status(500).json({ error: 'Failed to fetch features' });
+  }
+});
+
+// PUT /api/admin/features/:userId/:packageName - Enable/disable package for user
+router.put('/features/:userId/:packageName', async (req: AuthRequest, res) => {
+  try {
+    const { userId, packageName } = req.params;
+    const { enabled, expiresAt } = req.body;
+
+    // Validate package name
+    if (!PACKAGES[packageName as keyof typeof PACKAGES]) {
+      return res.status(400).json({ error: 'Invalid package name' });
+    }
+
+    // Check if user exists
+    const userResult = await pool.query('SELECT id, username FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (enabled) {
+      // Enable package - upsert
+      await pool.query(
+        `INSERT INTO feature_packages (id, user_id, package_name, enabled, enabled_at, expires_at)
+         VALUES ($1, $2, $3, true, NOW(), $4)
+         ON CONFLICT (user_id, package_name)
+         DO UPDATE SET enabled = true, enabled_at = NOW(), expires_at = $4`,
+        [crypto.randomUUID(), userId, packageName, expiresAt || null]
+      );
+    } else {
+      // Disable package
+      await pool.query(
+        `UPDATE feature_packages SET enabled = false WHERE user_id = $1 AND package_name = $2`,
+        [userId, packageName]
+      );
+    }
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'features.update',
+      details: JSON.stringify({
+        targetUserId: userId,
+        targetUsername: userResult.rows[0].username,
+        packageName,
+        enabled,
+        expiresAt
+      }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, message: `Package ${packageName} ${enabled ? 'enabled' : 'disabled'} for user` });
+  } catch (error) {
+    console.error('Error updating feature:', error);
+    res.status(500).json({ error: 'Failed to update feature' });
+  }
+});
+
+// POST /api/admin/features/bulk - Bulk enable/disable package for multiple users
+router.post('/features/bulk', async (req: AuthRequest, res) => {
+  try {
+    const { userIds, packageName, enabled, expiresAt } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: 'userIds must be a non-empty array' });
+    }
+
+    if (!PACKAGES[packageName as keyof typeof PACKAGES]) {
+      return res.status(400).json({ error: 'Invalid package name' });
+    }
+
+    let updatedCount = 0;
+
+    for (const userId of userIds) {
+      if (enabled) {
+        await pool.query(
+          `INSERT INTO feature_packages (id, user_id, package_name, enabled, enabled_at, expires_at)
+           VALUES ($1, $2, $3, true, NOW(), $4)
+           ON CONFLICT (user_id, package_name)
+           DO UPDATE SET enabled = true, enabled_at = NOW(), expires_at = $4`,
+          [crypto.randomUUID(), userId, packageName, expiresAt || null]
+        );
+      } else {
+        await pool.query(
+          `UPDATE feature_packages SET enabled = false WHERE user_id = $1 AND package_name = $2`,
+          [userId, packageName]
+        );
+      }
+      updatedCount++;
+    }
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'features.bulk_update',
+      details: JSON.stringify({
+        userCount: updatedCount,
+        packageName,
+        enabled,
+        expiresAt
+      }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      updatedCount,
+      message: `Package ${packageName} ${enabled ? 'enabled' : 'disabled'} for ${updatedCount} users`
+    });
+  } catch (error) {
+    console.error('Error bulk updating features:', error);
+    res.status(500).json({ error: 'Failed to bulk update features' });
+  }
+});
+
 export default router;

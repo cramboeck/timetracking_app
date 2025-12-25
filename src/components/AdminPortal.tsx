@@ -11,7 +11,10 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  Database
+  Database,
+  Package,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 import { adminApi } from '../services/adminApi';
 import { useAuth } from '../contexts/AuthContext';
@@ -43,7 +46,30 @@ interface AuditLog {
   createdAt: string;
 }
 
-type AdminTab = 'dashboard' | 'users' | 'audit';
+interface FeaturePackage {
+  packageName: string;
+  enabled: boolean;
+  enabledAt: string | null;
+  expiresAt: string | null;
+}
+
+interface FeatureUser {
+  id: string;
+  username: string;
+  email: string;
+  account_type: string;
+  created_at: string;
+  packages: FeaturePackage[];
+}
+
+interface PackageDefinition {
+  name: string;
+  label: string;
+  description: string;
+  features: string[];
+}
+
+type AdminTab = 'dashboard' | 'users' | 'features' | 'audit';
 
 export default function AdminPortal() {
   const { currentUser } = useAuth();
@@ -66,6 +92,14 @@ export default function AdminPortal() {
   const [auditPage, setAuditPage] = useState(1);
   const [auditTotalPages, setAuditTotalPages] = useState(1);
   const [auditLoading, setAuditLoading] = useState(false);
+
+  // Features state
+  const [featureUsers, setFeatureUsers] = useState<FeatureUser[]>([]);
+  const [packageDefinitions, setPackageDefinitions] = useState<PackageDefinition[]>([]);
+  const [featuresPage, setFeaturesPage] = useState(1);
+  const [featuresTotalPages, setFeaturesTotalPages] = useState(1);
+  const [featuresSearch, setFeaturesSearch] = useState('');
+  const [featuresLoading, setFeaturesLoading] = useState(false);
 
   // Check if user is admin
   const isAdmin = currentUser?.role === 'admin';
@@ -155,6 +189,46 @@ export default function AdminPortal() {
 
     loadAuditLogs();
   }, [activeTab, auditPage, isAdmin]);
+
+  // Load features when tab changes or search/page changes
+  useEffect(() => {
+    if (activeTab !== 'features' || !isAdmin) return;
+
+    const loadFeatures = async () => {
+      try {
+        setFeaturesLoading(true);
+        const response = await adminApi.getFeatures(featuresPage, 20, featuresSearch);
+        setFeatureUsers(response.users || []);
+        setPackageDefinitions(response.packages || []);
+        setFeaturesTotalPages(response.pagination?.pages || 1);
+      } catch (err: any) {
+        setError(err.message || 'Fehler beim Laden der Features');
+      } finally {
+        setFeaturesLoading(false);
+      }
+    };
+
+    const debounce = setTimeout(loadFeatures, featuresSearch ? 300 : 0);
+    return () => clearTimeout(debounce);
+  }, [activeTab, featuresPage, featuresSearch, isAdmin]);
+
+  // Handle feature toggle
+  const handleFeatureToggle = async (userId: string, packageName: string, currentlyEnabled: boolean) => {
+    try {
+      await adminApi.updateUserFeature(userId, packageName, !currentlyEnabled);
+      // Refresh the list
+      const response = await adminApi.getFeatures(featuresPage, 20, featuresSearch);
+      setFeatureUsers(response.users || []);
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Ändern des Features');
+    }
+  };
+
+  // Check if user has package enabled
+  const hasPackage = (user: FeatureUser, packageName: string): boolean => {
+    const pkg = user.packages?.find(p => p.packageName === packageName);
+    return pkg?.enabled || false;
+  };
 
   // Handle role change
   const handleRoleChange = async (userId: string, newRole: 'user' | 'admin') => {
@@ -257,6 +331,17 @@ export default function AdminPortal() {
           >
             <Users size={18} />
             Benutzer
+          </button>
+          <button
+            onClick={() => setActiveTab('features')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'features'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+            }`}
+          >
+            <Package size={18} />
+            Features
           </button>
           <button
             onClick={() => setActiveTab('audit')}
@@ -439,6 +524,136 @@ export default function AdminPortal() {
                   <button
                     onClick={() => setUsersPage(p => Math.min(usersTotalPages, p + 1))}
                     disabled={usersPage === usersTotalPages}
+                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                  >
+                    Weiter
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Features Tab */}
+        {activeTab === 'features' && (
+          <div className="space-y-4">
+            {/* Package Legend */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Verfügbare Pakete:</h3>
+              <div className="flex flex-wrap gap-4">
+                {packageDefinitions.map(pkg => (
+                  <div key={pkg.name} className="flex items-start gap-2">
+                    <div className={`w-3 h-3 rounded-full mt-1 ${
+                      pkg.name === 'support' ? 'bg-blue-500' : 'bg-green-500'
+                    }`} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-800 dark:text-white">{pkg.label}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{pkg.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                placeholder="Benutzer suchen..."
+                value={featuresSearch}
+                onChange={(e) => {
+                  setFeaturesSearch(e.target.value);
+                  setFeaturesPage(1);
+                }}
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Features Table */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {featuresLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="animate-spin text-purple-600" size={32} />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Benutzer</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account-Typ</th>
+                        {packageDefinitions.map(pkg => (
+                          <th key={pkg.name} className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {pkg.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {featureUsers.map(user => (
+                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <td className="px-4 py-3">
+                            <div>
+                              <p className="font-medium text-gray-800 dark:text-white">{user.username}</p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 text-xs font-medium rounded ${
+                              user.account_type === 'business'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                : user.account_type === 'team'
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                            }`}>
+                              {user.account_type}
+                            </span>
+                          </td>
+                          {packageDefinitions.map(pkg => (
+                            <td key={pkg.name} className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => handleFeatureToggle(user.id, pkg.name, hasPackage(user, pkg.name))}
+                                className={`p-1 rounded transition-colors ${
+                                  hasPackage(user, pkg.name)
+                                    ? 'text-green-600 hover:text-green-800 dark:text-green-400'
+                                    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500'
+                                }`}
+                                title={hasPackage(user, pkg.name) ? 'Deaktivieren' : 'Aktivieren'}
+                              >
+                                {hasPackage(user, pkg.name) ? (
+                                  <ToggleRight size={24} />
+                                ) : (
+                                  <ToggleLeft size={24} />
+                                )}
+                              </button>
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {featuresTotalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => setFeaturesPage(p => Math.max(1, p - 1))}
+                    disabled={featuresPage === 1}
+                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                  >
+                    <ChevronLeft size={16} />
+                    Zurück
+                  </button>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Seite {featuresPage} von {featuresTotalPages}
+                  </span>
+                  <button
+                    onClick={() => setFeaturesPage(p => Math.min(featuresTotalPages, p + 1))}
+                    disabled={featuresPage === featuresTotalPages}
                     className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
                   >
                     Weiter

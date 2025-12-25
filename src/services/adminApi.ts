@@ -78,5 +78,29 @@ export const adminApi = {
   // Analytics
   getAnalytics: async () => {
     return adminFetch('/admin/analytics');
+  },
+
+  // Feature Management
+  getFeatures: async (page: number = 1, limit: number = 50, search: string = '') => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...(search && { search })
+    });
+    return adminFetch(`/admin/features?${params}`);
+  },
+
+  updateUserFeature: async (userId: string, packageName: string, enabled: boolean, expiresAt?: string) => {
+    return adminFetch(`/admin/features/${userId}/${packageName}`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled, expiresAt })
+    });
+  },
+
+  bulkUpdateFeatures: async (userIds: string[], packageName: string, enabled: boolean, expiresAt?: string) => {
+    return adminFetch('/admin/features/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ userIds, packageName, enabled, expiresAt })
+    });
   }
 };
