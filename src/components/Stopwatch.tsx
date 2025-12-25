@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, Plus, Sparkles, Loader2 } from 'lucide-react';
+import { Play, Pause, Square, Plus, Sparkles, Loader2, Check } from 'lucide-react';
 import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,7 +7,7 @@ import { generateUUID } from '../utils/uuid';
 import { aiApi } from '../services/api';
 
 interface StopwatchProps {
-  onSave: (entry: TimeEntry) => void;
+  onSave: (entry: TimeEntry) => Promise<boolean> | void;
   runningEntry: TimeEntry | null;
   onUpdateRunning: (entry: TimeEntry) => void;
   projects: Project[];
@@ -32,6 +32,10 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const descriptionUpdateTimeoutRef = useRef<number | null>(null);
   // Ref to track if timer has been stopped - used to prevent stale debounced updates
   const isStoppedRef = useRef(false);
+
+  // Stop/Save state
+  const [isStopping, setIsStopping] = useState(false);
+  const [showStopSuccess, setShowStopSuccess] = useState(false);
 
   // AI state
   const [aiConfigured, setAiConfigured] = useState(false);
@@ -207,11 +211,12 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     setIsRunning(true);
   };
 
-  const handleStop = () => {
-    if (!startTimeRef.current || !currentUser) return;
+  const handleStop = async () => {
+    if (!startTimeRef.current || !currentUser || isStopping) return;
 
     // IMPORTANT: Mark as stopped FIRST to prevent any pending updates
     isStoppedRef.current = true;
+    setIsStopping(true);
 
     // Clear any pending description updates to prevent race conditions
     if (descriptionUpdateTimeoutRef.current) {
@@ -219,14 +224,21 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       descriptionUpdateTimeoutRef.current = null;
     }
 
+    // Stop the timer interval immediately for visual feedback
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
     const endTime = new Date().toISOString();
+    const finalDuration = elapsedSeconds;
 
     const entry: TimeEntry = {
       id: runningEntry?.id || generateUUID(),
       userId: currentUser.id,
       startTime: startTimeRef.current,
       endTime,
-      duration: elapsedSeconds, // Exact duration - rounding happens in reports
+      duration: finalDuration, // Exact duration - rounding happens in reports
       projectId,
       activityId: activityId || undefined,
       ticketId: ticketId || runningEntry?.ticketId || undefined,
@@ -235,15 +247,53 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       createdAt: runningEntry?.createdAt || startTimeRef.current,
     };
 
-    onSave(entry);
-    setIsRunning(false);
-    setElapsedSeconds(0);
-    startTimeRef.current = null;
-    setCustomerId('');
-    setProjectId('');
-    setActivityId('');
-    setTicketId(undefined);
-    setDescription('');
+    try {
+      console.log('🛑 [STOPWATCH] Stopping timer, saving entry:', entry.id);
+      const result = await onSave(entry);
+
+      // Check if save was successful (if onSave returns a boolean)
+      if (result === false) {
+        console.error('❌ [STOPWATCH] Save returned false, keeping timer state');
+        isStoppedRef.current = false;
+        setIsStopping(false);
+        // Restart the interval since save failed
+        if (!intervalRef.current) {
+          intervalRef.current = window.setInterval(() => {
+            setElapsedSeconds(prev => prev + 1);
+          }, 1000);
+        }
+        return;
+      }
+
+      console.log('✅ [STOPWATCH] Timer stopped and saved successfully');
+
+      // Show success feedback
+      setShowStopSuccess(true);
+      setTimeout(() => setShowStopSuccess(false), 2000);
+
+      // Reset all state after successful save
+      setIsRunning(false);
+      setElapsedSeconds(0);
+      startTimeRef.current = null;
+      setCustomerId('');
+      setProjectId('');
+      setActivityId('');
+      setTicketId(undefined);
+      setDescription('');
+    } catch (error) {
+      console.error('❌ [STOPWATCH] Error stopping timer:', error);
+      // Reset stopped flag on error
+      isStoppedRef.current = false;
+      // Restart the interval since save failed
+      if (!intervalRef.current) {
+        intervalRef.current = window.setInterval(() => {
+          setElapsedSeconds(prev => prev + 1);
+        }, 1000);
+      }
+      alert('Fehler beim Speichern. Bitte versuche es erneut.');
+    } finally {
+      setIsStopping(false);
+    }
   };
 
   const getProjectDisplay = (project: Project) => {
@@ -449,7 +499,17 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
           {/* Control Buttons */}
           <div className="flex flex-wrap gap-3 justify-center">
-            {!isRunning && elapsedSeconds === 0 && (
+            {/* Success feedback message */}
+            {showStopSuccess && (
+              <div className="w-full flex justify-center mb-2">
+                <div className="flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-medium animate-fade-in">
+                  <Check size={16} />
+                  Zeit erfolgreich gespeichert!
+                </div>
+              </div>
+            )}
+
+            {!isRunning && elapsedSeconds === 0 && !isStopping && (
               <button
                 onClick={handleStart}
                 className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
@@ -460,26 +520,41 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               </button>
             )}
 
-            {isRunning && (
+            {(isRunning || isStopping) && (
               <>
                 <button
                   onClick={handlePause}
-                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-yellow-500 text-white rounded-full font-semibold hover:bg-yellow-600 active:bg-yellow-700 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
+                  disabled={isStopping}
+                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-yellow-500 text-white rounded-full font-semibold hover:bg-yellow-600 active:bg-yellow-700 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Pause size={20} className="sm:w-6 sm:h-6" />
                   Pause
                 </button>
                 <button
                   onClick={handleStop}
-                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
+                  disabled={isStopping}
+                  className={`flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-white rounded-full font-semibold touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:cursor-not-allowed ${
+                    isStopping
+                      ? 'bg-red-400 cursor-wait'
+                      : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
+                  }`}
                 >
-                  <Square size={20} className="sm:w-6 sm:h-6" />
-                  Stop
+                  {isStopping ? (
+                    <>
+                      <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
+                      Speichere...
+                    </>
+                  ) : (
+                    <>
+                      <Square size={20} className="sm:w-6 sm:h-6" />
+                      Stop
+                    </>
+                  )}
                 </button>
               </>
             )}
 
-            {!isRunning && elapsedSeconds > 0 && (
+            {!isRunning && elapsedSeconds > 0 && !isStopping && (
               <>
                 <button
                   onClick={handleResume}
@@ -490,10 +565,24 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 </button>
                 <button
                   onClick={handleStop}
-                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
+                  disabled={isStopping}
+                  className={`flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-white rounded-full font-semibold touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:cursor-not-allowed ${
+                    isStopping
+                      ? 'bg-red-400 cursor-wait'
+                      : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
+                  }`}
                 >
-                  <Square size={20} className="sm:w-6 sm:h-6" />
-                  Stop
+                  {isStopping ? (
+                    <>
+                      <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
+                      Speichere...
+                    </>
+                  ) : (
+                    <>
+                      <Square size={20} className="sm:w-6 sm:h-6" />
+                      Stop
+                    </>
+                  )}
                 </button>
               </>
             )}

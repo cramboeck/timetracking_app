@@ -406,7 +406,7 @@ function App() {
   }, [currentUser, isAuthenticated, entries]);
 
   // Time Entry handlers (API-based)
-  const handleSaveEntry = async (entry: TimeEntry) => {
+  const handleSaveEntry = async (entry: TimeEntry): Promise<boolean> => {
     // Store the previous running entry for rollback on error
     const previousRunningEntry = runningEntry;
 
@@ -437,6 +437,8 @@ function App() {
         console.log('✅ [ENTRY] Entry created:', response);
         setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
       }
+
+      return true; // Success
     } catch (error) {
       console.error('❌ [ENTRY] Failed to save entry:', error);
       // Rollback: restore the running entry if the API call failed
@@ -444,6 +446,7 @@ function App() {
         console.log('🔄 [ENTRY] Rolling back running entry due to error');
         setRunningEntry(previousRunningEntry);
       }
+      return false; // Failed
     }
   };
 
