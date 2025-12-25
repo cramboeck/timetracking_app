@@ -97,6 +97,9 @@ export type AuditAction =
   // Admin maintenance actions
   | 'maintenance.admin_delete'
   | 'maintenance.admin_bulk_delete'
+  // Feature management actions
+  | 'features.update'
+  | 'features.bulk_update'
   // Import actions
   | 'import.clockodo';
 
