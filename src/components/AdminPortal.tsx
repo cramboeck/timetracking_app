@@ -78,7 +78,13 @@ export default function AdminPortal() {
       try {
         setLoading(true);
         const response = await adminApi.getStats();
-        setStats(response.data);
+        // Backend returns stats directly, not wrapped in data
+        setStats({
+          totalUsers: response.totalUsers,
+          activeUsers: response.activeUsers,
+          totalEntries: response.totalEntries,
+          totalProjects: response.totalProjects || 0
+        });
       } catch (err: any) {
         setError(err.message || 'Fehler beim Laden der Statistiken');
       } finally {
@@ -97,8 +103,18 @@ export default function AdminPortal() {
       try {
         setUsersLoading(true);
         const response = await adminApi.getUsers(usersPage, 20, usersSearch);
-        setUsers(response.data.users);
-        setUsersTotalPages(response.data.totalPages);
+        // Backend returns users directly with pagination object
+        const usersList = response.users || [];
+        setUsers(usersList.map((u: any) => ({
+          id: u.id,
+          username: u.username,
+          email: u.email,
+          role: u.role || 'user',
+          createdAt: u.created_at,
+          lastLoginAt: u.last_login,
+          entriesCount: u.entry_count || 0
+        })));
+        setUsersTotalPages(response.pagination?.pages || 1);
       } catch (err: any) {
         setError(err.message || 'Fehler beim Laden der Benutzer');
       } finally {
@@ -118,8 +134,18 @@ export default function AdminPortal() {
       try {
         setAuditLoading(true);
         const response = await adminApi.getAuditLogs(auditPage, 50);
-        setAuditLogs(response.data.logs);
-        setAuditTotalPages(response.data.totalPages);
+        // Backend returns logs directly with pagination object
+        const logsList = response.logs || [];
+        setAuditLogs(logsList.map((l: any) => ({
+          id: l.id,
+          userId: l.user_id,
+          username: l.username || 'Unbekannt',
+          action: l.action,
+          details: l.details,
+          ipAddress: l.ip_address || l.ipAddress || '-',
+          createdAt: l.timestamp || l.created_at
+        })));
+        setAuditTotalPages(response.pagination?.pages || 1);
       } catch (err: any) {
         setError(err.message || 'Fehler beim Laden der Audit-Logs');
       } finally {
