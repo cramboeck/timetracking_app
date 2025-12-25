@@ -88,12 +88,15 @@ export interface TeamInvitation {
   createdAt: string;
 }
 
+export type UserRole = 'user' | 'admin';
+
 export interface User {
   id: string;
   username: string;
   email: string;
   passwordHash: string;
   accountType: AccountType;
+  role: UserRole; // Admin or regular user
   organizationName?: string; // For business/team accounts
   customerNumber?: string; // User's customer number (e.g., RBF-000001)
   displayName?: string; // User's display name
