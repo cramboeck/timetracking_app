@@ -127,12 +127,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         darkMode.syncFromUser(user.darkMode);
         applyAccentColorToRoot(user.accentColor);
         console.log('✅ [INIT] Theme initialized:', { accentColor: user.accentColor, grayTone: user.grayTone, darkMode: user.darkMode });
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ [INIT] Failed to load user:', error);
 
         // Check if it's a network error - if so, use cached data
-        if (!navigator.onLine || (error instanceof TypeError && error.message.includes('fetch'))) {
-          console.log('📴 [INIT] Network error - using cached user data');
+        // Different browsers throw different errors when offline
+        const isNetworkError = !navigator.onLine ||
+          (error instanceof TypeError) ||
+          error.message?.includes('fetch') ||
+          error.message?.includes('network') ||
+          error.message?.includes('Failed to fetch') ||
+          error.name === 'TypeError';
+
+        if (isNetworkError) {
+          console.log('📴 [INIT] Network error detected - using cached user data');
           if (cachedUser) {
             setCurrentUser(cachedUser);
             accentColor.set(cachedUser.accentColor);
@@ -140,9 +148,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             darkMode.syncFromUser(cachedUser.darkMode);
             applyAccentColorToRoot(cachedUser.accentColor);
             console.log('✅ [INIT] Loaded from cache:', cachedUser.username);
+          } else {
+            console.log('⚠️ [INIT] No cached user available - please login when online');
           }
         } else {
-          // Only clear token if we're online and it's truly invalid
+          // Only clear token if we're online and it's truly invalid (e.g., 401 error)
           console.log('❌ [INIT] Token invalid, clearing...');
           localStorage.removeItem('auth_token');
           storage.setCurrentUser(null);
