@@ -2964,23 +2964,24 @@ export async function initializeDatabase() {
     // Fix NinjaRMM alert timestamps that were incorrectly stored (Unix seconds instead of milliseconds)
     // This updates alerts where activity_time is before 1980 (indicating a seconds-based timestamp was used)
     // and recalculates from the activityTime field in alert_data JSON
+    // Note: activityTime can be a decimal, so we use NUMERIC and TRUNC to handle it
     await client.query(`
       UPDATE ninjarmm_alerts
-      SET activity_time = to_timestamp(CAST((alert_data->>'activityTime') AS BIGINT) / 1000)
+      SET activity_time = to_timestamp(TRUNC(CAST((alert_data->>'activityTime') AS NUMERIC) / 1000))
       WHERE activity_time < '1980-01-01'
         AND alert_data IS NOT NULL
         AND alert_data->>'activityTime' IS NOT NULL
-        AND CAST((alert_data->>'activityTime') AS BIGINT) > 1000000000000
+        AND CAST((alert_data->>'activityTime') AS NUMERIC) > 1000000000000
     `);
     // Also handle case where activityTime is in seconds
     await client.query(`
       UPDATE ninjarmm_alerts
-      SET activity_time = to_timestamp(CAST((alert_data->>'activityTime') AS BIGINT))
+      SET activity_time = to_timestamp(TRUNC(CAST((alert_data->>'activityTime') AS NUMERIC)))
       WHERE activity_time < '1980-01-01'
         AND alert_data IS NOT NULL
         AND alert_data->>'activityTime' IS NOT NULL
-        AND CAST((alert_data->>'activityTime') AS BIGINT) > 1000000000
-        AND CAST((alert_data->>'activityTime') AS BIGINT) < 10000000000
+        AND CAST((alert_data->>'activityTime') AS NUMERIC) > 1000000000
+        AND CAST((alert_data->>'activityTime') AS NUMERIC) < 10000000000
     `);
     // Fallback: set to created_at for remaining old timestamps
     await client.query(`
