@@ -108,15 +108,31 @@ class InvoiceProcessorService {
       return { id: result.rows[0].id, name: result.rows[0].name };
     }
 
-    // Try matching by domain
+    // Try matching by email domain
     const domain = email.split('@')[1];
     if (domain) {
       result = await query(
         `SELECT id, name FROM customers
          WHERE organization_id = $1
-         AND (LOWER(email) LIKE $2 OR LOWER(website) LIKE $2)
+         AND LOWER(email) LIKE $2
          LIMIT 1`,
-        [organizationId, `%${domain.toLowerCase()}`]
+        [organizationId, `%@${domain.toLowerCase()}`]
+      );
+
+      if (result.rows.length > 0) {
+        return { id: result.rows[0].id, name: result.rows[0].name };
+      }
+
+      // Also check import_aliases for domain matches
+      result = await query(
+        `SELECT id, name FROM customers
+         WHERE organization_id = $1
+         AND EXISTS (
+           SELECT 1 FROM unnest(import_aliases) alias
+           WHERE LOWER(alias) LIKE $2
+         )
+         LIMIT 1`,
+        [organizationId, `%${domain.toLowerCase()}%`]
       );
 
       if (result.rows.length > 0) {
