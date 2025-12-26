@@ -931,6 +931,7 @@ export interface Microsoft365Config {
   hasClientSecret: boolean;
   mailFrom: string;
   supportMailbox: string;
+  invoiceMailbox: string;
   featuresEnabled: {
     email: boolean;
     inboxMonitoring: boolean;
@@ -938,6 +939,32 @@ export interface Microsoft365Config {
   };
   lastConnectionTest?: string | null;
   lastConnectionStatus?: string | null;
+}
+
+export interface ProcessedInvoice {
+  id: string;
+  emailId: string;
+  emailSubject: string;
+  senderEmail: string;
+  senderName: string;
+  receivedAt: string;
+  attachmentCount: number;
+  documentIds: string[];
+  vendorId: string | null;
+  vendorName?: string;
+  status: 'pending' | 'processed' | 'failed' | 'skipped';
+  errorMessage?: string;
+  processedAt: string;
+}
+
+export interface InvoiceDocument {
+  id: string;
+  filename: string;
+  originalFilename: string;
+  mimeType: string;
+  size: number;
+  storagePath: string;
+  createdAt: string;
 }
 
 // Microsoft 365 API
@@ -952,6 +979,7 @@ export const microsoft365Api = {
     clientSecret?: string;
     mailFrom?: string;
     supportMailbox?: string;
+    invoiceMailbox?: string;
     featuresEnabled?: {
       email?: boolean;
       inboxMonitoring?: boolean;
@@ -982,5 +1010,47 @@ export const microsoft365Api = {
 
   deleteConfig: async (): Promise<{ success: boolean }> => {
     return authFetch('/microsoft365/config', { method: 'DELETE' });
+  },
+
+  // Invoice Processing
+  processInvoices: async (): Promise<{
+    success: boolean;
+    data?: {
+      processedCount: number;
+      skippedCount: number;
+      failedCount: number;
+      results: Array<{ emailId: string; status: string; error?: string }>;
+    };
+    error?: string;
+  }> => {
+    return authFetch('/microsoft365/invoices/process', { method: 'POST' });
+  },
+
+  getProcessedInvoices: async (params?: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    success: boolean;
+    data: ProcessedInvoice[];
+    total: number;
+  }> => {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set('status', params.status);
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+    if (params?.offset) searchParams.set('offset', params.offset.toString());
+    const query = searchParams.toString();
+    return authFetch(`/microsoft365/invoices${query ? `?${query}` : ''}`);
+  },
+
+  getInvoiceDocuments: async (invoiceId: string): Promise<{
+    success: boolean;
+    data: InvoiceDocument[];
+  }> => {
+    return authFetch(`/microsoft365/invoices/${invoiceId}/documents`);
+  },
+
+  retryInvoiceProcessing: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
+    return authFetch(`/microsoft365/invoices/${invoiceId}/retry`, { method: 'POST' });
   },
 };

@@ -84,6 +84,8 @@ export type {
   NinjaAlert,
   NinjaAlertExclusion,
   Microsoft365Config,
+  ProcessedInvoice,
+  InvoiceDocument,
 } from './integrations';
 
 // Business API (maintenance, contracts, import, AI, social media)

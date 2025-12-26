@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Settings, Save, CheckCircle, XCircle, AlertTriangle, Cloud, Mail, Shield, Loader2, Eye, EyeOff, ExternalLink, Key } from 'lucide-react';
-import { microsoft365Api, Microsoft365Config } from '../services/api';
+import { Settings, Save, CheckCircle, XCircle, AlertTriangle, Cloud, Mail, Shield, Loader2, Eye, EyeOff, ExternalLink, Key, FileText, RefreshCw, Play, Download } from 'lucide-react';
+import { microsoft365Api, Microsoft365Config, ProcessedInvoice } from '../services/api';
 
 export const Microsoft365Settings = () => {
   const [loading, setLoading] = useState(true);
@@ -16,6 +16,7 @@ export const Microsoft365Settings = () => {
   const [clientSecret, setClientSecret] = useState('');
   const [mailFrom, setMailFrom] = useState('');
   const [supportMailbox, setSupportMailbox] = useState('');
+  const [invoiceMailbox, setInvoiceMailbox] = useState('');
   const [showSecret, setShowSecret] = useState(false);
 
   // Feature toggles
@@ -24,6 +25,12 @@ export const Microsoft365Settings = () => {
 
   // Test result
   const [testResult, setTestResult] = useState<{ success: boolean; displayName?: string; email?: string; error?: string } | null>(null);
+
+  // Invoice processing state
+  const [processingInvoices, setProcessingInvoices] = useState(false);
+  const [processedInvoices, setProcessedInvoices] = useState<ProcessedInvoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [invoiceProcessResult, setInvoiceProcessResult] = useState<{ processedCount: number; skippedCount: number; failedCount: number } | null>(null);
 
   useEffect(() => {
     loadConfig();
@@ -38,13 +45,60 @@ export const Microsoft365Settings = () => {
         setClientId(response.data.clientId || '');
         setMailFrom(response.data.mailFrom || '');
         setSupportMailbox(response.data.supportMailbox || '');
+        setInvoiceMailbox(response.data.invoiceMailbox || '');
         setEmailEnabled(response.data.featuresEnabled?.email || false);
         setInboxMonitoringEnabled(response.data.featuresEnabled?.inboxMonitoring || false);
+
+        // Load processed invoices if configured
+        if (response.data.invoiceMailbox) {
+          loadProcessedInvoices();
+        }
       }
     } catch (err) {
       console.error('Failed to load Microsoft 365 config:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadProcessedInvoices = async () => {
+    setLoadingInvoices(true);
+    try {
+      const response = await microsoft365Api.getProcessedInvoices({ limit: 20 });
+      if (response.success) {
+        setProcessedInvoices(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to load processed invoices:', err);
+    } finally {
+      setLoadingInvoices(false);
+    }
+  };
+
+  const handleProcessInvoices = async () => {
+    setProcessingInvoices(true);
+    setInvoiceProcessResult(null);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await microsoft365Api.processInvoices();
+      if (response.success && response.data) {
+        setInvoiceProcessResult({
+          processedCount: response.data.processedCount,
+          skippedCount: response.data.skippedCount,
+          failedCount: response.data.failedCount,
+        });
+        setSuccess(`${response.data.processedCount} Rechnungen verarbeitet`);
+        loadProcessedInvoices();
+      } else {
+        setError(response.error || 'Verarbeitung fehlgeschlagen');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Verarbeitung fehlgeschlagen');
+    } finally {
+      setProcessingInvoices(false);
+      setTimeout(() => setSuccess(''), 5000);
     }
   };
 
@@ -60,6 +114,7 @@ export const Microsoft365Settings = () => {
         clientSecret: clientSecret || undefined, // Only send if changed
         mailFrom,
         supportMailbox,
+        invoiceMailbox,
         featuresEnabled: {
           email: emailEnabled,
           inboxMonitoring: inboxMonitoringEnabled,
@@ -307,6 +362,23 @@ export const Microsoft365Settings = () => {
               className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
             />
           </div>
+
+          {/* Invoice Mailbox */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Rechnungs-Postfach (fuer automatische Belegverarbeitung)
+            </label>
+            <input
+              type="email"
+              value={invoiceMailbox}
+              onChange={(e) => setInvoiceMailbox(e.target.value)}
+              placeholder="invoice@ihredomain.de"
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+            />
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Eingehende E-Mails mit PDF-Anhaengen werden automatisch als Belege gespeichert
+            </p>
+          </div>
         </div>
       </div>
 
@@ -418,6 +490,146 @@ export const Microsoft365Settings = () => {
           Speichern
         </button>
       </div>
+
+      {/* Invoice Processing Section */}
+      {invoiceMailbox && config?.configured && (
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 border border-gray-200 dark:border-dark-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold dark:text-white flex items-center gap-2">
+              <FileText size={20} />
+              Rechnungsverarbeitung
+            </h3>
+            <div className="flex gap-2">
+              <button
+                onClick={loadProcessedInvoices}
+                disabled={loadingInvoices}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50 transition-colors"
+              >
+                <RefreshCw size={14} className={loadingInvoices ? 'animate-spin' : ''} />
+                Aktualisieren
+              </button>
+              <button
+                onClick={handleProcessInvoices}
+                disabled={processingInvoices}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm btn-accent"
+              >
+                {processingInvoices ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Play size={14} />
+                )}
+                Postfach verarbeiten
+              </button>
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Postfach: <span className="font-medium text-gray-700 dark:text-gray-300">{invoiceMailbox}</span>
+          </p>
+
+          {/* Processing Result */}
+          {invoiceProcessResult && (
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex gap-4 text-sm">
+                <span className="text-green-600 dark:text-green-400">
+                  ✓ {invoiceProcessResult.processedCount} verarbeitet
+                </span>
+                <span className="text-gray-600 dark:text-gray-400">
+                  ○ {invoiceProcessResult.skippedCount} übersprungen
+                </span>
+                {invoiceProcessResult.failedCount > 0 && (
+                  <span className="text-red-600 dark:text-red-400">
+                    ✗ {invoiceProcessResult.failedCount} fehlgeschlagen
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Processed Invoices Table */}
+          {loadingInvoices ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="animate-spin text-accent-primary" size={24} />
+            </div>
+          ) : processedInvoices.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-dark-300">
+                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Datum</th>
+                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Absender</th>
+                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Betreff</th>
+                    <th className="text-center py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Anhaenge</th>
+                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {processedInvoices.map((invoice) => (
+                    <tr key={invoice.id} className="border-b border-gray-100 dark:border-dark-300 hover:bg-gray-50 dark:hover:bg-dark-200">
+                      <td className="py-2 px-3 text-gray-900 dark:text-white whitespace-nowrap">
+                        {new Date(invoice.receivedAt).toLocaleDateString('de-DE', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="py-2 px-3 text-gray-900 dark:text-white">
+                        <div className="truncate max-w-[200px]" title={invoice.senderEmail}>
+                          {invoice.senderName || invoice.senderEmail}
+                        </div>
+                        {invoice.vendorName && (
+                          <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-gray-700 dark:text-gray-300">
+                        <div className="truncate max-w-[250px]" title={invoice.emailSubject}>
+                          {invoice.emailSubject}
+                        </div>
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        <span className="inline-flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                          <Download size={14} />
+                          {invoice.attachmentCount}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                          invoice.status === 'processed'
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                            : invoice.status === 'failed'
+                            ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                            : invoice.status === 'skipped'
+                            ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                        }`}>
+                          {invoice.status === 'processed' && <CheckCircle size={12} />}
+                          {invoice.status === 'failed' && <XCircle size={12} />}
+                          {invoice.status === 'processed' ? 'Verarbeitet' :
+                           invoice.status === 'failed' ? 'Fehlgeschlagen' :
+                           invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
+                        </span>
+                        {invoice.errorMessage && (
+                          <div className="text-xs text-red-500 mt-1 truncate max-w-[150px]" title={invoice.errorMessage}>
+                            {invoice.errorMessage}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <FileText size={32} className="mx-auto mb-2 opacity-50" />
+              <p>Noch keine Rechnungen verarbeitet</p>
+              <p className="text-sm mt-1">Klicken Sie auf "Postfach verarbeiten" um E-Mails abzurufen</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
