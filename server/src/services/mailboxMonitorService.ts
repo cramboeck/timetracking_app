@@ -232,6 +232,7 @@ class MailboxMonitorService {
 
   /**
    * Get attachments for an email
+   * Note: For file attachments, we need to fetch each one individually to get contentBytes
    */
   async getAttachments(
     organizationId: string,
@@ -252,17 +253,42 @@ class MailboxMonitorService {
     }
 
     try {
+      // First, get the list of attachments
       const response = await client
         .api(`/users/${mailbox}/messages/${messageId}/attachments`)
         .get();
 
-      return (response.value || []).map((att: any) => ({
-        id: att.id,
-        name: att.name,
-        contentType: att.contentType,
-        size: att.size,
-        contentBytes: att.contentBytes,
-      }));
+      const attachments: EmailAttachment[] = [];
+
+      // Then fetch each attachment individually to get contentBytes
+      for (const att of response.value || []) {
+        // Skip non-file attachments (like item attachments or reference attachments)
+        if (att['@odata.type'] !== '#microsoft.graph.fileAttachment') {
+          console.log(`Skipping non-file attachment: ${att.name} (${att['@odata.type']})`);
+          continue;
+        }
+
+        try {
+          // Fetch the individual attachment with contentBytes
+          const fullAttachment = await client
+            .api(`/users/${mailbox}/messages/${messageId}/attachments/${att.id}`)
+            .get();
+
+          attachments.push({
+            id: fullAttachment.id,
+            name: fullAttachment.name,
+            contentType: fullAttachment.contentType,
+            size: fullAttachment.size,
+            contentBytes: fullAttachment.contentBytes,
+          });
+
+          console.log(`Fetched attachment: ${fullAttachment.name} (${fullAttachment.size} bytes)`);
+        } catch (attError: any) {
+          console.error(`Failed to fetch attachment ${att.name}:`, attError.message);
+        }
+      }
+
+      return attachments;
     } catch (error: any) {
       console.error('Failed to get attachments:', error.message);
       return [];

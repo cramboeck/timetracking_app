@@ -136,6 +136,26 @@ export const Microsoft365Settings = () => {
     setTimeout(() => setSuccess(''), 3000);
   };
 
+  const handleClearFailed = async () => {
+    const failedCount = processedInvoices.filter(i => i.status === 'failed').length;
+    if (!confirm(`${failedCount} fehlgeschlagene Einträge löschen und neu verarbeiten?`)) {
+      return;
+    }
+
+    try {
+      const response = await microsoft365Api.clearFailedInvoices();
+      if (response.success) {
+        setSuccess(`${response.deletedCount} fehlgeschlagene Einträge gelöscht`);
+        loadProcessedInvoices();
+      } else {
+        setError(response.error || 'Löschen fehlgeschlagen');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Löschen fehlgeschlagen');
+    }
+    setTimeout(() => setSuccess(''), 3000);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError('');
@@ -534,6 +554,15 @@ export const Microsoft365Settings = () => {
               Rechnungsverarbeitung
             </h3>
             <div className="flex gap-2">
+              {processedInvoices.filter(i => i.status === 'failed').length > 0 && (
+                <button
+                  onClick={handleClearFailed}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Fehler löschen
+                </button>
+              )}
               <button
                 onClick={loadProcessedInvoices}
                 disabled={loadingInvoices}

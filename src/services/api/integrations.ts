@@ -1061,4 +1061,8 @@ export const microsoft365Api = {
   deleteInvoiceDraft: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
     return authFetch(`/microsoft365/invoices/${invoiceId}`, { method: 'DELETE' });
   },
+
+  clearFailedInvoices: async (): Promise<{ success: boolean; deletedCount?: number; error?: string }> => {
+    return authFetch('/microsoft365/invoices/failed', { method: 'DELETE' });
+  },
 };

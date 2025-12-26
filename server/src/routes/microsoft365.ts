@@ -529,4 +529,25 @@ router.delete('/invoices/:id', requireOrgRole('admin'), async (req: AuthRequest,
   }
 });
 
+// DELETE /api/microsoft365/invoices/failed - Clear all failed invoice entries
+router.delete('/invoices/failed', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const deletedCount = await invoiceProcessorService.clearFailedEntries(organizationId);
+
+    res.json({
+      success: true,
+      deletedCount,
+    });
+  } catch (error: any) {
+    console.error('Clear failed entries error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to clear failed entries',
+    });
+  }
+});
+
 export default router;

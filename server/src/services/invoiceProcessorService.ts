@@ -524,6 +524,19 @@ class InvoiceProcessorService {
   }
 
   /**
+   * Clear all failed entries to allow reprocessing
+   */
+  async clearFailedEntries(organizationId: string): Promise<number> {
+    const result = await query(
+      `DELETE FROM processed_invoices
+       WHERE organization_id = $1 AND status = 'failed'
+       RETURNING id`,
+      [organizationId]
+    );
+    return result.rows.length;
+  }
+
+  /**
    * Retry processing a failed invoice
    */
   async retryProcessing(organizationId: string, processedInvoiceId: string): Promise<boolean> {
