@@ -587,6 +587,41 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add vendor/supplier support to customers (Lieferanten-Hub)
+    await client.query(`
+      DO $$
+      BEGIN
+        -- is_vendor flag to mark customers as vendors/suppliers
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'is_vendor'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN is_vendor BOOLEAN DEFAULT false;
+        END IF;
+        -- vendor_domain for email matching (e.g., 'elovade.com')
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'vendor_domain'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN vendor_domain TEXT;
+        END IF;
+        -- vendor_notes for additional vendor information
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'vendor_notes'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN vendor_notes TEXT;
+        END IF;
+        -- vendor_api_config for external API connections (JSON)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'vendor_api_config'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN vendor_api_config JSONB;
+        END IF;
+      END $$;
+    `);
+
     // Migration: Add missing columns to ninjarmm_alerts
     await client.query(`
       DO $$

@@ -4,6 +4,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { attachOrganization, OrganizationRequest, getUserOrganizationId, requireOrgRole } from '../middleware/organization';
 import { auditLog } from '../services/auditLog';
 import { emailService } from '../services/emailService';
+import { mailboxMonitorService } from '../services/mailboxMonitorService';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { transformRow, transformRows } from '../utils/dbTransform';
@@ -40,7 +41,11 @@ const updateCustomerSchema = z.object({
   paymentTermsDays: z.number().min(1).max(365).nullable().optional(),
   ninjarmmOrganizationId: z.string().max(100).nullable().optional(),
   displayName: z.string().max(100).nullable().optional(),
-  importAliases: z.array(z.string().max(200)).nullable().optional()
+  importAliases: z.array(z.string().max(200)).nullable().optional(),
+  // Vendor/Supplier fields
+  isVendor: z.boolean().optional(),
+  vendorDomain: z.string().max(100).nullable().optional(),
+  vendorNotes: z.string().max(5000).nullable().optional(),
 });
 
 // GET /api/customers - Get all customers for current organization
@@ -171,6 +176,19 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (updates.importAliases !== undefined) {
       fields.push(`import_aliases = $${paramCount++}`);
       values.push(updates.importAliases || []);
+    }
+    // Vendor fields
+    if (updates.isVendor !== undefined) {
+      fields.push(`is_vendor = $${paramCount++}`);
+      values.push(updates.isVendor);
+    }
+    if (updates.vendorDomain !== undefined) {
+      fields.push(`vendor_domain = $${paramCount++}`);
+      values.push(updates.vendorDomain || null);
+    }
+    if (updates.vendorNotes !== undefined) {
+      fields.push(`vendor_notes = $${paramCount++}`);
+      values.push(updates.vendorNotes || null);
     }
 
     if (fields.length === 0) {
@@ -707,6 +725,228 @@ router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, 
     });
   } catch (error) {
     console.error('Set password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================================================
+// VENDOR/SUPPLIER HUB ENDPOINTS
+// ========================================================================
+
+// GET /api/customers/vendors - Get all vendors (customers with is_vendor = true)
+router.get('/vendors/list', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await pool.query(
+      `SELECT c.*,
+              (SELECT COUNT(*) FROM processed_invoices pi WHERE pi.vendor_id = c.id) as invoice_count
+       FROM customers c
+       WHERE c.organization_id = $1 AND c.is_vendor = true
+       ORDER BY c.name`,
+      [organizationId]
+    );
+
+    const vendors = transformRows(result.rows);
+
+    res.json({
+      success: true,
+      data: vendors
+    });
+  } catch (error) {
+    console.error('Get vendors error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/customers/:id/hub - Get vendor hub data (emails, invoices, summary)
+router.get('/:id/hub', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+
+    // Verify customer belongs to organization
+    const customerResult = await pool.query(
+      'SELECT * FROM customers WHERE id = $1 AND organization_id = $2',
+      [id, organizationId]
+    );
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const customer = transformRow(customerResult.rows[0]);
+
+    // Get processed invoices for this vendor
+    const invoicesResult = await pool.query(
+      `SELECT * FROM processed_invoices
+       WHERE organization_id = $1 AND vendor_id = $2
+       ORDER BY received_at DESC
+       LIMIT 50`,
+      [organizationId, id]
+    );
+
+    // Also get invoices matched by email domain if vendor_domain is set
+    let domainInvoices: any[] = [];
+    if (customer.vendorDomain) {
+      const domainResult = await pool.query(
+        `SELECT * FROM processed_invoices
+         WHERE organization_id = $1
+         AND vendor_id IS NULL
+         AND LOWER(sender_email) LIKE $2
+         ORDER BY received_at DESC
+         LIMIT 50`,
+        [organizationId, `%@${customer.vendorDomain.toLowerCase()}`]
+      );
+      domainInvoices = domainResult.rows;
+    }
+
+    // Combine and deduplicate
+    const allInvoiceIds = new Set<string>();
+    const invoices = [...invoicesResult.rows, ...domainInvoices].filter(inv => {
+      if (allInvoiceIds.has(inv.id)) return false;
+      allInvoiceIds.add(inv.id);
+      return true;
+    }).map(row => ({
+      id: row.id,
+      emailId: row.email_id,
+      emailSubject: row.email_subject,
+      senderEmail: row.sender_email,
+      senderName: row.sender_name,
+      receivedAt: row.received_at,
+      attachmentCount: row.attachment_count,
+      status: row.status,
+      errorMessage: row.error_message,
+      processedAt: row.processed_at,
+    }));
+
+    // Get invoice documents
+    const invoiceIds = invoices.map(i => i.id);
+    let documents: any[] = [];
+    if (invoiceIds.length > 0) {
+      const docsResult = await pool.query(
+        `SELECT * FROM invoice_documents WHERE processed_invoice_id = ANY($1)`,
+        [invoiceIds]
+      );
+      documents = docsResult.rows.map(row => ({
+        id: row.id,
+        processedInvoiceId: row.processed_invoice_id,
+        filename: row.filename,
+        originalFilename: row.original_filename,
+        mimeType: row.mime_type,
+        size: row.size,
+        createdAt: row.created_at,
+      }));
+    }
+
+    // Summary statistics
+    const stats = {
+      totalInvoices: invoices.length,
+      draftInvoices: invoices.filter(i => i.status === 'draft').length,
+      processedInvoices: invoices.filter(i => i.status === 'processed').length,
+      failedInvoices: invoices.filter(i => i.status === 'failed').length,
+      totalDocuments: documents.length,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        customer,
+        invoices,
+        documents,
+        stats,
+        // Emails will be fetched client-side via Microsoft 365 API
+      }
+    });
+  } catch (error) {
+    console.error('Get vendor hub error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/customers/:id/emails - Get all emails from vendor (from support + invoice mailbox)
+router.get('/:id/emails', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+    const maxResults = parseInt(req.query.maxResults as string) || 50;
+
+    // Verify customer belongs to organization and get vendor domain
+    const customerResult = await pool.query(
+      'SELECT * FROM customers WHERE id = $1 AND organization_id = $2',
+      [id, organizationId]
+    );
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const customer = transformRow(customerResult.rows[0]);
+    const vendorDomain = customer.vendorDomain || customer.email?.split('@')[1];
+
+    if (!vendorDomain) {
+      return res.json({
+        success: true,
+        data: {
+          emails: [],
+          message: 'Keine Domain konfiguriert. Bitte Vendor-Domain oder E-Mail setzen.'
+        }
+      });
+    }
+
+    // Fetch emails from both mailboxes
+    const allEmails: any[] = [];
+
+    // Support mailbox
+    try {
+      const supportResult = await mailboxMonitorService.getUnreadEmails(organizationId, {
+        maxResults,
+        mailboxType: 'support',
+      });
+      if (supportResult.success && supportResult.emails) {
+        // Filter by vendor domain
+        const filtered = supportResult.emails.filter(email =>
+          email.from.email.toLowerCase().endsWith(`@${vendorDomain.toLowerCase()}`)
+        );
+        allEmails.push(...filtered.map(e => ({ ...e, mailboxType: 'support' })));
+      }
+    } catch (err) {
+      console.log('Support mailbox not configured or error:', err);
+    }
+
+    // Invoice mailbox
+    try {
+      const invoiceResult = await mailboxMonitorService.getUnreadEmails(organizationId, {
+        maxResults,
+        mailboxType: 'invoice',
+      });
+      if (invoiceResult.success && invoiceResult.emails) {
+        // Filter by vendor domain
+        const filtered = invoiceResult.emails.filter(email =>
+          email.from.email.toLowerCase().endsWith(`@${vendorDomain.toLowerCase()}`)
+        );
+        allEmails.push(...filtered.map(e => ({ ...e, mailboxType: 'invoice' })));
+      }
+    } catch (err) {
+      console.log('Invoice mailbox not configured or error:', err);
+    }
+
+    // Sort by date descending
+    allEmails.sort((a, b) =>
+      new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime()
+    );
+
+    res.json({
+      success: true,
+      data: {
+        emails: allEmails.slice(0, maxResults),
+        vendorDomain,
+        totalFound: allEmails.length,
+      }
+    });
+  } catch (error) {
+    console.error('Get vendor emails error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

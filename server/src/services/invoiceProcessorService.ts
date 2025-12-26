@@ -95,7 +95,24 @@ class InvoiceProcessorService {
    * Find vendor by email address
    */
   async findVendorByEmail(organizationId: string, email: string): Promise<{ id: string; name: string } | null> {
-    // First try exact match on customer email
+    const domain = email.split('@')[1]?.toLowerCase();
+
+    // First try exact match on vendor_domain (most reliable)
+    if (domain) {
+      let result = await query(
+        `SELECT id, name FROM customers
+         WHERE organization_id = $1
+         AND LOWER(vendor_domain) = $2
+         LIMIT 1`,
+        [organizationId, domain]
+      );
+
+      if (result.rows.length > 0) {
+        return { id: result.rows[0].id, name: result.rows[0].name };
+      }
+    }
+
+    // Try exact match on customer email
     let result = await query(
       `SELECT id, name FROM customers
        WHERE organization_id = $1
@@ -109,14 +126,13 @@ class InvoiceProcessorService {
     }
 
     // Try matching by email domain
-    const domain = email.split('@')[1];
     if (domain) {
       result = await query(
         `SELECT id, name FROM customers
          WHERE organization_id = $1
          AND LOWER(email) LIKE $2
          LIMIT 1`,
-        [organizationId, `%@${domain.toLowerCase()}`]
+        [organizationId, `%@${domain}`]
       );
 
       if (result.rows.length > 0) {
@@ -132,7 +148,7 @@ class InvoiceProcessorService {
            WHERE LOWER(alias) LIKE $2
          )
          LIMIT 1`,
-        [organizationId, `%${domain.toLowerCase()}%`]
+        [organizationId, `%${domain}%`]
       );
 
       if (result.rows.length > 0) {

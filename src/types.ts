@@ -15,6 +15,12 @@ export interface Customer {
   ninjarmmOrganizationId?: string; // Link to NinjaRMM organization (Support feature)
   displayName?: string; // Short display name for PDFs (instead of full name)
   importAliases?: string[]; // Alternative names for CSV import matching (e.g., ["IHE", "IHE GmbH"])
+  // Vendor/Supplier Hub fields
+  isVendor?: boolean; // Mark as vendor/supplier
+  vendorDomain?: string; // Email domain for matching (e.g., "elovade.com")
+  vendorNotes?: string; // Notes about vendor relationship
+  vendorApiConfig?: Record<string, any>; // Configuration for external API connections
+  invoiceCount?: number; // Computed: number of processed invoices (from vendor list endpoint)
   createdAt: string;
 }
 

@@ -110,6 +110,67 @@ export const customersApi = {
       method: 'DELETE',
     });
   },
+
+  // Vendor Hub methods
+  getVendors: async (): Promise<{ success: boolean; data: Customer[] }> => {
+    return authFetch('/customers/vendors/list');
+  },
+
+  getVendorHub: async (id: string): Promise<{
+    success: boolean;
+    data: {
+      customer: Customer;
+      invoices: Array<{
+        id: string;
+        emailId: string;
+        emailSubject: string;
+        senderEmail: string;
+        senderName: string;
+        receivedAt: string;
+        attachmentCount: number;
+        status: string;
+        errorMessage: string | null;
+        processedAt: string;
+      }>;
+      documents: Array<{
+        id: string;
+        processedInvoiceId: string;
+        filename: string;
+        originalFilename: string;
+        mimeType: string;
+        size: number;
+        createdAt: string;
+      }>;
+      stats: {
+        totalInvoices: number;
+        draftInvoices: number;
+        processedInvoices: number;
+        failedInvoices: number;
+        totalDocuments: number;
+      };
+    };
+  }> => {
+    return authFetch(`/customers/${id}/hub`);
+  },
+
+  getVendorEmails: async (id: string, maxResults = 50): Promise<{
+    success: boolean;
+    data: {
+      emails: Array<{
+        id: string;
+        subject: string;
+        from: { name: string; email: string };
+        receivedDateTime: string;
+        bodyPreview: string;
+        hasAttachments: boolean;
+        mailboxType: 'support' | 'invoice';
+      }>;
+      vendorDomain: string;
+      totalFound: number;
+    };
+  }> => {
+    return authFetch(`/customers/${id}/emails?maxResults=${maxResults}`);
+  },
 };
 
 // Activities API
