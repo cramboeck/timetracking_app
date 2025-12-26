@@ -62,7 +62,11 @@ class InvoiceProcessorService {
 
   constructor() {
     // Set upload directory - can be configured via environment variable
-    this.uploadDir = process.env.INVOICE_UPLOAD_DIR || '/app/uploads/invoices';
+    // Default to a path relative to the server directory for development
+    const defaultPath = process.env.NODE_ENV === 'production'
+      ? '/app/uploads/invoices'
+      : path.join(__dirname, '../../uploads/invoices');
+    this.uploadDir = process.env.INVOICE_UPLOAD_DIR || defaultPath;
   }
 
   /**
