@@ -11,8 +11,13 @@ import {
   Copy,
   Check,
   ArrowRight,
+  Save,
+  Clock,
+  X,
+  Calendar,
 } from 'lucide-react';
 import { socialMediaApi } from '../../../../services/api';
+import { useSocialMedia } from '../../context';
 import { PLATFORM_ICONS, PLATFORM_COLORS } from '../../constants';
 import type { Platform, WizardTone, MarketingGoal, JourneyStage, ContentLength } from '../../types';
 
@@ -53,6 +58,8 @@ interface WizardResult {
 }
 
 export default function ContentWizard() {
+  const { addPost } = useSocialMedia();
+
   // Wizard state
   const [step, setStep] = useState(1);
   const [topic, setTopic] = useState('');
@@ -69,6 +76,12 @@ export default function ContentWizard() {
   const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState<WizardResult[]>([]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  // Save/Schedule state
+  const [savingIndex, setSavingIndex] = useState<number | null>(null);
+  const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
+  const [scheduleModal, setScheduleModal] = useState<{ index: number; result: WizardResult } | null>(null);
+  const [scheduleDate, setScheduleDate] = useState('');
 
   const togglePlatform = (platform: Platform) => {
     if (platforms.includes(platform)) {
@@ -189,9 +202,61 @@ export default function ContentWizard() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
+  // Save as draft
+  const saveAsDraft = async (result: WizardResult, index: number) => {
+    setSavingIndex(index);
+    try {
+      const post = await socialMediaApi.createPost({
+        content: result.content,
+        hashtags: result.hashtags,
+        platforms: [result.platform],
+        aiGenerated: true,
+      });
+      addPost(post);
+      setSavedIndices(prev => new Set(prev).add(index));
+    } catch (error) {
+      console.error('Failed to save post:', error);
+    } finally {
+      setSavingIndex(null);
+    }
+  };
+
+  // Schedule post
+  const schedulePost = async () => {
+    if (!scheduleModal || !scheduleDate) return;
+    setSavingIndex(scheduleModal.index);
+    try {
+      const post = await socialMediaApi.createPost({
+        content: scheduleModal.result.content,
+        hashtags: scheduleModal.result.hashtags,
+        platforms: [scheduleModal.result.platform],
+        scheduledAt: scheduleDate,
+        aiGenerated: true,
+      });
+      addPost(post);
+      setSavedIndices(prev => new Set(prev).add(scheduleModal.index));
+      setScheduleModal(null);
+      setScheduleDate('');
+    } catch (error) {
+      console.error('Failed to schedule post:', error);
+    } finally {
+      setSavingIndex(null);
+    }
+  };
+
+  // Save all as drafts
+  const saveAllAsDrafts = async () => {
+    for (let i = 0; i < results.length; i++) {
+      if (!savedIndices.has(i)) {
+        await saveAsDraft(results[i], i);
+      }
+    }
+  };
+
   const resetWizard = () => {
     setStep(1);
     setResults([]);
+    setSavedIndices(new Set());
     setTopic('');
     setPlatforms(['linkedin']);
     setTone('professional');
@@ -466,20 +531,35 @@ export default function ContentWizard() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-gray-800 dark:text-white">
-              Generierter Content
+              Generierter Content ({results.length})
             </h2>
-            <button
-              onClick={resetWizard}
-              className="text-pink-600 hover:text-pink-700"
-            >
-              Neuen Content erstellen
-            </button>
+            <div className="flex items-center gap-3">
+              {results.length > 1 && savedIndices.size < results.length && (
+                <button
+                  onClick={saveAllAsDrafts}
+                  className="flex items-center gap-1 text-sm text-pink-600 hover:text-pink-700"
+                >
+                  <Save size={16} />
+                  Alle speichern
+                </button>
+              )}
+              <button
+                onClick={resetWizard}
+                className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+              >
+                Neu erstellen
+              </button>
+            </div>
           </div>
 
           {results.map((result, index) => (
             <div
               key={index}
-              className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700"
+              className={`bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border ${
+                savedIndices.has(index)
+                  ? 'border-green-300 dark:border-green-700'
+                  : 'border-gray-200 dark:border-gray-700'
+              }`}
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -491,6 +571,12 @@ export default function ContentWizard() {
                   <span className="font-medium text-gray-800 dark:text-white capitalize">
                     {result.platform}
                   </span>
+                  {savedIndices.has(index) && (
+                    <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                      <Check size={12} />
+                      Gespeichert
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={() => copyToClipboard(result.content, index)}
@@ -515,7 +601,7 @@ export default function ContentWizard() {
               </p>
 
               {result.hashtags && result.hashtags.length > 0 && (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1 mb-4">
                   {result.hashtags.map((tag, i) => (
                     <span
                       key={i}
@@ -526,8 +612,117 @@ export default function ContentWizard() {
                   ))}
                 </div>
               )}
+
+              {/* Save/Schedule Actions */}
+              {!savedIndices.has(index) && (
+                <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => saveAsDraft(result, index)}
+                    disabled={savingIndex === index}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    {savingIndex === index ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600" />
+                        Speichere...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        Als Entwurf
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setScheduleModal({ index, result })}
+                    disabled={savingIndex === index}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50"
+                  >
+                    <Clock size={16} />
+                    Planen
+                  </button>
+                </div>
+              )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Schedule Modal */}
+      {scheduleModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setScheduleModal(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                Post planen
+              </h3>
+              <button
+                onClick={() => setScheduleModal(null)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <span className={`p-1 rounded ${PLATFORM_COLORS[scheduleModal.result.platform]} text-white`}>
+                  {PLATFORM_ICONS[scheduleModal.result.platform]}
+                </span>
+                <span className="capitalize">{scheduleModal.result.platform}</span>
+              </div>
+
+              <p className="text-gray-800 dark:text-white text-sm line-clamp-3">
+                {scheduleModal.result.content}
+              </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <Calendar size={16} className="inline mr-1" />
+                  Datum und Uhrzeit
+                </label>
+                <input
+                  type="datetime-local"
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setScheduleModal(null)}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={schedulePost}
+                disabled={!scheduleDate || savingIndex !== null}
+                className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingIndex !== null ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    Plane...
+                  </>
+                ) : (
+                  <>
+                    <Clock size={16} />
+                    Planen
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
