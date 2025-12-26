@@ -477,6 +477,28 @@ router.post('/invoices/:id/retry', requireOrgRole('admin'), async (req: AuthRequ
   }
 });
 
+// DELETE /api/microsoft365/invoices/failed - Clear all failed invoice entries
+// IMPORTANT: This route must be defined BEFORE /invoices/:id to avoid "failed" being matched as an id
+router.delete('/invoices/failed', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const deletedCount = await invoiceProcessorService.clearFailedEntries(organizationId);
+
+    res.json({
+      success: true,
+      deletedCount,
+    });
+  } catch (error: any) {
+    console.error('Clear failed entries error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to clear failed entries',
+    });
+  }
+});
+
 // POST /api/microsoft365/invoices/:id/approve - Approve a draft invoice
 router.post('/invoices/:id/approve', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
@@ -525,27 +547,6 @@ router.delete('/invoices/:id', requireOrgRole('admin'), async (req: AuthRequest,
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to delete draft',
-    });
-  }
-});
-
-// DELETE /api/microsoft365/invoices/failed - Clear all failed invoice entries
-router.delete('/invoices/failed', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
-  try {
-    const orgReq = req as unknown as OrganizationRequest;
-    const organizationId = orgReq.organization.id;
-
-    const deletedCount = await invoiceProcessorService.clearFailedEntries(organizationId);
-
-    res.json({
-      success: true,
-      deletedCount,
-    });
-  } catch (error: any) {
-    console.error('Clear failed entries error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to clear failed entries',
     });
   }
 });
