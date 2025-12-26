@@ -3,6 +3,7 @@ import { AuthRequest, authenticateToken } from '../middleware/auth';
 import { attachOrganization, requireOrgRole } from '../middleware/organization';
 import * as microsoft365Service from '../services/microsoft365ConfigService';
 import { mailboxMonitorService } from '../services/mailboxMonitorService';
+import { invoiceProcessorService } from '../services/invoiceProcessorService';
 
 interface OrganizationRequest extends AuthRequest {
   organization: {
@@ -367,6 +368,111 @@ router.post('/mailbox/emails/:id/reply', requireOrgRole('member'), async (req: A
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to send reply',
+    });
+  }
+});
+
+// ========================================
+// Invoice Processing Endpoints
+// ========================================
+
+// POST /api/microsoft365/invoices/process - Process invoice mailbox
+router.post('/invoices/process', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await invoiceProcessorService.processInvoiceMailbox(organizationId);
+
+    res.json({
+      success: result.success,
+      data: {
+        processedCount: result.processedCount,
+        skippedCount: result.skippedCount,
+        failedCount: result.failedCount,
+        results: result.results,
+      },
+    });
+  } catch (error: any) {
+    console.error('Process invoice mailbox error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to process invoice mailbox',
+    });
+  }
+});
+
+// GET /api/microsoft365/invoices - Get processed invoices
+router.get('/invoices', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const status = req.query.status as string | undefined;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const result = await invoiceProcessorService.getProcessedInvoices(organizationId, {
+      status,
+      limit,
+      offset,
+    });
+
+    res.json({
+      success: true,
+      data: result.invoices,
+      total: result.total,
+    });
+  } catch (error: any) {
+    console.error('Get processed invoices error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get processed invoices',
+    });
+  }
+});
+
+// GET /api/microsoft365/invoices/:id/documents - Get documents for a processed invoice
+router.get('/invoices/:id/documents', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const processedInvoiceId = req.params.id;
+
+    const documents = await invoiceProcessorService.getInvoiceDocuments(processedInvoiceId);
+
+    res.json({
+      success: true,
+      data: documents,
+    });
+  } catch (error: any) {
+    console.error('Get invoice documents error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get invoice documents',
+    });
+  }
+});
+
+// POST /api/microsoft365/invoices/:id/retry - Retry processing a failed invoice
+router.post('/invoices/:id/retry', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const processedInvoiceId = req.params.id;
+
+    const success = await invoiceProcessorService.retryProcessing(organizationId, processedInvoiceId);
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Konnte Verarbeitung nicht wiederholen',
+      });
+    }
+  } catch (error: any) {
+    console.error('Retry invoice processing error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to retry invoice processing',
     });
   }
 });

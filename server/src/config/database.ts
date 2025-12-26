@@ -3025,6 +3025,51 @@ export async function initializeDatabase() {
 
     console.log('✅ Social Media Manager tables created');
 
+    // Processed Invoices table - tracks emails processed from invoice mailbox
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS processed_invoices (
+        id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        email_id TEXT NOT NULL,
+        email_subject TEXT,
+        sender_email TEXT,
+        sender_name TEXT,
+        received_at TIMESTAMP,
+        attachment_count INTEGER DEFAULT 0,
+        document_ids JSONB DEFAULT '[]',
+        vendor_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processed', 'failed', 'skipped')),
+        error_message TEXT,
+        processed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(organization_id, email_id)
+      )
+    `);
+
+    // Invoice Documents table - stores attachments from processed emails
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS invoice_documents (
+        id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        processed_invoice_id TEXT REFERENCES processed_invoices(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        original_filename TEXT NOT NULL,
+        mime_type TEXT NOT NULL DEFAULT 'application/pdf',
+        size INTEGER NOT NULL DEFAULT 0,
+        storage_path TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Indexes for invoice processing tables
+    await client.query('CREATE INDEX IF NOT EXISTS idx_processed_invoices_org ON processed_invoices(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_processed_invoices_status ON processed_invoices(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_processed_invoices_vendor ON processed_invoices(vendor_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_processed_invoices_received ON processed_invoices(received_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_org ON invoice_documents(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_invoice ON invoice_documents(processed_invoice_id)');
+
+    console.log('✅ Invoice processing tables created');
+
     // Fix NinjaRMM alert timestamps that were incorrectly stored (Unix seconds instead of milliseconds)
     // This updates alerts where activity_time is before 1980 (indicating a seconds-based timestamp was used)
     // and recalculates from the activityTime field in alert_data JSON
