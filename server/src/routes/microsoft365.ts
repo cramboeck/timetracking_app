@@ -102,6 +102,16 @@ router.post('/test', requireOrgRole('admin'), async (req: AuthRequest, res: Resp
     const organizationId = orgReq.organization.id;
     const { tenantId, clientId, clientSecret, mailFrom } = req.body;
 
+    // Debug logging
+    console.log('=== Microsoft 365 Test Debug ===');
+    console.log('Tenant ID:', tenantId);
+    console.log('Client ID:', clientId);
+    console.log('Client Secret Length:', clientSecret?.length);
+    console.log('Client Secret First 4:', clientSecret?.substring(0, 4));
+    console.log('Client Secret Last 4:', clientSecret?.substring(clientSecret.length - 4));
+    console.log('Client Secret:', clientSecret); // Temporär - entfernen nach Debug!
+    console.log('================================');
+
     if (!tenantId || !clientId || !clientSecret) {
       return res.status(400).json({
         success: false,
