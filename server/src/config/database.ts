@@ -2664,6 +2664,34 @@ export async function initializeDatabase() {
     console.log('✅ Clockodo Integration tables created');
 
     // ============================================
+    // Microsoft 365 Integration
+    // ============================================
+
+    // Microsoft 365 configuration per organization
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS microsoft365_config (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        tenant_id TEXT,
+        client_id TEXT,
+        client_secret TEXT,
+        mail_from TEXT,
+        support_mailbox TEXT,
+        is_configured BOOLEAN DEFAULT FALSE,
+        last_connection_test TIMESTAMP,
+        last_connection_status TEXT,
+        features_enabled JSONB DEFAULT '{"email": false, "inbox_monitoring": false, "calendar": false}'::jsonb,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(organization_id)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_microsoft365_config_org ON microsoft365_config(organization_id)');
+
+    console.log('✅ Microsoft 365 Integration tables created');
+
+    // ============================================
     // Social Media Manager
     // ============================================
 

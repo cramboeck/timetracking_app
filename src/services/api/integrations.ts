@@ -919,3 +919,68 @@ export const ninjaApi = {
     return authFetch(`/ninjarmm/devices/${deviceId}/os-patches/refresh`, { method: 'POST' });
   },
 };
+
+// ============================================
+// Microsoft 365 API Types
+// ============================================
+
+export interface Microsoft365Config {
+  configured: boolean;
+  tenantId: string;
+  clientId: string;
+  hasClientSecret: boolean;
+  mailFrom: string;
+  supportMailbox: string;
+  featuresEnabled: {
+    email: boolean;
+    inboxMonitoring: boolean;
+    calendar: boolean;
+  };
+  lastConnectionTest?: string | null;
+  lastConnectionStatus?: string | null;
+}
+
+// Microsoft 365 API
+export const microsoft365Api = {
+  getConfig: async (): Promise<{ success: boolean; data: Microsoft365Config }> => {
+    return authFetch('/microsoft365/config');
+  },
+
+  saveConfig: async (config: {
+    tenantId?: string;
+    clientId?: string;
+    clientSecret?: string;
+    mailFrom?: string;
+    supportMailbox?: string;
+    featuresEnabled?: {
+      email?: boolean;
+      inboxMonitoring?: boolean;
+      calendar?: boolean;
+    };
+  }): Promise<{ success: boolean; data: Microsoft365Config }> => {
+    return authFetch('/microsoft365/config', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+  },
+
+  testConnection: async (credentials: {
+    tenantId: string;
+    clientId: string;
+    clientSecret: string;
+    mailFrom?: string;
+  }): Promise<{
+    success: boolean;
+    data?: { displayName: string; email: string };
+    error?: string;
+  }> => {
+    return authFetch('/microsoft365/test', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    });
+  },
+
+  deleteConfig: async (): Promise<{ success: boolean }> => {
+    return authFetch('/microsoft365/config', { method: 'DELETE' });
+  },
+};

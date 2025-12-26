@@ -62,8 +62,8 @@ export type {
   DeviceSubscription,
 } from './portal';
 
-// Integrations API (sevDesk, NinjaRMM)
-export { sevdeskApi, ninjaApi } from './integrations';
+// Integrations API (sevDesk, NinjaRMM, Microsoft 365)
+export { sevdeskApi, ninjaApi, microsoft365Api } from './integrations';
 export type {
   SevdeskConfig,
   SevdeskCustomer,
@@ -83,6 +83,7 @@ export type {
   NinjaDeviceOSPatch,
   NinjaAlert,
   NinjaAlertExclusion,
+  Microsoft365Config,
 } from './integrations';
 
 // Business API (maintenance, contracts, import, AI, social media)
