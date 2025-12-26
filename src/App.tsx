@@ -14,7 +14,8 @@ import { AlertsView } from './components/AlertsView';
 import MaintenanceView from './components/MaintenanceView';
 import TaskHub from './components/TaskHub';
 import Contracts from './components/Contracts';
-import SocialMediaManager from './components/SocialMediaManager';
+import { SocialMediaProvider } from './features/social-media/context';
+import SocialMediaLayout from './features/social-media/SocialMediaLayout';
 import AdminPortal from './components/AdminPortal';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
@@ -1022,7 +1023,9 @@ function App() {
           <Contracts />
         )}
         {currentSubView === 'social-media' && (
-          <SocialMediaManager />
+          <SocialMediaProvider customers={customers}>
+            <SocialMediaLayout />
+          </SocialMediaProvider>
         )}
         {currentSubView === 'reports' && (
           <div className="p-4 text-center text-gray-500 dark:text-gray-400">
