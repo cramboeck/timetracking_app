@@ -507,6 +507,33 @@ class InvoiceProcessorService {
   }
 
   /**
+   * Get a single document by ID (for download)
+   */
+  async getDocument(documentId: string, organizationId: string): Promise<InvoiceDocument | null> {
+    const result = await query(
+      `SELECT * FROM invoice_documents WHERE id = $1 AND organization_id = $2`,
+      [documentId, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const row = result.rows[0];
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      processedInvoiceId: row.processed_invoice_id,
+      filename: row.filename,
+      originalFilename: row.original_filename,
+      mimeType: row.mime_type,
+      size: row.size,
+      storagePath: row.storage_path,
+      createdAt: row.created_at,
+    };
+  }
+
+  /**
    * Approve a draft invoice (mark as processed)
    */
   async approveDraft(organizationId: string, processedInvoiceId: string): Promise<boolean> {

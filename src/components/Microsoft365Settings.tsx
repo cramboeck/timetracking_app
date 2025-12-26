@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Settings, Save, CheckCircle, XCircle, AlertTriangle, Cloud, Mail, Shield, Loader2, Eye, EyeOff, ExternalLink, Key, FileText, RefreshCw, Play, Download, Check, Trash2 } from 'lucide-react';
-import { microsoft365Api, Microsoft365Config, ProcessedInvoice } from '../services/api';
+import { useState, useEffect, Fragment } from 'react';
+import { Settings, Save, CheckCircle, XCircle, AlertTriangle, Cloud, Mail, Shield, Loader2, Eye, EyeOff, ExternalLink, Key, FileText, RefreshCw, Play, Download, Check, Trash2, ChevronDown, ChevronUp, File } from 'lucide-react';
+import { microsoft365Api, Microsoft365Config, ProcessedInvoice, InvoiceDocument } from '../services/api';
 
 export const Microsoft365Settings = () => {
   const [loading, setLoading] = useState(true);
@@ -31,6 +31,11 @@ export const Microsoft365Settings = () => {
   const [processedInvoices, setProcessedInvoices] = useState<ProcessedInvoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [invoiceProcessResult, setInvoiceProcessResult] = useState<{ processedCount: number; skippedCount: number; failedCount: number } | null>(null);
+
+  // Document viewing state
+  const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+  const [invoiceDocuments, setInvoiceDocuments] = useState<Record<string, InvoiceDocument[]>>({});
+  const [loadingDocuments, setLoadingDocuments] = useState<string | null>(null);
 
   useEffect(() => {
     loadConfig();
@@ -154,6 +159,65 @@ export const Microsoft365Settings = () => {
       setError(err.message || 'Löschen fehlgeschlagen');
     }
     setTimeout(() => setSuccess(''), 3000);
+  };
+
+  const handleToggleDocuments = async (invoiceId: string) => {
+    if (expandedInvoiceId === invoiceId) {
+      setExpandedInvoiceId(null);
+      return;
+    }
+
+    setExpandedInvoiceId(invoiceId);
+
+    // Load documents if not already loaded
+    if (!invoiceDocuments[invoiceId]) {
+      setLoadingDocuments(invoiceId);
+      try {
+        const response = await microsoft365Api.getInvoiceDocuments(invoiceId);
+        if (response.success) {
+          setInvoiceDocuments(prev => ({ ...prev, [invoiceId]: response.data }));
+        }
+      } catch (err) {
+        console.error('Failed to load documents:', err);
+      } finally {
+        setLoadingDocuments(null);
+      }
+    }
+  };
+
+  const handleDownloadDocument = (documentId: string, inline?: boolean) => {
+    const url = microsoft365Api.getDocumentDownloadUrl(documentId, inline);
+    // Add auth token to the request
+    const token = localStorage.getItem('token');
+    if (inline) {
+      // Open in new tab with auth
+      window.open(`${url}&token=${token}`, '_blank');
+    } else {
+      // Download with auth header
+      fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.blob())
+        .then(blob => {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = '';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(a.href);
+        })
+        .catch(err => {
+          console.error('Download failed:', err);
+          setError('Download fehlgeschlagen');
+        });
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleSave = async () => {
@@ -629,82 +693,161 @@ export const Microsoft365Settings = () => {
                 </thead>
                 <tbody>
                   {processedInvoices.map((invoice) => (
-                    <tr key={invoice.id} className="border-b border-gray-100 dark:border-dark-300 hover:bg-gray-50 dark:hover:bg-dark-200">
-                      <td className="py-2 px-3 text-gray-900 dark:text-white whitespace-nowrap">
-                        {new Date(invoice.receivedAt).toLocaleDateString('de-DE', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </td>
-                      <td className="py-2 px-3 text-gray-900 dark:text-white">
-                        <div className="truncate max-w-[200px]" title={invoice.senderEmail}>
-                          {invoice.senderName || invoice.senderEmail}
-                        </div>
-                        {invoice.vendorName && (
-                          <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-gray-700 dark:text-gray-300">
-                        <div className="truncate max-w-[250px]" title={invoice.emailSubject}>
-                          {invoice.emailSubject}
-                        </div>
-                      </td>
-                      <td className="py-2 px-3 text-center">
-                        <span className="inline-flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                          <Download size={14} />
-                          {invoice.attachmentCount}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                          invoice.status === 'processed'
-                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                            : invoice.status === 'draft'
-                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                            : invoice.status === 'failed'
-                            ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                            : invoice.status === 'skipped'
-                            ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                        }`}>
-                          {invoice.status === 'processed' && <CheckCircle size={12} />}
-                          {invoice.status === 'draft' && <FileText size={12} />}
-                          {invoice.status === 'failed' && <XCircle size={12} />}
-                          {invoice.status === 'processed' ? 'Bestätigt' :
-                           invoice.status === 'draft' ? 'Entwurf' :
-                           invoice.status === 'failed' ? 'Fehlgeschlagen' :
-                           invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
-                        </span>
-                        {invoice.errorMessage && (
-                          <div className="text-xs text-red-500 mt-1 truncate max-w-[150px]" title={invoice.errorMessage}>
-                            {invoice.errorMessage}
+                    <Fragment key={invoice.id}>
+                      <tr className="border-b border-gray-100 dark:border-dark-300 hover:bg-gray-50 dark:hover:bg-dark-200">
+                        <td className="py-2 px-3 text-gray-900 dark:text-white whitespace-nowrap">
+                          {new Date(invoice.receivedAt).toLocaleDateString('de-DE', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-white">
+                          <div className="truncate max-w-[200px]" title={invoice.senderEmail}>
+                            {invoice.senderName || invoice.senderEmail}
                           </div>
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        {invoice.status === 'draft' && (
-                          <div className="flex gap-1 justify-end">
-                            <button
-                              onClick={() => handleApproveDraft(invoice.id)}
-                              className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
-                              title="Bestätigen"
-                            >
-                              <Check size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteDraft(invoice.id)}
-                              className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                              title="Löschen"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                          {invoice.vendorName && (
+                            <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300">
+                          <div className="truncate max-w-[250px]" title={invoice.emailSubject}>
+                            {invoice.emailSubject}
                           </div>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          {invoice.attachmentCount > 0 ? (
+                            <button
+                              onClick={() => handleToggleDocuments(invoice.id)}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                              title="Dokumente anzeigen"
+                            >
+                              {loadingDocuments === invoice.id ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <Download size={14} />
+                              )}
+                              {invoice.attachmentCount}
+                              {expandedInvoiceId === invoice.id ? (
+                                <ChevronUp size={14} />
+                              ) : (
+                                <ChevronDown size={14} />
+                              )}
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-gray-400">
+                              <Download size={14} />
+                              0
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                            invoice.status === 'processed'
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                              : invoice.status === 'draft'
+                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                              : invoice.status === 'failed'
+                              ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                              : invoice.status === 'skipped'
+                              ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                          }`}>
+                            {invoice.status === 'processed' && <CheckCircle size={12} />}
+                            {invoice.status === 'draft' && <FileText size={12} />}
+                            {invoice.status === 'failed' && <XCircle size={12} />}
+                            {invoice.status === 'processed' ? 'Bestätigt' :
+                             invoice.status === 'draft' ? 'Entwurf' :
+                             invoice.status === 'failed' ? 'Fehlgeschlagen' :
+                             invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
+                          </span>
+                          {invoice.errorMessage && (
+                            <div className="text-xs text-red-500 mt-1 truncate max-w-[150px]" title={invoice.errorMessage}>
+                              {invoice.errorMessage}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-right">
+                          {invoice.status === 'draft' && (
+                            <div className="flex gap-1 justify-end">
+                              <button
+                                onClick={() => handleApproveDraft(invoice.id)}
+                                className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
+                                title="Bestätigen"
+                              >
+                                <Check size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDraft(invoice.id)}
+                                className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                                title="Löschen"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                      {/* Expandable documents row */}
+                      {expandedInvoiceId === invoice.id && (
+                        <tr className="bg-gray-50 dark:bg-dark-200">
+                          <td colSpan={6} className="py-3 px-4">
+                            <div className="pl-4 border-l-2 border-blue-300 dark:border-blue-600">
+                              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Anhänge
+                              </div>
+                              {loadingDocuments === invoice.id ? (
+                                <div className="flex items-center gap-2 text-gray-500">
+                                  <Loader2 size={16} className="animate-spin" />
+                                  Lade Dokumente...
+                                </div>
+                              ) : invoiceDocuments[invoice.id]?.length > 0 ? (
+                                <div className="space-y-2">
+                                  {invoiceDocuments[invoice.id].map((doc) => (
+                                    <div
+                                      key={doc.id}
+                                      className="flex items-center gap-3 p-2 bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-300"
+                                    >
+                                      <File size={20} className="text-red-500 flex-shrink-0" />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-gray-900 dark:text-white truncate">
+                                          {doc.originalFilename}
+                                        </div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                          {formatFileSize(doc.size)} • {doc.mimeType}
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={() => handleDownloadDocument(doc.id, true)}
+                                          className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                                          title="Ansehen"
+                                        >
+                                          <Eye size={16} />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDownloadDocument(doc.id)}
+                                          className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
+                                          title="Herunterladen"
+                                        >
+                                          <Download size={16} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  Keine Dokumente gefunden
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

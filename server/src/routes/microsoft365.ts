@@ -1,4 +1,6 @@
 import { Router, Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import { AuthRequest, authenticateToken } from '../middleware/auth';
 import { attachOrganization, requireOrgRole } from '../middleware/organization';
 import * as microsoft365Service from '../services/microsoft365ConfigService';
@@ -447,6 +449,51 @@ router.get('/invoices/:id/documents', requireOrgRole('member'), async (req: Auth
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get invoice documents',
+    });
+  }
+});
+
+// GET /api/microsoft365/documents/:id/download - Download a document file
+router.get('/documents/:id/download', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const documentId = req.params.id;
+
+    const document = await invoiceProcessorService.getDocument(documentId, organizationId);
+
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        error: 'Dokument nicht gefunden',
+      });
+    }
+
+    // Check if file exists
+    if (!fs.existsSync(document.storagePath)) {
+      console.error(`Document file not found: ${document.storagePath}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Datei nicht gefunden',
+      });
+    }
+
+    // Set appropriate headers for file download/display
+    const inline = req.query.inline === 'true';
+    const disposition = inline ? 'inline' : 'attachment';
+
+    res.setHeader('Content-Type', document.mimeType);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(document.originalFilename)}"`);
+    res.setHeader('Content-Length', document.size);
+
+    // Stream the file
+    const fileStream = fs.createReadStream(document.storagePath);
+    fileStream.pipe(res);
+  } catch (error: any) {
+    console.error('Download document error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to download document',
     });
   }
 });
