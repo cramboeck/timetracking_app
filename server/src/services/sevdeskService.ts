@@ -215,11 +215,24 @@ export async function testConnection(apiToken: string): Promise<{ success: boole
 
 // Get customers from sevDesk
 // sevDesk category IDs: 3 = Customer, 4 = Supplier, 28 = Partner
-// Only returns companies (not contact persons)
-export async function getSevdeskCustomers(apiToken: string, options?: { includeSuppliers?: boolean }): Promise<SevdeskCustomer[]> {
+// Only returns companies (not contact persons) unless showAll is true
+export async function getSevdeskCustomers(apiToken: string, options?: { includeSuppliers?: boolean; showAll?: boolean }): Promise<SevdeskCustomer[]> {
   // By default, only fetch customers (category 3), not suppliers
   const categoryFilter = options?.includeSuppliers ? '' : '&category[id]=3&category[objectName]=Category';
   const response = await sevdeskFetch(apiToken, `/Contact?depth=1&embed=category,parent${categoryFilter}`);
+
+  // If showAll is true, return all contacts without filtering
+  if (options?.showAll) {
+    return (response.objects || []).map((contact: any) => ({
+      id: contact.id,
+      customerNumber: contact.customerNumber || '',
+      // Build name from company name or person name
+      name: contact.name || [contact.surename, contact.familyname].filter(Boolean).join(' ') || `Kontakt ${contact.id}`,
+      category: contact.category ? { id: contact.category.id, name: contact.category.name } : undefined,
+      email: contact.email,
+      phone: contact.phone,
+    }));
+  }
 
   // Filter: Only companies (contacts with 'name' field, not just surename/familyname)
   // and only top-level contacts (no parent = not a contact person of another company)
@@ -1987,10 +2000,11 @@ export interface CustomerImportPreview {
 // Get import preview - compare sevDesk contacts with local customers
 export async function getCustomerImportPreview(
   userId: string,
-  apiToken: string
+  apiToken: string,
+  showAll?: boolean
 ): Promise<CustomerImportPreview[]> {
-  // Get all sevDesk contacts
-  const sevdeskCustomers = await getSevdeskCustomers(apiToken);
+  // Get all sevDesk contacts (optionally including all without filtering)
+  const sevdeskCustomers = await getSevdeskCustomers(apiToken, { showAll });
 
   // Get all local customers with their sevdesk links
   const localResult = await query(

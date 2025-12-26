@@ -1047,6 +1047,7 @@ router.post('/quotes/create', authenticateToken, requireBillingFeature, async (r
 router.get('/import/preview', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const showAll = req.query.showAll === 'true';
 
     // Get config
     const config = await sevdeskService.getConfig(userId);
@@ -1054,7 +1055,7 @@ router.get('/import/preview', authenticateToken, requireBillingFeature, async (r
       return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
     }
 
-    const preview = await sevdeskService.getCustomerImportPreview(userId, config.apiToken);
+    const preview = await sevdeskService.getCustomerImportPreview(userId, config.apiToken, showAll);
 
     // Count by status
     const counts = {
