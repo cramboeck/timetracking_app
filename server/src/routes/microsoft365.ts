@@ -100,7 +100,21 @@ router.post('/test', requireOrgRole('admin'), async (req: AuthRequest, res: Resp
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { tenantId, clientId, clientSecret, mailFrom } = req.body;
+    let { tenantId, clientId, clientSecret, mailFrom } = req.body;
+
+    // If clientSecret is placeholder, get it from database
+    if (clientSecret === '__USE_STORED__') {
+      const storedConfig = await microsoft365Service.getConfig(organizationId);
+      if (storedConfig?.clientSecret) {
+        clientSecret = storedConfig.clientSecret;
+        console.log('Using stored client secret from database');
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'Kein Client Secret gespeichert. Bitte geben Sie ein neues Secret ein.',
+        });
+      }
+    }
 
     // Debug logging
     console.log('=== Microsoft 365 Test Debug ===');
@@ -109,7 +123,6 @@ router.post('/test', requireOrgRole('admin'), async (req: AuthRequest, res: Resp
     console.log('Client Secret Length:', clientSecret?.length);
     console.log('Client Secret First 4:', clientSecret?.substring(0, 4));
     console.log('Client Secret Last 4:', clientSecret?.substring(clientSecret.length - 4));
-    console.log('Client Secret:', clientSecret); // Temporär - entfernen nach Debug!
     console.log('================================');
 
     if (!tenantId || !clientId || !clientSecret) {
