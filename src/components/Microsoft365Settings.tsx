@@ -242,33 +242,54 @@ export const Microsoft365Settings = () => {
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Download response error:', response.status, errorText);
         throw new Error('Download fehlgeschlagen');
       }
 
+      // Get content type from response
+      const contentType = response.headers.get('Content-Type') || 'application/octet-stream';
       const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
+
+      // Create blob with explicit type
+      const typedBlob = new Blob([blob], { type: contentType });
+      const blobUrl = URL.createObjectURL(typedBlob);
+
+      // Get filename from Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'document.pdf';
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match) filename = decodeURIComponent(match[1]);
+      }
 
       if (inline) {
         // Open in new tab for viewing
-        window.open(blobUrl, '_blank');
-        // Clean up after a delay (browser needs time to load)
+        const newWindow = window.open(blobUrl, '_blank');
+        if (!newWindow) {
+          // Popup blocked - fall back to download
+          setError('Pop-up blockiert. Versuche Download...');
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = filename;
+          a.click();
+        }
+        // Clean up after a delay
         setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
       } else {
         // Download the file
-        const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = 'document';
-        if (contentDisposition) {
-          const match = contentDisposition.match(/filename="?([^"]+)"?/);
-          if (match) filename = decodeURIComponent(match[1]);
-        }
-
         const a = document.createElement('a');
         a.href = blobUrl;
         a.download = filename;
+        a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
+
+        // Small delay before cleanup
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+        }, 100);
       }
     } catch (err) {
       console.error('Download failed:', err);
