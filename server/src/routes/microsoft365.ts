@@ -546,6 +546,27 @@ router.delete('/invoices/failed', requireOrgRole('admin'), async (req: AuthReque
   }
 });
 
+// DELETE /api/microsoft365/invoices/all - Clear ALL invoice entries (for reset/testing)
+router.delete('/invoices/all', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const deletedCount = await invoiceProcessorService.clearAllEntries(organizationId);
+
+    res.json({
+      success: true,
+      deletedCount,
+    });
+  } catch (error: any) {
+    console.error('Clear all entries error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to clear all entries',
+    });
+  }
+});
+
 // POST /api/microsoft365/invoices/:id/approve - Approve a draft invoice
 router.post('/invoices/:id/approve', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {

@@ -176,6 +176,27 @@ export const Microsoft365Settings = () => {
     setTimeout(() => setSuccess(''), 3000);
   };
 
+  const handleClearAll = async () => {
+    if (!confirm('ALLE Einträge wirklich löschen? Alle Dokumente und Zuordnungen werden entfernt.')) {
+      return;
+    }
+
+    try {
+      const response = await microsoft365Api.clearAllInvoices();
+      if (response.success) {
+        setSuccess(`${response.deletedCount} Einträge gelöscht`);
+        setInvoiceDocuments({});
+        setExpandedInvoiceId(null);
+        loadProcessedInvoices();
+      } else {
+        setError(response.error || 'Löschen fehlgeschlagen');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Löschen fehlgeschlagen');
+    }
+    setTimeout(() => setSuccess(''), 3000);
+  };
+
   const handleToggleDocuments = async (invoiceId: string) => {
     if (expandedInvoiceId === invoiceId) {
       setExpandedInvoiceId(null);
@@ -647,7 +668,7 @@ export const Microsoft365Settings = () => {
               <FileText size={20} />
               Rechnungsverarbeitung
             </h3>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {processedInvoices.filter(i => i.status === 'failed').length > 0 && (
                 <button
                   onClick={handleClearFailed}
@@ -655,6 +676,15 @@ export const Microsoft365Settings = () => {
                 >
                   <Trash2 size={14} />
                   Fehler löschen
+                </button>
+              )}
+              {processedInvoices.length > 0 && (
+                <button
+                  onClick={handleClearAll}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Alle löschen
                 </button>
               )}
               <button

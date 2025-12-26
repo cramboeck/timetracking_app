@@ -616,6 +616,48 @@ class InvoiceProcessorService {
   }
 
   /**
+   * Clear ALL entries (for testing/reset purposes)
+   */
+  async clearAllEntries(organizationId: string): Promise<number> {
+    // First get all document paths to delete files
+    const docs = await query(
+      `SELECT d.storage_path FROM invoice_documents d
+       JOIN processed_invoices p ON d.processed_invoice_id = p.id
+       WHERE p.organization_id = $1`,
+      [organizationId]
+    );
+
+    // Delete files from filesystem
+    for (const doc of docs.rows) {
+      try {
+        if (doc.storage_path && fs.existsSync(doc.storage_path)) {
+          await fs.promises.unlink(doc.storage_path);
+        }
+      } catch (err) {
+        console.error(`Failed to delete file: ${doc.storage_path}`);
+      }
+    }
+
+    // Delete all documents for this org's invoices
+    await query(
+      `DELETE FROM invoice_documents
+       WHERE processed_invoice_id IN (
+         SELECT id FROM processed_invoices WHERE organization_id = $1
+       )`,
+      [organizationId]
+    );
+
+    // Delete all invoice records
+    const result = await query(
+      `DELETE FROM processed_invoices
+       WHERE organization_id = $1
+       RETURNING id`,
+      [organizationId]
+    );
+    return result.rows.length;
+  }
+
+  /**
    * Retry processing a failed invoice
    */
   async retryProcessing(organizationId: string, processedInvoiceId: string): Promise<boolean> {

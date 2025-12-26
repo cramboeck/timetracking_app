@@ -1070,6 +1070,10 @@ export const microsoft365Api = {
     return authFetch('/microsoft365/invoices/failed', { method: 'DELETE' });
   },
 
+  clearAllInvoices: async (): Promise<{ success: boolean; deletedCount?: number; error?: string }> => {
+    return authFetch('/microsoft365/invoices/all', { method: 'DELETE' });
+  },
+
   getDocumentDownloadUrl: (documentId: string, inline?: boolean): string => {
     const baseUrl = import.meta.env.VITE_API_URL || '';
     return `${baseUrl}/api/microsoft365/documents/${documentId}/download${inline ? '?inline=true' : ''}`;
