@@ -51,6 +51,8 @@ export interface MailboxMonitorResult {
   error?: string;
 }
 
+export type MailboxType = 'support' | 'invoice';
+
 class MailboxMonitorService {
   /**
    * Create a Graph client for the given organization
@@ -84,13 +86,24 @@ class MailboxMonitorService {
   }
 
   /**
-   * Get unread emails from the support mailbox
+   * Get the appropriate mailbox based on type
+   */
+  private getMailboxByType(config: Microsoft365Config, mailboxType: MailboxType = 'support'): string | null {
+    if (mailboxType === 'invoice') {
+      return config.invoiceMailbox || null;
+    }
+    return config.supportMailbox || config.mailFrom || null;
+  }
+
+  /**
+   * Get unread emails from a mailbox
    */
   async getUnreadEmails(
     organizationId: string,
     options: {
       maxResults?: number;
       folder?: string;
+      mailboxType?: MailboxType;
     } = {}
   ): Promise<MailboxMonitorResult> {
     const clientData = await this.createClient(organizationId);
@@ -100,10 +113,12 @@ class MailboxMonitorService {
     }
 
     const { client, config } = clientData;
-    const mailbox = config.supportMailbox || config.mailFrom;
+    const { mailboxType = 'support' } = options;
+    const mailbox = this.getMailboxByType(config, mailboxType);
 
     if (!mailbox) {
-      return { success: false, emails: [], error: 'Keine Support-Mailbox konfiguriert' };
+      const mailboxLabel = mailboxType === 'invoice' ? 'Rechnungs' : 'Support';
+      return { success: false, emails: [], error: `Keine ${mailboxLabel}-Mailbox konfiguriert` };
     }
 
     const { maxResults = 50, folder = 'inbox' } = options;
@@ -161,7 +176,8 @@ class MailboxMonitorService {
    */
   async getEmail(
     organizationId: string,
-    messageId: string
+    messageId: string,
+    mailboxType: MailboxType = 'support'
   ): Promise<EmailMessage | null> {
     const clientData = await this.createClient(organizationId);
 
@@ -170,7 +186,7 @@ class MailboxMonitorService {
     }
 
     const { client, config } = clientData;
-    const mailbox = config.supportMailbox || config.mailFrom;
+    const mailbox = this.getMailboxByType(config, mailboxType);
 
     if (!mailbox) {
       return null;
@@ -219,7 +235,8 @@ class MailboxMonitorService {
    */
   async getAttachments(
     organizationId: string,
-    messageId: string
+    messageId: string,
+    mailboxType: MailboxType = 'support'
   ): Promise<EmailAttachment[]> {
     const clientData = await this.createClient(organizationId);
 
@@ -228,7 +245,7 @@ class MailboxMonitorService {
     }
 
     const { client, config } = clientData;
-    const mailbox = config.supportMailbox || config.mailFrom;
+    const mailbox = this.getMailboxByType(config, mailboxType);
 
     if (!mailbox) {
       return [];
@@ -257,7 +274,8 @@ class MailboxMonitorService {
    */
   async markAsRead(
     organizationId: string,
-    messageId: string
+    messageId: string,
+    mailboxType: MailboxType = 'support'
   ): Promise<boolean> {
     const clientData = await this.createClient(organizationId);
 
@@ -266,7 +284,7 @@ class MailboxMonitorService {
     }
 
     const { client, config } = clientData;
-    const mailbox = config.supportMailbox || config.mailFrom;
+    const mailbox = this.getMailboxByType(config, mailboxType);
 
     if (!mailbox) {
       return false;
@@ -290,7 +308,8 @@ class MailboxMonitorService {
   async moveToFolder(
     organizationId: string,
     messageId: string,
-    folderName: string
+    folderName: string,
+    mailboxType: MailboxType = 'support'
   ): Promise<boolean> {
     const clientData = await this.createClient(organizationId);
 
@@ -299,7 +318,7 @@ class MailboxMonitorService {
     }
 
     const { client, config } = clientData;
-    const mailbox = config.supportMailbox || config.mailFrom;
+    const mailbox = this.getMailboxByType(config, mailboxType);
 
     if (!mailbox) {
       return false;
@@ -338,7 +357,8 @@ class MailboxMonitorService {
     organizationId: string,
     messageId: string,
     replyContent: string,
-    replyAll: boolean = false
+    replyAll: boolean = false,
+    mailboxType: MailboxType = 'support'
   ): Promise<boolean> {
     const clientData = await this.createClient(organizationId);
 
@@ -347,7 +367,7 @@ class MailboxMonitorService {
     }
 
     const { client, config } = clientData;
-    const mailbox = config.supportMailbox || config.mailFrom;
+    const mailbox = this.getMailboxByType(config, mailboxType);
 
     if (!mailbox) {
       return false;
@@ -380,7 +400,8 @@ class MailboxMonitorService {
    */
   async testMailboxAccess(
     organizationId: string,
-    mailbox?: string
+    mailbox?: string,
+    mailboxType: MailboxType = 'support'
   ): Promise<{ success: boolean; error?: string; mailboxInfo?: { email: string; unreadCount: number } }> {
     const clientData = await this.createClient(organizationId);
 
@@ -389,10 +410,12 @@ class MailboxMonitorService {
     }
 
     const { client, config } = clientData;
-    const targetMailbox = mailbox || config.supportMailbox || config.mailFrom;
+    // If specific mailbox is provided, use it. Otherwise use configured mailbox based on type
+    const targetMailbox = mailbox || this.getMailboxByType(config, mailboxType);
 
     if (!targetMailbox) {
-      return { success: false, error: 'Keine Mailbox konfiguriert' };
+      const mailboxLabel = mailboxType === 'invoice' ? 'Rechnungs' : 'Support';
+      return { success: false, error: `Keine ${mailboxLabel}-Mailbox konfiguriert` };
     }
 
     try {

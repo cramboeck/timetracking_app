@@ -2677,6 +2677,7 @@ export async function initializeDatabase() {
         client_secret TEXT,
         mail_from TEXT,
         support_mailbox TEXT,
+        invoice_mailbox TEXT,
         is_configured BOOLEAN DEFAULT FALSE,
         last_connection_test TIMESTAMP,
         last_connection_status TEXT,
@@ -2688,6 +2689,19 @@ export async function initializeDatabase() {
     `);
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_microsoft365_config_org ON microsoft365_config(organization_id)');
+
+    // Migration: Add invoice_mailbox if not exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'microsoft365_config' AND column_name = 'invoice_mailbox'
+        ) THEN
+          ALTER TABLE microsoft365_config ADD COLUMN invoice_mailbox TEXT;
+        END IF;
+      END $$
+    `);
 
     console.log('✅ Microsoft 365 Integration tables created');
 

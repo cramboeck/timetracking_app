@@ -51,6 +51,7 @@ router.get('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Res
         hasClientSecret: !!config.clientSecret,
         mailFrom: config.mailFrom || '',
         supportMailbox: config.supportMailbox || '',
+        invoiceMailbox: config.invoiceMailbox || '',
         featuresEnabled: config.featuresEnabled,
         lastConnectionTest: config.lastConnectionTest,
         lastConnectionStatus: config.lastConnectionStatus,
@@ -67,7 +68,7 @@ router.post('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Re
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { tenantId, clientId, clientSecret, mailFrom, supportMailbox, featuresEnabled } = req.body;
+    const { tenantId, clientId, clientSecret, mailFrom, supportMailbox, invoiceMailbox, featuresEnabled } = req.body;
 
     const config = await microsoft365Service.saveConfig(organizationId, {
       tenantId,
@@ -75,6 +76,7 @@ router.post('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Re
       clientSecret,
       mailFrom,
       supportMailbox,
+      invoiceMailbox,
       featuresEnabled,
     });
 
@@ -87,6 +89,7 @@ router.post('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Re
         hasClientSecret: !!config.clientSecret,
         mailFrom: config.mailFrom || '',
         supportMailbox: config.supportMailbox || '',
+        invoiceMailbox: config.invoiceMailbox || '',
         featuresEnabled: config.featuresEnabled,
       },
     });
@@ -191,9 +194,9 @@ router.post('/mailbox/test', requireOrgRole('admin'), async (req: AuthRequest, r
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { mailbox } = req.body;
+    const { mailbox, mailboxType } = req.body;
 
-    const result = await mailboxMonitorService.testMailboxAccess(organizationId, mailbox);
+    const result = await mailboxMonitorService.testMailboxAccess(organizationId, mailbox, mailboxType || 'support');
 
     if (result.success) {
       res.json({
@@ -221,8 +224,12 @@ router.get('/mailbox/emails', requireOrgRole('admin', 'member'), async (req: Aut
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const maxResults = parseInt(req.query.maxResults as string) || 50;
+    const mailboxType = (req.query.mailboxType as string) || 'support';
 
-    const result = await mailboxMonitorService.getUnreadEmails(organizationId, { maxResults });
+    const result = await mailboxMonitorService.getUnreadEmails(organizationId, {
+      maxResults,
+      mailboxType: mailboxType as 'support' | 'invoice',
+    });
 
     if (result.success) {
       res.json({
@@ -250,8 +257,9 @@ router.get('/mailbox/emails/:id', requireOrgRole('admin', 'member'), async (req:
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const messageId = req.params.id;
+    const mailboxType = (req.query.mailboxType as string) || 'support';
 
-    const email = await mailboxMonitorService.getEmail(organizationId, messageId);
+    const email = await mailboxMonitorService.getEmail(organizationId, messageId, mailboxType as 'support' | 'invoice');
 
     if (email) {
       res.json({
@@ -279,8 +287,9 @@ router.get('/mailbox/emails/:id/attachments', requireOrgRole('admin', 'member'),
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const messageId = req.params.id;
+    const mailboxType = (req.query.mailboxType as string) || 'support';
 
-    const attachments = await mailboxMonitorService.getAttachments(organizationId, messageId);
+    const attachments = await mailboxMonitorService.getAttachments(organizationId, messageId, mailboxType as 'support' | 'invoice');
 
     res.json({
       success: true,
@@ -301,8 +310,9 @@ router.post('/mailbox/emails/:id/read', requireOrgRole('admin', 'member'), async
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const messageId = req.params.id;
+    const { mailboxType } = req.body;
 
-    const success = await mailboxMonitorService.markAsRead(organizationId, messageId);
+    const success = await mailboxMonitorService.markAsRead(organizationId, messageId, mailboxType || 'support');
 
     if (success) {
       res.json({ success: true });
@@ -327,7 +337,7 @@ router.post('/mailbox/emails/:id/reply', requireOrgRole('admin', 'member'), asyn
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const messageId = req.params.id;
-    const { content, replyAll } = req.body;
+    const { content, replyAll, mailboxType } = req.body;
 
     if (!content) {
       return res.status(400).json({
@@ -340,7 +350,8 @@ router.post('/mailbox/emails/:id/reply', requireOrgRole('admin', 'member'), asyn
       organizationId,
       messageId,
       content,
-      replyAll || false
+      replyAll || false,
+      mailboxType || 'support'
     );
 
     if (success) {

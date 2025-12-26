@@ -10,6 +10,7 @@ export interface Microsoft365Config {
   clientSecret: string | null;
   mailFrom: string | null;
   supportMailbox: string | null;
+  invoiceMailbox: string | null;
   isConfigured: boolean;
   lastConnectionTest: string | null;
   lastConnectionStatus: string | null;
@@ -28,6 +29,7 @@ export interface Microsoft365ConfigInput {
   clientSecret?: string;
   mailFrom?: string;
   supportMailbox?: string;
+  invoiceMailbox?: string;
   featuresEnabled?: {
     email?: boolean;
     inboxMonitoring?: boolean;
@@ -83,6 +85,10 @@ export async function saveConfig(
       updates.push(`support_mailbox = $${paramCount++}`);
       values.push(input.supportMailbox || null);
     }
+    if (input.invoiceMailbox !== undefined) {
+      updates.push(`invoice_mailbox = $${paramCount++}`);
+      values.push(input.invoiceMailbox || null);
+    }
     if (input.featuresEnabled !== undefined) {
       const currentFeatures = existing.featuresEnabled || { email: false, inboxMonitoring: false, calendar: false };
       const newFeatures = {
@@ -119,8 +125,8 @@ export async function saveConfig(
     await query(
       `INSERT INTO microsoft365_config (
         id, organization_id, tenant_id, client_id, client_secret,
-        mail_from, support_mailbox, is_configured, features_enabled, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+        mail_from, support_mailbox, invoice_mailbox, is_configured, features_enabled, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
       [
         id,
         organizationId,
@@ -129,6 +135,7 @@ export async function saveConfig(
         input.clientSecret || null,
         input.mailFrom || null,
         input.supportMailbox || null,
+        input.invoiceMailbox || null,
         isConfigured,
         JSON.stringify(featuresEnabled),
       ]
@@ -285,6 +292,7 @@ function mapRowToConfig(row: any): Microsoft365Config {
     clientSecret: row.client_secret,
     mailFrom: row.mail_from,
     supportMailbox: row.support_mailbox,
+    invoiceMailbox: row.invoice_mailbox,
     isConfigured: row.is_configured,
     lastConnectionTest: row.last_connection_test,
     lastConnectionStatus: row.last_connection_status,
