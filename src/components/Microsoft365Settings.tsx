@@ -229,7 +229,12 @@ export const Microsoft365Settings = () => {
 
   const handleDownloadDocument = async (documentId: string, inline?: boolean) => {
     const url = microsoft365Api.getDocumentDownloadUrl(documentId, inline);
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
+
+    if (!token) {
+      setError('Nicht authentifiziert');
+      return;
+    }
 
     try {
       const response = await fetch(url, {
