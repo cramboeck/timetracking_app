@@ -219,7 +219,7 @@ router.post('/mailbox/test', requireOrgRole('admin'), async (req: AuthRequest, r
 });
 
 // GET /api/microsoft365/mailbox/emails - Get unread emails
-router.get('/mailbox/emails', requireOrgRole('admin', 'member'), async (req: AuthRequest, res: Response) => {
+router.get('/mailbox/emails', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -252,7 +252,7 @@ router.get('/mailbox/emails', requireOrgRole('admin', 'member'), async (req: Aut
 });
 
 // GET /api/microsoft365/mailbox/emails/:id - Get specific email
-router.get('/mailbox/emails/:id', requireOrgRole('admin', 'member'), async (req: AuthRequest, res: Response) => {
+router.get('/mailbox/emails/:id', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -282,7 +282,7 @@ router.get('/mailbox/emails/:id', requireOrgRole('admin', 'member'), async (req:
 });
 
 // GET /api/microsoft365/mailbox/emails/:id/attachments - Get email attachments
-router.get('/mailbox/emails/:id/attachments', requireOrgRole('admin', 'member'), async (req: AuthRequest, res: Response) => {
+router.get('/mailbox/emails/:id/attachments', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -305,7 +305,7 @@ router.get('/mailbox/emails/:id/attachments', requireOrgRole('admin', 'member'),
 });
 
 // POST /api/microsoft365/mailbox/emails/:id/read - Mark email as read
-router.post('/mailbox/emails/:id/read', requireOrgRole('admin', 'member'), async (req: AuthRequest, res: Response) => {
+router.post('/mailbox/emails/:id/read', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -332,7 +332,7 @@ router.post('/mailbox/emails/:id/read', requireOrgRole('admin', 'member'), async
 });
 
 // POST /api/microsoft365/mailbox/emails/:id/reply - Reply to email
-router.post('/mailbox/emails/:id/reply', requireOrgRole('admin', 'member'), async (req: AuthRequest, res: Response) => {
+router.post('/mailbox/emails/:id/reply', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
