@@ -45,7 +45,14 @@ export default function EngagementBotTab() {
         socialMediaApi.getEngagementHistory().catch(() => []),
       ]);
       if (settingsData) {
-        setSettings(settingsData);
+        setSettings({
+          ...DEFAULT_ENGAGEMENT_SETTINGS,
+          ...settingsData,
+          platforms: settingsData.platforms || DEFAULT_ENGAGEMENT_SETTINGS.platforms,
+          targetKeywords: settingsData.targetKeywords || DEFAULT_ENGAGEMENT_SETTINGS.targetKeywords,
+          targetAccounts: settingsData.targetAccounts || DEFAULT_ENGAGEMENT_SETTINGS.targetAccounts,
+          excludeKeywords: settingsData.excludeKeywords || DEFAULT_ENGAGEMENT_SETTINGS.excludeKeywords,
+        });
       }
       setHistory(historyData || []);
     } catch (error) {

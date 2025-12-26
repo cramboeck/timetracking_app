@@ -33,7 +33,12 @@ export default function AutopilotTab() {
     try {
       const data = await socialMediaApi.getAutopilotSettings();
       if (data) {
-        setSettings(data);
+        setSettings({
+          ...DEFAULT_AUTOPILOT_SETTINGS,
+          ...data,
+          platforms: data.platforms || DEFAULT_AUTOPILOT_SETTINGS.platforms,
+          contentThemes: data.contentThemes || DEFAULT_AUTOPILOT_SETTINGS.contentThemes,
+        });
       }
     } catch (error) {
       console.error('Failed to load autopilot settings:', error);

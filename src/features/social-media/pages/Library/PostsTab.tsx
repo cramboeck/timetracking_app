@@ -47,7 +47,7 @@ export default function PostsTab() {
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        if (!post.content.toLowerCase().includes(query)) {
+        if (!(post.content || '').toLowerCase().includes(query)) {
           return false;
         }
       }
@@ -58,7 +58,7 @@ export default function PostsTab() {
       }
 
       // Platform filter
-      if (platformFilter !== 'all' && !post.platforms.includes(platformFilter)) {
+      if (platformFilter !== 'all' && !(post.platforms || []).includes(platformFilter)) {
         return false;
       }
 
