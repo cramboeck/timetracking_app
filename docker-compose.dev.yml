@@ -46,6 +46,8 @@ services:
       - ./server/src:/app/src:ro
       - ./server/package.json:/app/package.json:ro
       - /app/node_modules
+      # Mount uploads directory for persistent storage
+      - ./server/uploads:/app/uploads
     command: npm run dev
     networks:
       - timetracking-network
