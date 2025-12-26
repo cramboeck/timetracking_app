@@ -228,7 +228,6 @@ export const Microsoft365Settings = () => {
   };
 
   const handleDownloadDocument = async (documentId: string, inline?: boolean) => {
-    const url = microsoft365Api.getDocumentDownloadUrl(documentId, inline);
     const token = localStorage.getItem('auth_token');
 
     if (!token) {
@@ -236,24 +235,18 @@ export const Microsoft365Settings = () => {
       return;
     }
 
-    // Create a hidden form to submit the download request
-    // This avoids HTTP/2 protocol errors with fetch
-    const form = document.createElement('form');
-    form.method = 'GET';
-    form.action = url;
-    form.target = inline ? '_blank' : '_self';
-    form.style.display = 'none';
+    // Build URL with token as query parameter
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const params = new URLSearchParams();
+    params.set('token', token);
+    if (inline) {
+      params.set('inline', 'true');
+    }
 
-    // Add auth token as a hidden field (backend needs to support this)
-    const tokenInput = document.createElement('input');
-    tokenInput.type = 'hidden';
-    tokenInput.name = 'token';
-    tokenInput.value = token;
-    form.appendChild(tokenInput);
+    const url = `${baseUrl}/microsoft365/documents/${documentId}/download?${params.toString()}`;
 
-    document.body.appendChild(form);
-    form.submit();
-    document.body.removeChild(form);
+    // Open directly in browser - avoids HTTP/2 fetch issues
+    window.open(url, inline ? '_blank' : '_self');
   };
 
   const formatFileSize = (bytes: number): string => {
