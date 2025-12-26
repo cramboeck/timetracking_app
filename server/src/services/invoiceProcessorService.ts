@@ -358,9 +358,14 @@ class InvoiceProcessorService {
 
   /**
    * Process all unread emails in the invoice mailbox
+   * @param includeRead - If true, also fetch already read emails (for re-processing)
    */
-  async processInvoiceMailbox(organizationId: string): Promise<ProcessingResult> {
-    console.log(`Starting invoice mailbox processing for organization: ${organizationId}`);
+  async processInvoiceMailbox(
+    organizationId: string,
+    options: { includeRead?: boolean } = {}
+  ): Promise<ProcessingResult> {
+    const { includeRead = false } = options;
+    console.log(`Starting invoice mailbox processing for organization: ${organizationId} (includeRead: ${includeRead})`);
 
     // Check if invoice mailbox is configured
     const config = await getConfig(organizationId);
@@ -374,10 +379,11 @@ class InvoiceProcessorService {
       };
     }
 
-    // Get unread emails
+    // Get emails (optionally including already read ones)
     const emailResult = await mailboxMonitorService.getUnreadEmails(organizationId, {
       maxResults: 50,
       mailboxType: 'invoice',
+      includeRead,
     });
 
     if (!emailResult.success) {

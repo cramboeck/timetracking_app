@@ -1013,7 +1013,7 @@ export const microsoft365Api = {
   },
 
   // Invoice Processing
-  processInvoices: async (): Promise<{
+  processInvoices: async (options?: { includeRead?: boolean }): Promise<{
     success: boolean;
     data?: {
       processedCount: number;
@@ -1023,7 +1023,10 @@ export const microsoft365Api = {
     };
     error?: string;
   }> => {
-    return authFetch('/microsoft365/invoices/process', { method: 'POST' });
+    return authFetch('/microsoft365/invoices/process', {
+      method: 'POST',
+      body: JSON.stringify(options || {}),
+    });
   },
 
   getProcessedInvoices: async (params?: {

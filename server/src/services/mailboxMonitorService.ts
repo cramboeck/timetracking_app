@@ -96,7 +96,10 @@ class MailboxMonitorService {
   }
 
   /**
-   * Get unread emails from a mailbox
+   * Get emails from a mailbox
+   * @param organizationId - Organization ID
+   * @param options - Options for fetching emails
+   * @param options.includeRead - If true, fetch all emails (not just unread)
    */
   async getUnreadEmails(
     organizationId: string,
@@ -104,6 +107,7 @@ class MailboxMonitorService {
       maxResults?: number;
       folder?: string;
       mailboxType?: MailboxType;
+      includeRead?: boolean;
     } = {}
   ): Promise<MailboxMonitorResult> {
     const clientData = await this.createClient(organizationId);
@@ -113,7 +117,7 @@ class MailboxMonitorService {
     }
 
     const { client, config } = clientData;
-    const { mailboxType = 'support' } = options;
+    const { mailboxType = 'support', includeRead = false } = options;
     const mailbox = this.getMailboxByType(config, mailboxType);
 
     if (!mailbox) {
@@ -124,13 +128,18 @@ class MailboxMonitorService {
     const { maxResults = 50, folder = 'inbox' } = options;
 
     try {
-      const response = await client
+      let apiRequest = client
         .api(`/users/${mailbox}/mailFolders/${folder}/messages`)
-        .filter('isRead eq false')
         .top(maxResults)
         .orderby('receivedDateTime desc')
-        .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance')
-        .get();
+        .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance');
+
+      // Only filter by unread if not including read emails
+      if (!includeRead) {
+        apiRequest = apiRequest.filter('isRead eq false');
+      }
+
+      const response = await apiRequest.get();
 
       const emails: EmailMessage[] = (response.value || []).map((msg: any) => ({
         id: msg.id,
@@ -159,7 +168,8 @@ class MailboxMonitorService {
         importance: msg.importance || 'normal',
       }));
 
-      console.log(`📬 Found ${emails.length} unread emails in ${mailbox}`);
+      const status = includeRead ? 'all' : 'unread';
+      console.log(`📬 Found ${emails.length} ${status} emails in ${mailbox}`);
       return { success: true, emails };
     } catch (error: any) {
       console.error('Failed to get unread emails:', error.message);
@@ -326,6 +336,64 @@ class MailboxMonitorService {
       console.error('Failed to mark email as read:', error.message);
       return false;
     }
+  }
+
+  /**
+   * Mark an email as unread
+   */
+  async markAsUnread(
+    organizationId: string,
+    messageId: string,
+    mailboxType: MailboxType = 'support'
+  ): Promise<boolean> {
+    const clientData = await this.createClient(organizationId);
+
+    if (!clientData) {
+      return false;
+    }
+
+    const { client, config } = clientData;
+    const mailbox = this.getMailboxByType(config, mailboxType);
+
+    if (!mailbox) {
+      return false;
+    }
+
+    try {
+      await client
+        .api(`/users/${mailbox}/messages/${messageId}`)
+        .patch({ isRead: false });
+
+      console.log(`📧 Marked email ${messageId} as unread`);
+      return true;
+    } catch (error: any) {
+      console.error('Failed to mark email as unread:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Mark multiple emails as unread
+   */
+  async markMultipleAsUnread(
+    organizationId: string,
+    messageIds: string[],
+    mailboxType: MailboxType = 'support'
+  ): Promise<{ success: number; failed: number }> {
+    let success = 0;
+    let failed = 0;
+
+    for (const messageId of messageIds) {
+      const result = await this.markAsUnread(organizationId, messageId, mailboxType);
+      if (result) {
+        success++;
+      } else {
+        failed++;
+      }
+    }
+
+    console.log(`📧 Marked ${success}/${messageIds.length} emails as unread`);
+    return { success, failed };
   }
 
   /**

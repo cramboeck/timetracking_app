@@ -379,12 +379,14 @@ router.post('/mailbox/emails/:id/reply', requireOrgRole('member'), async (req: A
 // ========================================
 
 // POST /api/microsoft365/invoices/process - Process invoice mailbox
+// Set includeRead=true to also process already read emails (for re-processing after clear all)
 router.post('/invoices/process', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
+    const { includeRead = false } = req.body;
 
-    const result = await invoiceProcessorService.processInvoiceMailbox(organizationId);
+    const result = await invoiceProcessorService.processInvoiceMailbox(organizationId, { includeRead });
 
     res.json({
       success: result.success,

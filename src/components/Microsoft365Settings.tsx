@@ -80,21 +80,27 @@ export const Microsoft365Settings = () => {
     }
   };
 
-  const handleProcessInvoices = async () => {
+  const handleProcessInvoices = async (includeRead: boolean = false) => {
     setProcessingInvoices(true);
     setInvoiceProcessResult(null);
     setError('');
     setSuccess('');
 
     try {
-      const response = await microsoft365Api.processInvoices();
+      const response = await microsoft365Api.processInvoices({ includeRead });
       if (response.success && response.data) {
         setInvoiceProcessResult({
           processedCount: response.data.processedCount,
           skippedCount: response.data.skippedCount,
           failedCount: response.data.failedCount,
         });
-        setSuccess(`${response.data.processedCount} Entwürfe erstellt`);
+        if (response.data.processedCount > 0) {
+          setSuccess(`${response.data.processedCount} Entwürfe erstellt`);
+        } else if (includeRead) {
+          setSuccess('Keine neuen E-Mails zum Verarbeiten gefunden');
+        } else {
+          setSuccess('Keine ungelesenen E-Mails gefunden');
+        }
         loadProcessedInvoices();
       } else {
         setError(response.error || 'Verarbeitung fehlgeschlagen');
@@ -696,16 +702,30 @@ export const Microsoft365Settings = () => {
                 Aktualisieren
               </button>
               <button
-                onClick={handleProcessInvoices}
+                onClick={() => handleProcessInvoices(false)}
                 disabled={processingInvoices}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm btn-accent"
+                title="Nur ungelesene E-Mails verarbeiten"
               >
                 {processingInvoices ? (
                   <Loader2 size={14} className="animate-spin" />
                 ) : (
                   <Play size={14} />
                 )}
-                Postfach verarbeiten
+                Neue Mails
+              </button>
+              <button
+                onClick={() => handleProcessInvoices(true)}
+                disabled={processingInvoices}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 disabled:opacity-50 transition-colors"
+                title="Alle E-Mails verarbeiten (inkl. bereits gelesene)"
+              >
+                {processingInvoices ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={14} />
+                )}
+                Alle erneut
               </button>
             </div>
           </div>
