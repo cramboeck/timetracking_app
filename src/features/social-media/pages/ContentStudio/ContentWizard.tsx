@@ -83,23 +83,103 @@ export default function ContentWizard() {
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const result = await socialMediaApi.generateWizardContent({
-        topic,
-        platforms,
-        tone,
-        marketingGoal: goal,
-        journeyStage,
-        contentLength,
-        targetAudience: targetAudience || undefined,
-        keyMessages: keyMessages ? keyMessages.split('\n').filter((m) => m.trim()) : undefined,
-        callToAction: callToAction || undefined,
-      });
-      setResults(result.posts);
-      setStep(4);
+      // Build enhanced topic with marketing context
+      const enhancedTopic = buildEnhancedTopic();
+
+      // Map wizard tone to API tone
+      const apiTone = mapToneToApi(tone);
+
+      // Generate content for each platform
+      const generatedResults: WizardResult[] = [];
+
+      for (const platform of platforms) {
+        try {
+          const result = await socialMediaApi.generateContent({
+            topic: enhancedTopic,
+            platform,
+            tone: apiTone,
+            includeHashtags: true,
+            includeEmoji: true,
+          });
+
+          generatedResults.push({
+            platform,
+            content: result.content,
+            hashtags: result.hashtags || [],
+          });
+        } catch (err) {
+          console.error(`Failed to generate for ${platform}:`, err);
+        }
+      }
+
+      if (generatedResults.length > 0) {
+        setResults(generatedResults);
+        setStep(4);
+      }
     } catch (error) {
       console.error('Failed to generate content:', error);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // Build enhanced topic with all wizard context
+  const buildEnhancedTopic = () => {
+    let enhancedTopic = topic;
+
+    // Add target audience context
+    if (targetAudience) {
+      enhancedTopic += `. Zielgruppe: ${targetAudience}`;
+    }
+
+    // Add key messages
+    if (keyMessages) {
+      const messages = keyMessages.split('\n').filter(m => m.trim());
+      if (messages.length > 0) {
+        enhancedTopic += `. Kernbotschaften: ${messages.join(', ')}`;
+      }
+    }
+
+    // Add CTA
+    if (callToAction) {
+      enhancedTopic += `. Call-to-Action: ${callToAction}`;
+    }
+
+    // Add marketing goal context
+    const goalLabels: Record<MarketingGoal, string> = {
+      leads: 'Lead-Generierung',
+      brand: 'Markenbekanntheit',
+      engagement: 'Engagement fördern',
+      sales: 'Verkauf',
+      traffic: 'Website-Traffic',
+    };
+    enhancedTopic += `. Ziel: ${goalLabels[goal]}`;
+
+    // Add content length hint
+    const lengthHints: Record<ContentLength, string> = {
+      short: 'Kurz und prägnant (1-2 Sätze)',
+      medium: 'Mittlere Länge (3-5 Sätze)',
+      long: 'Ausführlich (6+ Sätze)',
+    };
+    enhancedTopic += `. Länge: ${lengthHints[contentLength]}`;
+
+    return enhancedTopic;
+  };
+
+  // Map wizard tones to API tones
+  const mapToneToApi = (wizardTone: WizardTone): 'professional' | 'casual' | 'humorous' | 'informative' => {
+    switch (wizardTone) {
+      case 'professional':
+        return 'professional';
+      case 'inspirational':
+      case 'storytelling':
+        return 'casual';
+      case 'urgent':
+        return 'informative';
+      case 'educational':
+        return 'informative';
+      default:
+        return 'professional';
     }
   };
 
