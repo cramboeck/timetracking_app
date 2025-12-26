@@ -62,6 +62,7 @@ export const SevdeskCustomerImport = ({
     name_match: true,
     linked: false,
   });
+  const [showAll, setShowAll] = useState(true); // Default to showing all customers
   const [result, setResult] = useState<{
     imported: number;
     linked: number;
@@ -75,36 +76,21 @@ export const SevdeskCustomerImport = ({
     }
   }, [isOpen]);
 
-  const loadPreview = async () => {
+  const loadPreview = async (fetchAll?: boolean) => {
     try {
       setLoading(true);
       setError(null);
       setResult(null);
 
-      const response = await sevdeskApi.getImportPreview();
+      const response = await sevdeskApi.getImportPreview(fetchAll ?? showAll);
       if (response.success) {
         setCustomers(response.data.customers);
         setCounts(response.data.counts);
 
-        // Initialize actions: skip for linked, import for new, skip for name_match (user must decide)
+        // Initialize actions: all set to skip by default, user selects what to import
         const initialActions = new Map<string, ImportAction>();
         for (const c of response.data.customers) {
-          if (c.matchStatus === 'linked') {
-            initialActions.set(c.sevdeskId, { sevdeskId: c.sevdeskId, action: 'skip' });
-          } else if (c.matchStatus === 'new') {
-            initialActions.set(c.sevdeskId, {
-              sevdeskId: c.sevdeskId,
-              action: 'import',
-              color: COLORS[Math.floor(Math.random() * COLORS.length)],
-            });
-          } else {
-            // name_match - default to link
-            initialActions.set(c.sevdeskId, {
-              sevdeskId: c.sevdeskId,
-              action: 'link',
-              linkToCustomerId: c.localCustomerId,
-            });
-          }
+          initialActions.set(c.sevdeskId, { sevdeskId: c.sevdeskId, action: 'skip' });
         }
         setActions(initialActions);
       } else {
@@ -154,18 +140,91 @@ export const SevdeskCustomerImport = ({
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
+  // Toggle selection for a customer
+  const toggleSelection = (customer: ImportCustomer) => {
+    const currentAction = actions.get(customer.sevdeskId);
+    if (currentAction?.action === 'skip') {
+      // Select for import (or link if name_match)
+      if (customer.matchStatus === 'name_match' && customer.localCustomerId) {
+        setAction(customer.sevdeskId, {
+          sevdeskId: customer.sevdeskId,
+          action: 'link',
+          linkToCustomerId: customer.localCustomerId,
+        });
+      } else {
+        setAction(customer.sevdeskId, {
+          sevdeskId: customer.sevdeskId,
+          action: 'import',
+          color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        });
+      }
+    } else {
+      // Deselect
+      setAction(customer.sevdeskId, { sevdeskId: customer.sevdeskId, action: 'skip' });
+    }
+  };
+
+  // Select all non-linked customers
+  const selectAll = () => {
+    const newActions = new Map(actions);
+    for (const c of customers) {
+      if (c.matchStatus !== 'linked') {
+        if (c.matchStatus === 'name_match' && c.localCustomerId) {
+          newActions.set(c.sevdeskId, {
+            sevdeskId: c.sevdeskId,
+            action: 'link',
+            linkToCustomerId: c.localCustomerId,
+          });
+        } else {
+          newActions.set(c.sevdeskId, {
+            sevdeskId: c.sevdeskId,
+            action: 'import',
+            color: COLORS[Math.floor(Math.random() * COLORS.length)],
+          });
+        }
+      }
+    }
+    setActions(newActions);
+  };
+
+  // Deselect all
+  const deselectAll = () => {
+    const newActions = new Map<string, ImportAction>();
+    for (const c of customers) {
+      newActions.set(c.sevdeskId, { sevdeskId: c.sevdeskId, action: 'skip' });
+    }
+    setActions(newActions);
+  };
+
   const renderCustomerRow = (customer: ImportCustomer) => {
     const action = actions.get(customer.sevdeskId);
     const isLinked = customer.matchStatus === 'linked';
+    const isSelected = action?.action !== 'skip';
 
     return (
       <div
         key={customer.sevdeskId}
         className={`p-3 border-b border-gray-100 dark:border-gray-700 ${
           isLinked ? 'bg-gray-50 dark:bg-gray-800/50' : ''
-        }`}
+        } ${isSelected && !isLinked ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          {/* Checkbox */}
+          {!isLinked ? (
+            <label className="flex items-center mt-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => toggleSelection(customer)}
+                className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-gray-600 focus:ring-blue-500 dark:bg-gray-700"
+              />
+            </label>
+          ) : (
+            <div className="w-4 h-4 mt-1 flex items-center justify-center">
+              <Check size={14} className="text-green-600 dark:text-green-400" />
+            </div>
+          )}
+
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="font-medium text-gray-900 dark:text-white truncate">
@@ -174,6 +233,11 @@ export const SevdeskCustomerImport = ({
               {customer.sevdeskCustomerNumber && (
                 <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded">
                   #{customer.sevdeskCustomerNumber}
+                </span>
+              )}
+              {customer.matchStatus === 'name_match' && (
+                <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded">
+                  Ähnlich
                 </span>
               )}
             </div>
@@ -185,74 +249,28 @@ export const SevdeskCustomerImport = ({
             )}
             {customer.matchStatus === 'name_match' && customer.localCustomerName && (
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                Mögliche Übereinstimmung: {customer.localCustomerName}
+                → Wird verknüpft mit: {customer.localCustomerName}
               </p>
             )}
             {customer.matchStatus === 'linked' && customer.localCustomerName && (
               <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                Verknüpft mit: {customer.localCustomerName}
+                Bereits verknüpft mit: {customer.localCustomerName}
               </p>
             )}
           </div>
 
-          {/* Action Buttons */}
-          {!isLinked && (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setAction(customer.sevdeskId, {
-                  sevdeskId: customer.sevdeskId,
-                  action: 'import',
-                  color: COLORS[Math.floor(Math.random() * COLORS.length)],
-                })}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  action?.action === 'import'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-100 dark:hover:bg-blue-900/30'
-                }`}
-                title="Als neuen Kunden importieren"
-              >
-                <UserPlus size={14} />
-              </button>
-
-              {customer.matchStatus === 'name_match' && customer.localCustomerId && (
-                <button
-                  onClick={() => setAction(customer.sevdeskId, {
-                    sevdeskId: customer.sevdeskId,
-                    action: 'link',
-                    linkToCustomerId: customer.localCustomerId,
-                  })}
-                  className={`px-2 py-1 text-xs rounded transition-colors ${
-                    action?.action === 'link'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-green-100 dark:hover:bg-green-900/30'
-                  }`}
-                  title="Mit bestehendem Kunden verknüpfen"
-                >
-                  <Link2 size={14} />
-                </button>
+          {/* Status indicator */}
+          {isSelected && !isLinked && (
+            <div className="flex items-center gap-1 text-xs">
+              {action?.action === 'link' ? (
+                <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                  <Link2 size={12} /> Verknüpfen
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                  <UserPlus size={12} /> Importieren
+                </span>
               )}
-
-              <button
-                onClick={() => setAction(customer.sevdeskId, {
-                  sevdeskId: customer.sevdeskId,
-                  action: 'skip',
-                })}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  action?.action === 'skip'
-                    ? 'bg-gray-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-                title="Überspringen"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
-
-          {isLinked && (
-            <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-              <Check size={16} />
-              <span className="text-xs">Verknüpft</span>
             </div>
           )}
         </div>
@@ -364,7 +382,7 @@ export const SevdeskCustomerImport = ({
                 </span>
               </div>
               <button
-                onClick={loadPreview}
+                onClick={() => loadPreview()}
                 className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 title="Neu laden"
               >
@@ -372,17 +390,30 @@ export const SevdeskCustomerImport = ({
               </button>
             </div>
 
-            {/* Legend */}
-            <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 px-1">
-              <span className="flex items-center gap-1">
-                <UserPlus size={12} className="text-blue-600" /> Importieren
-              </span>
-              <span className="flex items-center gap-1">
-                <Link2 size={12} className="text-green-600" /> Verknüpfen
-              </span>
-              <span className="flex items-center gap-1">
-                <X size={12} className="text-gray-600" /> Überspringen
-              </span>
+            {/* Selection controls */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={selectAll}
+                  className="px-3 py-1.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                >
+                  Alle auswählen
+                </button>
+                <button
+                  onClick={deselectAll}
+                  className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Alle abwählen
+                </button>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <span className="flex items-center gap-1">
+                  <UserPlus size={12} className="text-blue-600" /> Importieren
+                </span>
+                <span className="flex items-center gap-1">
+                  <Link2 size={12} className="text-green-600" /> Verknüpfen
+                </span>
+              </div>
             </div>
 
             {/* Scrollable Content */}

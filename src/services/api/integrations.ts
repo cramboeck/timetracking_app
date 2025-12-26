@@ -434,7 +434,7 @@ export const sevdeskApi = {
     });
   },
 
-  getImportPreview: async (): Promise<{
+  getImportPreview: async (showAll?: boolean): Promise<{
     success: boolean;
     data: {
       customers: Array<{
@@ -456,7 +456,8 @@ export const sevdeskApi = {
       };
     };
   }> => {
-    return authFetch('/sevdesk/import/preview');
+    const query = showAll ? '?showAll=true' : '';
+    return authFetch(`/sevdesk/import/preview${query}`);
   },
 
   executeImport: async (imports: Array<{
