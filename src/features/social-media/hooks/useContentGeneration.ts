@@ -36,7 +36,7 @@ export function useContentGeneration() {
   const generatePost = useCallback(async (options: AIGeneratorOptions): Promise<{ content: string; hashtags: string[] } | null> => {
     setState({ generating: true, error: null });
     try {
-      const result = await socialMediaApi.generatePost({
+      const result = await socialMediaApi.generateContent({
         topic: options.topic,
         platform: options.platform,
         tone: options.tone,
@@ -44,7 +44,10 @@ export function useContentGeneration() {
         includeEmoji: options.includeEmoji,
       });
       setState({ generating: false, error: null });
-      return result;
+      return {
+        content: result.content,
+        hashtags: result.hashtags || [],
+      };
     } catch (err: any) {
       setState({ generating: false, error: err.message || 'Generierung fehlgeschlagen' });
       return null;
@@ -87,10 +90,10 @@ export function useContentGeneration() {
   }, []);
 
   // Research hashtags
-  const researchHashtags = useCallback(async (topic: string): Promise<Array<{ tag: string; reach: string; description: string }> | null> => {
+  const researchHashtags = useCallback(async (topic: string, platform?: Platform, count?: number): Promise<Array<{ tag: string; reach: string; description: string }> | null> => {
     setState({ generating: true, error: null });
     try {
-      const result = await socialMediaApi.researchHashtags({ topic });
+      const result = await socialMediaApi.researchHashtags(topic, platform, count);
       setState({ generating: false, error: null });
       return result.hashtags;
     } catch (err: any) {
