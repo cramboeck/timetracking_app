@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment } from 'react';
-import { Settings, Save, CheckCircle, XCircle, AlertTriangle, Cloud, Mail, Shield, Loader2, Eye, EyeOff, ExternalLink, Key, FileText, RefreshCw, Play, Download, Check, Trash2, ChevronDown, ChevronUp, File } from 'lucide-react';
+import { Settings, Save, CheckCircle, XCircle, AlertTriangle, Cloud, Mail, Shield, Loader2, Eye, EyeOff, ExternalLink, Key, FileText, RefreshCw, Play, Download, Check, Trash2, ChevronDown, ChevronUp, File, Undo2 } from 'lucide-react';
 import { microsoft365Api, Microsoft365Config, ProcessedInvoice, InvoiceDocument } from '../services/api';
 
 export const Microsoft365Settings = () => {
@@ -118,6 +118,21 @@ export const Microsoft365Settings = () => {
       }
     } catch (err: any) {
       setError(err.message || 'Bestätigung fehlgeschlagen');
+    }
+    setTimeout(() => setSuccess(''), 3000);
+  };
+
+  const handleRevertToDraft = async (invoiceId: string) => {
+    try {
+      const response = await microsoft365Api.revertInvoiceToDraft(invoiceId);
+      if (response.success) {
+        setSuccess('Zurück zu Entwurf');
+        loadProcessedInvoices();
+      } else {
+        setError(response.error || 'Zurücksetzen fehlgeschlagen');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Zurücksetzen fehlgeschlagen');
     }
     setTimeout(() => setSuccess(''), 3000);
   };
@@ -785,24 +800,35 @@ export const Microsoft365Settings = () => {
                           )}
                         </td>
                         <td className="py-2 px-3 text-right">
-                          {invoice.status === 'draft' && (
-                            <div className="flex gap-1 justify-end">
+                          <div className="flex gap-1 justify-end">
+                            {invoice.status === 'draft' && (
+                              <>
+                                <button
+                                  onClick={() => handleApproveDraft(invoice.id)}
+                                  className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
+                                  title="Bestätigen"
+                                >
+                                  <Check size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteDraft(invoice.id)}
+                                  className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                                  title="Löschen"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </>
+                            )}
+                            {invoice.status === 'processed' && (
                               <button
-                                onClick={() => handleApproveDraft(invoice.id)}
-                                className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
-                                title="Bestätigen"
+                                onClick={() => handleRevertToDraft(invoice.id)}
+                                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded"
+                                title="Zurück zu Entwurf"
                               >
-                                <Check size={16} />
+                                <Undo2 size={16} />
                               </button>
-                              <button
-                                onClick={() => handleDeleteDraft(invoice.id)}
-                                className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                                title="Löschen"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </td>
                       </tr>
                       {/* Expandable documents row */}

@@ -1058,6 +1058,10 @@ export const microsoft365Api = {
     return authFetch(`/microsoft365/invoices/${invoiceId}/approve`, { method: 'POST' });
   },
 
+  revertInvoiceToDraft: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
+    return authFetch(`/microsoft365/invoices/${invoiceId}/revert`, { method: 'POST' });
+  },
+
   deleteInvoiceDraft: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
     return authFetch(`/microsoft365/invoices/${invoiceId}`, { method: 'DELETE' });
   },

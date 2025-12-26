@@ -552,6 +552,20 @@ class InvoiceProcessorService {
   }
 
   /**
+   * Revert a processed invoice back to draft
+   */
+  async revertToDraft(organizationId: string, processedInvoiceId: string): Promise<boolean> {
+    const result = await query(
+      `UPDATE processed_invoices
+       SET status = 'draft', processed_at = NULL
+       WHERE id = $1 AND organization_id = $2 AND status = 'processed'
+       RETURNING id`,
+      [processedInvoiceId, organizationId]
+    );
+    return result.rows.length > 0;
+  }
+
+  /**
    * Delete a draft invoice and its documents
    */
   async deleteDraft(organizationId: string, processedInvoiceId: string): Promise<boolean> {

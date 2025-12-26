@@ -572,6 +572,32 @@ router.post('/invoices/:id/approve', requireOrgRole('admin'), async (req: AuthRe
   }
 });
 
+// POST /api/microsoft365/invoices/:id/revert - Revert processed invoice back to draft
+router.post('/invoices/:id/revert', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const processedInvoiceId = req.params.id;
+
+    const success = await invoiceProcessorService.revertToDraft(organizationId, processedInvoiceId);
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Konnte nicht zurückgesetzt werden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Revert to draft error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to revert to draft',
+    });
+  }
+});
+
 // DELETE /api/microsoft365/invoices/:id - Delete a draft invoice
 router.delete('/invoices/:id', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
