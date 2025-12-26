@@ -168,7 +168,7 @@ export default function DashboardPage() {
               <div key={post.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <div className="flex items-start gap-3">
                   <div className="flex gap-1 mt-1">
-                    {post.platforms.map((platform) => (
+                    {(post.platforms || []).map((platform) => (
                       <span
                         key={platform}
                         className={`p-1 rounded ${PLATFORM_COLORS[platform]} text-white`}

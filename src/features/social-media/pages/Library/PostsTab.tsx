@@ -170,7 +170,7 @@ export default function PostsTab() {
               <div className="flex items-start gap-4">
                 {/* Platforms */}
                 <div className="flex gap-1 flex-shrink-0">
-                  {post.platforms.map((platform) => (
+                  {(post.platforms || []).map((platform) => (
                     <span
                       key={platform}
                       className={`p-1.5 rounded ${PLATFORM_COLORS[platform]} text-white`}

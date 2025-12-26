@@ -203,7 +203,7 @@ export default function TemplatesTab() {
               </p>
 
               <div className="flex gap-1">
-                {template.platforms.map((platform) => (
+                {(template.platforms || []).map((platform) => (
                   <span
                     key={platform}
                     className={`p-1 rounded ${PLATFORM_COLORS[platform]} text-white`}

@@ -166,7 +166,7 @@ export default function CalendarPage() {
                       } hover:opacity-80 transition-opacity`}
                     >
                       <div className="flex items-center gap-1">
-                        {post.platforms.slice(0, 2).map((platform) => (
+                        {(post.platforms || []).slice(0, 2).map((platform) => (
                           <span
                             key={platform}
                             className={`w-3 h-3 flex items-center justify-center rounded text-white text-[8px] ${PLATFORM_COLORS[platform]}`}
@@ -218,7 +218,7 @@ export default function CalendarPage() {
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">
-                {selectedPost.platforms.map((platform) => (
+                {(selectedPost.platforms || []).map((platform) => (
                   <span
                     key={platform}
                     className={`p-1.5 rounded ${PLATFORM_COLORS[platform]} text-white`}
