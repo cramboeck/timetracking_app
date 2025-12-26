@@ -3105,6 +3105,30 @@ export async function initializeDatabase() {
 
     console.log('✅ Invoice processing tables created');
 
+    // Migration: Update processed_invoices status check constraint to include 'draft'
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Drop old constraint if it exists
+        IF EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name = 'processed_invoices_status_check'
+          AND table_name = 'processed_invoices'
+        ) THEN
+          ALTER TABLE processed_invoices DROP CONSTRAINT processed_invoices_status_check;
+        END IF;
+        -- Add new constraint with all status values including 'draft'
+        ALTER TABLE processed_invoices
+          ADD CONSTRAINT processed_invoices_status_check
+          CHECK (status IN ('pending', 'draft', 'processed', 'failed', 'skipped'));
+      EXCEPTION
+        WHEN duplicate_object THEN
+          -- Constraint already exists with correct definition
+          NULL;
+      END $$;
+    `);
+    console.log('✅ processed_invoices status constraint updated');
+
     // Fix NinjaRMM alert timestamps that were incorrectly stored (Unix seconds instead of milliseconds)
     // This updates alerts where activity_time is before 1980 (indicating a seconds-based timestamp was used)
     // and recalculates from the activityTime field in alert_data JSON
