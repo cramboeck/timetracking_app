@@ -185,32 +185,47 @@ export const Microsoft365Settings = () => {
     }
   };
 
-  const handleDownloadDocument = (documentId: string, inline?: boolean) => {
+  const handleDownloadDocument = async (documentId: string, inline?: boolean) => {
     const url = microsoft365Api.getDocumentDownloadUrl(documentId, inline);
-    // Add auth token to the request
     const token = localStorage.getItem('token');
-    if (inline) {
-      // Open in new tab with auth
-      window.open(`${url}&token=${token}`, '_blank');
-    } else {
-      // Download with auth header
-      fetch(url, {
+
+    try {
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
-      })
-        .then(res => res.blob())
-        .then(blob => {
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = '';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(a.href);
-        })
-        .catch(err => {
-          console.error('Download failed:', err);
-          setError('Download fehlgeschlagen');
-        });
+      });
+
+      if (!response.ok) {
+        throw new Error('Download fehlgeschlagen');
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      if (inline) {
+        // Open in new tab for viewing
+        window.open(blobUrl, '_blank');
+        // Clean up after a delay (browser needs time to load)
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      } else {
+        // Download the file
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'document';
+        if (contentDisposition) {
+          const match = contentDisposition.match(/filename="?([^"]+)"?/);
+          if (match) filename = decodeURIComponent(match[1]);
+        }
+
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      }
+    } catch (err) {
+      console.error('Download failed:', err);
+      setError('Download fehlgeschlagen');
     }
   };
 
