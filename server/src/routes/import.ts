@@ -607,4 +607,222 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
   }
 });
 
+// ============================================
+// Clockodo API Import (direct API access)
+// ============================================
+
+import * as clockodoService from '../services/clockodoService';
+
+// GET /api/import/clockodo/api/config - Get Clockodo API config
+router.get('/clockodo/api/config', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const config = await clockodoService.getConfig(userId);
+
+    if (!config) {
+      return res.json({
+        success: true,
+        data: { configured: false }
+      });
+    }
+
+    // Don't return the actual API key for security
+    res.json({
+      success: true,
+      data: {
+        configured: true,
+        apiEmail: config.apiEmail,
+        hasApiKey: !!config.apiKey,
+        lastSyncAt: config.lastSyncAt
+      }
+    });
+  } catch (error) {
+    console.error('Get Clockodo config error:', error);
+    res.status(500).json({ error: 'Failed to get config' });
+  }
+});
+
+// POST /api/import/clockodo/api/config - Save Clockodo API config
+router.post('/clockodo/api/config', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { apiEmail, apiKey } = req.body;
+
+    if (!apiEmail) {
+      return res.status(400).json({ error: 'API email is required' });
+    }
+
+    const config = await clockodoService.saveConfig(userId, {
+      apiEmail,
+      apiKey: apiKey || undefined,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        configured: true,
+        apiEmail: config.apiEmail,
+        hasApiKey: !!config.apiKey
+      }
+    });
+  } catch (error) {
+    console.error('Save Clockodo config error:', error);
+    res.status(500).json({ error: 'Failed to save config' });
+  }
+});
+
+// POST /api/import/clockodo/api/test - Test Clockodo API connection
+router.post('/clockodo/api/test', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const { apiEmail, apiKey } = req.body;
+
+    if (!apiEmail || !apiKey) {
+      return res.status(400).json({ error: 'API email and key are required' });
+    }
+
+    const result = await clockodoService.testConnection(apiEmail, apiKey);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: {
+          userName: result.userName,
+          companyName: result.companyName
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error: any) {
+    console.error('Clockodo connection test error:', error);
+    res.status(500).json({ error: error.message || 'Connection test failed' });
+  }
+});
+
+// POST /api/import/clockodo/api/preview - Preview Clockodo API import
+router.post('/clockodo/api/preview', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { apiEmail, apiKey, timeSince, timeUntil } = req.body;
+
+    if (!apiEmail || !apiKey) {
+      return res.status(400).json({ error: 'API credentials are required' });
+    }
+
+    if (!timeSince || !timeUntil) {
+      return res.status(400).json({ error: 'Date range is required' });
+    }
+
+    logImport('=== CLOCKODO API PREVIEW STARTED ===', { userId, organizationId, timeSince, timeUntil });
+
+    const preview = await clockodoService.previewApiImport(
+      userId,
+      organizationId,
+      apiEmail,
+      apiKey,
+      timeSince,
+      timeUntil
+    );
+
+    logImport('Clockodo API preview completed', {
+      rowCount: preview.rowCount,
+      skippedCount: preview.skippedCount,
+      customers: preview.customers.length,
+      projects: preview.projects.length
+    });
+
+    res.json({
+      success: true,
+      data: preview
+    });
+  } catch (error: any) {
+    console.error('Clockodo API preview error:', error);
+    logImport('=== CLOCKODO API PREVIEW FAILED ===', { error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to preview import' });
+  }
+});
+
+// POST /api/import/clockodo/api/execute - Execute Clockodo API import
+router.post('/clockodo/api/execute', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const {
+      apiEmail,
+      apiKey,
+      timeSince,
+      timeUntil,
+      projectMapping,
+      defaultProjectId,
+      createMissingProjects,
+      skipDuplicates
+    } = req.body;
+
+    if (!apiEmail || !apiKey) {
+      return res.status(400).json({ error: 'API credentials are required' });
+    }
+
+    if (!timeSince || !timeUntil) {
+      return res.status(400).json({ error: 'Date range is required' });
+    }
+
+    logImport('=== CLOCKODO API IMPORT STARTED ===', { userId, organizationId, timeSince, timeUntil });
+
+    const result = await clockodoService.executeApiImport(
+      userId,
+      organizationId,
+      apiEmail,
+      apiKey,
+      timeSince,
+      timeUntil,
+      {
+        projectMapping,
+        defaultProjectId,
+        createMissingProjects,
+        skipDuplicates
+      }
+    );
+
+    logImport('=== CLOCKODO API IMPORT COMPLETED ===', {
+      importedCount: result.importedCount,
+      skippedCount: result.skippedCount,
+      duplicateCount: result.duplicateCount,
+      totalRows: result.totalRows,
+      createdCustomers: result.createdCustomers,
+      createdProjects: result.createdProjects,
+      errors: result.errors.length
+    });
+
+    auditLog.log({
+      userId,
+      action: 'import.clockodo_api',
+      details: JSON.stringify({
+        importedCount: result.importedCount,
+        skippedCount: result.skippedCount,
+        duplicateCount: result.duplicateCount,
+        totalRows: result.totalRows,
+        timeSince,
+        timeUntil
+      }),
+      ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error: any) {
+    console.error('Clockodo API import error:', error);
+    logImport('=== CLOCKODO API IMPORT FAILED ===', { error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to import data' });
+  }
+});
+
 export default router;

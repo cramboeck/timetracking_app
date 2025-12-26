@@ -1,19 +1,34 @@
-import { useState, useRef } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, Loader2, X, ArrowRight, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, FileText, AlertCircle, CheckCircle, Loader2, X, ArrowRight, HelpCircle, ChevronDown, ChevronUp, Cloud, Key, Calendar } from 'lucide-react';
 import { importApi } from '../services/api';
 
 interface ClockodoImportProps {
   onImportComplete?: () => void;
 }
 
+type ImportMode = 'csv' | 'api';
+
 interface PreviewData {
   rowCount: number;
   skippedCount: number;
-  skippedRows: Array<{ line: number; reason: string; data: string }>;
+  skippedRows?: Array<{ line: number; reason: string; data: string }>;
   totalDuration: number;
   totalHours: string;
-  customers: Array<{ name: string; nummer: string; matchedId?: string; matchedName?: string; matchedBy?: string }>;
-  projects: Array<{ name: string; customerName: string; matchedId?: string }>;
+  dateRange?: { from: string; to: string };
+  customers: Array<{
+    name: string;
+    nummer: string | null;
+    clockodoId?: number;
+    matchedId?: string;
+    matchedName?: string;
+    matchedBy?: string
+  }>;
+  projects: Array<{
+    name: string;
+    customerName: string;
+    clockodoId?: number;
+    matchedId?: string
+  }>;
   sampleRows: Array<any>;
   existingCustomers: Array<{ id: string; name: string; customerNumber?: string; importAliases?: string[] }>;
   existingProjects: Array<{ id: string; name: string; customerName: string; customerId: string }>;
@@ -30,13 +45,28 @@ interface ImportResult {
 }
 
 export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
+  // Import mode
+  const [importMode, setImportMode] = useState<ImportMode>('api');
+
+  // Common state
   const [step, setStep] = useState<'upload' | 'preview' | 'mapping' | 'importing' | 'done'>('upload');
-  const [csvContent, setCsvContent] = useState<string>('');
-  const [fileName, setFileName] = useState<string>('');
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
+
+  // CSV-specific state
+  const [csvContent, setCsvContent] = useState<string>('');
+  const [fileName, setFileName] = useState<string>('');
+
+  // API-specific state
+  const [apiEmail, setApiEmail] = useState<string>('');
+  const [apiKey, setApiKey] = useState<string>('');
+  const [apiConfigured, setApiConfigured] = useState(false);
+  const [connectionTested, setConnectionTested] = useState(false);
+  const [connectionInfo, setConnectionInfo] = useState<{ userName?: string; companyName?: string } | null>(null);
+  const [timeSince, setTimeSince] = useState<string>('');
+  const [timeUntil, setTimeUntil] = useState<string>('');
 
   // Mapping states
   const [projectMapping, setProjectMapping] = useState<Record<string, string>>({});
@@ -49,6 +79,29 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Load API config on mount
+  useEffect(() => {
+    loadApiConfig();
+    // Set default date range (last 3 years)
+    const now = new Date();
+    const threeYearsAgo = new Date(now.getFullYear() - 3, 0, 1);
+    setTimeSince(threeYearsAgo.toISOString().split('T')[0]);
+    setTimeUntil(now.toISOString().split('T')[0]);
+  }, []);
+
+  const loadApiConfig = async () => {
+    try {
+      const response = await importApi.getClockodoApiConfig();
+      if (response.success && response.data.configured) {
+        setApiConfigured(true);
+        setApiEmail(response.data.apiEmail || '');
+      }
+    } catch (err) {
+      // Config not found, that's okay
+    }
+  };
+
+  // CSV Import handlers
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -60,7 +113,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
     reader.onload = async (event) => {
       const content = event.target?.result as string;
       setCsvContent(content);
-      await previewImport(content);
+      await previewCsvImport(content);
     };
     reader.onerror = () => {
       setError('Fehler beim Lesen der Datei');
@@ -68,20 +121,83 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
     reader.readAsText(file, 'UTF-8');
   };
 
-  const previewImport = async (content: string) => {
+  const previewCsvImport = async (content: string) => {
     setLoading(true);
     setError('');
 
     try {
       const response = await importApi.previewClockodo(content);
       if (response.success && response.data) {
-        setPreviewData(response.data);
+        setPreviewData(response.data as PreviewData);
         setStep('preview');
       } else {
         setError('Ungültiges CSV-Format');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Analysieren der CSV');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // API Import handlers
+  const testApiConnection = async () => {
+    if (!apiEmail || !apiKey) {
+      setError('API E-Mail und Key sind erforderlich');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setConnectionTested(false);
+    setConnectionInfo(null);
+
+    try {
+      const response = await importApi.testClockodoApiConnection({ apiEmail, apiKey });
+      if (response.success && response.data) {
+        setConnectionTested(true);
+        setConnectionInfo(response.data);
+        // Save config
+        await importApi.saveClockodoApiConfig({ apiEmail, apiKey });
+        setApiConfigured(true);
+      } else {
+        setError(response.error || 'Verbindung fehlgeschlagen');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Verbindungstest fehlgeschlagen');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const previewApiImport = async () => {
+    if (!apiEmail || !apiKey) {
+      setError('API-Zugangsdaten fehlen');
+      return;
+    }
+    if (!timeSince || !timeUntil) {
+      setError('Bitte Zeitraum auswählen');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await importApi.previewClockodoApi({
+        apiEmail,
+        apiKey,
+        timeSince: `${timeSince} 00:00:00`,
+        timeUntil: `${timeUntil} 23:59:59`,
+      });
+      if (response.success && response.data) {
+        setPreviewData(response.data as PreviewData);
+        setStep('preview');
+      } else {
+        setError('Fehler beim Abrufen der Daten');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Abrufen der Daten');
     } finally {
       setLoading(false);
     }
@@ -104,18 +220,32 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
     setError('');
 
     try {
-      const response = await importApi.executeClockodo({
-        csvContent,
-        projectMapping,
-        defaultProjectId: defaultProjectId || undefined,
-        createMissingProjects,
-        skipDuplicates,
-      });
+      let response;
+
+      if (importMode === 'csv') {
+        response = await importApi.executeClockodo({
+          csvContent,
+          projectMapping,
+          defaultProjectId: defaultProjectId || undefined,
+          createMissingProjects,
+          skipDuplicates,
+        });
+      } else {
+        response = await importApi.executeClockodoApi({
+          apiEmail,
+          apiKey,
+          timeSince: `${timeSince} 00:00:00`,
+          timeUntil: `${timeUntil} 23:59:59`,
+          projectMapping,
+          defaultProjectId: defaultProjectId || undefined,
+          createMissingProjects,
+          skipDuplicates,
+        });
+      }
 
       if (response.success) {
         setImportResult(response.data);
         setStep('done');
-        // Trigger refresh of time entries
         onImportComplete?.();
       } else {
         setError('Import fehlgeschlagen');
@@ -136,15 +266,10 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
     setError('');
     setProjectMapping({});
     setDefaultProjectId('');
+    setConnectionTested(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  };
-
-  const formatDuration = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}h ${minutes}min`;
   };
 
   return (
@@ -161,6 +286,34 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
         </button>
       </div>
 
+      {/* Import Mode Tabs */}
+      {step === 'upload' && (
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setImportMode('api')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              importMode === 'api'
+                ? 'bg-accent-primary text-white'
+                : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-300'
+            }`}
+          >
+            <Cloud size={18} />
+            API Import
+          </button>
+          <button
+            onClick={() => setImportMode('csv')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              importMode === 'csv'
+                ? 'bg-accent-primary text-white'
+                : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-300'
+            }`}
+          >
+            <FileText size={18} />
+            CSV Import
+          </button>
+        </div>
+      )}
+
       {/* Sticky Help Panel */}
       {showHelp && (
         <div className="sticky top-0 z-10 mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -169,10 +322,25 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
             Import-Anleitung
           </h4>
           <div className="space-y-3 text-sm text-blue-700 dark:text-blue-400">
-            <div>
-              <strong>CSV-Format:</strong>
-              <p className="mt-1">Die Clockodo-CSV muss folgende Spalten enthalten: <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Kunde</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Kundennummer</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Tag</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Stunden (hh:mm)</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Beschreibung</code>.</p>
-            </div>
+            {importMode === 'api' ? (
+              <>
+                <div>
+                  <strong>API Import:</strong>
+                  <p className="mt-1">Mit der Clockodo API können Sie Zeiteinträge direkt importieren - ohne CSV-Export. Geben Sie Ihre API-Zugangsdaten ein und wählen Sie den Zeitraum.</p>
+                </div>
+                <div>
+                  <strong>API Key finden:</strong>
+                  <p className="mt-1">Ihren API Key finden Sie unter <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Clockodo → Einstellungen → API</code>.</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <strong>CSV-Format:</strong>
+                  <p className="mt-1">Die Clockodo-CSV muss folgende Spalten enthalten: <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Kunde</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Kundennummer</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Tag</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Stunden (hh:mm)</code>, <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Beschreibung</code>.</p>
+                </div>
+              </>
+            )}
             <div>
               <strong>Kunden-Matching (Priorität):</strong>
               <ol className="mt-1 ml-4 list-decimal space-y-1">
@@ -183,11 +351,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
             </div>
             <div>
               <strong>Import-Aliase konfigurieren:</strong>
-              <p className="mt-1">Sie können für jeden Kunden alternative Namen (Aliase) hinterlegen unter <em>Kunden → Bearbeiten → Import-Aliase</em>. Nützlich für abgekürzte Namen wie "IHE" statt "IHE-INNOVATIVE-HYBRID-ELEKTROPLANUNG".</p>
-            </div>
-            <div>
-              <strong>Mehrere Kunden importieren:</strong>
-              <p className="mt-1">Sie können CSV-Dateien mit mehreren Kunden importieren. Stellen Sie sicher, dass alle Kunden entweder bereits existieren (mit passender Kundennummer/Name/Alias) oder die Option "Fehlende Kunden erstellen" aktiviert ist.</p>
+              <p className="mt-1">Sie können für jeden Kunden alternative Namen (Aliase) hinterlegen unter <em>Kunden → Bearbeiten → Import-Aliase</em>.</p>
             </div>
           </div>
         </div>
@@ -200,41 +364,152 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
         </div>
       )}
 
-      {/* Step 1: Upload */}
+      {/* Step 1: Upload / API Config */}
       {step === 'upload' && (
         <div>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Exportieren Sie Ihre Zeiteinträge aus Clockodo als CSV und laden Sie die Datei hier hoch.
-            Die CSV muss folgende Spalten enthalten: Kunde, Tag, Stunden, Beschreibung.
-          </p>
+          {importMode === 'api' ? (
+            <div className="space-y-4">
+              <p className="text-gray-600 dark:text-gray-400">
+                Importieren Sie Zeiteinträge direkt über die Clockodo API.
+                Schneller und einfacher als CSV-Export.
+              </p>
 
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 dark:border-dark-200 rounded-lg p-8 text-center cursor-pointer hover:border-accent-primary transition-colors"
-          >
-            {loading ? (
-              <div className="flex flex-col items-center gap-2">
-                <Loader2 size={32} className="animate-spin text-accent-primary" />
-                <span className="text-gray-600 dark:text-gray-400">Analysiere CSV...</span>
+              {/* API Credentials */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Clockodo E-Mail
+                  </label>
+                  <input
+                    type="email"
+                    value={apiEmail}
+                    onChange={(e) => { setApiEmail(e.target.value); setConnectionTested(false); }}
+                    placeholder="ihre-email@firma.de"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    API Key
+                  </label>
+                  <div className="relative">
+                    <Key size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={(e) => { setApiKey(e.target.value); setConnectionTested(false); }}
+                      placeholder="Ihr Clockodo API Key"
+                      className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-800 dark:text-white"
+                    />
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <Upload size={32} className="text-gray-400 dark:text-gray-500" />
-                <span className="text-gray-600 dark:text-gray-400">
-                  Klicken zum Hochladen oder Datei hierher ziehen
-                </span>
-                <span className="text-sm text-gray-400 dark:text-gray-500">.csv Dateien</span>
-              </div>
-            )}
-          </div>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
+              {/* Test Connection Button */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={testApiConnection}
+                  disabled={loading || !apiEmail || !apiKey}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50"
+                >
+                  {loading ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <Cloud size={18} />
+                  )}
+                  Verbindung testen
+                </button>
+                {connectionTested && connectionInfo && (
+                  <span className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                    <CheckCircle size={18} />
+                    Verbunden: {connectionInfo.companyName || connectionInfo.userName}
+                  </span>
+                )}
+              </div>
+
+              {/* Date Range Selection */}
+              {connectionTested && (
+                <div className="mt-4 p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                  <h4 className="font-medium text-gray-800 dark:text-white mb-3 flex items-center gap-2">
+                    <Calendar size={18} />
+                    Zeitraum auswählen
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Von</label>
+                      <input
+                        type="date"
+                        value={timeSince}
+                        onChange={(e) => setTimeSince(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-100 text-gray-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Bis</label>
+                      <input
+                        type="date"
+                        value={timeUntil}
+                        onChange={(e) => setTimeUntil(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-100 text-gray-800 dark:text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={previewApiImport}
+                    disabled={loading || !timeSince || !timeUntil}
+                    className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 btn-accent disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Lade Daten...
+                      </>
+                    ) : (
+                      <>
+                        <ArrowRight size={18} />
+                        Daten laden und Vorschau anzeigen
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Exportieren Sie Ihre Zeiteinträge aus Clockodo als CSV und laden Sie die Datei hier hoch.
+              </p>
+
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-gray-300 dark:border-dark-200 rounded-lg p-8 text-center cursor-pointer hover:border-accent-primary transition-colors"
+              >
+                {loading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 size={32} className="animate-spin text-accent-primary" />
+                    <span className="text-gray-600 dark:text-gray-400">Analysiere CSV...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload size={32} className="text-gray-400 dark:text-gray-500" />
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Klicken zum Hochladen oder Datei hierher ziehen
+                    </span>
+                    <span className="text-sm text-gray-400 dark:text-gray-500">.csv Dateien</span>
+                  </div>
+                )}
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -242,8 +517,19 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
       {step === 'preview' && previewData && (
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <FileText size={20} className="text-accent-primary" />
-            <span className="font-medium dark:text-white">{fileName}</span>
+            {importMode === 'csv' ? (
+              <>
+                <FileText size={20} className="text-accent-primary" />
+                <span className="font-medium dark:text-white">{fileName}</span>
+              </>
+            ) : (
+              <>
+                <Cloud size={20} className="text-accent-primary" />
+                <span className="font-medium dark:text-white">
+                  API Import: {previewData.dateRange?.from} - {previewData.dateRange?.to}
+                </span>
+              </>
+            )}
             <button onClick={resetImport} className="ml-auto text-gray-400 hover:text-gray-600">
               <X size={18} />
             </button>
@@ -273,27 +559,6 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
               <div className="text-sm text-gray-500 dark:text-gray-400">Projekte</div>
             </div>
           </div>
-
-          {/* Skipped Rows Warning */}
-          {previewData.skippedRows && previewData.skippedRows.length > 0 && (
-            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-              <h4 className="font-medium text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-2">
-                <AlertCircle size={18} />
-                {previewData.skippedCount} Zeilen übersprungen
-              </h4>
-              <div className="space-y-1 max-h-32 overflow-y-auto text-sm">
-                {previewData.skippedRows.map((row, idx) => (
-                  <div key={idx} className="flex gap-2 text-amber-700 dark:text-amber-400">
-                    <span className="font-mono text-xs bg-amber-100 dark:bg-amber-900/50 px-1 rounded">
-                      Zeile {row.line}
-                    </span>
-                    <span>{row.reason}</span>
-                    <span className="text-amber-600 dark:text-amber-500 truncate">({row.data})</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Customer Matching Status */}
           <div className="mb-4">
@@ -469,8 +734,9 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
 
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-6">
             <p className="text-sm text-blue-700 dark:text-blue-400">
-              <strong>Hinweis:</strong> Alle Einträge werden mit Startzeit 08:00 Uhr importiert.
-              Die Endzeit wird aus der Dauer berechnet.
+              <strong>Hinweis:</strong> {importMode === 'csv'
+                ? 'Alle Einträge werden mit Startzeit 08:00 Uhr importiert. Die Endzeit wird aus der Dauer berechnet.'
+                : 'Die original Zeitstempel aus Clockodo werden übernommen.'}
             </p>
           </div>
 
@@ -545,7 +811,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
           {importResult.errors.length > 0 && (
             <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 mb-6">
               <h5 className="text-sm font-medium text-red-700 dark:text-red-400 mb-2">Fehler:</h5>
-              <ul className="text-sm text-red-600 dark:text-red-300 list-disc list-inside">
+              <ul className="text-sm text-red-600 dark:text-red-300 list-disc list-inside max-h-32 overflow-y-auto">
                 {importResult.errors.map((err, idx) => (
                   <li key={idx}>{err}</li>
                 ))}

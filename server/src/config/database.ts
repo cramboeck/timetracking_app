@@ -2642,6 +2642,28 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_billable ON time_entries(is_billable)');
 
     // ============================================
+    // Clockodo Integration
+    // ============================================
+
+    // Clockodo configuration per user
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS clockodo_config (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        api_email TEXT,
+        api_key TEXT,
+        last_sync_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_clockodo_config_user ON clockodo_config(user_id)');
+
+    console.log('✅ Clockodo Integration tables created');
+
+    // ============================================
     // Social Media Manager
     // ============================================
 

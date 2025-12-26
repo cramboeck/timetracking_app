@@ -101,7 +101,8 @@ export type AuditAction =
   | 'features.update'
   | 'features.bulk_update'
   // Import actions
-  | 'import.clockodo';
+  | 'import.clockodo'
+  | 'import.clockodo_api';
 
 export interface AuditLogEntry {
   id: string;

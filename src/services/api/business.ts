@@ -497,6 +497,117 @@ export const importApi = {
       body: JSON.stringify(data),
     });
   },
+
+  // Clockodo API Import (direct API access)
+  getClockodoApiConfig: async (): Promise<{
+    success: boolean;
+    data: {
+      configured: boolean;
+      apiEmail?: string;
+      hasApiKey?: boolean;
+      lastSyncAt?: string;
+    };
+  }> => {
+    return authFetch('/import/clockodo/api/config');
+  },
+
+  saveClockodoApiConfig: async (data: {
+    apiEmail: string;
+    apiKey?: string;
+  }): Promise<{
+    success: boolean;
+    data: { configured: boolean; apiEmail: string; hasApiKey: boolean };
+  }> => {
+    return authFetch('/import/clockodo/api/config', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  testClockodoApiConnection: async (data: {
+    apiEmail: string;
+    apiKey: string;
+  }): Promise<{
+    success: boolean;
+    data?: { userName: string; companyName: string };
+    error?: string;
+  }> => {
+    return authFetch('/import/clockodo/api/test', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  previewClockodoApi: async (data: {
+    apiEmail: string;
+    apiKey: string;
+    timeSince: string;
+    timeUntil: string;
+  }): Promise<{
+    success: boolean;
+    data: {
+      rowCount: number;
+      skippedCount: number;
+      totalDuration: number;
+      totalHours: string;
+      dateRange: { from: string; to: string };
+      customers: Array<{
+        clockodoId: number;
+        name: string;
+        nummer: string | null;
+        matchedId?: string;
+        matchedName?: string;
+        matchedBy?: string;
+      }>;
+      projects: Array<{
+        clockodoId: number;
+        name: string;
+        customerName: string;
+        matchedId?: string;
+      }>;
+      sampleRows: Array<{
+        tag: string;
+        kunde: string;
+        projekt: string | null;
+        beschreibung: string | null;
+        stunden: string;
+      }>;
+      existingCustomers: Array<{ id: string; name: string; customerNumber?: string; importAliases?: string[] }>;
+      existingProjects: Array<{ id: string; name: string; customerName: string; customerId: string }>;
+    };
+  }> => {
+    return authFetch('/import/clockodo/api/preview', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  executeClockodoApi: async (data: {
+    apiEmail: string;
+    apiKey: string;
+    timeSince: string;
+    timeUntil: string;
+    projectMapping?: Record<string, string>;
+    defaultProjectId?: string;
+    createMissingProjects?: boolean;
+    skipDuplicates?: boolean;
+  }): Promise<{
+    success: boolean;
+    data: {
+      importedCount: number;
+      skippedCount: number;
+      duplicateCount: number;
+      totalRows: number;
+      createdCustomers: number;
+      createdProjects: number;
+      errors: string[];
+    };
+  }> => {
+    return authFetch('/import/clockodo/api/execute', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // ============================================
