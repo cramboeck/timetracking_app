@@ -247,6 +247,16 @@ class InvoiceProcessorService {
       // Find vendor
       const vendor = await this.findVendorByEmail(organizationId, email.from.email);
 
+      // First create the processed_invoice record to get its ID
+      const processedId = await this.recordProcessedEmail(
+        organizationId,
+        email,
+        [], // Will update document_ids later
+        'draft',
+        null,
+        vendor?.id
+      );
+
       // Save attachments and create document records
       const documentIds: string[] = [];
 
@@ -254,7 +264,7 @@ class InvoiceProcessorService {
         const saved = await this.saveAttachment(organizationId, attachment, email.id);
 
         if (saved) {
-          // Create document record
+          // Create document record with correct processed_invoice_id
           const docId = uuidv4();
           await query(
             `INSERT INTO invoice_documents (
@@ -264,7 +274,7 @@ class InvoiceProcessorService {
             [
               docId,
               organizationId,
-              email.id, // Will be updated with processed_invoice_id
+              processedId, // Use the actual processed_invoice ID
               saved.filename,
               attachment.name,
               attachment.contentType || 'application/pdf',
@@ -276,21 +286,13 @@ class InvoiceProcessorService {
         }
       }
 
-      // Record processed email as draft (needs manual review)
-      const processedId = await this.recordProcessedEmail(
-        organizationId,
-        email,
-        documentIds,
-        'draft',  // Save as draft so user can review before finalizing
-        null,
-        vendor?.id
-      );
-
-      // Update document records with correct processed_invoice_id
+      // Update document_ids and attachment_count in processed_invoices
       if (documentIds.length > 0) {
         await query(
-          `UPDATE invoice_documents SET processed_invoice_id = $1 WHERE id = ANY($2)`,
-          [processedId, documentIds]
+          `UPDATE processed_invoices
+           SET document_ids = $1, attachment_count = $2
+           WHERE id = $3`,
+          [JSON.stringify(documentIds), documentIds.length, processedId]
         );
       }
 
