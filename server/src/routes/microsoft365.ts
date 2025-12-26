@@ -480,17 +480,20 @@ router.get('/documents/:id/download', requireOrgRole('member'), async (req: Auth
       });
     }
 
+    // Read file into memory to avoid HTTP/2 streaming issues with nginx
+    const fileBuffer = fs.readFileSync(document.storagePath);
+
     // Set appropriate headers for file download/display
     const inline = req.query.inline === 'true';
     const disposition = inline ? 'inline' : 'attachment';
 
     res.setHeader('Content-Type', document.mimeType);
     res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(document.originalFilename)}"`);
-    res.setHeader('Content-Length', document.size);
+    res.setHeader('Content-Length', fileBuffer.length);
+    res.setHeader('Cache-Control', 'no-cache');
 
-    // Stream the file
-    const fileStream = fs.createReadStream(document.storagePath);
-    fileStream.pipe(res);
+    // Send the entire file at once
+    res.send(fileBuffer);
   } catch (error: any) {
     console.error('Download document error:', error);
     res.status(500).json({
