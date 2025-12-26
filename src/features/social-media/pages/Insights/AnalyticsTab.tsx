@@ -24,7 +24,7 @@ export default function AnalyticsTab() {
     try {
       const [bestTimes, hashtagStats, contentMix, performance] = await Promise.all([
         socialMediaApi.getBestTimes().catch(() => null),
-        socialMediaApi.getHashtagStats().catch(() => null),
+        socialMediaApi.getHashtagAnalytics().catch(() => null),
         socialMediaApi.getContentMix().catch(() => null),
         socialMediaApi.getPerformance().catch(() => null),
       ]);

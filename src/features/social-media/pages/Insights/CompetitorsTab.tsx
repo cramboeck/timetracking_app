@@ -55,7 +55,7 @@ export default function CompetitorsTab() {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const newCompetitor = await socialMediaApi.createCompetitor({
+      const newCompetitor = await socialMediaApi.addCompetitor({
         name,
         profiles: {
           linkedin: linkedinUrl || undefined,

@@ -21,7 +21,7 @@ export default function TrendsTab() {
     if (!industry.trim()) return;
     setLoading(true);
     try {
-      const result = await socialMediaApi.analyzeTrends({ industry });
+      const result = await socialMediaApi.getTrends(industry);
       setTrends(result.trends || []);
     } catch (error) {
       console.error('Failed to analyze trends:', error);
