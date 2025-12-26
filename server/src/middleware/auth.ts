@@ -13,7 +13,8 @@ export interface AuthRequest extends Request {
 
 export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  // Support token in Authorization header OR query parameter (for file downloads)
+  const token = (authHeader && authHeader.split(' ')[1]) || (req.query.token as string);
 
   if (!token) {
     return res.status(401).json({ error: 'No token provided' });
