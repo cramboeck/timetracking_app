@@ -26,7 +26,7 @@ export interface ProcessedInvoice {
   attachmentCount: number;
   documentIds: string[];
   vendorId: string | null;
-  status: 'pending' | 'processed' | 'failed' | 'skipped';
+  status: 'pending' | 'draft' | 'processed' | 'failed' | 'skipped';
   errorMessage: string | null;
   processedAt: string;
 }
@@ -51,7 +51,7 @@ export interface ProcessingResult {
   results: Array<{
     emailId: string;
     subject: string;
-    status: 'processed' | 'failed' | 'skipped';
+    status: 'draft' | 'failed' | 'skipped';
     documentsCreated: number;
     error?: string;
   }>;
@@ -99,7 +99,7 @@ class InvoiceProcessorService {
     let result = await query(
       `SELECT id, name FROM customers
        WHERE organization_id = $1
-       AND (LOWER(email) = LOWER($2) OR LOWER(invoice_email) = LOWER($2))
+       AND LOWER(email) = LOWER($2)
        LIMIT 1`,
       [organizationId, email]
     );
@@ -114,7 +114,7 @@ class InvoiceProcessorService {
       result = await query(
         `SELECT id, name FROM customers
          WHERE organization_id = $1
-         AND (LOWER(email) LIKE $2 OR LOWER(invoice_email) LIKE $2 OR LOWER(website) LIKE $2)
+         AND (LOWER(email) LIKE $2 OR LOWER(website) LIKE $2)
          LIMIT 1`,
         [organizationId, `%${domain.toLowerCase()}`]
       );
@@ -167,7 +167,7 @@ class InvoiceProcessorService {
   async processEmail(
     organizationId: string,
     email: EmailMessage
-  ): Promise<{ status: 'processed' | 'failed' | 'skipped'; documentsCreated: number; error?: string }> {
+  ): Promise<{ status: 'draft' | 'failed' | 'skipped'; documentsCreated: number; error?: string }> {
     // Check if already processed
     if (await this.isEmailProcessed(organizationId, email.id)) {
       return { status: 'skipped', documentsCreated: 0 };
@@ -244,12 +244,12 @@ class InvoiceProcessorService {
         }
       }
 
-      // Record processed email
+      // Record processed email as draft (needs manual review)
       const processedId = await this.recordProcessedEmail(
         organizationId,
         email,
         documentIds,
-        'processed',
+        'draft',  // Save as draft so user can review before finalizing
         null,
         vendor?.id
       );
@@ -265,8 +265,8 @@ class InvoiceProcessorService {
       // Mark email as read
       await mailboxMonitorService.markAsRead(organizationId, email.id, 'invoice');
 
-      console.log(`Processed invoice email: ${email.subject} (${documentIds.length} documents)`);
-      return { status: 'processed', documentsCreated: documentIds.length };
+      console.log(`Created invoice draft: ${email.subject} (${documentIds.length} documents)`);
+      return { status: 'draft', documentsCreated: documentIds.length };
 
     } catch (error: any) {
       console.error(`Failed to process email ${email.id}:`, error.message);
@@ -282,7 +282,7 @@ class InvoiceProcessorService {
     organizationId: string,
     email: EmailMessage,
     documentIds: string[],
-    status: 'pending' | 'processed' | 'failed' | 'skipped',
+    status: 'pending' | 'draft' | 'processed' | 'failed' | 'skipped',
     errorMessage: string | null,
     vendorId: string | null = null
   ): Promise<string> {
@@ -371,8 +371,8 @@ class InvoiceProcessorService {
       });
 
       switch (result.status) {
-        case 'processed':
-          processedCount++;
+        case 'draft':
+          processedCount++;  // Count drafts as "processed" for UI
           break;
         case 'skipped':
           skippedCount++;
@@ -473,6 +473,57 @@ class InvoiceProcessorService {
   }
 
   /**
+   * Approve a draft invoice (mark as processed)
+   */
+  async approveDraft(organizationId: string, processedInvoiceId: string): Promise<boolean> {
+    const result = await query(
+      `UPDATE processed_invoices
+       SET status = 'processed', processed_at = NOW()
+       WHERE id = $1 AND organization_id = $2 AND status = 'draft'
+       RETURNING id`,
+      [processedInvoiceId, organizationId]
+    );
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Delete a draft invoice and its documents
+   */
+  async deleteDraft(organizationId: string, processedInvoiceId: string): Promise<boolean> {
+    // Get document paths to delete files
+    const docs = await query(
+      `SELECT storage_path FROM invoice_documents
+       WHERE processed_invoice_id = $1`,
+      [processedInvoiceId]
+    );
+
+    // Delete files from filesystem
+    for (const doc of docs.rows) {
+      try {
+        await fs.promises.unlink(doc.storage_path);
+      } catch (err) {
+        console.error(`Failed to delete file: ${doc.storage_path}`);
+      }
+    }
+
+    // Delete documents
+    await query(
+      `DELETE FROM invoice_documents WHERE processed_invoice_id = $1`,
+      [processedInvoiceId]
+    );
+
+    // Delete invoice record
+    const result = await query(
+      `DELETE FROM processed_invoices
+       WHERE id = $1 AND organization_id = $2 AND status = 'draft'
+       RETURNING id`,
+      [processedInvoiceId, organizationId]
+    );
+
+    return result.rows.length > 0;
+  }
+
+  /**
    * Retry processing a failed invoice
    */
   async retryProcessing(organizationId: string, processedInvoiceId: string): Promise<boolean> {
@@ -504,7 +555,7 @@ class InvoiceProcessorService {
     }
 
     const processResult = await this.processEmail(organizationId, email);
-    return processResult.status === 'processed';
+    return processResult.status === 'draft';
   }
 }
 

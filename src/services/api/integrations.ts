@@ -952,7 +952,7 @@ export interface ProcessedInvoice {
   documentIds: string[];
   vendorId: string | null;
   vendorName?: string;
-  status: 'pending' | 'processed' | 'failed' | 'skipped';
+  status: 'pending' | 'draft' | 'processed' | 'failed' | 'skipped';
   errorMessage?: string;
   processedAt: string;
 }
@@ -1052,5 +1052,13 @@ export const microsoft365Api = {
 
   retryInvoiceProcessing: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
     return authFetch(`/microsoft365/invoices/${invoiceId}/retry`, { method: 'POST' });
+  },
+
+  approveInvoiceDraft: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
+    return authFetch(`/microsoft365/invoices/${invoiceId}/approve`, { method: 'POST' });
+  },
+
+  deleteInvoiceDraft: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
+    return authFetch(`/microsoft365/invoices/${invoiceId}`, { method: 'DELETE' });
   },
 };

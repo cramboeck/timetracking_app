@@ -3038,7 +3038,7 @@ export async function initializeDatabase() {
         attachment_count INTEGER DEFAULT 0,
         document_ids JSONB DEFAULT '[]',
         vendor_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
-        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processed', 'failed', 'skipped')),
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'draft', 'processed', 'failed', 'skipped')),
         error_message TEXT,
         processed_at TIMESTAMP NOT NULL DEFAULT NOW(),
         UNIQUE(organization_id, email_id)

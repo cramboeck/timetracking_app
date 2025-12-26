@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Save, CheckCircle, XCircle, AlertTriangle, Cloud, Mail, Shield, Loader2, Eye, EyeOff, ExternalLink, Key, FileText, RefreshCw, Play, Download } from 'lucide-react';
+import { Settings, Save, CheckCircle, XCircle, AlertTriangle, Cloud, Mail, Shield, Loader2, Eye, EyeOff, ExternalLink, Key, FileText, RefreshCw, Play, Download, Check, Trash2 } from 'lucide-react';
 import { microsoft365Api, Microsoft365Config, ProcessedInvoice } from '../services/api';
 
 export const Microsoft365Settings = () => {
@@ -89,7 +89,7 @@ export const Microsoft365Settings = () => {
           skippedCount: response.data.skippedCount,
           failedCount: response.data.failedCount,
         });
-        setSuccess(`${response.data.processedCount} Rechnungen verarbeitet`);
+        setSuccess(`${response.data.processedCount} Entwürfe erstellt`);
         loadProcessedInvoices();
       } else {
         setError(response.error || 'Verarbeitung fehlgeschlagen');
@@ -100,6 +100,40 @@ export const Microsoft365Settings = () => {
       setProcessingInvoices(false);
       setTimeout(() => setSuccess(''), 5000);
     }
+  };
+
+  const handleApproveDraft = async (invoiceId: string) => {
+    try {
+      const response = await microsoft365Api.approveInvoiceDraft(invoiceId);
+      if (response.success) {
+        setSuccess('Entwurf bestätigt');
+        loadProcessedInvoices();
+      } else {
+        setError(response.error || 'Bestätigung fehlgeschlagen');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Bestätigung fehlgeschlagen');
+    }
+    setTimeout(() => setSuccess(''), 3000);
+  };
+
+  const handleDeleteDraft = async (invoiceId: string) => {
+    if (!confirm('Entwurf wirklich löschen? Die Dateien werden ebenfalls entfernt.')) {
+      return;
+    }
+
+    try {
+      const response = await microsoft365Api.deleteInvoiceDraft(invoiceId);
+      if (response.success) {
+        setSuccess('Entwurf gelöscht');
+        loadProcessedInvoices();
+      } else {
+        setError(response.error || 'Löschen fehlgeschlagen');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Löschen fehlgeschlagen');
+    }
+    setTimeout(() => setSuccess(''), 3000);
   };
 
   const handleSave = async () => {
@@ -561,6 +595,7 @@ export const Microsoft365Settings = () => {
                     <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Betreff</th>
                     <th className="text-center py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Anhaenge</th>
                     <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Status</th>
+                    <th className="text-right py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Aktionen</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -598,6 +633,8 @@ export const Microsoft365Settings = () => {
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                           invoice.status === 'processed'
                             ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                            : invoice.status === 'draft'
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                             : invoice.status === 'failed'
                             ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                             : invoice.status === 'skipped'
@@ -605,14 +642,36 @@ export const Microsoft365Settings = () => {
                             : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
                         }`}>
                           {invoice.status === 'processed' && <CheckCircle size={12} />}
+                          {invoice.status === 'draft' && <FileText size={12} />}
                           {invoice.status === 'failed' && <XCircle size={12} />}
-                          {invoice.status === 'processed' ? 'Verarbeitet' :
+                          {invoice.status === 'processed' ? 'Bestätigt' :
+                           invoice.status === 'draft' ? 'Entwurf' :
                            invoice.status === 'failed' ? 'Fehlgeschlagen' :
                            invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
                         </span>
                         {invoice.errorMessage && (
                           <div className="text-xs text-red-500 mt-1 truncate max-w-[150px]" title={invoice.errorMessage}>
                             {invoice.errorMessage}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        {invoice.status === 'draft' && (
+                          <div className="flex gap-1 justify-end">
+                            <button
+                              onClick={() => handleApproveDraft(invoice.id)}
+                              className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
+                              title="Bestätigen"
+                            >
+                              <Check size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteDraft(invoice.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                              title="Löschen"
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         )}
                       </td>

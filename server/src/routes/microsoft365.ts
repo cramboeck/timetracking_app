@@ -477,4 +477,56 @@ router.post('/invoices/:id/retry', requireOrgRole('admin'), async (req: AuthRequ
   }
 });
 
+// POST /api/microsoft365/invoices/:id/approve - Approve a draft invoice
+router.post('/invoices/:id/approve', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const processedInvoiceId = req.params.id;
+
+    const success = await invoiceProcessorService.approveDraft(organizationId, processedInvoiceId);
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Entwurf konnte nicht bestätigt werden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Approve draft error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to approve draft',
+    });
+  }
+});
+
+// DELETE /api/microsoft365/invoices/:id - Delete a draft invoice
+router.delete('/invoices/:id', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const processedInvoiceId = req.params.id;
+
+    const success = await invoiceProcessorService.deleteDraft(organizationId, processedInvoiceId);
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Entwurf konnte nicht gelöscht werden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Delete draft error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to delete draft',
+    });
+  }
+});
+
 export default router;
