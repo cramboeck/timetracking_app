@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { AuthRequest, authenticateToken } from '../middleware/auth';
 import { attachOrganization, requireOrgRole } from '../middleware/organization';
 import * as microsoft365Service from '../services/microsoft365ConfigService';
+import { mailboxMonitorService } from '../services/mailboxMonitorService';
 
 interface OrganizationRequest extends AuthRequest {
   organization: {
@@ -178,6 +179,184 @@ router.delete('/config', requireOrgRole('admin'), async (req: AuthRequest, res: 
   } catch (error) {
     console.error('Delete Microsoft 365 config error:', error);
     res.status(500).json({ error: 'Failed to delete config' });
+  }
+});
+
+// ========================================
+// Mailbox Monitoring Endpoints
+// ========================================
+
+// POST /api/microsoft365/mailbox/test - Test mailbox access
+router.post('/mailbox/test', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { mailbox } = req.body;
+
+    const result = await mailboxMonitorService.testMailboxAccess(organizationId, mailbox);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.mailboxInfo,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error: any) {
+    console.error('Mailbox test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Mailbox test failed',
+    });
+  }
+});
+
+// GET /api/microsoft365/mailbox/emails - Get unread emails
+router.get('/mailbox/emails', requireOrgRole('admin', 'member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const maxResults = parseInt(req.query.maxResults as string) || 50;
+
+    const result = await mailboxMonitorService.getUnreadEmails(organizationId, { maxResults });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.emails,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error: any) {
+    console.error('Get emails error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get emails',
+    });
+  }
+});
+
+// GET /api/microsoft365/mailbox/emails/:id - Get specific email
+router.get('/mailbox/emails/:id', requireOrgRole('admin', 'member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+
+    const email = await mailboxMonitorService.getEmail(organizationId, messageId);
+
+    if (email) {
+      res.json({
+        success: true,
+        data: email,
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'E-Mail nicht gefunden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Get email error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get email',
+    });
+  }
+});
+
+// GET /api/microsoft365/mailbox/emails/:id/attachments - Get email attachments
+router.get('/mailbox/emails/:id/attachments', requireOrgRole('admin', 'member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+
+    const attachments = await mailboxMonitorService.getAttachments(organizationId, messageId);
+
+    res.json({
+      success: true,
+      data: attachments,
+    });
+  } catch (error: any) {
+    console.error('Get attachments error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get attachments',
+    });
+  }
+});
+
+// POST /api/microsoft365/mailbox/emails/:id/read - Mark email as read
+router.post('/mailbox/emails/:id/read', requireOrgRole('admin', 'member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+
+    const success = await mailboxMonitorService.markAsRead(organizationId, messageId);
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Konnte E-Mail nicht als gelesen markieren',
+      });
+    }
+  } catch (error: any) {
+    console.error('Mark as read error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to mark email as read',
+    });
+  }
+});
+
+// POST /api/microsoft365/mailbox/emails/:id/reply - Reply to email
+router.post('/mailbox/emails/:id/reply', requireOrgRole('admin', 'member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+    const { content, replyAll } = req.body;
+
+    if (!content) {
+      return res.status(400).json({
+        success: false,
+        error: 'Antwort-Inhalt erforderlich',
+      });
+    }
+
+    const success = await mailboxMonitorService.replyToEmail(
+      organizationId,
+      messageId,
+      content,
+      replyAll || false
+    );
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Konnte Antwort nicht senden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Reply to email error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to send reply',
+    });
   }
 });
 

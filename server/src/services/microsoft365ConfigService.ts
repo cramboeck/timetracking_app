@@ -166,9 +166,10 @@ export async function testConnection(
       authProvider,
     });
 
-    // If mailFrom is provided, try to get user info
+    // If mailFrom is provided, test mailbox access
     if (mailFrom) {
       try {
+        // First try to get user info (works for regular users)
         const user = await graphClient
           .api(`/users/${mailFrom}`)
           .select('displayName,mail,userPrincipalName')
@@ -182,12 +183,37 @@ export async function testConnection(
           },
         };
       } catch (userError: any) {
-        // User lookup failed, but credentials might still be valid
-        if (userError.statusCode === 404) {
-          return {
-            success: false,
-            error: `Postfach "${mailFrom}" nicht gefunden. Bitte pruefen Sie die E-Mail-Adresse.`,
-          };
+        // If user lookup fails, try to access mailbox directly (works for shared mailboxes)
+        if (userError.statusCode === 404 || userError.code === 'Request_ResourceNotFound') {
+          try {
+            // Try to access the mailbox directly - this works for shared mailboxes
+            const messages = await graphClient
+              .api(`/users/${mailFrom}/messages`)
+              .top(1)
+              .select('id,subject')
+              .get();
+
+            return {
+              success: true,
+              userInfo: {
+                displayName: `Shared Mailbox: ${mailFrom}`,
+                email: mailFrom,
+              },
+            };
+          } catch (mailboxError: any) {
+            // Check if it's a permission issue
+            if (mailboxError.statusCode === 403 || mailboxError.message?.includes('Insufficient privileges')) {
+              return {
+                success: false,
+                error: `Keine Berechtigung fuer Postfach "${mailFrom}". Bitte Mail.Read und Mail.ReadWrite Berechtigungen pruefen.`,
+              };
+            }
+            // Mailbox not found
+            return {
+              success: false,
+              error: `Postfach "${mailFrom}" nicht gefunden. Bitte pruefen Sie die E-Mail-Adresse.`,
+            };
+          }
         }
         throw userError;
       }
