@@ -1423,15 +1423,14 @@ cmd_microsoft365() {
 
             run_query_formatted "
                 SELECT
+                    o.id as \"Org ID\",
                     o.name as \"Organisation\",
-                    COALESCE(m.tenant_id, '-') as \"Tenant ID\",
-                    COALESCE(m.client_id, '-') as \"Client ID\",
+                    COALESCE(LEFT(m.tenant_id, 8) || '...', '-') as \"Tenant ID\",
+                    COALESCE(LEFT(m.client_id, 8) || '...', '-') as \"Client ID\",
                     CASE WHEN m.client_secret IS NOT NULL AND m.client_secret != '' THEN
                         LEFT(m.client_secret, 4) || '...' || RIGHT(m.client_secret, 4) || ' (' || LENGTH(m.client_secret) || ' Zeichen)'
                     ELSE '❌ Nicht gesetzt' END as \"Client Secret\",
-                    COALESCE(m.mail_from, '-') as \"Mail From\",
-                    CASE WHEN m.is_configured THEN '✅' ELSE '❌' END as \"Konfiguriert\",
-                    COALESCE(m.last_connection_status, '-') as \"Letzter Test\"
+                    CASE WHEN m.is_configured THEN '✅' ELSE '❌' END as \"OK\"
                 FROM organizations o
                 LEFT JOIN microsoft365_config m ON o.id = m.organization_id
                 ORDER BY o.name;
@@ -1542,9 +1541,60 @@ cmd_microsoft365() {
             print_success "Konfiguration gelöscht."
             ;;
 
+        update-secret)
+            local ORG_ID="$3"
+            if [ -z "$ORG_ID" ]; then
+                print_error "Bitte Organization ID angeben!"
+                echo ""
+                echo "Verfügbare Organisationen:"
+                run_query_formatted "SELECT o.id, o.name FROM organizations o JOIN microsoft365_config m ON o.id = m.organization_id;"
+                exit 1
+            fi
+
+            # Check if config exists
+            local CONFIG_EXISTS=$(run_query "SELECT COUNT(*) FROM microsoft365_config WHERE organization_id = '$ORG_ID';")
+            if [ "$CONFIG_EXISTS" -eq 0 ]; then
+                print_error "Keine Microsoft 365 Konfiguration für diese Organisation!"
+                exit 1
+            fi
+
+            print_header "Client Secret aktualisieren"
+
+            # Show current config
+            run_query_formatted "
+                SELECT
+                    o.name as \"Organisation\",
+                    m.tenant_id as \"Tenant ID\",
+                    m.client_id as \"Client ID\",
+                    CASE WHEN m.client_secret IS NOT NULL THEN
+                        LEFT(m.client_secret, 4) || '...' || RIGHT(m.client_secret, 4)
+                    ELSE 'Nicht gesetzt' END as \"Aktuelles Secret\"
+                FROM organizations o
+                JOIN microsoft365_config m ON o.id = m.organization_id
+                WHERE o.id = '$ORG_ID';
+            "
+
+            echo ""
+            read -sp "Neues Client Secret eingeben: " NEW_SECRET
+            echo ""
+
+            if [ -z "$NEW_SECRET" ]; then
+                print_error "Kein Secret eingegeben!"
+                exit 1
+            fi
+
+            # Update the secret
+            run_query "UPDATE microsoft365_config SET client_secret = '$NEW_SECRET', updated_at = NOW() WHERE organization_id = '$ORG_ID';"
+
+            print_success "Client Secret aktualisiert!"
+            echo ""
+            print_info "Neues Secret: ${NEW_SECRET:0:4}...${NEW_SECRET: -4} (${#NEW_SECRET} Zeichen)"
+            print_info "Bitte testen Sie die Verbindung in der App."
+            ;;
+
         *)
             print_error "Unbekannte Aktion: $ACTION"
-            echo "Verwendung: $0 microsoft365 [status|show|test-secret|clear]"
+            echo "Verwendung: $0 microsoft365 [status|show|test-secret|update-secret|clear]"
             exit 1
             ;;
     esac
@@ -1612,6 +1662,7 @@ cmd_help() {
     echo "  microsoft365                      Microsoft 365 Konfiguration prüfen"
     echo "  microsoft365 show <org_id>        Details für Organisation"
     echo "  microsoft365 test-secret          Client Secret Format prüfen"
+    echo "  microsoft365 update-secret <org>  Client Secret aktualisieren"
     echo "  microsoft365 clear <org_id>       Konfiguration löschen"
     echo ""
     echo -e "${YELLOW}── Sonstiges ──${NC}"
