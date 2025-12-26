@@ -1079,6 +1079,7 @@ export const microsoft365Api = {
 
   getDocumentDownloadUrl: (documentId: string, inline?: boolean): string => {
     const baseUrl = import.meta.env.VITE_API_URL || '';
-    return `${baseUrl}/api/microsoft365/documents/${documentId}/download${inline ? '?inline=true' : ''}`;
+    // baseUrl already contains /api, so don't add it again
+    return `${baseUrl}/microsoft365/documents/${documentId}/download${inline ? '?inline=true' : ''}`;
   },
 };
