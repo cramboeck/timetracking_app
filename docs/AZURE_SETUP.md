@@ -1,168 +1,319 @@
-# Microsoft Graph API - Azure Setup Anleitung
+# Microsoft Graph API - Entra ID Setup Anleitung
 
-Diese Anleitung erklärt, wie Sie eine Azure App Registration erstellen, um E-Mails über die Microsoft Graph API zu senden.
+Diese Anleitung erklärt Schritt für Schritt, wie Sie eine App-Registrierung in Microsoft Entra ID (früher Azure AD) erstellen, um E-Mails über die Microsoft Graph API zu senden und zu lesen.
+
+---
+
+## Übersicht: Benötigte Berechtigungen
+
+| Berechtigung | Typ | Beschreibung | Wann benötigt |
+|--------------|-----|--------------|---------------|
+| `Mail.Send` | Application | E-Mails im Namen eines Benutzers senden | **Pflicht** für E-Mail-Versand |
+| `Mail.Read` | Application | E-Mails aus Postfächern lesen | Für Inbox-Überwachung |
+| `Mail.ReadWrite` | Application | E-Mails lesen und als gelesen markieren | Für Inbox-Überwachung |
+| `User.Read.All` | Application | Benutzerinformationen lesen | Für Verbindungstest |
+
+> **Wichtig:** Wir verwenden **Application permissions** (nicht Delegated), da die App im Hintergrund ohne Benutzerinteraktion arbeitet.
+
+---
 
 ## Voraussetzungen
 
-- Microsoft 365 Tenant (Business oder Enterprise)
-- Azure AD Administrator-Rechte (oder jemand der Admin Consent erteilen kann)
-- E-Mail-Postfach, von dem gesendet werden soll (z.B. `noreply@ihredomain.de`)
+- Microsoft 365 Tenant (Business, Enterprise oder Education)
+- Entra ID Administrator-Rechte (Global Admin oder Application Administrator)
+- E-Mail-Postfach für den Versand (z.B. `noreply@ihredomain.de`)
+- Optional: Support-Postfach für Inbox-Überwachung (z.B. `support@ihredomain.de`)
 
 ---
 
-## Schritt 1: Azure Portal öffnen
+## Schritt 1: Entra Admin Center öffnen
 
-1. Gehen Sie zu [https://portal.azure.com](https://portal.azure.com)
-2. Melden Sie sich mit Ihrem Microsoft 365 Admin-Konto an
+1. Öffnen Sie **[https://entra.microsoft.com](https://entra.microsoft.com)**
+   - Alternativ: [https://portal.azure.com](https://portal.azure.com) → "Microsoft Entra ID"
+2. Melden Sie sich mit Ihrem Administrator-Konto an
 
 ---
 
-## Schritt 2: App Registration erstellen
+## Schritt 2: App-Registrierung erstellen
 
-1. Suchen Sie nach **"App registrations"** (oder "App-Registrierungen")
-2. Klicken Sie auf **"New registration"** (Neue Registrierung)
+1. Navigieren Sie zu: **Identity** → **Applications** → **App registrations**
+   - Oder suchen Sie nach "App registrations" in der Suchleiste
+2. Klicken Sie auf **"+ New registration"**
+
 3. Füllen Sie das Formular aus:
-   - **Name:** `TimeTrack Email Service` (oder ein Name Ihrer Wahl)
-   - **Supported account types:** `Accounts in this organizational directory only` (Nur Konten in diesem Verzeichnis)
-   - **Redirect URI:** Leer lassen (nicht benötigt für Client Credentials Flow)
+
+   | Feld | Wert |
+   |------|------|
+   | **Name** | `TimeTrack Email Service` (oder Ihr gewünschter Name) |
+   | **Supported account types** | `Accounts in this organizational directory only` |
+   | **Redirect URI** | Leer lassen (nicht benötigt) |
+
 4. Klicken Sie auf **"Register"**
 
 ---
 
 ## Schritt 3: Wichtige IDs notieren
 
-Nach der Registrierung sehen Sie die Übersicht. Notieren Sie sich:
+Nach der Registrierung werden Sie zur Übersichtsseite weitergeleitet. Notieren Sie sich diese Werte:
 
-| Feld | Umgebungsvariable |
-|------|-------------------|
-| **Application (client) ID** | `AZURE_CLIENT_ID` |
-| **Directory (tenant) ID** | `AZURE_TENANT_ID` |
+| Feld in Entra | Wert kopieren | Konfiguration |
+|---------------|---------------|---------------|
+| **Application (client) ID** | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` | Tenant ID in App |
+| **Directory (tenant) ID** | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` | Client ID in App |
+
+> 💡 Diese IDs finden Sie jederzeit wieder unter "Overview" Ihrer App-Registrierung.
 
 ---
 
 ## Schritt 4: Client Secret erstellen
 
+Das Client Secret ist wie ein Passwort für Ihre Anwendung.
+
 1. Gehen Sie zu **"Certificates & secrets"** im linken Menü
-2. Klicken Sie auf **"New client secret"**
-3. Füllen Sie aus:
-   - **Description:** `TimeTrack Production` (oder ähnlich)
-   - **Expires:** Wählen Sie eine Gültigkeitsdauer (empfohlen: 24 Monate)
-4. Klicken Sie auf **"Add"**
-5. **WICHTIG:** Kopieren Sie den **Value** (Wert) sofort! Er wird nur einmal angezeigt.
-   - Dieser Wert ist Ihr `AZURE_CLIENT_SECRET`
+2. Wählen Sie den Tab **"Client secrets"**
+3. Klicken Sie auf **"+ New client secret"**
+4. Füllen Sie aus:
+
+   | Feld | Empfehlung |
+   |------|------------|
+   | **Description** | `TimeTrack Production` |
+   | **Expires** | `24 months` (730 days) |
+
+5. Klicken Sie auf **"Add"**
+
+6. ⚠️ **WICHTIG: Kopieren Sie den "Value" SOFORT!**
+   - Der Wert wird nur einmal angezeigt
+   - Nach dem Verlassen der Seite ist er nicht mehr sichtbar
+   - Dieser Wert ist Ihr **Client Secret**
+
+> 🔒 Speichern Sie das Secret sicher (Passwort-Manager, nicht in Code/Git)
 
 ---
 
 ## Schritt 5: API-Berechtigungen hinzufügen
 
+### 5.1 Berechtigungen öffnen
+
 1. Gehen Sie zu **"API permissions"** im linken Menü
-2. Klicken Sie auf **"Add a permission"**
-3. Wählen Sie **"Microsoft Graph"**
-4. Wählen Sie **"Application permissions"** (nicht Delegated!)
-5. Suchen und wählen Sie folgende Berechtigungen:
+2. Sie sehen bereits `User.Read` (Delegated) - diese können wir ignorieren oder entfernen
 
-### Für E-Mail-Versand (Pflicht)
-- `Mail.Send` - E-Mails senden
+### 5.2 Microsoft Graph Berechtigungen hinzufügen
 
-### Für zukünftige Postfach-Überwachung (Optional)
-- `Mail.Read` - E-Mails lesen
-- `Mail.ReadWrite` - E-Mails lesen und als gelesen markieren
+1. Klicken Sie auf **"+ Add a permission"**
+2. Wählen Sie **"Microsoft Graph"**
+3. Wählen Sie **"Application permissions"** (NICHT "Delegated permissions"!)
 
-6. Klicken Sie auf **"Add permissions"**
+### 5.3 Berechtigungen auswählen
+
+Suchen Sie und aktivieren Sie folgende Berechtigungen:
+
+#### Für E-Mail-Versand (Pflicht)
+```
+Mail.Send
+```
+- Ermöglicht das Senden von E-Mails im Namen jedes Benutzers
+- Benötigt für: System-E-Mails, Benachrichtigungen, Ticket-Antworten
+
+#### Für Inbox-Überwachung (Optional, aber empfohlen)
+```
+Mail.Read
+Mail.ReadWrite
+```
+- `Mail.Read`: Lesen von E-Mails aus Postfächern
+- `Mail.ReadWrite`: Lesen UND als gelesen markieren
+- Benötigt für: Support-Inbox → automatische Ticket-Erstellung
+
+#### Für Verbindungstest (Optional)
+```
+User.Read.All
+```
+- Ermöglicht das Abrufen von Benutzerinformationen
+- Benötigt für: Anzeige des verbundenen Postfach-Namens beim Test
+
+4. Klicken Sie auf **"Add permissions"**
+
+### 5.4 Übersicht Ihrer Berechtigungen
+
+Nach dem Hinzufügen sollte Ihre Berechtigungsliste so aussehen:
+
+| API / Permission | Type | Status |
+|-----------------|------|--------|
+| Microsoft Graph / Mail.Send | Application | ⚠️ Not granted |
+| Microsoft Graph / Mail.Read | Application | ⚠️ Not granted |
+| Microsoft Graph / Mail.ReadWrite | Application | ⚠️ Not granted |
+| Microsoft Graph / User.Read.All | Application | ⚠️ Not granted |
 
 ---
 
 ## Schritt 6: Admin Consent erteilen
 
-1. In der Übersicht der API-Berechtigungen sehen Sie jetzt die hinzugefügten Berechtigungen
-2. Klicken Sie auf **"Grant admin consent for [Ihr Tenant]"**
-3. Bestätigen Sie mit **"Yes"**
-4. Die Status-Spalte sollte nun für alle Berechtigungen **"Granted for..."** anzeigen (grünes Häkchen)
+Application Permissions erfordern die Zustimmung eines Administrators.
+
+1. In der Berechtigungsübersicht sehen Sie den Button **"Grant admin consent for [Ihr Tenant-Name]"**
+2. Klicken Sie darauf
+3. Ein Dialog erscheint - klicken Sie auf **"Yes"**
+4. Warten Sie kurz, bis alle Berechtigungen aktualisiert sind
+
+### Erfolgreiche Konfiguration
+
+Nach dem Admin Consent sollte die Tabelle so aussehen:
+
+| API / Permission | Type | Status |
+|-----------------|------|--------|
+| Microsoft Graph / Mail.Send | Application | ✅ Granted for [Tenant] |
+| Microsoft Graph / Mail.Read | Application | ✅ Granted for [Tenant] |
+| Microsoft Graph / Mail.ReadWrite | Application | ✅ Granted for [Tenant] |
+| Microsoft Graph / User.Read.All | Application | ✅ Granted for [Tenant] |
+
+> ⚠️ Wenn Sie keinen "Grant admin consent" Button sehen, haben Sie nicht die erforderlichen Admin-Rechte. Wenden Sie sich an Ihren Global Administrator.
 
 ---
 
-## Schritt 7: Umgebungsvariablen konfigurieren
+## Schritt 7: In der Anwendung konfigurieren
 
-Fügen Sie folgende Variablen zu Ihrer `.env`-Datei auf dem Server hinzu:
+### Option A: Über die Benutzeroberfläche
+
+1. Gehen Sie in der Anwendung zu **Einstellungen** → **Microsoft 365**
+2. Geben Sie ein:
+   - **Tenant ID**: Die "Directory (tenant) ID" aus Schritt 3
+   - **Client ID**: Die "Application (client) ID" aus Schritt 3
+   - **Client Secret**: Der kopierte "Value" aus Schritt 4
+   - **Mail From**: Ihr Absender-Postfach (z.B. `noreply@ihredomain.de`)
+   - **Support Mailbox**: Für Inbox-Überwachung (z.B. `support@ihredomain.de`)
+3. Klicken Sie auf **"Verbindung testen"**
+4. Bei Erfolg: **"Speichern"**
+
+### Option B: Über Umgebungsvariablen (Server)
+
+Fügen Sie zur `.env`-Datei hinzu:
 
 ```env
-# Microsoft Graph API
+# Microsoft Graph API Konfiguration
 AZURE_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 AZURE_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 AZURE_CLIENT_SECRET=Ihr-Client-Secret-Wert
-GRAPH_MAIL_FROM=noreply@ihredomain.de
 
-# Provider auf Graph setzen (oder 'auto' für Fallback)
+# E-Mail Konfiguration
+GRAPH_MAIL_FROM=noreply@ihredomain.de
+GRAPH_SUPPORT_MAILBOX=support@ihredomain.de
+
+# E-Mail Provider
 EMAIL_PROVIDER=graph
 ```
-
-**Wichtig:** `GRAPH_MAIL_FROM` muss ein existierendes Postfach in Ihrem M365-Tenant sein!
 
 ---
 
 ## Schritt 8: Testen
 
-Nach dem Neustart des Servers sollten Sie in den Logs sehen:
+### Verbindungstest in der App
 
+Nach erfolgreicher Konfiguration zeigt die Anwendung:
+- ✅ Verbunden
+- Verbunden als: [Anzeigename des Postfachs]
+
+### Server-Logs prüfen
+
+Bei korrekter Konfiguration erscheint im Server-Log:
 ```
 ✅ Microsoft Graph API initialized
 📧 Email provider: Microsoft Graph API
 ```
 
-Sie können die Verbindung testen, indem Sie eine Test-E-Mail über die Anwendung senden.
+### Test-E-Mail senden
+
+Senden Sie eine Test-E-Mail über die Anwendung (z.B. Passwort-Reset an sich selbst).
 
 ---
 
 ## Fehlerbehebung
 
-### Fehler: "Insufficient privileges"
-- Stellen Sie sicher, dass Admin Consent erteilt wurde (Schritt 6)
-- Prüfen Sie, ob die richtigen **Application permissions** (nicht Delegated) gewählt wurden
+### "AADSTS700016: Application not found"
+- **Ursache:** Client ID ist falsch
+- **Lösung:** Prüfen Sie die "Application (client) ID" in Entra
 
-### Fehler: "Invalid client secret"
-- Das Secret ist möglicherweise abgelaufen
-- Erstellen Sie ein neues Secret (Schritt 4)
+### "AADSTS7000215: Invalid client secret"
+- **Ursache:** Client Secret ist falsch oder abgelaufen
+- **Lösung:** Erstellen Sie ein neues Secret (Schritt 4)
 
-### Fehler: "User not found" für GRAPH_MAIL_FROM
-- Das Postfach muss existieren und lizenziert sein
-- Shared Mailboxes funktionieren auch, benötigen aber keine Lizenz
+### "AADSTS90002: Tenant not found"
+- **Ursache:** Tenant ID ist falsch
+- **Lösung:** Prüfen Sie die "Directory (tenant) ID" in Entra
+
+### "Insufficient privileges to complete the operation"
+- **Ursache:** Admin Consent fehlt oder falsche Berechtigungsart
+- **Lösung:**
+  1. Prüfen Sie, ob Admin Consent erteilt wurde (Schritt 6)
+  2. Stellen Sie sicher, dass Sie "Application permissions" gewählt haben (nicht Delegated)
+
+### "User not found" für Mail From
+- **Ursache:** Das Postfach existiert nicht oder hat keine Lizenz
+- **Lösung:**
+  - Erstellen Sie das Postfach im M365 Admin Center
+  - Shared Mailboxes funktionieren auch (ohne Lizenz)
 
 ### E-Mails landen im Spam
-- Stellen Sie sicher, dass SPF, DKIM und DMARC für Ihre Domain konfiguriert sind
-- Verwenden Sie eine Domain, die zu Ihrem M365-Tenant gehört
+- **Ursache:** Fehlende E-Mail-Authentifizierung
+- **Lösung:** Konfigurieren Sie SPF, DKIM und DMARC für Ihre Domain
 
 ---
 
-## Sicherheitshinweise
+## Sicherheitsempfehlungen
 
-1. **Client Secret schützen:** Speichern Sie das Secret niemals im Code oder Git
-2. **Least Privilege:** Fügen Sie nur die Berechtigungen hinzu, die Sie wirklich benötigen
-3. **Secret-Rotation:** Erneuern Sie das Client Secret regelmäßig (vor Ablauf)
-4. **Monitoring:** Überwachen Sie die App-Aktivitäten im Azure Portal unter "Sign-in logs"
+### 1. Least Privilege Prinzip
+Fügen Sie nur die Berechtigungen hinzu, die Sie wirklich benötigen:
+- Nur E-Mail-Versand? → Nur `Mail.Send`
+- Mit Inbox-Überwachung? → `Mail.Send` + `Mail.ReadWrite`
+
+### 2. Client Secret Rotation
+- Erstellen Sie vor Ablauf ein neues Secret
+- Aktualisieren Sie die Konfiguration
+- Löschen Sie das alte Secret erst nach erfolgreicher Umstellung
+
+### 3. Monitoring
+Überwachen Sie App-Aktivitäten in Entra:
+- **Identity** → **Applications** → **Enterprise applications**
+- Wählen Sie Ihre App → **Sign-in logs**
+
+### 4. Conditional Access (Optional)
+Für erhöhte Sicherheit können Sie Conditional Access Policies erstellen:
+- Nur von bestimmten IPs erlauben
+- MFA für Admin-Zugriff erzwingen
 
 ---
 
-## Zukünftige Erweiterungen
+## Berechtigungs-Referenz
 
-### Postfach-Überwachung (Support-Inbox → Tickets)
+| Berechtigung | Graph API Scope | Beschreibung |
+|--------------|-----------------|--------------|
+| Mail.Send | `https://graph.microsoft.com/Mail.Send` | Senden von E-Mails als beliebiger Benutzer |
+| Mail.Read | `https://graph.microsoft.com/Mail.Read` | Lesen aller E-Mails in allen Postfächern |
+| Mail.ReadWrite | `https://graph.microsoft.com/Mail.ReadWrite` | Lesen, Schreiben, Löschen von E-Mails |
+| User.Read.All | `https://graph.microsoft.com/User.Read.All` | Lesen aller Benutzerprofile |
 
-Sobald `Mail.Read` und `Mail.ReadWrite` Berechtigungen erteilt sind, können Sie:
-
-1. Ein Support-Postfach überwachen
-2. Eingehende E-Mails automatisch in Tickets umwandeln
-3. E-Mails nach Verarbeitung als gelesen markieren
-
-Konfiguration (zukünftig):
-```env
-GRAPH_SUPPORT_MAILBOX=support@ihredomain.de
-GRAPH_INVOICE_MAILBOX=rechnung@ihredomain.de
-```
+> ⚠️ Application Permissions gewähren Zugriff auf ALLE Postfächer im Tenant. Verwenden Sie diese mit Bedacht.
 
 ---
 
 ## Hilfreiche Links
 
+- [Microsoft Entra Admin Center](https://entra.microsoft.com)
 - [Azure Portal](https://portal.azure.com)
-- [Microsoft Graph API Dokumentation](https://docs.microsoft.com/en-us/graph/overview)
+- [Microsoft Graph API Dokumentation](https://learn.microsoft.com/en-us/graph/overview)
 - [Graph Explorer (zum Testen)](https://developer.microsoft.com/en-us/graph/graph-explorer)
-- [Mail.Send Permission](https://docs.microsoft.com/en-us/graph/api/user-sendmail)
+- [Mail.Send API Reference](https://learn.microsoft.com/en-us/graph/api/user-sendmail)
+- [Application vs Delegated Permissions](https://learn.microsoft.com/en-us/azure/active-directory/develop/permissions-consent-overview)
+
+---
+
+## Zusammenfassung Checkliste
+
+- [ ] App in Entra ID registriert
+- [ ] Tenant ID notiert
+- [ ] Client ID notiert
+- [ ] Client Secret erstellt und sicher gespeichert
+- [ ] `Mail.Send` Permission hinzugefügt (Application)
+- [ ] `Mail.Read` + `Mail.ReadWrite` hinzugefügt (falls Inbox-Überwachung)
+- [ ] Admin Consent erteilt (alle Berechtigungen grün)
+- [ ] Konfiguration in App eingetragen
+- [ ] Verbindungstest erfolgreich
+- [ ] Test-E-Mail gesendet
