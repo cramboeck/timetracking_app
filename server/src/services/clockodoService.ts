@@ -369,6 +369,7 @@ export async function getAllClockodoEntries(
 export interface ClockodoImportPreview {
   rowCount: number;
   skippedCount: number;
+  duplicateCount: number;
   totalDuration: number;
   totalHours: string;
   dateRange: { from: string; to: string };
@@ -392,9 +393,17 @@ export interface ClockodoImportPreview {
     projekt: string | null;
     beschreibung: string | null;
     stunden: string;
+    isDuplicate?: boolean;
   }>;
   existingCustomers: Array<{ id: string; name: string; customerNumber?: string; importAliases?: string[] }>;
   existingProjects: Array<{ id: string; name: string; customerName: string; customerId: string }>;
+  // Potential duplicates found - entries that already exist for customer on same day
+  potentialDuplicates: Array<{
+    date: string;
+    customerName: string;
+    existingEntries: number;
+    newEntries: number;
+  }>;
 }
 
 export async function previewApiImport(
@@ -429,6 +438,34 @@ export async function previewApiImport(
   );
   const projects = projectsResult.rows;
 
+  // Query existing time entries for the date range to detect duplicates
+  // Group by customer and date to find potential conflicts
+  const existingEntriesResult = await query(
+    `SELECT
+       DATE(te.start_time) as entry_date,
+       c.name as customer_name,
+       c.id as customer_id,
+       COUNT(*) as entry_count
+     FROM time_entries te
+     JOIN projects p ON te.project_id = p.id
+     JOIN customers c ON p.customer_id = c.id
+     WHERE te.organization_id = $1
+       AND te.start_time >= $2
+       AND te.start_time <= $3
+     GROUP BY DATE(te.start_time), c.name, c.id`,
+    [organizationId, timeSince, timeUntil]
+  );
+
+  // Build a map of existing entries: "customerId|date" -> count
+  const existingEntriesMap = new Map<string, { customerName: string; count: number }>();
+  for (const row of existingEntriesResult.rows) {
+    const key = `${row.customer_id}|${row.entry_date}`;
+    existingEntriesMap.set(key, {
+      customerName: row.customer_name,
+      count: parseInt(row.entry_count, 10),
+    });
+  }
+
   // Helper function to match customer by name or aliases
   const findMatchingCustomer = (clockodoName: string, clockodoNumber: string | null) => {
     // Priority 1: Match by customer number
@@ -458,6 +495,10 @@ export async function previewApiImport(
   const sampleRows: ClockodoImportPreview['sampleRows'] = [];
   let totalDuration = 0;
   let skippedCount = 0;
+  let duplicateCount = 0;
+
+  // Track new entries per customer+date for duplicate detection
+  const newEntriesPerCustomerDate = new Map<string, { customerName: string; count: number }>();
 
   for (const entry of entries) {
     // Skip entries without duration (running entries)
@@ -475,6 +516,27 @@ export async function previewApiImport(
     }
 
     totalDuration += entry.duration;
+
+    // Track entries per customer+date for duplicate detection
+    const matchedCustomer = findMatchingCustomer(clockodoCustomer.name, clockodoCustomer.number);
+    const entryDate = entry.timeSince.split('T')[0]; // Get just the date part
+    let isDuplicate = false;
+
+    if (matchedCustomer) {
+      const key = `${matchedCustomer.id}|${entryDate}`;
+      // Check if there are existing entries for this customer on this date
+      if (existingEntriesMap.has(key)) {
+        isDuplicate = true;
+        duplicateCount++;
+      }
+      // Track new entries
+      const existing = newEntriesPerCustomerDate.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        newEntriesPerCustomerDate.set(key, { customerName: clockodoCustomer.name, count: 1 });
+      }
+    }
 
     // Track unique customers
     if (!uniqueCustomers.has(entry.customersId)) {
@@ -518,11 +580,27 @@ export async function previewApiImport(
       const hours = Math.floor(entry.duration / 3600);
       const minutes = Math.floor((entry.duration % 3600) / 60);
       sampleRows.push({
-        tag: new Date(entry.timeSince.replace(' ', 'T')).toLocaleDateString('de-DE'),
+        tag: new Date(entry.timeSince).toLocaleDateString('de-DE'),
         kunde: clockodoCustomer.name,
         projekt: clockodoProject?.name || null,
         beschreibung: entry.text,
         stunden: `${hours}:${String(minutes).padStart(2, '0')}`,
+        isDuplicate,
+      });
+    }
+  }
+
+  // Build potential duplicates list
+  const potentialDuplicates: ClockodoImportPreview['potentialDuplicates'] = [];
+  for (const [key, newData] of newEntriesPerCustomerDate.entries()) {
+    const existingData = existingEntriesMap.get(key);
+    if (existingData) {
+      const date = key.split('|')[1];
+      potentialDuplicates.push({
+        date: new Date(date).toLocaleDateString('de-DE'),
+        customerName: newData.customerName,
+        existingEntries: existingData.count,
+        newEntries: newData.count,
       });
     }
   }
@@ -530,6 +608,7 @@ export async function previewApiImport(
   return {
     rowCount: entries.length - skippedCount,
     skippedCount,
+    duplicateCount,
     totalDuration,
     totalHours: (totalDuration / 3600).toFixed(2),
     dateRange: { from: timeSince, to: timeUntil },
@@ -548,6 +627,7 @@ export async function previewApiImport(
       customerName: p.customer_name,
       customerId: p.customer_id,
     })),
+    potentialDuplicates,
   };
 }
 
