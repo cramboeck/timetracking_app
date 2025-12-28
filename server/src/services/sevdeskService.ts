@@ -2165,12 +2165,12 @@ export async function importSevdeskCustomer(
   const customerId = uuidv4();
   const color = options.color || '#3B82F6'; // Default blue
 
-  // Get the user's organization_id
-  const userResult = await query(
-    'SELECT organization_id FROM users WHERE id = $1',
+  // Get the user's organization_id from organization_members
+  const orgResult = await query(
+    'SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1',
     [userId]
   );
-  const organizationId = userResult.rows[0]?.organization_id || null;
+  const organizationId = orgResult.rows[0]?.organization_id || null;
 
   await query(
     `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, email, address, sevdesk_customer_id, hourly_rate, created_at)
