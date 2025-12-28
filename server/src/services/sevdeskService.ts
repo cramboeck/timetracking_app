@@ -217,37 +217,48 @@ export async function testConnection(apiToken: string): Promise<{ success: boole
 // sevDesk category IDs: 3 = Customer, 4 = Supplier, 28 = Partner
 // Only returns companies (not contact persons) unless showAll is true
 export async function getSevdeskCustomers(apiToken: string, options?: { includeSuppliers?: boolean; showAll?: boolean }): Promise<SevdeskCustomer[]> {
+  // When showAll is true, don't filter by category at all to get all contacts
+  // When includeSuppliers is true, also remove category filter
   // By default, only fetch customers (category 3), not suppliers
-  const categoryFilter = options?.includeSuppliers ? '' : '&category[id]=3&category[objectName]=Category';
+  const categoryFilter = (options?.showAll || options?.includeSuppliers) ? '' : '&category[id]=3&category[objectName]=Category';
   const response = await sevdeskFetch(apiToken, `/Contact?depth=1&embed=category,parent${categoryFilter}`);
 
-  // If showAll is true, return all contacts without filtering
+  // If showAll is true, return all contacts without filtering (except sub-contacts)
   if (options?.showAll) {
-    return (response.objects || []).map((contact: any) => ({
-      id: contact.id,
-      customerNumber: contact.customerNumber || '',
-      // Build name from company name or person name
-      name: contact.name || [contact.surename, contact.familyname].filter(Boolean).join(' ') || `Kontakt ${contact.id}`,
-      category: contact.category ? { id: contact.category.id, name: contact.category.name } : undefined,
-      email: contact.email,
-      phone: contact.phone,
-    }));
+    return (response.objects || [])
+      .filter((contact: any) => {
+        // Exclude sub-contacts (contact persons of a company)
+        const isTopLevel = !contact.parent || !contact.parent.id;
+        return isTopLevel;
+      })
+      .map((contact: any) => ({
+        id: contact.id,
+        customerNumber: contact.customerNumber || '',
+        // Build name from company name or person name
+        name: contact.name || [contact.surename, contact.familyname].filter(Boolean).join(' ') || `Kontakt ${contact.id}`,
+        category: contact.category ? { id: contact.category.id, name: contact.category.name } : undefined,
+        email: contact.email,
+        phone: contact.phone,
+      }));
   }
 
-  // Filter: Only companies (contacts with 'name' field, not just surename/familyname)
-  // and only top-level contacts (no parent = not a contact person of another company)
-  const companies = (response.objects || []).filter((contact: any) => {
-    // Must have a company name (not just a person name)
-    const hasCompanyName = contact.name && contact.name.trim() !== '';
+  // Filter: Only top-level contacts (no parent = not a contact person of another company)
+  // Include both companies (with 'name') and individuals (with surename/familyname)
+  const topLevelContacts = (response.objects || []).filter((contact: any) => {
     // Must not be a sub-contact of another company
     const isTopLevel = !contact.parent || !contact.parent.id;
-    return hasCompanyName && isTopLevel;
+    // Must have some form of name (company name OR person name)
+    const hasAnyName = (contact.name && contact.name.trim() !== '') ||
+                       (contact.surename && contact.surename.trim() !== '') ||
+                       (contact.familyname && contact.familyname.trim() !== '');
+    return isTopLevel && hasAnyName;
   });
 
-  return companies.map((contact: any) => ({
+  return topLevelContacts.map((contact: any) => ({
     id: contact.id,
     customerNumber: contact.customerNumber || '',
-    name: contact.name,
+    // Build name from company name or person name
+    name: contact.name || [contact.surename, contact.familyname].filter(Boolean).join(' ') || `Kontakt ${contact.id}`,
     category: contact.category ? { id: contact.category.id, name: contact.category.name } : undefined,
     email: contact.email,
     phone: contact.phone,
