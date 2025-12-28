@@ -313,16 +313,16 @@ export async function getClockodoEntries(
   };
 }
 
-// Format date for Clockodo API (expects YYYY-MM-DD HH:MM:SS)
+// Format date for Clockodo API (expects ISO 8601: YYYY-MM-DDTHH:MM:SSZ)
 function formatDateForApi(dateStr: string): string {
+  // If already in ISO format, return as-is
+  if (dateStr.includes('T') && dateStr.endsWith('Z')) {
+    return dateStr;
+  }
+
+  // Parse the date string and convert to ISO 8601 format
   const date = new Date(dateStr);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  return date.toISOString();
 }
 
 // Parse Clockodo date to ISO string
