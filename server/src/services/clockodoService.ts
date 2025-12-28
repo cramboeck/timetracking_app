@@ -1,8 +1,8 @@
 import { query } from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 
-// Clockodo API Base URL
-const CLOCKODO_API_URL = 'https://my.clockodo.com/api/v2';
+// Clockodo API Base URL (without version - version is specified per endpoint)
+const CLOCKODO_API_URL = 'https://my.clockodo.com/api';
 
 // Types
 export interface ClockodoConfig {
@@ -199,9 +199,9 @@ export async function testConnection(
   apiKey: string
 ): Promise<{ success: boolean; userName?: string; companyName?: string; error?: string }> {
   try {
-    // Use /aggregates/users/me to get current user info
+    // Use /v2/aggregates/users/me to get current user info
     // See: https://www.clockodo.com/en/api/aggregates/users/me/
-    const response = await clockodoFetch(apiEmail, apiKey, '/aggregates/users/me');
+    const response = await clockodoFetch(apiEmail, apiKey, '/v2/aggregates/users/me');
     const user = response.user;
     const company = response.company;
 
@@ -220,14 +220,15 @@ export async function testConnection(
   }
 }
 
-// Get customers from Clockodo
+// Get customers from Clockodo (API v3)
 export async function getClockodoCustomers(
   apiEmail: string,
   apiKey: string
 ): Promise<ClockodoCustomer[]> {
-  const response = await clockodoFetch(apiEmail, apiKey, '/customers');
+  const response = await clockodoFetch(apiEmail, apiKey, '/v3/customers');
 
-  return (response.customers || []).map((c: any) => ({
+  // v3 API returns data in 'data' array
+  return (response.data || []).map((c: any) => ({
     id: c.id,
     name: normalizeText(c.name),
     number: c.number || null,
@@ -235,28 +236,29 @@ export async function getClockodoCustomers(
   }));
 }
 
-// Get projects from Clockodo
+// Get projects from Clockodo (API v4)
 export async function getClockodoProjects(
   apiEmail: string,
   apiKey: string
 ): Promise<ClockodoProject[]> {
-  const response = await clockodoFetch(apiEmail, apiKey, '/projects');
+  const response = await clockodoFetch(apiEmail, apiKey, '/v4/projects');
 
-  return (response.projects || []).map((p: any) => ({
+  // v4 API returns data in 'data' array with snake_case fields
+  return (response.data || []).map((p: any) => ({
     id: p.id,
-    customersId: p.customersId,
+    customersId: p.customers_id,
     name: normalizeText(p.name),
     number: p.number || null,
     active: p.active === true,
   }));
 }
 
-// Get services from Clockodo
+// Get services from Clockodo (API v2)
 export async function getClockodoServices(
   apiEmail: string,
   apiKey: string
 ): Promise<ClockodoService[]> {
-  const response = await clockodoFetch(apiEmail, apiKey, '/services');
+  const response = await clockodoFetch(apiEmail, apiKey, '/v2/services');
 
   return (response.services || []).map((s: any) => ({
     id: s.id,
@@ -284,31 +286,33 @@ export async function getClockodoEntries(
     time_until: formattedUntil,
     page: page.toString(),
     items_per_page: itemsPerPage.toString(),
+    enhanced_list: 'true', // Required to get text and names
   });
 
-  const response = await clockodoFetch(apiEmail, apiKey, `/entries?${params.toString()}`);
+  const response = await clockodoFetch(apiEmail, apiKey, `/v2/entries?${params.toString()}`);
 
+  // API returns snake_case field names
   const entries = (response.entries || []).map((e: any) => ({
     id: e.id,
-    customersId: e.customersId,
-    projectsId: e.projectsId || null,
-    usersId: e.usersId,
-    servicesId: e.servicesId || null,
+    customersId: e.customers_id,
+    projectsId: e.projects_id || null,
+    usersId: e.users_id,
+    servicesId: e.services_id || null,
     billable: e.billable || 0,
-    timeSince: e.timeSince,
-    timeUntil: e.timeUntil || null,
+    timeSince: e.time_since,
+    timeUntil: e.time_until || null,
     duration: e.duration || 0,
     text: normalizeText(e.text),
-    lumpsumValue: e.lumpsumValue || null,
-    lumpsumServicesId: e.lumpsumServicesId || null,
-    hourlyRate: e.hourlyRate || null,
+    lumpsumValue: e.lumpsum_value || null,
+    lumpsumServicesId: e.lumpsum_services_id || null,
+    hourlyRate: e.hourly_rate || null,
   }));
 
   return {
     entries,
     paging: {
-      countPages: response.paging?.countPages || 1,
-      countItems: response.paging?.countItems || entries.length,
+      countPages: response.paging?.count_pages || 1,
+      countItems: response.paging?.count_items || entries.length,
     },
   };
 }
