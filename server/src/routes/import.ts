@@ -887,23 +887,25 @@ router.post('/create-default-projects', authenticateToken, attachOrganization, r
     const results: { customerId: string; customerName: string; projectId: string; projectName: string }[] = [];
 
     for (const customer of customersWithoutDefault) {
-      // Check if a project named "Standard" already exists for this customer
-      const existingResult = await pool.query(
-        `SELECT id FROM projects WHERE customer_id = $1 AND LOWER(name) = 'standard'`,
+      // Check if customer has any existing projects (use oldest one as default)
+      const existingProjectsResult = await pool.query(
+        `SELECT id, name FROM projects WHERE customer_id = $1 ORDER BY created_at ASC LIMIT 1`,
         [customer.id]
       );
 
       let projectId: string;
-      const projectName = 'Standard';
+      let projectName: string;
 
-      if (existingResult.rows.length > 0) {
-        // Use existing "Standard" project
-        projectId = existingResult.rows[0].id;
-        logImport(`Using existing "Standard" project for customer "${customer.name}"`, { projectId });
+      if (existingProjectsResult.rows.length > 0) {
+        // Use oldest existing project as default
+        projectId = existingProjectsResult.rows[0].id;
+        projectName = existingProjectsResult.rows[0].name;
+        logImport(`Using oldest project "${projectName}" as default for customer "${customer.name}"`, { projectId });
       } else {
-        // Create new "Standard" project
+        // No projects exist - create new "Standard" project
         const { v4: uuidv4 } = await import('uuid');
         projectId = uuidv4();
+        projectName = 'Standard';
         await pool.query(
           `INSERT INTO projects (id, organization_id, customer_id, name, hourly_rate, is_active, rate_type, created_at)
            VALUES ($1, $2, $3, $4, 0, true, 'hourly', NOW())`,
