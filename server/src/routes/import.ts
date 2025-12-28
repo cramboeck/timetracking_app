@@ -716,6 +716,8 @@ router.post('/clockodo/api/preview', authenticateToken, attachOrganization, requ
     const organizationId = orgReq.organization.id;
     const { apiEmail, apiKey, timeSince, timeUntil } = req.body;
 
+    console.log('[Clockodo Preview] Request body:', JSON.stringify({ apiEmail: !!apiEmail, apiKey: !!apiKey, timeSince, timeUntil }));
+
     if (!apiEmail || !apiKey) {
       return res.status(400).json({ error: 'API credentials are required' });
     }
@@ -726,6 +728,7 @@ router.post('/clockodo/api/preview', authenticateToken, attachOrganization, requ
 
     logImport('=== CLOCKODO API PREVIEW STARTED ===', { userId, organizationId, timeSince, timeUntil });
 
+    console.log('[Clockodo Preview] Calling previewApiImport...');
     const preview = await clockodoService.previewApiImport(
       userId,
       organizationId,
@@ -734,6 +737,7 @@ router.post('/clockodo/api/preview', authenticateToken, attachOrganization, requ
       timeSince,
       timeUntil
     );
+    console.log('[Clockodo Preview] Preview completed, rowCount:', preview.rowCount);
 
     logImport('Clockodo API preview completed', {
       rowCount: preview.rowCount,
