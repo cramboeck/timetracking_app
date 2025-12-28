@@ -102,5 +102,37 @@ export const adminApi = {
       method: 'POST',
       body: JSON.stringify({ userIds, packageName, enabled, expiresAt })
     });
+  },
+
+  // Backup Management
+  getBackups: async () => {
+    return adminFetch('/admin/backups');
+  },
+
+  createBackup: async (compress: boolean = true) => {
+    return adminFetch('/admin/backups', {
+      method: 'POST',
+      body: JSON.stringify({ compress })
+    });
+  },
+
+  restoreBackup: async (filename: string) => {
+    return adminFetch(`/admin/backups/${encodeURIComponent(filename)}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ confirm: 'RESTORE' })
+    });
+  },
+
+  deleteBackup: async (filename: string) => {
+    return adminFetch(`/admin/backups/${encodeURIComponent(filename)}`, {
+      method: 'DELETE'
+    });
+  },
+
+  cleanupBackups: async (olderThanDays: number = 30) => {
+    return adminFetch('/admin/backups', {
+      method: 'DELETE',
+      body: JSON.stringify({ olderThanDays })
+    });
   }
 };

@@ -3,6 +3,13 @@ import { pool } from '../config/database';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/adminAuth';
 import { auditLog } from '../services/auditLog';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const execAsync = promisify(exec);
+const BACKUP_DIR = process.env.BACKUP_DIR || '/app/backups';
 
 const router = Router();
 
@@ -810,6 +817,296 @@ router.post('/features/bulk', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error bulk updating features:', error);
     res.status(500).json({ error: 'Failed to bulk update features' });
+  }
+});
+
+// ============================================
+// BACKUP MANAGEMENT
+// ============================================
+
+interface BackupFile {
+  filename: string;
+  size: string;
+  sizeBytes: number;
+  createdAt: string;
+  compressed: boolean;
+}
+
+// GET /api/admin/backups - List available backups
+router.get('/backups', async (req, res) => {
+  try {
+    // Check if backup directory exists
+    if (!fs.existsSync(BACKUP_DIR)) {
+      return res.json({ backups: [], backupDir: BACKUP_DIR });
+    }
+
+    const files = fs.readdirSync(BACKUP_DIR);
+    const backups: BackupFile[] = [];
+
+    for (const file of files) {
+      if (file.startsWith('backup_') && (file.endsWith('.sql') || file.endsWith('.sql.gz'))) {
+        const filePath = path.join(BACKUP_DIR, file);
+        const stats = fs.statSync(filePath);
+
+        // Format file size
+        const sizeBytes = stats.size;
+        let size: string;
+        if (sizeBytes >= 1024 * 1024 * 1024) {
+          size = (sizeBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        } else if (sizeBytes >= 1024 * 1024) {
+          size = (sizeBytes / (1024 * 1024)).toFixed(2) + ' MB';
+        } else if (sizeBytes >= 1024) {
+          size = (sizeBytes / 1024).toFixed(2) + ' KB';
+        } else {
+          size = sizeBytes + ' B';
+        }
+
+        backups.push({
+          filename: file,
+          size,
+          sizeBytes,
+          createdAt: stats.mtime.toISOString(),
+          compressed: file.endsWith('.gz')
+        });
+      }
+    }
+
+    // Sort by date, newest first
+    backups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    res.json({ backups, backupDir: BACKUP_DIR });
+  } catch (error) {
+    console.error('Error listing backups:', error);
+    res.status(500).json({ error: 'Failed to list backups' });
+  }
+});
+
+// POST /api/admin/backups - Create a new backup
+router.post('/backups', async (req: AuthRequest, res) => {
+  try {
+    const { compress = true } = req.body;
+
+    // Ensure backup directory exists
+    if (!fs.existsSync(BACKUP_DIR)) {
+      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const dbName = process.env.POSTGRES_DB || 'timetracking';
+    const dbUser = process.env.POSTGRES_USER || 'timetracking';
+    const dbContainer = process.env.DB_CONTAINER || 'timetracking-postgres';
+
+    const baseFilename = `backup_${dbName}_${timestamp}`;
+    const filename = compress ? `${baseFilename}.sql.gz` : `${baseFilename}.sql`;
+    const filePath = path.join(BACKUP_DIR, filename);
+
+    // Execute backup command
+    let command: string;
+    if (compress) {
+      command = `docker exec ${dbContainer} pg_dump -U ${dbUser} ${dbName} | gzip > "${filePath}"`;
+    } else {
+      command = `docker exec ${dbContainer} pg_dump -U ${dbUser} ${dbName} > "${filePath}"`;
+    }
+
+    await execAsync(command, { timeout: 300000 }); // 5 minute timeout
+
+    // Get file info
+    const stats = fs.statSync(filePath);
+    const sizeBytes = stats.size;
+    let size: string;
+    if (sizeBytes >= 1024 * 1024) {
+      size = (sizeBytes / (1024 * 1024)).toFixed(2) + ' MB';
+    } else if (sizeBytes >= 1024) {
+      size = (sizeBytes / 1024).toFixed(2) + ' KB';
+    } else {
+      size = sizeBytes + ' B';
+    }
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'backup.create',
+      details: JSON.stringify({ filename, size, compressed: compress }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      message: 'Backup erfolgreich erstellt',
+      backup: {
+        filename,
+        size,
+        sizeBytes,
+        createdAt: stats.mtime.toISOString(),
+        compressed: compress
+      }
+    });
+  } catch (error: any) {
+    console.error('Error creating backup:', error);
+    res.status(500).json({ error: `Backup fehlgeschlagen: ${error.message}` });
+  }
+});
+
+// POST /api/admin/backups/:filename/restore - Restore from a backup
+router.post('/backups/:filename/restore', async (req: AuthRequest, res) => {
+  try {
+    const { filename } = req.params;
+    const { confirm } = req.body;
+
+    if (confirm !== 'RESTORE') {
+      return res.status(400).json({
+        error: 'Bitte bestätige die Wiederherstellung mit confirm: "RESTORE"'
+      });
+    }
+
+    const filePath = path.join(BACKUP_DIR, filename);
+
+    // Security check - ensure file is in backup directory
+    const resolvedPath = path.resolve(filePath);
+    if (!resolvedPath.startsWith(path.resolve(BACKUP_DIR))) {
+      return res.status(400).json({ error: 'Ungültiger Dateipfad' });
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Backup-Datei nicht gefunden' });
+    }
+
+    const dbName = process.env.POSTGRES_DB || 'timetracking';
+    const dbUser = process.env.POSTGRES_USER || 'timetracking';
+    const dbContainer = process.env.DB_CONTAINER || 'timetracking-postgres';
+
+    // Terminate active connections
+    await execAsync(
+      `docker exec ${dbContainer} psql -U ${dbUser} -d postgres -c "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = '${dbName}' AND pid <> pg_backend_pid();"`,
+      { timeout: 30000 }
+    ).catch(() => {}); // Ignore errors if no connections
+
+    // Drop and recreate database
+    await execAsync(
+      `docker exec ${dbContainer} psql -U ${dbUser} -d postgres -c "DROP DATABASE IF EXISTS ${dbName};"`,
+      { timeout: 30000 }
+    );
+    await execAsync(
+      `docker exec ${dbContainer} psql -U ${dbUser} -d postgres -c "CREATE DATABASE ${dbName} OWNER ${dbUser};"`,
+      { timeout: 30000 }
+    );
+
+    // Restore backup
+    let restoreCommand: string;
+    if (filename.endsWith('.gz')) {
+      restoreCommand = `gunzip -c "${filePath}" | docker exec -i ${dbContainer} psql -U ${dbUser} -d ${dbName}`;
+    } else {
+      restoreCommand = `docker exec -i ${dbContainer} psql -U ${dbUser} -d ${dbName} < "${filePath}"`;
+    }
+
+    await execAsync(restoreCommand, { timeout: 600000 }); // 10 minute timeout
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'backup.restore',
+      details: JSON.stringify({ filename }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      message: 'Datenbank erfolgreich wiederhergestellt. Server-Neustart empfohlen.'
+    });
+  } catch (error: any) {
+    console.error('Error restoring backup:', error);
+    res.status(500).json({ error: `Wiederherstellung fehlgeschlagen: ${error.message}` });
+  }
+});
+
+// DELETE /api/admin/backups/:filename - Delete a backup
+router.delete('/backups/:filename', async (req: AuthRequest, res) => {
+  try {
+    const { filename } = req.params;
+    const filePath = path.join(BACKUP_DIR, filename);
+
+    // Security check - ensure file is in backup directory
+    const resolvedPath = path.resolve(filePath);
+    if (!resolvedPath.startsWith(path.resolve(BACKUP_DIR))) {
+      return res.status(400).json({ error: 'Ungültiger Dateipfad' });
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Backup-Datei nicht gefunden' });
+    }
+
+    // Get file size before deleting
+    const stats = fs.statSync(filePath);
+
+    fs.unlinkSync(filePath);
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'backup.delete',
+      details: JSON.stringify({ filename, sizeBytes: stats.size }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      message: 'Backup gelöscht'
+    });
+  } catch (error: any) {
+    console.error('Error deleting backup:', error);
+    res.status(500).json({ error: `Löschen fehlgeschlagen: ${error.message}` });
+  }
+});
+
+// DELETE /api/admin/backups - Delete old backups (cleanup)
+router.delete('/backups', async (req: AuthRequest, res) => {
+  try {
+    const { olderThanDays = 30 } = req.body;
+
+    if (!fs.existsSync(BACKUP_DIR)) {
+      return res.json({ success: true, deletedCount: 0 });
+    }
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+
+    const files = fs.readdirSync(BACKUP_DIR);
+    let deletedCount = 0;
+    const deletedFiles: string[] = [];
+
+    for (const file of files) {
+      if (file.startsWith('backup_') && (file.endsWith('.sql') || file.endsWith('.sql.gz'))) {
+        const filePath = path.join(BACKUP_DIR, file);
+        const stats = fs.statSync(filePath);
+
+        if (stats.mtime < cutoffDate) {
+          fs.unlinkSync(filePath);
+          deletedFiles.push(file);
+          deletedCount++;
+        }
+      }
+    }
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'backup.cleanup',
+      details: JSON.stringify({ olderThanDays, deletedCount, deletedFiles }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      deletedCount,
+      message: `${deletedCount} alte Backup(s) gelöscht`
+    });
+  } catch (error: any) {
+    console.error('Error cleaning up backups:', error);
+    res.status(500).json({ error: `Aufräumen fehlgeschlagen: ${error.message}` });
   }
 });
 

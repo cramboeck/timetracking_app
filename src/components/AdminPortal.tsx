@@ -14,7 +14,13 @@ import {
   Database,
   Package,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  HardDrive,
+  Upload,
+  RefreshCw,
+  Archive,
+  FileArchive,
+  AlertTriangle
 } from 'lucide-react';
 import { adminApi } from '../services/adminApi';
 import { useAuth } from '../contexts/AuthContext';
@@ -69,7 +75,15 @@ interface PackageDefinition {
   features: string[];
 }
 
-type AdminTab = 'dashboard' | 'users' | 'features' | 'audit';
+interface BackupFile {
+  filename: string;
+  size: string;
+  sizeBytes: number;
+  createdAt: string;
+  compressed: boolean;
+}
+
+type AdminTab = 'dashboard' | 'users' | 'features' | 'audit' | 'backup';
 
 export default function AdminPortal() {
   const { currentUser } = useAuth();
@@ -100,6 +114,14 @@ export default function AdminPortal() {
   const [featuresTotalPages, setFeaturesTotalPages] = useState(1);
   const [featuresSearch, setFeaturesSearch] = useState('');
   const [featuresLoading, setFeaturesLoading] = useState(false);
+
+  // Backup state
+  const [backups, setBackups] = useState<BackupFile[]>([]);
+  const [backupDir, setBackupDir] = useState<string>('');
+  const [backupsLoading, setBackupsLoading] = useState(false);
+  const [backupCreating, setBackupCreating] = useState(false);
+  const [backupRestoring, setBackupRestoring] = useState<string | null>(null);
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState<string | null>(null);
 
   // Check if user is admin
   const isAdmin = currentUser?.role === 'admin';
@@ -211,6 +233,61 @@ export default function AdminPortal() {
     const debounce = setTimeout(loadFeatures, featuresSearch ? 300 : 0);
     return () => clearTimeout(debounce);
   }, [activeTab, featuresPage, featuresSearch, isAdmin]);
+
+  // Load backups when tab changes
+  useEffect(() => {
+    if (activeTab !== 'backup' || !isAdmin) return;
+    loadBackups();
+  }, [activeTab, isAdmin]);
+
+  const loadBackups = async () => {
+    try {
+      setBackupsLoading(true);
+      const response = await adminApi.getBackups();
+      setBackups(response.backups || []);
+      setBackupDir(response.backupDir || '');
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Laden der Backups');
+    } finally {
+      setBackupsLoading(false);
+    }
+  };
+
+  const handleCreateBackup = async () => {
+    try {
+      setBackupCreating(true);
+      await adminApi.createBackup(true);
+      await loadBackups();
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Erstellen des Backups');
+    } finally {
+      setBackupCreating(false);
+    }
+  };
+
+  const handleRestoreBackup = async (filename: string) => {
+    try {
+      setBackupRestoring(filename);
+      await adminApi.restoreBackup(filename);
+      setRestoreConfirmOpen(null);
+      alert('Datenbank wurde wiederhergestellt. Bitte Seite neu laden.');
+      window.location.reload();
+    } catch (err: any) {
+      setError(err.message || 'Fehler bei der Wiederherstellung');
+    } finally {
+      setBackupRestoring(null);
+    }
+  };
+
+  const handleDeleteBackup = async (filename: string) => {
+    if (!confirm(`Backup "${filename}" wirklich löschen?`)) return;
+    try {
+      await adminApi.deleteBackup(filename);
+      await loadBackups();
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Löschen des Backups');
+    }
+  };
 
   // Handle feature toggle
   const handleFeatureToggle = async (userId: string, packageName: string, currentlyEnabled: boolean) => {
@@ -353,6 +430,17 @@ export default function AdminPortal() {
           >
             <Clock size={18} />
             Audit-Log
+          </button>
+          <button
+            onClick={() => setActiveTab('backup')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'backup'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+            }`}
+          >
+            <HardDrive size={18} />
+            Backup
           </button>
         </div>
       </div>
@@ -736,6 +824,160 @@ export default function AdminPortal() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Backup Tab */}
+        {activeTab === 'backup' && (
+          <div className="space-y-4">
+            {/* Header with actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold dark:text-white">Datenbank-Backups</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Verzeichnis: {backupDir}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={loadBackups}
+                  disabled={backupsLoading}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                >
+                  <RefreshCw size={16} className={backupsLoading ? 'animate-spin' : ''} />
+                  Aktualisieren
+                </button>
+                <button
+                  onClick={handleCreateBackup}
+                  disabled={backupCreating}
+                  className="flex items-center gap-2 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {backupCreating ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Archive size={16} />
+                  )}
+                  {backupCreating ? 'Erstelle...' : 'Neues Backup'}
+                </button>
+              </div>
+            </div>
+
+            {/* Backup List */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {backupsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="animate-spin text-purple-600" size={32} />
+                </div>
+              ) : backups.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                  <FileArchive size={48} className="mb-3 opacity-50" />
+                  <p>Keine Backups vorhanden</p>
+                  <p className="text-sm">Erstelle ein neues Backup um zu beginnen</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Dateiname</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Größe</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Erstellt</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Komprimiert</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Aktionen</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {backups.map(backup => (
+                        <tr key={backup.filename} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <FileArchive size={18} className="text-gray-400" />
+                              <span className="text-sm font-medium text-gray-800 dark:text-white font-mono">
+                                {backup.filename}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            {backup.size}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            {formatDate(backup.createdAt)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {backup.compressed ? (
+                              <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 rounded">
+                                Ja (.gz)
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 rounded">
+                                Nein
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              {restoreConfirmOpen === backup.filename ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-red-600 dark:text-red-400">Wirklich wiederherstellen?</span>
+                                  <button
+                                    onClick={() => handleRestoreBackup(backup.filename)}
+                                    disabled={backupRestoring === backup.filename}
+                                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    {backupRestoring === backup.filename ? (
+                                      <Loader2 size={12} className="animate-spin" />
+                                    ) : (
+                                      'Ja'
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => setRestoreConfirmOpen(null)}
+                                    className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white rounded hover:bg-gray-300"
+                                  >
+                                    Nein
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => setRestoreConfirmOpen(backup.filename)}
+                                    className="p-1.5 text-orange-600 hover:text-orange-800 dark:text-orange-400 dark:hover:text-orange-300"
+                                    title="Backup wiederherstellen"
+                                  >
+                                    <Upload size={18} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteBackup(backup.filename)}
+                                    className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                                    title="Backup löschen"
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Info Box */}
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" size={20} />
+                <div className="text-sm">
+                  <p className="font-medium text-yellow-800 dark:text-yellow-300">Hinweis zur Wiederherstellung</p>
+                  <p className="text-yellow-700 dark:text-yellow-400 mt-1">
+                    Die Wiederherstellung eines Backups überschreibt die aktuelle Datenbank vollständig.
+                    Nach der Wiederherstellung wird ein Seiten-Reload durchgeführt.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}
