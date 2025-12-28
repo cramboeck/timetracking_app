@@ -538,6 +538,27 @@ class MailboxMonitorService {
       return { success: false, error: errorMessage };
     }
   }
+
+  /**
+   * Get a specific email by ID with result wrapper
+   */
+  async getEmailById(
+    organizationId: string,
+    messageId: string,
+    mailboxType: MailboxType = 'support'
+  ): Promise<{ success: boolean; email?: EmailMessage; error?: string }> {
+    try {
+      const email = await this.getEmail(organizationId, messageId, mailboxType);
+
+      if (email) {
+        return { success: true, email };
+      } else {
+        return { success: false, error: 'E-Mail nicht gefunden' };
+      }
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Fehler beim Abrufen der E-Mail' };
+    }
+  }
 }
 
 export const mailboxMonitorService = new MailboxMonitorService();

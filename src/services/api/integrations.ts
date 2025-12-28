@@ -967,6 +967,54 @@ export interface InvoiceDocument {
   createdAt: string;
 }
 
+export interface SupportEmail {
+  id: string;
+  conversationId: string;
+  subject: string;
+  bodyPreview: string;
+  body: {
+    contentType: 'text' | 'html';
+    content: string;
+  };
+  from: {
+    name: string;
+    email: string;
+  };
+  toRecipients: Array<{
+    name: string;
+    email: string;
+  }>;
+  ccRecipients: Array<{
+    name: string;
+    email: string;
+  }>;
+  receivedDateTime: string;
+  hasAttachments: boolean;
+  isRead: boolean;
+  importance: 'low' | 'normal' | 'high';
+}
+
+export interface TicketEmail {
+  id: string;
+  message_id: string;
+  conversation_id: string;
+  direction: 'inbound' | 'outbound';
+  subject: string;
+  body_preview: string;
+  body_html: string | null;
+  body_text: string;
+  from_name: string;
+  from_email: string;
+  to_recipients: Array<{ name: string; email: string }>;
+  cc_recipients: Array<{ name: string; email: string }>;
+  is_read: boolean;
+  importance: 'low' | 'normal' | 'high';
+  has_attachments: boolean;
+  received_at: string;
+  sent_at: string | null;
+  created_at: string;
+}
+
 // Microsoft 365 API
 export const microsoft365Api = {
   getConfig: async (): Promise<{ success: boolean; data: Microsoft365Config }> => {
@@ -1081,5 +1129,86 @@ export const microsoft365Api = {
     const baseUrl = import.meta.env.VITE_API_URL || '';
     // baseUrl already contains /api, so don't add it again
     return `${baseUrl}/microsoft365/documents/${documentId}/download${inline ? '?inline=true' : ''}`;
+  },
+
+  // Support Email Methods
+  getSupportEmails: async (params?: {
+    includeRead?: boolean;
+    limit?: number;
+  }): Promise<{
+    success: boolean;
+    data: SupportEmail[];
+    error?: string;
+  }> => {
+    const searchParams = new URLSearchParams();
+    if (params?.includeRead) searchParams.set('includeRead', 'true');
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+    const query = searchParams.toString();
+    return authFetch(`/microsoft365/support/emails${query ? `?${query}` : ''}`);
+  },
+
+  createTicketFromEmail: async (
+    messageId: string,
+    options?: { priority?: string; customerId?: string }
+  ): Promise<{
+    success: boolean;
+    data?: {
+      ticketId: string;
+      ticketNumber: string;
+      title: string;
+      customerId?: string;
+      customerName?: string;
+      linkedToExisting: boolean;
+    };
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/support/emails/${messageId}/create-ticket`, {
+      method: 'POST',
+      body: JSON.stringify(options || {}),
+    });
+  },
+
+  linkEmailToTicket: async (
+    messageId: string,
+    ticketId: string
+  ): Promise<{
+    success: boolean;
+    data?: { ticketId: string; ticketNumber: string };
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/support/emails/${messageId}/link-ticket`, {
+      method: 'POST',
+      body: JSON.stringify({ ticketId }),
+    });
+  },
+
+  getEmailTicketInfo: async (messageId: string): Promise<{
+    success: boolean;
+    data?: {
+      linked: boolean;
+      ticket?: {
+        ticket_id: string;
+        ticket_number: string;
+        title: string;
+        status: string;
+      };
+      suggestedTicket?: {
+        ticket_id: string;
+        ticket_number: string;
+        title: string;
+        status: string;
+      };
+    };
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/support/emails/${messageId}/ticket-info`);
+  },
+
+  getTicketEmails: async (ticketId: string): Promise<{
+    success: boolean;
+    data: TicketEmail[];
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/tickets/${ticketId}/emails`);
   },
 };

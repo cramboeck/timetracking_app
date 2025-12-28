@@ -86,6 +86,8 @@ export type {
   Microsoft365Config,
   ProcessedInvoice,
   InvoiceDocument,
+  SupportEmail,
+  TicketEmail,
 } from './integrations';
 
 // Business API (maintenance, contracts, import, AI, social media)

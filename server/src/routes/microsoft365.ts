@@ -1,11 +1,13 @@
 import { Router, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { AuthRequest, authenticateToken } from '../middleware/auth';
 import { attachOrganization, requireOrgRole } from '../middleware/organization';
 import * as microsoft365Service from '../services/microsoft365ConfigService';
 import { mailboxMonitorService } from '../services/mailboxMonitorService';
 import { invoiceProcessorService } from '../services/invoiceProcessorService';
+import { query } from '../config/database';
 
 interface OrganizationRequest extends AuthRequest {
   organization: {
@@ -370,6 +372,440 @@ router.post('/mailbox/emails/:id/reply', requireOrgRole('member'), async (req: A
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to send reply',
+    });
+  }
+});
+
+// ========================================
+// Support Email to Ticket Endpoints
+// ========================================
+
+// Helper function to generate ticket number
+async function generateTicketNumber(organizationId: string): Promise<string> {
+  const result = await query(`
+    SELECT COALESCE(MAX(CAST(SUBSTRING(ticket_number FROM 5) AS INTEGER)), 0) + 1 as next_number
+    FROM tickets WHERE organization_id = $1
+  `, [organizationId]);
+  const nextNumber = result.rows[0]?.next_number || 1;
+  return `TKT-${String(nextNumber).padStart(6, '0')}`;
+}
+
+// Helper function to find customer by email
+async function findCustomerByEmail(organizationId: string, email: string): Promise<{ id: string; name: string } | null> {
+  // First check customer contacts
+  const contactResult = await query(`
+    SELECT c.id, c.company_name as name FROM customers c
+    JOIN customer_contacts cc ON c.id = cc.customer_id
+    WHERE c.organization_id = $1 AND LOWER(cc.email) = LOWER($2)
+    LIMIT 1
+  `, [organizationId, email]);
+
+  if (contactResult.rows.length > 0) {
+    return contactResult.rows[0];
+  }
+
+  // Then check customer email field
+  const customerResult = await query(`
+    SELECT id, company_name as name FROM customers
+    WHERE organization_id = $1 AND LOWER(email) = LOWER($2)
+    LIMIT 1
+  `, [organizationId, email]);
+
+  return customerResult.rows.length > 0 ? customerResult.rows[0] : null;
+}
+
+// Helper to save email to ticket_emails table
+async function saveEmailToTicket(
+  organizationId: string,
+  ticketId: string,
+  email: any,
+  messageId: string,
+  direction: 'inbound' | 'outbound'
+): Promise<string> {
+  const emailRecordId = crypto.randomUUID();
+
+  // Extract plain text from HTML if needed
+  let bodyText = email.body.content;
+  if (email.body.contentType === 'html') {
+    bodyText = bodyText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  await query(`
+    INSERT INTO ticket_emails (
+      id, ticket_id, organization_id, message_id, conversation_id,
+      direction, subject, body_preview, body_html, body_text,
+      from_name, from_email, to_recipients, cc_recipients,
+      is_read, importance, has_attachments, received_at
+    ) VALUES (
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+    )
+    ON CONFLICT (organization_id, message_id) DO NOTHING
+  `, [
+    emailRecordId,
+    ticketId,
+    organizationId,
+    messageId,
+    email.conversationId,
+    direction,
+    email.subject || '(Kein Betreff)',
+    email.bodyPreview || '',
+    email.body.contentType === 'html' ? email.body.content : null,
+    bodyText,
+    email.from.name,
+    email.from.email,
+    JSON.stringify(email.toRecipients || []),
+    JSON.stringify(email.ccRecipients || []),
+    email.isRead,
+    email.importance,
+    email.hasAttachments,
+    email.receivedDateTime
+  ]);
+
+  return emailRecordId;
+}
+
+// Helper to find ticket by conversation ID
+async function findTicketByConversationId(
+  organizationId: string,
+  conversationId: string
+): Promise<{ id: string; ticketNumber: string } | null> {
+  const result = await query(`
+    SELECT id, ticket_number
+    FROM tickets
+    WHERE organization_id = $1 AND email_conversation_id = $2
+    LIMIT 1
+  `, [organizationId, conversationId]);
+
+  if (result.rows.length > 0) {
+    return {
+      id: result.rows[0].id,
+      ticketNumber: result.rows[0].ticket_number
+    };
+  }
+  return null;
+}
+
+// POST /api/microsoft365/support/emails/:id/create-ticket - Create ticket from email
+router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const messageId = req.params.id;
+    const { priority = 'normal', customerId: providedCustomerId } = req.body;
+
+    // Get the email
+    const emailResult = await mailboxMonitorService.getEmailById(organizationId, messageId, 'support');
+
+    if (!emailResult.success || !emailResult.email) {
+      return res.status(404).json({
+        success: false,
+        error: 'E-Mail nicht gefunden',
+      });
+    }
+
+    const email = emailResult.email;
+
+    // Check if ticket already exists for this conversation
+    if (email.conversationId) {
+      const existingTicket = await findTicketByConversationId(organizationId, email.conversationId);
+      if (existingTicket) {
+        // Link email to existing ticket instead
+        await saveEmailToTicket(organizationId, existingTicket.id, email, messageId, 'inbound');
+        await mailboxMonitorService.markAsRead(organizationId, messageId, 'support');
+
+        return res.json({
+          success: true,
+          data: {
+            ticketId: existingTicket.id,
+            ticketNumber: existingTicket.ticketNumber,
+            title: email.subject,
+            linkedToExisting: true,
+          },
+        });
+      }
+    }
+
+    // Find or use provided customer
+    let customerId = providedCustomerId;
+    let customerName = null;
+
+    if (!customerId && email.from.email) {
+      const customer = await findCustomerByEmail(organizationId, email.from.email);
+      if (customer) {
+        customerId = customer.id;
+        customerName = customer.name;
+      }
+    }
+
+    // Generate ticket number
+    const ticketNumber = await generateTicketNumber(organizationId);
+    const ticketId = crypto.randomUUID();
+
+    // Create description from email body
+    let description = email.body.content;
+    if (email.body.contentType === 'html') {
+      // Strip HTML tags for plain text description
+      description = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    // Create ticket with email tracking fields
+    await query(`
+      INSERT INTO tickets (
+        id, ticket_number, user_id, organization_id, customer_id,
+        title, description, priority, status, source,
+        email_conversation_id, email_from, email_subject, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', 'email', $9, $10, $11, NOW())
+      RETURNING *
+    `, [
+      ticketId,
+      ticketNumber,
+      userId,
+      organizationId,
+      customerId || null,
+      email.subject || '(Kein Betreff)',
+      description,
+      priority,
+      email.conversationId,
+      email.from.email,
+      email.subject
+    ]);
+
+    // Save email to ticket_emails table
+    await saveEmailToTicket(organizationId, ticketId, email, messageId, 'inbound');
+
+    // Mark email as read
+    await mailboxMonitorService.markAsRead(organizationId, messageId, 'support');
+
+    res.json({
+      success: true,
+      data: {
+        ticketId,
+        ticketNumber,
+        title: email.subject,
+        customerId,
+        customerName,
+        linkedToExisting: false,
+      },
+    });
+  } catch (error: any) {
+    console.error('Create ticket from email error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to create ticket from email',
+    });
+  }
+});
+
+// GET /api/microsoft365/support/emails - Get support emails
+router.get('/support/emails', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const includeRead = req.query.includeRead === 'true';
+    const maxResults = parseInt(req.query.limit as string) || 50;
+
+    const result = await mailboxMonitorService.getUnreadEmails(organizationId, {
+      mailboxType: 'support',
+      includeRead,
+      maxResults,
+    });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.emails,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error: any) {
+    console.error('Get support emails error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get support emails',
+    });
+  }
+});
+
+// POST /api/microsoft365/support/emails/:id/link-ticket - Link email to existing ticket
+router.post('/support/emails/:id/link-ticket', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+    const { ticketId } = req.body;
+
+    if (!ticketId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ticket ID erforderlich',
+      });
+    }
+
+    // Verify ticket exists and belongs to organization
+    const ticketResult = await query(`
+      SELECT id, ticket_number FROM tickets
+      WHERE id = $1 AND organization_id = $2
+    `, [ticketId, organizationId]);
+
+    if (ticketResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ticket nicht gefunden',
+      });
+    }
+
+    // Get the email
+    const emailResult = await mailboxMonitorService.getEmailById(organizationId, messageId, 'support');
+
+    if (!emailResult.success || !emailResult.email) {
+      return res.status(404).json({
+        success: false,
+        error: 'E-Mail nicht gefunden',
+      });
+    }
+
+    const email = emailResult.email;
+
+    // Save email to ticket_emails table
+    await saveEmailToTicket(organizationId, ticketId, email, messageId, 'inbound');
+
+    // Update ticket with conversation ID if not set
+    if (email.conversationId) {
+      await query(`
+        UPDATE tickets
+        SET email_conversation_id = COALESCE(email_conversation_id, $1),
+            email_from = COALESCE(email_from, $2)
+        WHERE id = $3
+      `, [email.conversationId, email.from.email, ticketId]);
+    }
+
+    // Mark email as read
+    await mailboxMonitorService.markAsRead(organizationId, messageId, 'support');
+
+    res.json({
+      success: true,
+      data: {
+        ticketId,
+        ticketNumber: ticketResult.rows[0].ticket_number,
+      },
+    });
+  } catch (error: any) {
+    console.error('Link email to ticket error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to link email to ticket',
+    });
+  }
+});
+
+// GET /api/microsoft365/support/emails/:id/ticket-info - Check if email is linked to ticket
+router.get('/support/emails/:id/ticket-info', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+
+    // Check if email is already in ticket_emails
+    const existingResult = await query(`
+      SELECT te.ticket_id, t.ticket_number, t.title, t.status
+      FROM ticket_emails te
+      JOIN tickets t ON t.id = te.ticket_id
+      WHERE te.organization_id = $1 AND te.message_id = $2
+    `, [organizationId, messageId]);
+
+    if (existingResult.rows.length > 0) {
+      return res.json({
+        success: true,
+        data: {
+          linked: true,
+          ticket: existingResult.rows[0],
+        },
+      });
+    }
+
+    // Check if we can find a ticket by conversation ID
+    const emailResult = await mailboxMonitorService.getEmailById(organizationId, messageId, 'support');
+    if (emailResult.success && emailResult.email?.conversationId) {
+      const ticketResult = await query(`
+        SELECT id as ticket_id, ticket_number, title, status
+        FROM tickets
+        WHERE organization_id = $1 AND email_conversation_id = $2
+        LIMIT 1
+      `, [organizationId, emailResult.email.conversationId]);
+
+      if (ticketResult.rows.length > 0) {
+        return res.json({
+          success: true,
+          data: {
+            linked: false,
+            suggestedTicket: ticketResult.rows[0],
+          },
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        linked: false,
+        suggestedTicket: null,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get email ticket info error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get email ticket info',
+    });
+  }
+});
+
+// GET /api/microsoft365/tickets/:id/emails - Get emails for a ticket
+router.get('/tickets/:id/emails', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const ticketId = req.params.id;
+
+    const result = await query(`
+      SELECT
+        id,
+        message_id,
+        conversation_id,
+        direction,
+        subject,
+        body_preview,
+        body_html,
+        body_text,
+        from_name,
+        from_email,
+        to_recipients,
+        cc_recipients,
+        is_read,
+        importance,
+        has_attachments,
+        received_at,
+        sent_at,
+        created_at
+      FROM ticket_emails
+      WHERE ticket_id = $1 AND organization_id = $2
+      ORDER BY received_at ASC
+    `, [ticketId, organizationId]);
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error: any) {
+    console.error('Get ticket emails error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get ticket emails',
     });
   }
 });

@@ -3129,6 +3129,111 @@ export async function initializeDatabase() {
     `);
     console.log('✅ processed_invoices status constraint updated');
 
+    // ============================================
+    // Ticket Email Integration
+    // ============================================
+
+    // Add email tracking fields to tickets table
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'email_conversation_id'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN email_conversation_id TEXT;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'email_from'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN email_from TEXT;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'email_subject'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN email_subject TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // Create index for finding tickets by email conversation
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_email_conversation ON tickets(email_conversation_id) WHERE email_conversation_id IS NOT NULL');
+
+    // Ticket emails table - stores all emails linked to a ticket
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_emails (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+        -- Email identifiers from Microsoft Graph
+        message_id TEXT NOT NULL,
+        conversation_id TEXT,
+        internet_message_id TEXT,
+
+        -- Direction
+        direction TEXT NOT NULL CHECK(direction IN ('inbound', 'outbound')),
+
+        -- Email metadata
+        subject TEXT,
+        body_preview TEXT,
+        body_html TEXT,
+        body_text TEXT,
+
+        -- Sender/recipients
+        from_name TEXT,
+        from_email TEXT NOT NULL,
+        to_recipients JSONB DEFAULT '[]',
+        cc_recipients JSONB DEFAULT '[]',
+
+        -- Status
+        is_read BOOLEAN DEFAULT false,
+        importance TEXT DEFAULT 'normal' CHECK(importance IN ('low', 'normal', 'high')),
+        has_attachments BOOLEAN DEFAULT false,
+
+        -- Timestamps
+        received_at TIMESTAMP NOT NULL,
+        sent_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+
+        -- Prevent duplicate imports
+        UNIQUE(organization_id, message_id)
+      )
+    `);
+
+    // Ticket email attachments
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_email_attachments (
+        id TEXT PRIMARY KEY,
+        ticket_email_id TEXT NOT NULL REFERENCES ticket_emails(id) ON DELETE CASCADE,
+
+        -- Attachment info
+        attachment_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        content_type TEXT,
+        size INTEGER,
+
+        -- Storage - can be stored locally or just reference the Graph API
+        stored_locally BOOLEAN DEFAULT false,
+        local_path TEXT,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Create indexes for ticket emails
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_emails_ticket ON ticket_emails(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_emails_conversation ON ticket_emails(conversation_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_emails_org ON ticket_emails(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_emails_received ON ticket_emails(received_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_email_attachments_email ON ticket_email_attachments(ticket_email_id)');
+
+    console.log('✅ Ticket email integration tables created');
+
     // Fix NinjaRMM alert timestamps that were incorrectly stored (Unix seconds instead of milliseconds)
     // This updates alerts where activity_time is before 1980 (indicating a seconds-based timestamp was used)
     // and recalculates from the activityTime field in alert_data JSON
