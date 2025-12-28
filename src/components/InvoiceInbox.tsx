@@ -286,193 +286,358 @@ export const InvoiceInbox = () => {
         </div>
       )}
 
-      {/* Invoices Table */}
+      {/* Invoices List */}
       <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-300 overflow-hidden">
         {processedInvoices.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-dark-200 border-b border-gray-200 dark:border-dark-300">
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Datum</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Absender</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Betreff</th>
-                  <th className="text-center py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Anhänge</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Status</th>
-                  <th className="text-right py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Aktionen</th>
-                </tr>
-              </thead>
-              <tbody>
-                {processedInvoices.map((invoice) => (
-                  <Fragment key={invoice.id}>
-                    <tr className="border-b border-gray-100 dark:border-dark-300 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors">
-                      <td className="py-3 px-4 text-gray-900 dark:text-white whitespace-nowrap">
-                        {new Date(invoice.receivedAt).toLocaleDateString('de-DE', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </td>
-                      <td className="py-3 px-4 text-gray-900 dark:text-white">
-                        <div className="truncate max-w-[200px]" title={invoice.senderEmail}>
-                          {invoice.senderName || invoice.senderEmail}
-                        </div>
-                        {invoice.vendorName && (
-                          <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-gray-700 dark:text-gray-300">
-                        <div className="truncate max-w-[250px]" title={invoice.emailSubject}>
-                          {invoice.emailSubject}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {invoice.attachmentCount > 0 ? (
-                          <button
-                            onClick={() => handleToggleDocuments(invoice.id)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                            title="Dokumente anzeigen"
-                          >
-                            {loadingDocuments === invoice.id ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              <Download size={14} />
-                            )}
-                            {invoice.attachmentCount}
-                            {expandedInvoiceId === invoice.id ? (
-                              <ChevronUp size={14} />
-                            ) : (
-                              <ChevronDown size={14} />
-                            )}
-                          </button>
+          <>
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-gray-100 dark:divide-dark-300">
+              {processedInvoices.map((invoice) => (
+                <div key={invoice.id} className="p-4 space-y-3">
+                  {/* Header mit Datum und Status */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {new Date(invoice.receivedAt).toLocaleDateString('de-DE', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                      invoice.status === 'processed'
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                        : invoice.status === 'draft'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                        : invoice.status === 'failed'
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                        : invoice.status === 'skipped'
+                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                        : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                    }`}>
+                      {invoice.status === 'processed' && <CheckCircle size={12} />}
+                      {invoice.status === 'draft' && <FileText size={12} />}
+                      {invoice.status === 'failed' && <XCircle size={12} />}
+                      {invoice.status === 'processed' ? 'Bestätigt' :
+                       invoice.status === 'draft' ? 'Entwurf' :
+                       invoice.status === 'failed' ? 'Fehler' :
+                       invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
+                    </span>
+                  </div>
+
+                  {/* Absender */}
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {invoice.senderName || invoice.senderEmail}
+                    </div>
+                    {invoice.vendorName && (
+                      <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
+                    )}
+                  </div>
+
+                  {/* Betreff */}
+                  <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                    {invoice.emailSubject}
+                  </div>
+
+                  {invoice.errorMessage && (
+                    <div className="text-xs text-red-500 dark:text-red-400">
+                      {invoice.errorMessage}
+                    </div>
+                  )}
+
+                  {/* Anhänge */}
+                  {invoice.attachmentCount > 0 && (
+                    <div>
+                      <button
+                        onClick={() => handleToggleDocuments(invoice.id)}
+                        className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400"
+                      >
+                        {loadingDocuments === invoice.id ? (
+                          <Loader2 size={14} className="animate-spin" />
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-gray-400">
-                            <Download size={14} />
-                            0
-                          </span>
+                          <Download size={14} />
                         )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                          invoice.status === 'processed'
-                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                            : invoice.status === 'draft'
-                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                            : invoice.status === 'failed'
-                            ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                            : invoice.status === 'skipped'
-                            ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                        }`}>
-                          {invoice.status === 'processed' && <CheckCircle size={12} />}
-                          {invoice.status === 'draft' && <FileText size={12} />}
-                          {invoice.status === 'failed' && <XCircle size={12} />}
-                          {invoice.status === 'processed' ? 'Bestätigt' :
-                           invoice.status === 'draft' ? 'Entwurf' :
-                           invoice.status === 'failed' ? 'Fehlgeschlagen' :
-                           invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
-                        </span>
-                        {invoice.errorMessage && (
-                          <div className="text-xs text-red-500 mt-1 truncate max-w-[150px]" title={invoice.errorMessage}>
-                            {invoice.errorMessage}
-                          </div>
+                        {invoice.attachmentCount} Anhang{invoice.attachmentCount !== 1 ? 'e' : ''}
+                        {expandedInvoiceId === invoice.id ? (
+                          <ChevronUp size={14} />
+                        ) : (
+                          <ChevronDown size={14} />
                         )}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex gap-1 justify-end">
-                          {invoice.status === 'draft' && (
-                            <>
-                              <button
-                                onClick={() => handleApproveDraft(invoice.id)}
-                                className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
-                                title="Bestätigen"
+                      </button>
+
+                      {/* Expanded Documents */}
+                      {expandedInvoiceId === invoice.id && (
+                        <div className="mt-2 pl-3 border-l-2 border-blue-300 dark:border-blue-600 space-y-2">
+                          {loadingDocuments === invoice.id ? (
+                            <div className="flex items-center gap-2 text-gray-500 text-sm">
+                              <Loader2 size={14} className="animate-spin" />
+                              Lade...
+                            </div>
+                          ) : invoiceDocuments[invoice.id]?.length > 0 ? (
+                            invoiceDocuments[invoice.id].map((doc) => (
+                              <div
+                                key={doc.id}
+                                className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-dark-200 rounded-lg"
                               >
-                                <Check size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteDraft(invoice.id)}
-                                className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                title="Löschen"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </>
-                          )}
-                          {invoice.status === 'processed' && (
-                            <button
-                              onClick={() => handleRevertToDraft(invoice.id)}
-                              className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition-colors"
-                              title="Zurück zu Entwurf"
-                            >
-                              <Undo2 size={16} />
-                            </button>
+                                <File size={16} className="text-red-500 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                    {doc.originalFilename}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {formatFileSize(doc.size)}
+                                  </div>
+                                </div>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => handleDownloadDocument(doc.id, true)}
+                                    className="p-1.5 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded"
+                                    title="Ansehen"
+                                  >
+                                    <Eye size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDownloadDocument(doc.id)}
+                                    className="p-1.5 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded"
+                                    title="Download"
+                                  >
+                                    <Download size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-sm text-gray-500">Keine Dokumente</div>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                    {/* Expandable documents row */}
-                    {expandedInvoiceId === invoice.id && (
-                      <tr className="bg-gray-50 dark:bg-dark-200">
-                        <td colSpan={6} className="py-3 px-4">
-                          <div className="pl-4 border-l-2 border-blue-300 dark:border-blue-600">
-                            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                              Anhänge
+                      )}
+                    </div>
+                  )}
+
+                  {/* Aktionen */}
+                  {(invoice.status === 'draft' || invoice.status === 'processed') && (
+                    <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-dark-300">
+                      {invoice.status === 'draft' && (
+                        <>
+                          <button
+                            onClick={() => handleApproveDraft(invoice.id)}
+                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                          >
+                            <Check size={16} />
+                            Bestätigen
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDraft(invoice.id)}
+                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                            Löschen
+                          </button>
+                        </>
+                      )}
+                      {invoice.status === 'processed' && (
+                        <button
+                          onClick={() => handleRevertToDraft(invoice.id)}
+                          className="flex-1 flex items-center justify-center gap-2 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                        >
+                          <Undo2 size={16} />
+                          Zurücksetzen
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-dark-200 border-b border-gray-200 dark:border-dark-300">
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Datum</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Absender</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Betreff</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Anhänge</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Status</th>
+                    <th className="text-right py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Aktionen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {processedInvoices.map((invoice) => (
+                    <Fragment key={invoice.id}>
+                      <tr className="border-b border-gray-100 dark:border-dark-300 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors">
+                        <td className="py-3 px-4 text-gray-900 dark:text-white whitespace-nowrap">
+                          {new Date(invoice.receivedAt).toLocaleDateString('de-DE', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="py-3 px-4 text-gray-900 dark:text-white">
+                          <div className="truncate max-w-[200px]" title={invoice.senderEmail}>
+                            {invoice.senderName || invoice.senderEmail}
+                          </div>
+                          {invoice.vendorName && (
+                            <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-gray-700 dark:text-gray-300">
+                          <div className="truncate max-w-[250px]" title={invoice.emailSubject}>
+                            {invoice.emailSubject}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {invoice.attachmentCount > 0 ? (
+                            <button
+                              onClick={() => handleToggleDocuments(invoice.id)}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                              title="Dokumente anzeigen"
+                            >
+                              {loadingDocuments === invoice.id ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <Download size={14} />
+                              )}
+                              {invoice.attachmentCount}
+                              {expandedInvoiceId === invoice.id ? (
+                                <ChevronUp size={14} />
+                              ) : (
+                                <ChevronDown size={14} />
+                              )}
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-gray-400">
+                              <Download size={14} />
+                              0
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                            invoice.status === 'processed'
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                              : invoice.status === 'draft'
+                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                              : invoice.status === 'failed'
+                              ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                              : invoice.status === 'skipped'
+                              ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                          }`}>
+                            {invoice.status === 'processed' && <CheckCircle size={12} />}
+                            {invoice.status === 'draft' && <FileText size={12} />}
+                            {invoice.status === 'failed' && <XCircle size={12} />}
+                            {invoice.status === 'processed' ? 'Bestätigt' :
+                             invoice.status === 'draft' ? 'Entwurf' :
+                             invoice.status === 'failed' ? 'Fehlgeschlagen' :
+                             invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
+                          </span>
+                          {invoice.errorMessage && (
+                            <div className="text-xs text-red-500 mt-1 truncate max-w-[150px]" title={invoice.errorMessage}>
+                              {invoice.errorMessage}
                             </div>
-                            {loadingDocuments === invoice.id ? (
-                              <div className="flex items-center gap-2 text-gray-500">
-                                <Loader2 size={16} className="animate-spin" />
-                                Lade Dokumente...
-                              </div>
-                            ) : invoiceDocuments[invoice.id]?.length > 0 ? (
-                              <div className="space-y-2">
-                                {invoiceDocuments[invoice.id].map((doc) => (
-                                  <div
-                                    key={doc.id}
-                                    className="flex items-center gap-3 p-2 bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-300"
-                                  >
-                                    <File size={20} className="text-red-500 flex-shrink-0" />
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-medium text-gray-900 dark:text-white truncate">
-                                        {doc.originalFilename}
-                                      </div>
-                                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                                        {formatFileSize(doc.size)} • {doc.mimeType}
-                                      </div>
-                                    </div>
-                                    <div className="flex gap-1">
-                                      <button
-                                        onClick={() => handleDownloadDocument(doc.id, true)}
-                                        className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                        title="Ansehen"
-                                      >
-                                        <Eye size={16} />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDownloadDocument(doc.id)}
-                                        className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
-                                        title="Herunterladen"
-                                      >
-                                        <Download size={16} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="text-sm text-gray-500 dark:text-gray-400">
-                                Keine Dokumente gefunden
-                              </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex gap-1 justify-end">
+                            {invoice.status === 'draft' && (
+                              <>
+                                <button
+                                  onClick={() => handleApproveDraft(invoice.id)}
+                                  className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                                  title="Bestätigen"
+                                >
+                                  <Check size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteDraft(invoice.id)}
+                                  className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                  title="Löschen"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </>
+                            )}
+                            {invoice.status === 'processed' && (
+                              <button
+                                onClick={() => handleRevertToDraft(invoice.id)}
+                                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition-colors"
+                                title="Zurück zu Entwurf"
+                              >
+                                <Undo2 size={16} />
+                              </button>
                             )}
                           </div>
                         </td>
                       </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      {/* Expandable documents row */}
+                      {expandedInvoiceId === invoice.id && (
+                        <tr className="bg-gray-50 dark:bg-dark-200">
+                          <td colSpan={6} className="py-3 px-4">
+                            <div className="pl-4 border-l-2 border-blue-300 dark:border-blue-600">
+                              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Anhänge
+                              </div>
+                              {loadingDocuments === invoice.id ? (
+                                <div className="flex items-center gap-2 text-gray-500">
+                                  <Loader2 size={16} className="animate-spin" />
+                                  Lade Dokumente...
+                                </div>
+                              ) : invoiceDocuments[invoice.id]?.length > 0 ? (
+                                <div className="space-y-2">
+                                  {invoiceDocuments[invoice.id].map((doc) => (
+                                    <div
+                                      key={doc.id}
+                                      className="flex items-center gap-3 p-2 bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-300"
+                                    >
+                                      <File size={20} className="text-red-500 flex-shrink-0" />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-gray-900 dark:text-white truncate">
+                                          {doc.originalFilename}
+                                        </div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                          {formatFileSize(doc.size)} • {doc.mimeType}
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={() => handleDownloadDocument(doc.id, true)}
+                                          className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                          title="Ansehen"
+                                        >
+                                          <Eye size={16} />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDownloadDocument(doc.id)}
+                                          className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                                          title="Herunterladen"
+                                        >
+                                          <Download size={16} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  Keine Dokumente gefunden
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <FileText size={48} className="mx-auto mb-3 opacity-50" />
