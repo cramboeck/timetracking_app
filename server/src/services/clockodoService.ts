@@ -680,11 +680,13 @@ export async function executeApiImport(
 
   // Get existing local customers and projects
   const customersResult = await query(
-    'SELECT id, name, customer_number, import_aliases FROM customers WHERE organization_id = $1',
+    'SELECT id, name, customer_number, import_aliases, default_project_id FROM customers WHERE organization_id = $1',
     [organizationId]
   );
   const allLocalCustomers = customersResult.rows;
   const existingCustomers = new Map(allLocalCustomers.map(c => [c.name.toLowerCase(), c]));
+  // Map customer ID to default project ID
+  const customerDefaultProjects = new Map(allLocalCustomers.filter(c => c.default_project_id).map(c => [c.id, c.default_project_id]));
 
   // Helper function to find customer
   const findCustomer = (clockodoName: string, clockodoNumber: string | null) => {
@@ -807,13 +809,18 @@ export async function executeApiImport(
         }
       }
 
-      // Fall back to default project
+      // Fall back to customer's default project
+      if (!projectId && localCustomerId && customerDefaultProjects.has(localCustomerId)) {
+        projectId = customerDefaultProjects.get(localCustomerId);
+      }
+
+      // Fall back to global default project (legacy)
       if (!projectId) {
         projectId = defaultProjectId;
       }
 
       if (!projectId) {
-        errors.push(`Eintrag ${entry.id}: Kein Projekt für "${clockodoCustomer.name} - ${clockodoProject?.name || 'Ohne Projekt'}"`);
+        errors.push(`Eintrag ${entry.id}: Kein Projekt für "${clockodoCustomer.name} - ${clockodoProject?.name || 'Ohne Projekt'}" (kein Standard-Projekt definiert)`);
         skippedCount++;
         continue;
       }

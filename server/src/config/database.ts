@@ -2693,6 +2693,19 @@ export async function initializeDatabase() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_external ON time_entries(organization_id, external_source, external_id)');
 
+    // Migration: Add default_project_id to customers (fallback for imports)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'default_project_id'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN default_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
     // ============================================
     // Clockodo Integration
     // ============================================

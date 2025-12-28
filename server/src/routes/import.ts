@@ -367,11 +367,13 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
 
     // Get existing data
     const customersResult = await pool.query(
-      'SELECT id, name, customer_number, import_aliases FROM customers WHERE organization_id = $1',
+      'SELECT id, name, customer_number, import_aliases, default_project_id FROM customers WHERE organization_id = $1',
       [organizationId]
     );
     const allCustomers = customersResult.rows;
     const existingCustomers = new Map(allCustomers.map(c => [c.name.toLowerCase(), c]));
+    // Map customer ID to default project ID
+    const customerDefaultProjects = new Map(allCustomers.filter(c => c.default_project_id).map(c => [c.id, c.default_project_id]));
 
     // Helper function to find customer by number, name, or aliases
     const findCustomer = (csvName: string, csvNumber: string) => {
@@ -519,13 +521,23 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
           }
         }
 
-        // Fall back to default project
+        // Fall back to customer's default project
+        if (!projectId) {
+          // Find the customer to get their default project
+          const matchedCustomer = findCustomer(row.kunde, row.kundennummer);
+          if (matchedCustomer && customerDefaultProjects.has(matchedCustomer.id)) {
+            projectId = customerDefaultProjects.get(matchedCustomer.id);
+            logImport(`Using customer default project for "${row.kunde}"`, { projectId });
+          }
+        }
+
+        // Fall back to global default project (legacy)
         if (!projectId) {
           projectId = defaultProjectId;
         }
 
         if (!projectId) {
-          const errorMsg = `No project found for "${row.kunde} - ${row.projekt}"`;
+          const errorMsg = `No project found for "${row.kunde} - ${row.projekt}" (kein Standard-Projekt definiert)`;
           logImport(`SKIP Row: ${errorMsg}`, { row });
           errors.push(`Row ${importedCount + skippedCount + 1}: ${errorMsg}`);
           skippedCount++;
@@ -842,6 +854,92 @@ router.post('/clockodo/api/execute', authenticateToken, attachOrganization, requ
     console.error('Clockodo API import error:', error);
     logImport('=== CLOCKODO API IMPORT FAILED ===', { error: error.message });
     res.status(500).json({ error: error.message || 'Failed to import data' });
+  }
+});
+
+// ============================================
+// Create default projects for all customers
+// ============================================
+router.post('/create-default-projects', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const userId = req.userId!;
+    const organizationId = orgReq.organization.id;
+
+    logImport('=== CREATE DEFAULT PROJECTS STARTED ===', { userId, organizationId });
+
+    // Get all customers without a default project
+    const customersResult = await pool.query(
+      `SELECT c.id, c.name
+       FROM customers c
+       WHERE c.organization_id = $1
+         AND (c.default_project_id IS NULL OR NOT EXISTS (
+           SELECT 1 FROM projects p WHERE p.id = c.default_project_id
+         ))`,
+      [organizationId]
+    );
+
+    const customersWithoutDefault = customersResult.rows;
+    logImport(`Found ${customersWithoutDefault.length} customers without default project`);
+
+    let created = 0;
+    let updated = 0;
+    const results: { customerId: string; customerName: string; projectId: string; projectName: string }[] = [];
+
+    for (const customer of customersWithoutDefault) {
+      // Check if a project named "Standard" already exists for this customer
+      const existingResult = await pool.query(
+        `SELECT id FROM projects WHERE customer_id = $1 AND LOWER(name) = 'standard'`,
+        [customer.id]
+      );
+
+      let projectId: string;
+      const projectName = 'Standard';
+
+      if (existingResult.rows.length > 0) {
+        // Use existing "Standard" project
+        projectId = existingResult.rows[0].id;
+        logImport(`Using existing "Standard" project for customer "${customer.name}"`, { projectId });
+      } else {
+        // Create new "Standard" project
+        const { v4: uuidv4 } = await import('uuid');
+        projectId = uuidv4();
+        await pool.query(
+          `INSERT INTO projects (id, organization_id, customer_id, name, hourly_rate, is_active, rate_type, created_at)
+           VALUES ($1, $2, $3, $4, 0, true, 'hourly', NOW())`,
+          [projectId, organizationId, customer.id, projectName]
+        );
+        created++;
+        logImport(`Created "Standard" project for customer "${customer.name}"`, { projectId });
+      }
+
+      // Set as default project for this customer
+      await pool.query(
+        `UPDATE customers SET default_project_id = $1 WHERE id = $2`,
+        [projectId, customer.id]
+      );
+      updated++;
+
+      results.push({
+        customerId: customer.id,
+        customerName: customer.name,
+        projectId,
+        projectName
+      });
+    }
+
+    logImport('=== CREATE DEFAULT PROJECTS COMPLETED ===', { created, updated });
+
+    res.json({
+      success: true,
+      created,
+      updated,
+      results
+    });
+  } catch (error: any) {
+    console.error('Create default projects error:', error);
+    logImport('=== CREATE DEFAULT PROJECTS FAILED ===', { error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to create default projects' });
   }
 });
 

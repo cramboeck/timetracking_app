@@ -608,6 +608,23 @@ export const importApi = {
       body: JSON.stringify(data),
     });
   },
+
+  // Create default "Standard" projects for all customers
+  createDefaultProjects: async (): Promise<{
+    success: boolean;
+    created: number;
+    updated: number;
+    results: Array<{
+      customerId: string;
+      customerName: string;
+      projectId: string;
+      projectName: string;
+    }>;
+  }> => {
+    return authFetch('/import/create-default-projects', {
+      method: 'POST',
+    });
+  },
 };
 
 // ============================================

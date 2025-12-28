@@ -77,6 +77,10 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
   // Help panel state
   const [showHelp, setShowHelp] = useState(false);
 
+  // Default projects state
+  const [creatingDefaultProjects, setCreatingDefaultProjects] = useState(false);
+  const [defaultProjectsResult, setDefaultProjectsResult] = useState<{ created: number; updated: number } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load API config on mount
@@ -98,6 +102,29 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
       }
     } catch (err) {
       // Config not found, that's okay
+    }
+  };
+
+  // Create default projects for all customers
+  const handleCreateDefaultProjects = async () => {
+    setCreatingDefaultProjects(true);
+    setError('');
+    setDefaultProjectsResult(null);
+
+    try {
+      const response = await importApi.createDefaultProjects();
+      if (response.success) {
+        setDefaultProjectsResult({
+          created: response.created,
+          updated: response.updated
+        });
+      } else {
+        setError('Fehler beim Erstellen der Standard-Projekte');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Erstellen der Standard-Projekte');
+    } finally {
+      setCreatingDefaultProjects(false);
     }
   };
 
@@ -311,6 +338,45 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
             <FileText size={18} />
             CSV Import
           </button>
+        </div>
+      )}
+
+      {/* Create Default Projects Section */}
+      {step === 'upload' && (
+        <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h4 className="font-medium text-amber-800 dark:text-amber-300 mb-1">
+                Standard-Projekte erstellen
+              </h4>
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                Erstellt für jeden Kunden ein "Standard"-Projekt als Fallback für nicht zugeordnete Einträge.
+              </p>
+              {defaultProjectsResult && (
+                <p className="text-sm text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
+                  <CheckCircle size={14} />
+                  {defaultProjectsResult.created} Projekte erstellt, {defaultProjectsResult.updated} Kunden aktualisiert
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleCreateDefaultProjects}
+              disabled={creatingDefaultProjects}
+              className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-medium rounded-lg transition-colors"
+            >
+              {creatingDefaultProjects ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Erstelle...
+                </>
+              ) : (
+                <>
+                  <ArrowRight size={16} />
+                  Jetzt erstellen
+                </>
+              )}
+            </button>
+          </div>
         </div>
       )}
 
