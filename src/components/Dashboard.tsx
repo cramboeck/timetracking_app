@@ -1301,9 +1301,9 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
             <p className="text-gray-500 dark:text-gray-400">Keine Einträge für diesen Monat</p>
           </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold mb-4 dark:text-white">Aufschlüsselung nach Projekt</h2>
-            <div className="space-y-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6">
+            <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 dark:text-white">Aufschlüsselung nach Projekt</h2>
+            <div className="space-y-3 sm:space-y-4">
               {stats.map((stat) => {
                 const hours = stat.totalSeconds / 3600;
                 const percentage = (stat.totalSeconds / totalSeconds) * 100;
@@ -1317,7 +1317,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                 return (
                   <div key={stat.projectId} className="space-y-2">
                     <div
-                      className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors"
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors"
                       onClick={() => {
                         const newExpanded = new Set(expandedProjects);
                         if (newExpanded.has(stat.projectId)) {
@@ -1328,44 +1328,49 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                         setExpandedProjects(newExpanded);
                       }}
                     >
-                      <div className="flex items-center gap-3 flex-1">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                         {isExpanded ? (
-                          <ChevronDown size={20} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                          <ChevronDown size={18} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
                         ) : (
-                          <ChevronRight size={20} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                          <ChevronRight size={18} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
                         )}
                         <div
-                          className="w-4 h-4 rounded flex-shrink-0"
+                          className="w-3 h-3 sm:w-4 sm:h-4 rounded flex-shrink-0"
                           style={{ backgroundColor: stat.customerColor }}
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium dark:text-white truncate">{stat.projectName}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{stat.customerName}</p>
+                          <p className="font-medium dark:text-white truncate text-sm sm:text-base">{stat.projectName}</p>
+                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">{stat.customerName}</p>
                         </div>
                       </div>
-                      <div className="text-right flex-shrink-0 ml-4">
-                        <p className="font-semibold dark:text-white">{hours.toFixed(2)} h</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{stat.totalAmount.toFixed(2)} €</p>
+                      <div className="flex items-center justify-between sm:justify-end sm:text-right mt-2 sm:mt-0 pl-7 sm:pl-0 sm:ml-4 flex-shrink-0">
+                        <div className="sm:hidden text-xs text-gray-500 dark:text-gray-400">
+                          {stat.entryCount} Einträge • {percentage.toFixed(1)}%
+                        </div>
+                        <div>
+                          <p className="font-semibold dark:text-white text-sm sm:text-base">{hours.toFixed(2)} h</p>
+                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{stat.totalAmount.toFixed(2)} €</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 sm:h-2">
                       <div
-                        className="h-2 rounded-full transition-all"
+                        className="h-1.5 sm:h-2 rounded-full transition-all"
                         style={{
                           width: `${percentage}%`,
                           backgroundColor: stat.customerColor
                         }}
                       />
                     </div>
-                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 px-2">
+                    <div className="hidden sm:flex justify-between text-xs text-gray-500 dark:text-gray-400 px-2">
                       <span>{stat.entryCount} Einträge</span>
                       <span>{percentage.toFixed(1)}% der Gesamtzeit</span>
                     </div>
 
                     {/* Expanded entries list */}
                     {isExpanded && projectEntries.length > 0 && (
-                      <div className="ml-8 mt-3 space-y-2 border-l-2 border-gray-200 dark:border-gray-700 pl-4">
-                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <div className="ml-4 sm:ml-8 mt-3 space-y-2 border-l-2 border-gray-200 dark:border-gray-700 pl-3 sm:pl-4">
+                        <h3 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Zeiteinträge:
                         </h3>
                         {projectEntries.map(entry => {
@@ -1376,11 +1381,11 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                           return (
                             <div
                               key={entry.id}
-                              className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-sm"
+                              className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2 sm:p-3 text-xs sm:text-sm"
                             >
-                              <div className="flex items-start justify-between gap-2">
+                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2">
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
+                                  <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-1">
                                     <span className="text-gray-900 dark:text-white font-medium">
                                       {new Date(entry.startTime).toLocaleDateString('de-DE', {
                                         day: '2-digit',
@@ -1389,23 +1394,26 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                                       })}
                                     </span>
                                     {activity && (
-                                      <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                                      <span className="text-xs px-1.5 sm:px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
                                         {activity.name}
                                       </span>
                                     )}
+                                    <span className="sm:hidden text-gray-700 dark:text-gray-300 font-medium ml-auto">
+                                      {entryHours.toFixed(2)} h • {entryAmount.toFixed(2)} €
+                                    </span>
                                   </div>
                                   {entry.description && (
-                                    <p className="text-gray-600 dark:text-gray-400 break-words">
+                                    <p className="text-gray-600 dark:text-gray-400 break-words text-xs sm:text-sm">
                                       {entry.description}
                                     </p>
                                   )}
                                   {!entry.description && (
-                                    <p className="text-gray-400 dark:text-gray-500 italic">
+                                    <p className="text-gray-400 dark:text-gray-500 italic text-xs sm:text-sm">
                                       (keine Beschreibung)
                                     </p>
                                   )}
                                 </div>
-                                <div className="text-right flex-shrink-0">
+                                <div className="hidden sm:block text-right flex-shrink-0">
                                   <p className="text-gray-900 dark:text-white font-medium">
                                     {entryHours.toFixed(2)} h
                                   </p>
