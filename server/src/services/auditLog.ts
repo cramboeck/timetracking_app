@@ -102,7 +102,19 @@ export type AuditAction =
   | 'features.bulk_update'
   // Import actions
   | 'import.clockodo'
-  | 'import.clockodo_api';
+  | 'import.clockodo_api'
+  // Admin backup actions
+  | 'backup.create'
+  | 'backup.restore'
+  | 'backup.delete'
+  | 'backup.cleanup'
+  // Admin database actions
+  | 'database.vacuum'
+  // Admin security actions
+  | 'security.sessions_invalidated'
+  // Admin notification actions
+  | 'notification.create'
+  | 'notification.delete';
 
 export interface AuditLogEntry {
   id: string;
