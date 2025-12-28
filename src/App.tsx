@@ -14,6 +14,8 @@ import { AlertsView } from './components/AlertsView';
 import MaintenanceView from './components/MaintenanceView';
 import TaskHub from './components/TaskHub';
 import Contracts from './components/Contracts';
+import { InvoiceInbox } from './components/InvoiceInbox';
+import { SupportInbox } from './components/SupportInbox';
 import { SocialMediaProvider } from './features/social-media/context';
 import SocialMediaLayout from './features/social-media/SocialMediaLayout';
 import AdminPortal from './components/AdminPortal';
@@ -1015,6 +1017,12 @@ function App() {
         )}
         {currentSubView === 'maintenance' && (
           <MaintenanceView />
+        )}
+        {currentSubView === 'inbox' && (
+          <SupportInbox />
+        )}
+        {currentSubView === 'invoices' && (
+          <InvoiceInbox />
         )}
         {currentSubView === 'billing' && (
           <Finanzen onBack={() => setCurrentSubView('dashboard')} />
