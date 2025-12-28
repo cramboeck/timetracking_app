@@ -15,6 +15,7 @@ export interface Customer {
   ninjarmmOrganizationId?: string; // Link to NinjaRMM organization (Support feature)
   displayName?: string; // Short display name for PDFs (instead of full name)
   importAliases?: string[]; // Alternative names for CSV import matching (e.g., ["IHE", "IHE GmbH"])
+  customerType?: 'company' | 'individual'; // Type of customer (company = Firma, individual = Privatperson)
   // Vendor/Supplier Hub fields
   isVendor?: boolean; // Mark as vendor/supplier
   vendorDomain?: string; // Email domain for matching (e.g., "elovade.com")

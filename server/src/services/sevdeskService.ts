@@ -27,6 +27,8 @@ export interface SevdeskCustomer {
   // Parent company info for sub-contacts (Ansprechpartner)
   parent?: { id: string; name: string };
   isSubContact?: boolean;
+  // Type of customer: 'company' if has company name, 'individual' if only person name
+  customerType?: 'company' | 'individual';
 }
 
 export interface SevdeskInvoice {
@@ -232,6 +234,9 @@ export async function getSevdeskCustomers(apiToken: string, options?: { includeS
   // Helper to map contact to SevdeskCustomer
   const mapContact = (contact: any): SevdeskCustomer => {
     const hasParent = contact.parent && contact.parent.id;
+    // Detect customer type: 'company' if has company name field, 'individual' if only person name
+    const hasCompanyName = contact.name && contact.name.trim() !== '';
+    const customerType: 'company' | 'individual' = hasCompanyName ? 'company' : 'individual';
     return {
       id: contact.id,
       customerNumber: contact.customerNumber || '',
@@ -243,6 +248,7 @@ export async function getSevdeskCustomers(apiToken: string, options?: { includeS
       // Include parent info for sub-contacts
       parent: hasParent ? { id: contact.parent.id.toString(), name: contact.parent.name || '' } : undefined,
       isSubContact: hasParent,
+      customerType,
     };
   };
 
@@ -2016,6 +2022,8 @@ export interface CustomerImportPreview {
   // Parent company info for sub-contacts
   parent?: { id: string; name: string };
   isSubContact?: boolean;
+  // Type of customer
+  customerType?: 'company' | 'individual';
   // Matching info
   matchStatus: 'new' | 'linked' | 'name_match';
   localCustomerId?: string;
@@ -2099,6 +2107,7 @@ export async function getCustomerImportPreview(
         address: contactAddresses.get(sevdeskId),
         parent: sevdesk.parent,
         isSubContact: sevdesk.isSubContact,
+        customerType: sevdesk.customerType,
         matchStatus: 'linked',
         localCustomerId: local.id,
         localCustomerName: local.name,
@@ -2119,6 +2128,7 @@ export async function getCustomerImportPreview(
         address: contactAddresses.get(sevdeskId),
         parent: sevdesk.parent,
         isSubContact: sevdesk.isSubContact,
+        customerType: sevdesk.customerType,
         matchStatus: 'name_match',
         localCustomerId: local.id,
         localCustomerName: local.name,
@@ -2136,6 +2146,7 @@ export async function getCustomerImportPreview(
       address: contactAddresses.get(sevdeskId),
       parent: sevdesk.parent,
       isSubContact: sevdesk.isSubContact,
+      customerType: sevdesk.customerType,
       matchStatus: 'new',
     });
   }
@@ -2156,6 +2167,7 @@ export async function importSevdeskCustomer(
     customerNumber?: string;
     email?: string;
     address?: string;
+    customerType?: 'company' | 'individual';
   },
   options: {
     color?: string;
@@ -2173,8 +2185,8 @@ export async function importSevdeskCustomer(
   const organizationId = orgResult.rows[0]?.organization_id || null;
 
   await query(
-    `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, email, address, sevdesk_customer_id, hourly_rate, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
+    `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, email, address, sevdesk_customer_id, hourly_rate, customer_type, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
     [
       customerId,
       userId,
@@ -2186,6 +2198,7 @@ export async function importSevdeskCustomer(
       sevdeskContact.address || null,
       sevdeskContact.sevdeskId,
       options.hourlyRate || null,
+      sevdeskContact.customerType || null,
     ]
   );
 
@@ -2271,6 +2284,7 @@ export async function batchImportSevdeskCustomers(
           customerNumber: sevdeskCustomer.customerNumber,
           email: sevdeskCustomer.email,
           address: addressMap.get(item.sevdeskId),
+          customerType: sevdeskCustomer.customerType,
         }, {
           color: item.color,
           hourlyRate: item.hourlyRate,

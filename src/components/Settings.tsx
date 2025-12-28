@@ -113,6 +113,7 @@ export const Settings = ({
   const [customerNinjarmmOrgId, setCustomerNinjarmmOrgId] = useState('');
   const [customerDisplayName, setCustomerDisplayName] = useState('');
   const [customerImportAliases, setCustomerImportAliases] = useState('');
+  const [customerType, setCustomerType] = useState<'company' | 'individual'>('company');
 
   // CSV Import
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -194,6 +195,7 @@ export const Settings = ({
       setCustomerNinjarmmOrgId(customer.ninjarmmOrganizationId || '');
       setCustomerDisplayName(customer.displayName || '');
       setCustomerImportAliases(customer.importAliases?.join(', ') || '');
+      setCustomerType(customer.customerType || 'company');
     } else {
       setEditingCustomer(null);
       setCustomerName('');
@@ -209,6 +211,7 @@ export const Settings = ({
       setCustomerTimeRoundingInterval('15');
       setCustomerPaymentTermsDays('14');
       setCustomerNinjarmmOrgId('');
+      setCustomerType('company');
     }
     setCustomerModalOpen(true);
   };
@@ -344,7 +347,8 @@ export const Settings = ({
         paymentTermsDays: paymentTermsDaysValue,
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
         displayName: customerDisplayName.trim() || undefined,
-        importAliases: importAliasesValue
+        importAliases: importAliasesValue,
+        customerType: customerType
       });
     } else {
       onAddCustomer({
@@ -363,6 +367,7 @@ export const Settings = ({
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
         displayName: customerDisplayName.trim() || undefined,
         importAliases: importAliasesValue,
+        customerType: customerType,
         createdAt: new Date().toISOString()
       });
     }
@@ -1590,6 +1595,17 @@ export const Settings = ({
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <h3 className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</h3>
+                                {customer.customerType === 'individual' ? (
+                                  <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                                    <UserIcon className="w-3 h-3" />
+                                    Privat
+                                  </span>
+                                ) : customer.customerType === 'company' ? (
+                                  <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                                    <Building className="w-3 h-3" />
+                                    Firma
+                                  </span>
+                                ) : null}
                                 {customer.customerNumber && (
                                   <span className="text-xs bg-gray-100 dark:bg-dark-50 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full whitespace-nowrap">
                                     #{customer.customerNumber}
@@ -2691,6 +2707,36 @@ export const Settings = ({
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Kundentyp
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="customerType"
+                  checked={customerType === 'company'}
+                  onChange={() => setCustomerType('company')}
+                  className="w-4 h-4 text-blue-600"
+                />
+                <Building className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-700 dark:text-gray-300">Firma</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="customerType"
+                  checked={customerType === 'individual'}
+                  onChange={() => setCustomerType('individual')}
+                  className="w-4 h-4 text-purple-600"
+                />
+                <UserIcon className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-700 dark:text-gray-300">Privatperson</span>
+              </label>
+            </div>
           </div>
 
           <div>
