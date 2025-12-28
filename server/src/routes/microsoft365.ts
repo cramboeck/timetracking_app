@@ -605,11 +605,15 @@ router.get('/support/emails', requireOrgRole('member'), async (req: AuthRequest,
     const includeRead = req.query.includeRead === 'true';
     const maxResults = parseInt(req.query.limit as string) || 50;
 
+    console.log(`📧 Fetching support emails for org ${organizationId}, includeRead=${includeRead}, limit=${maxResults}`);
+
     const result = await mailboxMonitorService.getUnreadEmails(organizationId, {
       mailboxType: 'support',
       includeRead,
       maxResults,
     });
+
+    console.log(`📧 Support emails result: success=${result.success}, count=${result.emails?.length || 0}, error=${result.error || 'none'}`);
 
     if (result.success) {
       res.json({

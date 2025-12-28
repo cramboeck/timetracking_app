@@ -52,6 +52,7 @@ export const SupportInbox = () => {
   };
 
   const loadEmails = useCallback(async () => {
+    console.log('📧 Loading support emails...');
     setRefreshing(true);
     setError(null);
     try {
@@ -59,12 +60,15 @@ export const SupportInbox = () => {
         includeRead: showRead,
         limit: 50,
       });
+      console.log('📧 Support emails response:', response);
       if (response.success) {
         setEmails(response.data || []);
       } else {
+        console.error('📧 Support emails error:', response.error);
         setError(response.error || 'Fehler beim Laden der E-Mails');
       }
     } catch (err: any) {
+      console.error('📧 Support emails exception:', err);
       setError(err.message || 'Fehler beim Laden der E-Mails');
     } finally {
       setRefreshing(false);
