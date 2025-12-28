@@ -382,6 +382,8 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                   </label>
                   <input
                     type="email"
+                    name="clockodo_email"
+                    autoComplete="off"
                     value={apiEmail}
                     onChange={(e) => { setApiEmail(e.target.value); setConnectionTested(false); }}
                     placeholder="ihre-email@firma.de"
@@ -396,6 +398,8 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                     <Key size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       type="password"
+                      name="clockodo_api_key"
+                      autoComplete="new-password"
                       value={apiKey}
                       onChange={(e) => { setApiKey(e.target.value); setConnectionTested(false); }}
                       placeholder="Ihr Clockodo API Key"
@@ -406,18 +410,18 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
               </div>
 
               {/* Test Connection Button */}
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={testApiConnection}
                   disabled={loading || !apiEmail || !apiKey}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50"
                 >
                   {loading ? (
                     <Loader2 size={18} className="animate-spin" />
                   ) : (
                     <Cloud size={18} />
                   )}
-                  Verbindung testen
+                  Verbindung testen & speichern
                 </button>
                 {connectionTested && connectionInfo && (
                   <span className="flex items-center gap-2 text-green-600 dark:text-green-400">
@@ -426,6 +430,9 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                   </span>
                 )}
               </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                Die API-Zugangsdaten werden beim erfolgreichen Verbindungstest gespeichert.
+              </p>
 
               {/* Date Range Selection */}
               {connectionTested && (
