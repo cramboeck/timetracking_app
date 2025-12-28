@@ -2221,8 +2221,9 @@ export async function batchImportSevdeskCustomers(
 }> {
   const result = { imported: 0, linked: 0, skipped: 0, errors: [] as string[] };
 
-  // Get full sevDesk customer data
-  const allCustomers = await getSevdeskCustomers(apiToken);
+  // Get full sevDesk customer data - include ALL contacts (showAll + includeSubContacts)
+  // to ensure we can find any contact that was shown in the preview
+  const allCustomers = await getSevdeskCustomers(apiToken, { showAll: true, includeSubContacts: true });
   const customerMap = new Map(allCustomers.map(c => [c.id.toString(), c]));
 
   // Get addresses
