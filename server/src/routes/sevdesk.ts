@@ -1048,6 +1048,7 @@ router.get('/import/preview', authenticateToken, requireBillingFeature, async (r
   try {
     const userId = req.user!.id;
     const showAll = req.query.showAll === 'true';
+    const includeSubContacts = req.query.includeSubContacts === 'true';
 
     // Get config
     const config = await sevdeskService.getConfig(userId);
@@ -1055,13 +1056,17 @@ router.get('/import/preview', authenticateToken, requireBillingFeature, async (r
       return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
     }
 
-    const preview = await sevdeskService.getCustomerImportPreview(userId, config.apiToken, showAll);
+    const preview = await sevdeskService.getCustomerImportPreview(userId, config.apiToken, {
+      showAll,
+      includeSubContacts,
+    });
 
     // Count by status
     const counts = {
       new: preview.filter(p => p.matchStatus === 'new').length,
       name_match: preview.filter(p => p.matchStatus === 'name_match').length,
       linked: preview.filter(p => p.matchStatus === 'linked').length,
+      subContacts: preview.filter(p => p.isSubContact).length,
       total: preview.length,
     };
 

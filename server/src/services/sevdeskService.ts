@@ -24,6 +24,9 @@ export interface SevdeskCustomer {
   category?: { id: number; name: string };
   email?: string;
   phone?: string;
+  // Parent company info for sub-contacts (Ansprechpartner)
+  parent?: { id: string; name: string };
+  isSubContact?: boolean;
 }
 
 export interface SevdeskInvoice {
@@ -215,54 +218,62 @@ export async function testConnection(apiToken: string): Promise<{ success: boole
 
 // Get customers from sevDesk
 // sevDesk category IDs: 3 = Customer, 4 = Supplier, 28 = Partner
-// Only returns companies (not contact persons) unless showAll is true
-export async function getSevdeskCustomers(apiToken: string, options?: { includeSuppliers?: boolean; showAll?: boolean }): Promise<SevdeskCustomer[]> {
+// Options:
+// - showAll: Include all categories (not just customers)
+// - includeSuppliers: Include suppliers (category 4)
+// - includeSubContacts: Include sub-contacts (Ansprechpartner) with parent info
+export async function getSevdeskCustomers(apiToken: string, options?: { includeSuppliers?: boolean; showAll?: boolean; includeSubContacts?: boolean }): Promise<SevdeskCustomer[]> {
   // When showAll is true, don't filter by category at all to get all contacts
   // When includeSuppliers is true, also remove category filter
   // By default, only fetch customers (category 3), not suppliers
   const categoryFilter = (options?.showAll || options?.includeSuppliers) ? '' : '&category[id]=3&category[objectName]=Category';
   const response = await sevdeskFetch(apiToken, `/Contact?depth=1&embed=category,parent${categoryFilter}`);
 
-  // If showAll is true, return all contacts without filtering (except sub-contacts)
+  // Helper to map contact to SevdeskCustomer
+  const mapContact = (contact: any): SevdeskCustomer => {
+    const hasParent = contact.parent && contact.parent.id;
+    return {
+      id: contact.id,
+      customerNumber: contact.customerNumber || '',
+      // Build name from company name or person name
+      name: contact.name || [contact.surename, contact.familyname].filter(Boolean).join(' ') || `Kontakt ${contact.id}`,
+      category: contact.category ? { id: contact.category.id, name: contact.category.name } : undefined,
+      email: contact.email,
+      phone: contact.phone,
+      // Include parent info for sub-contacts
+      parent: hasParent ? { id: contact.parent.id.toString(), name: contact.parent.name || '' } : undefined,
+      isSubContact: hasParent,
+    };
+  };
+
+  // If showAll is true, return all contacts (optionally including sub-contacts)
   if (options?.showAll) {
     return (response.objects || [])
       .filter((contact: any) => {
-        // Exclude sub-contacts (contact persons of a company)
         const isTopLevel = !contact.parent || !contact.parent.id;
+        // Include sub-contacts if option is set
+        if (options?.includeSubContacts) return true;
         return isTopLevel;
       })
-      .map((contact: any) => ({
-        id: contact.id,
-        customerNumber: contact.customerNumber || '',
-        // Build name from company name or person name
-        name: contact.name || [contact.surename, contact.familyname].filter(Boolean).join(' ') || `Kontakt ${contact.id}`,
-        category: contact.category ? { id: contact.category.id, name: contact.category.name } : undefined,
-        email: contact.email,
-        phone: contact.phone,
-      }));
+      .map(mapContact);
   }
 
-  // Filter: Only top-level contacts (no parent = not a contact person of another company)
-  // Include both companies (with 'name') and individuals (with surename/familyname)
-  const topLevelContacts = (response.objects || []).filter((contact: any) => {
-    // Must not be a sub-contact of another company
+  // Filter contacts based on options
+  const filteredContacts = (response.objects || []).filter((contact: any) => {
     const isTopLevel = !contact.parent || !contact.parent.id;
     // Must have some form of name (company name OR person name)
     const hasAnyName = (contact.name && contact.name.trim() !== '') ||
                        (contact.surename && contact.surename.trim() !== '') ||
                        (contact.familyname && contact.familyname.trim() !== '');
+
+    // Include sub-contacts if option is set, otherwise only top-level
+    if (options?.includeSubContacts) {
+      return hasAnyName;
+    }
     return isTopLevel && hasAnyName;
   });
 
-  return topLevelContacts.map((contact: any) => ({
-    id: contact.id,
-    customerNumber: contact.customerNumber || '',
-    // Build name from company name or person name
-    name: contact.name || [contact.surename, contact.familyname].filter(Boolean).join(' ') || `Kontakt ${contact.id}`,
-    category: contact.category ? { id: contact.category.id, name: contact.category.name } : undefined,
-    email: contact.email,
-    phone: contact.phone,
-  }));
+  return filteredContacts.map(mapContact);
 }
 
 // Sync sevDesk customer to local customer
@@ -2002,6 +2013,9 @@ export interface CustomerImportPreview {
   email?: string;
   phone?: string;
   address?: string;
+  // Parent company info for sub-contacts
+  parent?: { id: string; name: string };
+  isSubContact?: boolean;
   // Matching info
   matchStatus: 'new' | 'linked' | 'name_match';
   localCustomerId?: string;
@@ -2012,10 +2026,13 @@ export interface CustomerImportPreview {
 export async function getCustomerImportPreview(
   userId: string,
   apiToken: string,
-  showAll?: boolean
+  options?: { showAll?: boolean; includeSubContacts?: boolean }
 ): Promise<CustomerImportPreview[]> {
   // Get all sevDesk contacts (optionally including all without filtering)
-  const sevdeskCustomers = await getSevdeskCustomers(apiToken, { showAll });
+  const sevdeskCustomers = await getSevdeskCustomers(apiToken, {
+    showAll: options?.showAll,
+    includeSubContacts: options?.includeSubContacts,
+  });
 
   // Get all local customers with their sevdesk links
   const localResult = await query(
@@ -2080,6 +2097,8 @@ export async function getCustomerImportPreview(
         email: sevdesk.email,
         phone: sevdesk.phone,
         address: contactAddresses.get(sevdeskId),
+        parent: sevdesk.parent,
+        isSubContact: sevdesk.isSubContact,
         matchStatus: 'linked',
         localCustomerId: local.id,
         localCustomerName: local.name,
@@ -2098,6 +2117,8 @@ export async function getCustomerImportPreview(
         email: sevdesk.email,
         phone: sevdesk.phone,
         address: contactAddresses.get(sevdeskId),
+        parent: sevdesk.parent,
+        isSubContact: sevdesk.isSubContact,
         matchStatus: 'name_match',
         localCustomerId: local.id,
         localCustomerName: local.name,
@@ -2113,6 +2134,8 @@ export async function getCustomerImportPreview(
       email: sevdesk.email,
       phone: sevdesk.phone,
       address: contactAddresses.get(sevdeskId),
+      parent: sevdesk.parent,
+      isSubContact: sevdesk.isSubContact,
       matchStatus: 'new',
     });
   }
