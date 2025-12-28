@@ -2693,258 +2693,265 @@ export const Settings = ({
         isOpen={customerModalOpen}
         onClose={() => setCustomerModalOpen(false)}
         title={editingCustomer ? 'Kunde bearbeiten' : 'Neuer Kunde'}
+        maxWidth="3xl"
       >
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Kundenname *
-            </label>
-            <input
-              type="text"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="z.B. Musterfirma GmbH"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Kundentyp
-            </label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
+          {/* Two-column grid for desktop */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Left column */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Kundenname *
+                </label>
                 <input
-                  type="radio"
-                  name="customerType"
-                  checked={customerType === 'company'}
-                  onChange={() => setCustomerType('company')}
-                  className="w-4 h-4 text-blue-600"
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="z.B. Musterfirma GmbH"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  autoFocus
                 />
-                <Building className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Firma</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Kundentyp
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <input
+                      type="radio"
+                      name="customerType"
+                      checked={customerType === 'company'}
+                      onChange={() => setCustomerType('company')}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <Building className="w-4 h-4 text-blue-500" />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Firma</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <input
+                      type="radio"
+                      name="customerType"
+                      checked={customerType === 'individual'}
+                      onChange={() => setCustomerType('individual')}
+                      className="w-4 h-4 text-purple-600"
+                    />
+                    <UserIcon className="w-4 h-4 text-purple-500" />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Privatperson</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Kundennummer (für sevDesk)
+                </label>
                 <input
-                  type="radio"
-                  name="customerType"
-                  checked={customerType === 'individual'}
-                  onChange={() => setCustomerType('individual')}
-                  className="w-4 h-4 text-purple-600"
+                  type="text"
+                  value={customerNumber}
+                  onChange={(e) => setCustomerNumber(e.target.value)}
+                  placeholder="z.B. K-12345"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 />
-                <UserIcon className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Privatperson</span>
-              </label>
-            </div>
-          </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Kundennummer (für sevDesk)
-            </label>
-            <input
-              type="text"
-              value={customerNumber}
-              onChange={(e) => setCustomerNumber(e.target.value)}
-              placeholder="z.B. K-12345"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Ansprechpartner
-            </label>
-            <input
-              type="text"
-              value={customerContactPerson}
-              onChange={(e) => setCustomerContactPerson(e.target.value)}
-              placeholder="z.B. Max Mustermann"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              E-Mail
-            </label>
-            <input
-              type="email"
-              value={customerEmail}
-              onChange={(e) => setCustomerEmail(e.target.value)}
-              placeholder="z.B. kontakt@musterfirma.de"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Adresse
-            </label>
-            <textarea
-              value={customerAddress}
-              onChange={(e) => setCustomerAddress(e.target.value)}
-              placeholder="Musterstraße 123&#10;12345 Musterstadt"
-              rows={2}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Report-Titel (für PDF)
-            </label>
-            <input
-              type="text"
-              value={customerReportTitle}
-              onChange={(e) => setCustomerReportTitle(e.target.value)}
-              placeholder="z.B. Stundenzettel, Tätigkeitsnachweis, Arbeitszeitnachweis"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Optional: Individueller Titel für PDF-Reports dieses Kunden (Standard: "Stundenbericht")
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Anzeigename (für PDF)
-            </label>
-            <input
-              type="text"
-              value={customerDisplayName}
-              onChange={(e) => setCustomerDisplayName(e.target.value)}
-              placeholder="z.B. IHE (statt langer Firmenname)"
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Optional: Kurzer Name für PDF-Reports (Standard: Kundenname)
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Import-Aliase
-            </label>
-            <input
-              type="text"
-              value={customerImportAliases}
-              onChange={(e) => setCustomerImportAliases(e.target.value)}
-              placeholder="z.B. IHE, IHE GmbH, IHE Planung"
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Komma-getrennte alternative Namen für den CSV-Import (z.B. aus Clockodo)
-            </p>
-          </div>
-
-          {/* Hourly Rate - only show if billing is enabled */}
-          {billingEnabled && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Stundensatz (€)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={customerHourlyRate}
-                onChange={(e) => setCustomerHourlyRate(e.target.value)}
-                placeholder="z.B. 95.00"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Kundenspezifischer Stundensatz für Abrechnungen (überschreibt den Standard)
-              </p>
-            </div>
-          )}
-
-          {/* Time Rounding Interval - only show if billing is enabled */}
-          {billingEnabled && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Zeitaufrundung (Minuten)
-              </label>
-              <select
-                value={customerTimeRoundingInterval}
-                onChange={(e) => setCustomerTimeRoundingInterval(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              >
-                <option value="1">1 Minute (keine Rundung)</option>
-                <option value="5">5 Minuten</option>
-                <option value="6">6 Minuten (0,1h)</option>
-                <option value="10">10 Minuten</option>
-                <option value="15">15 Minuten (0,25h)</option>
-                <option value="30">30 Minuten (0,5h)</option>
-                <option value="60">60 Minuten (1h)</option>
-              </select>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Zeiteinträge werden auf dieses Intervall aufgerundet (z.B. 7 Min. → 15 Min.)
-              </p>
-            </div>
-          )}
-
-          {/* Payment Terms - only show if billing is enabled */}
-          {billingEnabled && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Zahlungsziel (Tage)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="365"
-                value={customerPaymentTermsDays}
-                onChange={(e) => setCustomerPaymentTermsDays(e.target.value)}
-                placeholder="14"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Zahlungsfrist in Tagen ab Rechnungsdatum (Standard: 14 Tage)
-              </p>
-            </div>
-          )}
-
-          {/* NinjaRMM Organization */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              NinjaRMM Organisation ID
-            </label>
-            <input
-              type="text"
-              value={customerNinjarmmOrgId}
-              onChange={(e) => setCustomerNinjarmmOrgId(e.target.value)}
-              placeholder="z.B. org-12345"
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Verknüpfung mit einer NinjaRMM Organisation für Geräte und Alerts
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Farbe
-            </label>
-            <div className="grid grid-cols-5 gap-2">
-              {COLORS.map(color => (
-                <button
-                  key={color}
-                  onClick={() => setCustomerColor(color)}
-                  className={`w-full h-12 rounded-lg transition-transform ${
-                    customerColor === color ? 'ring-2 ring-gray-900 ring-offset-2 scale-110' : ''
-                  }`}
-                  style={{ backgroundColor: color }}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Ansprechpartner
+                </label>
+                <input
+                  type="text"
+                  value={customerContactPerson}
+                  onChange={(e) => setCustomerContactPerson(e.target.value)}
+                  placeholder="z.B. Max Mustermann"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 />
-              ))}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  E-Mail
+                </label>
+                <input
+                  type="email"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  placeholder="z.B. kontakt@musterfirma.de"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Adresse
+                </label>
+                <textarea
+                  value={customerAddress}
+                  onChange={(e) => setCustomerAddress(e.target.value)}
+                  placeholder="Musterstraße 123&#10;12345 Musterstadt"
+                  rows={2}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Farbe
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {COLORS.map(color => (
+                    <button
+                      key={color}
+                      onClick={() => setCustomerColor(color)}
+                      className={`w-full h-10 rounded-lg transition-transform ${
+                        customerColor === color ? 'ring-2 ring-gray-900 dark:ring-white ring-offset-2 scale-110' : ''
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right column */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Report-Titel (für PDF)
+                </label>
+                <input
+                  type="text"
+                  value={customerReportTitle}
+                  onChange={(e) => setCustomerReportTitle(e.target.value)}
+                  placeholder="z.B. Stundenzettel, Tätigkeitsnachweis"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Individueller Titel für PDF-Reports (Standard: "Stundenbericht")
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Anzeigename (für PDF)
+                </label>
+                <input
+                  type="text"
+                  value={customerDisplayName}
+                  onChange={(e) => setCustomerDisplayName(e.target.value)}
+                  placeholder="z.B. IHE (statt langer Firmenname)"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Kurzer Name für PDF-Reports (Standard: Kundenname)
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Import-Aliase
+                </label>
+                <input
+                  type="text"
+                  value={customerImportAliases}
+                  onChange={(e) => setCustomerImportAliases(e.target.value)}
+                  placeholder="z.B. IHE, IHE GmbH, IHE Planung"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Komma-getrennte Namen für CSV-Import (z.B. Clockodo)
+                </p>
+              </div>
+
+              {/* Billing fields - only show if billing is enabled */}
+              {billingEnabled && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Stundensatz (€)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={customerHourlyRate}
+                      onChange={(e) => setCustomerHourlyRate(e.target.value)}
+                      placeholder="z.B. 95.00"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Kundenspezifischer Stundensatz (überschreibt Standard)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Zeitaufrundung (Minuten)
+                    </label>
+                    <select
+                      value={customerTimeRoundingInterval}
+                      onChange={(e) => setCustomerTimeRoundingInterval(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    >
+                      <option value="1">1 Minute (keine Rundung)</option>
+                      <option value="5">5 Minuten</option>
+                      <option value="6">6 Minuten (0,1h)</option>
+                      <option value="10">10 Minuten</option>
+                      <option value="15">15 Minuten (0,25h)</option>
+                      <option value="30">30 Minuten (0,5h)</option>
+                      <option value="60">60 Minuten (1h)</option>
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Zeiteinträge werden aufgerundet (z.B. 7 → 15 Min.)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Zahlungsziel (Tage)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={customerPaymentTermsDays}
+                      onChange={(e) => setCustomerPaymentTermsDays(e.target.value)}
+                      placeholder="14"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Zahlungsfrist ab Rechnungsdatum (Standard: 14)
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* NinjaRMM Organization */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  NinjaRMM Organisation ID
+                </label>
+                <input
+                  type="text"
+                  value={customerNinjarmmOrgId}
+                  onChange={(e) => setCustomerNinjarmmOrgId(e.target.value)}
+                  placeholder="z.B. org-12345"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Verknüpfung mit NinjaRMM für Geräte und Alerts
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          {/* Buttons - full width */}
+          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               onClick={() => setCustomerModalOpen(false)}
-              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors"
             >
               Abbrechen
             </button>
