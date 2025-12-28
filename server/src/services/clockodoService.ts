@@ -324,8 +324,19 @@ function formatDateForApi(dateStr: string): string {
     return dateStr;
   }
 
+  // Handle "YYYY-MM-DD HH:MM:SS" format (with space)
+  if (dateStr.includes(' ') && !dateStr.includes('T')) {
+    // Replace space with T and add Z for UTC
+    return dateStr.replace(' ', 'T') + 'Z';
+  }
+
   // Parse the date string and convert to ISO 8601 format
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    // If parsing failed, try to fix common formats
+    console.error('Failed to parse date:', dateStr);
+    throw new Error(`Invalid date format: ${dateStr}`);
+  }
   return date.toISOString();
 }
 
