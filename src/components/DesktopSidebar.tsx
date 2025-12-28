@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
   Clock, List, Calendar,
-  Ticket, Monitor, Bell, Wrench,
-  BarChart3, Wallet, FileText, FileSignature, Share2,
+  Ticket, Monitor, Bell, Wrench, Mail,
+  BarChart3, Wallet, FileText, FileSignature, Share2, FileInput,
   Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo,
   ChevronLeft, ChevronRight, Shield
 } from 'lucide-react';
@@ -35,6 +35,7 @@ const areaConfig = {
     label: 'Support',
     subViews: [
       { view: 'tickets' as SubView, icon: Ticket, label: 'Tickets' },
+      { view: 'inbox' as SubView, icon: Mail, label: 'E-Mail' },
       { view: 'devices' as SubView, icon: Monitor, label: 'Geräte' },
       { view: 'alerts' as SubView, icon: Bell, label: 'Alerts' },
       { view: 'maintenance' as SubView, icon: Wrench, label: 'Wartung' },
@@ -45,6 +46,7 @@ const areaConfig = {
     label: 'Business',
     subViews: [
       { view: 'dashboard' as SubView, icon: BarChart3, label: 'Dashboard' },
+      { view: 'invoices' as SubView, icon: FileInput, label: 'Rechnungen' },
       { view: 'contracts' as SubView, icon: FileSignature, label: 'Verträge' },
       { view: 'billing' as SubView, icon: Wallet, label: 'Finanzen' },
       { view: 'social-media' as SubView, icon: Share2, label: 'Social Media' },

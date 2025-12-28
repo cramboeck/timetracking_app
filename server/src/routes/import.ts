@@ -4,6 +4,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { auditLog } from '../services/auditLog';
 import { transformRows } from '../utils/dbTransform';
+import * as clockodoService from '../services/clockodoService';
 import fs from 'fs';
 import path from 'path';
 
@@ -610,8 +611,6 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
 // ============================================
 // Clockodo API Import (direct API access)
 // ============================================
-
-import * as clockodoService from '../services/clockodoService';
 
 // GET /api/import/clockodo/api/config - Get Clockodo API config
 router.get('/clockodo/api/config', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
