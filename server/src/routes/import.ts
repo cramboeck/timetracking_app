@@ -673,10 +673,17 @@ router.post('/clockodo/api/config', authenticateToken, attachOrganization, requi
 // POST /api/import/clockodo/api/test - Test Clockodo API connection
 router.post('/clockodo/api/test', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
   try {
+    console.log('[Clockodo Test] Request body:', JSON.stringify(req.body));
+    console.log('[Clockodo Test] Content-Type:', req.headers['content-type']);
+
     const { apiEmail, apiKey } = req.body;
 
     if (!apiEmail || !apiKey) {
-      return res.status(400).json({ error: 'API email and key are required' });
+      console.log('[Clockodo Test] Missing credentials - apiEmail:', !!apiEmail, 'apiKey:', !!apiKey);
+      return res.status(400).json({
+        error: 'API email and key are required',
+        debug: { hasEmail: !!apiEmail, hasKey: !!apiKey, bodyKeys: Object.keys(req.body || {}) }
+      });
     }
 
     const result = await clockodoService.testConnection(apiEmail, apiKey);
