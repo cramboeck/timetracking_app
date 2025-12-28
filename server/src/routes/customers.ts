@@ -196,6 +196,10 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       fields.push(`vendor_notes = $${paramCount++}`);
       values.push(updates.vendorNotes || null);
     }
+    if (updates.defaultProjectId !== undefined) {
+      fields.push(`default_project_id = $${paramCount++}`);
+      values.push(updates.defaultProjectId || null);
+    }
 
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });

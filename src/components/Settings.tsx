@@ -114,6 +114,7 @@ export const Settings = ({
   const [customerDisplayName, setCustomerDisplayName] = useState('');
   const [customerImportAliases, setCustomerImportAliases] = useState('');
   const [customerType, setCustomerType] = useState<'company' | 'individual'>('company');
+  const [customerDefaultProjectId, setCustomerDefaultProjectId] = useState('');
 
   // CSV Import
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -196,6 +197,7 @@ export const Settings = ({
       setCustomerDisplayName(customer.displayName || '');
       setCustomerImportAliases(customer.importAliases?.join(', ') || '');
       setCustomerType(customer.customerType || 'company');
+      setCustomerDefaultProjectId(customer.defaultProjectId || '');
     } else {
       setEditingCustomer(null);
       setCustomerName('');
@@ -212,6 +214,7 @@ export const Settings = ({
       setCustomerPaymentTermsDays('14');
       setCustomerNinjarmmOrgId('');
       setCustomerType('company');
+      setCustomerDefaultProjectId('');
     }
     setCustomerModalOpen(true);
   };
@@ -348,7 +351,8 @@ export const Settings = ({
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
         displayName: customerDisplayName.trim() || undefined,
         importAliases: importAliasesValue,
-        customerType: customerType
+        customerType: customerType,
+        defaultProjectId: customerDefaultProjectId || undefined
       });
     } else {
       onAddCustomer({
@@ -368,6 +372,7 @@ export const Settings = ({
         displayName: customerDisplayName.trim() || undefined,
         importAliases: importAliasesValue,
         customerType: customerType,
+        defaultProjectId: customerDefaultProjectId || undefined,
         createdAt: new Date().toISOString()
       });
     }
@@ -2890,6 +2895,31 @@ export const Settings = ({
                     Komma-getrennte Namen für CSV-Import
                   </p>
                 </div>
+
+                {/* Default Project - only show when editing existing customer */}
+                {editingCustomer && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Standard-Projekt
+                    </label>
+                    <select
+                      value={customerDefaultProjectId}
+                      onChange={(e) => setCustomerDefaultProjectId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    >
+                      <option value="">— Kein Standard-Projekt —</option>
+                      {projects
+                        .filter(p => p.customerId === editingCustomer.id)
+                        .map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))
+                      }
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Fallback-Projekt für Import ohne Projektzuordnung
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Section: Abrechnung - only show if billing is enabled */}
