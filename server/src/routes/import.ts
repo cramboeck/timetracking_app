@@ -907,9 +907,9 @@ router.post('/create-default-projects', authenticateToken, attachOrganization, r
         projectId = uuidv4();
         projectName = 'Standard';
         await pool.query(
-          `INSERT INTO projects (id, organization_id, customer_id, name, hourly_rate, is_active, rate_type, created_at)
-           VALUES ($1, $2, $3, $4, 0, true, 'hourly', NOW())`,
-          [projectId, organizationId, customer.id, projectName]
+          `INSERT INTO projects (id, user_id, organization_id, customer_id, name, hourly_rate, is_active, rate_type, created_at)
+           VALUES ($1, $2, $3, $4, $5, 0, true, 'hourly', NOW())`,
+          [projectId, userId, organizationId, customer.id, projectName]
         );
         created++;
         logImport(`Created "Standard" project for customer "${customer.name}"`, { projectId });
