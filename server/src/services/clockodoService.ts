@@ -199,14 +199,17 @@ export async function testConnection(
   apiKey: string
 ): Promise<{ success: boolean; userName?: string; companyName?: string; error?: string }> {
   try {
-    const response = await clockodoFetch(apiEmail, apiKey, '/user');
+    // Use /aggregates/users/me to get current user info
+    // See: https://www.clockodo.com/en/api/aggregates/users/me/
+    const response = await clockodoFetch(apiEmail, apiKey, '/aggregates/users/me');
     const user = response.user;
+    const company = response.company;
 
     if (user) {
       return {
         success: true,
         userName: normalizeText(user.name),
-        companyName: normalizeText(user.companiesName),
+        companyName: normalizeText(company?.name || user.companiesName),
       };
     }
 
