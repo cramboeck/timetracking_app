@@ -341,10 +341,25 @@ function formatDateForApi(dateStr: string): string {
 }
 
 // Parse Clockodo date to ISO string
-function parseClockodoDate(dateStr: string): string {
-  // Clockodo returns dates in format "YYYY-MM-DD HH:MM:SS"
-  // Convert to ISO format for PostgreSQL
-  return new Date(dateStr.replace(' ', 'T') + 'Z').toISOString();
+function parseClockodoDate(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+
+  try {
+    // Clockodo returns dates in format "YYYY-MM-DD HH:MM:SS"
+    // Convert to ISO format for PostgreSQL
+    const date = new Date(dateStr.replace(' ', 'T') + 'Z');
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      console.warn(`Invalid Clockodo date: ${dateStr}`);
+      return null;
+    }
+
+    return date.toISOString();
+  } catch (err) {
+    console.warn(`Failed to parse Clockodo date: ${dateStr}`, err);
+    return null;
+  }
 }
 
 // Get all entries for a date range (handles pagination)
@@ -828,6 +843,13 @@ export async function executeApiImport(
       // Parse dates
       const startTime = parseClockodoDate(entry.timeSince);
       const endTime = parseClockodoDate(entry.timeUntil);
+
+      // Skip entries with invalid dates
+      if (!startTime || !endTime) {
+        errors.push(`Eintrag ${entry.id}: Ungültiges Datum (Start: ${entry.timeSince}, Ende: ${entry.timeUntil})`);
+        skippedCount++;
+        continue;
+      }
 
       // Check for duplicates using Clockodo entry ID (100% reliable)
       const clockodoEntryId = String(entry.id);
