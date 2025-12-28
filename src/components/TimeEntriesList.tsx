@@ -460,31 +460,31 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-6 pb-4 z-10">
-        <div className="flex justify-between items-start mb-4">
+      <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-3 sm:p-6 pb-3 sm:pb-4 z-10">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-0 mb-3 sm:mb-4">
           <div>
-            <h1 className="text-2xl font-bold mb-2 dark:text-white">Übersicht</h1>
-            <div className="text-lg font-semibold text-accent-primary">
+            <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Übersicht</h1>
+            <div className="text-base sm:text-lg font-semibold text-accent-primary">
               Gesamt: {formatDuration(totalHours)}
               {hasActiveFilters && (
-                <span className="text-sm font-normal text-gray-500 ml-2">
-                  ({filteredEntries.length} von {entries.length} Einträgen)
+                <span className="text-xs sm:text-sm font-normal text-gray-500 ml-2">
+                  ({filteredEntries.length}/{entries.length})
                 </span>
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 sm:gap-2">
             {/* View Toggle */}
             <button
               onClick={() => setCompactView(!compactView)}
-              className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              className="flex items-center gap-2 p-2 sm:px-3 sm:py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
               title={compactView ? 'Normale Ansicht' : 'Kompakte Ansicht'}
             >
               {compactView ? <LayoutGrid size={18} /> : <List size={18} />}
             </button>
             <button
               onClick={toggleSelectionMode}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+              className={`flex items-center gap-2 p-2 sm:px-3 sm:py-2 rounded-lg transition-colors ${
                 selectionMode
                   ? 'bg-accent-primary text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -496,7 +496,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
             </button>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+              className={`flex items-center gap-2 p-2 sm:px-3 sm:py-2 rounded-lg transition-colors ${
                 showFilters || hasActiveFilters
                   ? 'bg-accent-primary text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -508,7 +508,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
             </button>
             <button
               onClick={exportToCSV}
-              className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 p-2 sm:px-3 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
               <Download size={18} />
               <span className="hidden sm:inline">CSV Export</span>
@@ -720,7 +720,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       </div>
 
       {/* Entry List */}
-      <div className="flex-1 overflow-y-auto p-6 pt-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 pt-3 sm:pt-4">
         {filteredEntries.length === 0 ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <Filter size={48} className="mx-auto mb-4 opacity-50" />
@@ -734,9 +734,9 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           </div>
         ) : (
           Object.entries(groupedEntries).map(([date, dateEntries]) => (
-            <div key={date} className={compactView ? 'mb-3' : 'mb-6'}>
-              <h2 className={`font-semibold text-gray-600 dark:text-gray-400 ${compactView ? 'text-xs mb-1.5' : 'text-sm mb-3'}`}>{date}</h2>
-              <div className={compactView ? 'space-y-1' : 'space-y-3'}>
+            <div key={date} className={compactView ? 'mb-2 sm:mb-3' : 'mb-4 sm:mb-6'}>
+              <h2 className={`font-semibold text-gray-600 dark:text-gray-400 ${compactView ? 'text-xs mb-1' : 'text-sm mb-2 sm:mb-3'}`}>{date}</h2>
+              <div className={compactView ? 'space-y-1' : 'space-y-2 sm:space-y-3'}>
                 {dateEntries.map((entry) => {
                   const project = getProjectById(entry.projectId);
                   const customer = project ? getCustomerById(project.customerId) : null;
@@ -746,71 +746,141 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                     return (
                       <div
                         key={entry.id}
-                        className={`bg-white dark:bg-gray-800 rounded border px-3 py-1.5 transition-colors flex items-center gap-2 ${
+                        className={`bg-white dark:bg-gray-800 rounded border px-3 py-1.5 sm:py-1.5 transition-colors ${
                           selectedEntries.has(entry.id)
                             ? 'border-accent-primary ring-1 ring-accent-primary/20'
                             : 'border-gray-200 dark:border-gray-700'
                         }`}
                       >
-                        {selectionMode && (
-                          <button
-                            onClick={() => toggleEntrySelection(entry.id)}
-                            className="text-gray-400 hover:text-accent-primary transition-colors flex-shrink-0"
-                          >
-                            {selectedEntries.has(entry.id) ? (
-                              <CheckSquare size={16} className="text-accent-primary" />
-                            ) : (
-                              <Square size={16} />
-                            )}
-                          </button>
-                        )}
-                        {customer && (
-                          <div
-                            className="w-3 h-3 rounded flex-shrink-0"
-                            style={{ backgroundColor: customer.color }}
-                          />
-                        )}
-                        <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-shrink-0 max-w-[200px]">
-                          {getProjectDisplay(entry)}
-                        </span>
-                        {entry.description && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex-1 min-w-0">
-                            {entry.description}
-                          </span>
-                        )}
-                        <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 ml-auto">
-                          {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
-                        </span>
-                        <span className="font-semibold text-sm text-accent-primary flex-shrink-0 w-16 text-right">
-                          {formatDuration(entry.duration)}
-                        </span>
-                        {!selectionMode && (
-                          <div className="flex gap-0.5 flex-shrink-0">
-                            {onRepeatEntry && !entry.isRunning && (
+                        {/* Mobile: Two rows layout */}
+                        <div className="flex sm:hidden flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            {selectionMode && (
                               <button
-                                onClick={() => setRepeatConfirm({ isOpen: true, entry })}
-                                className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                title="Wiederholen"
+                                onClick={() => toggleEntrySelection(entry.id)}
+                                className="text-gray-400 hover:text-accent-primary transition-colors flex-shrink-0"
                               >
-                                <RotateCcw size={14} />
+                                {selectedEntries.has(entry.id) ? (
+                                  <CheckSquare size={16} className="text-accent-primary" />
+                                ) : (
+                                  <Square size={16} />
+                                )}
                               </button>
                             )}
-                            <button
-                              onClick={() => openEditModal(entry)}
-                              className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                              title="Bearbeiten"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteClick(entry)}
-                              className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                              title="Löschen"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            {customer && (
+                              <div
+                                className="w-3 h-3 rounded flex-shrink-0"
+                                style={{ backgroundColor: customer.color }}
+                              />
+                            )}
+                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-1">
+                              {getProjectDisplay(entry)}
+                            </span>
+                            {!selectionMode && (
+                              <div className="flex gap-0.5 flex-shrink-0">
+                                {onRepeatEntry && !entry.isRunning && (
+                                  <button
+                                    onClick={() => setRepeatConfirm({ isOpen: true, entry })}
+                                    className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                    title="Wiederholen"
+                                  >
+                                    <RotateCcw size={14} />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => openEditModal(entry)}
+                                  className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                  title="Bearbeiten"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClick(entry)}
+                                  className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                  title="Löschen"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        )}
+                          <div className="flex items-center justify-between pl-5">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex-1">
+                              {entry.description || ''}
+                            </span>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-xs text-gray-400 dark:text-gray-500">
+                                {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
+                              </span>
+                              <span className="font-semibold text-sm text-accent-primary">
+                                {formatDuration(entry.duration)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Desktop: Single row layout */}
+                        <div className="hidden sm:flex items-center gap-2">
+                          {selectionMode && (
+                            <button
+                              onClick={() => toggleEntrySelection(entry.id)}
+                              className="text-gray-400 hover:text-accent-primary transition-colors flex-shrink-0"
+                            >
+                              {selectedEntries.has(entry.id) ? (
+                                <CheckSquare size={16} className="text-accent-primary" />
+                              ) : (
+                                <Square size={16} />
+                              )}
+                            </button>
+                          )}
+                          {customer && (
+                            <div
+                              className="w-3 h-3 rounded flex-shrink-0"
+                              style={{ backgroundColor: customer.color }}
+                            />
+                          )}
+                          <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-shrink-0 max-w-[200px]">
+                            {getProjectDisplay(entry)}
+                          </span>
+                          {entry.description && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex-1 min-w-0">
+                              {entry.description}
+                            </span>
+                          )}
+                          <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 ml-auto">
+                            {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
+                          </span>
+                          <span className="font-semibold text-sm text-accent-primary flex-shrink-0 w-16 text-right">
+                            {formatDuration(entry.duration)}
+                          </span>
+                          {!selectionMode && (
+                            <div className="flex gap-0.5 flex-shrink-0">
+                              {onRepeatEntry && !entry.isRunning && (
+                                <button
+                                  onClick={() => setRepeatConfirm({ isOpen: true, entry })}
+                                  className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                  title="Wiederholen"
+                                >
+                                  <RotateCcw size={14} />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => openEditModal(entry)}
+                                className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                title="Bearbeiten"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteClick(entry)}
+                                className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                title="Löschen"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   }
