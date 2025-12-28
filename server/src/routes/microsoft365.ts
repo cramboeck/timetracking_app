@@ -490,7 +490,10 @@ router.get('/documents/:id/download', requireOrgRole('member'), async (req: Auth
     res.setHeader('Content-Type', document.mimeType);
     res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(document.originalFilename)}"`);
     res.setHeader('Content-Length', fileBuffer.length);
-    res.setHeader('Cache-Control', 'no-cache');
+    // Prevent caching by browsers and service workers
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
     // Send the entire file at once
     res.send(fileBuffer);
