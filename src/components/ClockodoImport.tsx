@@ -384,6 +384,9 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                     type="email"
                     name="clockodo_email"
                     autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
+                    data-form-type="other"
                     value={apiEmail}
                     onChange={(e) => { setApiEmail(e.target.value); setConnectionTested(false); }}
                     placeholder="ihre-email@firma.de"
@@ -400,6 +403,9 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                       type="password"
                       name="clockodo_api_key"
                       autoComplete="new-password"
+                      data-1p-ignore
+                      data-lpignore="true"
+                      data-form-type="other"
                       value={apiKey}
                       onChange={(e) => { setApiKey(e.target.value); setConnectionTested(false); }}
                       placeholder="Ihr Clockodo API Key"
