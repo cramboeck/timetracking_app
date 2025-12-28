@@ -134,5 +134,63 @@ export const adminApi = {
       method: 'DELETE',
       body: JSON.stringify({ olderThanDays })
     });
+  },
+
+  // System Status
+  getSystemStatus: async () => {
+    return adminFetch('/admin/system/status');
+  },
+
+  // Database Statistics
+  getDatabaseStats: async () => {
+    return adminFetch('/admin/database/stats');
+  },
+
+  runVacuum: async (table?: string) => {
+    return adminFetch('/admin/database/vacuum', {
+      method: 'POST',
+      body: JSON.stringify({ table })
+    });
+  },
+
+  // Security / Sessions
+  getSecurityData: async () => {
+    return adminFetch('/admin/security/sessions');
+  },
+
+  invalidateUserSessions: async (userId: string) => {
+    return adminFetch(`/admin/security/sessions/${userId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // System Logs
+  getSystemLogs: async (lines: number = 100, type: string = 'app') => {
+    const params = new URLSearchParams({ lines: lines.toString(), type });
+    return adminFetch(`/admin/system/logs?${params}`);
+  },
+
+  // System Notifications
+  getNotifications: async () => {
+    return adminFetch('/admin/notifications');
+  },
+
+  createNotification: async (title: string, message: string, type: string = 'info', expiresAt?: string) => {
+    return adminFetch('/admin/notifications', {
+      method: 'POST',
+      body: JSON.stringify({ title, message, type, expiresAt })
+    });
+  },
+
+  deleteNotification: async (id: string) => {
+    return adminFetch(`/admin/notifications/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  toggleNotification: async (id: string) => {
+    return adminFetch(`/admin/notifications/${id}/toggle`, {
+      method: 'PUT'
+    });
   }
 };

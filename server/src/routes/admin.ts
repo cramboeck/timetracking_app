@@ -1110,4 +1110,495 @@ router.delete('/backups', async (req: AuthRequest, res) => {
   }
 });
 
+// ============================================
+// SYSTEM STATUS / HEALTH CHECK
+// ============================================
+
+// GET /api/admin/system/status - Get system health status
+router.get('/system/status', async (req, res) => {
+  try {
+    const status: any = {
+      timestamp: new Date().toISOString(),
+      database: { status: 'unknown', latency: 0 },
+      docker: { containers: [] },
+      disk: { used: 0, total: 0, percentage: 0 },
+      memory: { used: 0, total: 0, percentage: 0 },
+      uptime: process.uptime()
+    };
+
+    // Check database connection
+    const dbStart = Date.now();
+    try {
+      await pool.query('SELECT 1');
+      status.database = {
+        status: 'connected',
+        latency: Date.now() - dbStart
+      };
+    } catch (dbError: any) {
+      status.database = {
+        status: 'error',
+        error: dbError.message,
+        latency: Date.now() - dbStart
+      };
+    }
+
+    // Check Docker containers
+    try {
+      const { stdout } = await execAsync(
+        'docker ps --format "{{.Names}}|{{.Status}}|{{.Image}}" 2>/dev/null || echo ""',
+        { timeout: 10000 }
+      );
+      if (stdout.trim()) {
+        status.docker.containers = stdout.trim().split('\n').map(line => {
+          const [name, containerStatus, image] = line.split('|');
+          return { name, status: containerStatus, image };
+        });
+      }
+    } catch {
+      status.docker.error = 'Docker nicht verfügbar';
+    }
+
+    // Check disk usage
+    try {
+      const { stdout } = await execAsync(
+        "df -h / | tail -1 | awk '{print $2,$3,$5}'",
+        { timeout: 5000 }
+      );
+      const [total, used, percentage] = stdout.trim().split(' ');
+      status.disk = {
+        total,
+        used,
+        percentage: parseInt(percentage) || 0
+      };
+    } catch {
+      status.disk.error = 'Festplatteninfo nicht verfügbar';
+    }
+
+    // Check memory usage
+    try {
+      const { stdout } = await execAsync(
+        "free -h | grep Mem | awk '{print $2,$3}'",
+        { timeout: 5000 }
+      );
+      const [total, used] = stdout.trim().split(' ');
+      const memInfo = await execAsync("free | grep Mem | awk '{print $2,$3}'", { timeout: 5000 });
+      const [totalBytes, usedBytes] = memInfo.stdout.trim().split(' ').map(Number);
+      status.memory = {
+        total,
+        used,
+        percentage: Math.round((usedBytes / totalBytes) * 100)
+      };
+    } catch {
+      status.memory.error = 'Speicherinfo nicht verfügbar';
+    }
+
+    res.json(status);
+  } catch (error: any) {
+    console.error('Error fetching system status:', error);
+    res.status(500).json({ error: 'Failed to fetch system status' });
+  }
+});
+
+// ============================================
+// DATABASE STATISTICS
+// ============================================
+
+// GET /api/admin/database/stats - Get database statistics
+router.get('/database/stats', async (req, res) => {
+  try {
+    // Get table sizes
+    const tableSizes = await pool.query(`
+      SELECT
+        relname as table_name,
+        pg_size_pretty(pg_total_relation_size(relid)) as total_size,
+        pg_total_relation_size(relid) as size_bytes,
+        n_live_tup as row_count
+      FROM pg_stat_user_tables
+      ORDER BY pg_total_relation_size(relid) DESC
+    `);
+
+    // Get database size
+    const dbSize = await pool.query(`
+      SELECT pg_size_pretty(pg_database_size(current_database())) as size
+    `);
+
+    // Get connection stats
+    const connections = await pool.query(`
+      SELECT
+        count(*) as total,
+        count(*) FILTER (WHERE state = 'active') as active,
+        count(*) FILTER (WHERE state = 'idle') as idle
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+    `);
+
+    // Get index usage
+    const indexUsage = await pool.query(`
+      SELECT
+        schemaname,
+        relname as table_name,
+        indexrelname as index_name,
+        idx_scan as scans,
+        pg_size_pretty(pg_relation_size(indexrelid)) as size
+      FROM pg_stat_user_indexes
+      ORDER BY idx_scan DESC
+      LIMIT 20
+    `);
+
+    // Get cache hit ratio
+    const cacheRatio = await pool.query(`
+      SELECT
+        sum(heap_blks_hit) / NULLIF(sum(heap_blks_hit) + sum(heap_blks_read), 0) * 100 as ratio
+      FROM pg_statio_user_tables
+    `);
+
+    // Get slow queries (if pg_stat_statements is available)
+    let slowQueries: any[] = [];
+    try {
+      const slowQueryResult = await pool.query(`
+        SELECT
+          query,
+          calls,
+          mean_exec_time as avg_time_ms,
+          total_exec_time as total_time_ms
+        FROM pg_stat_statements
+        WHERE userid = (SELECT usesysid FROM pg_user WHERE usename = current_user)
+        ORDER BY mean_exec_time DESC
+        LIMIT 10
+      `);
+      slowQueries = slowQueryResult.rows;
+    } catch {
+      // pg_stat_statements not available
+    }
+
+    res.json({
+      databaseSize: dbSize.rows[0]?.size || 'Unknown',
+      tables: tableSizes.rows,
+      connections: connections.rows[0] || { total: 0, active: 0, idle: 0 },
+      indexes: indexUsage.rows,
+      cacheHitRatio: cacheRatio.rows[0]?.ratio?.toFixed(2) || '0',
+      slowQueries
+    });
+  } catch (error: any) {
+    console.error('Error fetching database stats:', error);
+    res.status(500).json({ error: 'Failed to fetch database statistics' });
+  }
+});
+
+// POST /api/admin/database/vacuum - Run VACUUM ANALYZE
+router.post('/database/vacuum', async (req: AuthRequest, res) => {
+  try {
+    const { table } = req.body;
+
+    if (table) {
+      // Validate table name to prevent SQL injection
+      const validTables = await pool.query(
+        "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+      );
+      const tableNames = validTables.rows.map((r: any) => r.tablename);
+      if (!tableNames.includes(table)) {
+        return res.status(400).json({ error: 'Ungültige Tabelle' });
+      }
+      await pool.query(`VACUUM ANALYZE ${table}`);
+    } else {
+      await pool.query('VACUUM ANALYZE');
+    }
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'database.vacuum',
+      details: JSON.stringify({ table: table || 'all' }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, message: 'VACUUM ANALYZE erfolgreich ausgeführt' });
+  } catch (error: any) {
+    console.error('Error running vacuum:', error);
+    res.status(500).json({ error: `VACUUM fehlgeschlagen: ${error.message}` });
+  }
+});
+
+// ============================================
+// SECURITY / SESSIONS
+// ============================================
+
+// GET /api/admin/security/sessions - Get active sessions
+router.get('/security/sessions', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    // Get active sessions from tokens table if exists
+    let sessions: any[] = [];
+    try {
+      const result = await pool.query(`
+        SELECT
+          s.id,
+          s.user_id,
+          u.username,
+          u.email,
+          s.created_at,
+          s.last_activity,
+          s.ip_address,
+          s.user_agent
+        FROM user_sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.expires_at > NOW()
+        ORDER BY s.last_activity DESC
+        LIMIT $1 OFFSET $2
+      `, [limit, offset]);
+      sessions = result.rows;
+    } catch {
+      // Sessions table might not exist, try refresh_tokens
+      try {
+        const result = await pool.query(`
+          SELECT
+            rt.id,
+            rt.user_id,
+            u.username,
+            u.email,
+            rt.created_at,
+            rt.expires_at
+          FROM refresh_tokens rt
+          JOIN users u ON rt.user_id = u.id
+          WHERE rt.expires_at > NOW()
+          ORDER BY rt.created_at DESC
+          LIMIT $1 OFFSET $2
+        `, [limit, offset]);
+        sessions = result.rows;
+      } catch {
+        // No session tracking available
+      }
+    }
+
+    // Get login attempts from audit log
+    const loginAttempts = await pool.query(`
+      SELECT
+        action,
+        COUNT(*) as count,
+        MAX(timestamp) as last_attempt
+      FROM audit_logs
+      WHERE action IN ('login.success', 'login.failed', 'login.mfa_failed')
+        AND timestamp > NOW() - INTERVAL '24 hours'
+      GROUP BY action
+    `);
+
+    // Get failed logins by IP
+    const failedByIp = await pool.query(`
+      SELECT
+        ip_address,
+        COUNT(*) as attempts,
+        MAX(timestamp) as last_attempt
+      FROM audit_logs
+      WHERE action = 'login.failed'
+        AND timestamp > NOW() - INTERVAL '24 hours'
+      GROUP BY ip_address
+      ORDER BY attempts DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      sessions,
+      loginStats: {
+        attempts: loginAttempts.rows.reduce((acc: any, row: any) => {
+          acc[row.action] = parseInt(row.count);
+          return acc;
+        }, {}),
+        failedByIp: failedByIp.rows
+      }
+    });
+  } catch (error: any) {
+    console.error('Error fetching security data:', error);
+    res.status(500).json({ error: 'Failed to fetch security data' });
+  }
+});
+
+// DELETE /api/admin/security/sessions/:userId - Invalidate user sessions
+router.delete('/security/sessions/:userId', async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Try to delete from user_sessions
+    try {
+      await pool.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+    } catch {
+      // Try refresh_tokens
+      await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
+    }
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'security.sessions_invalidated',
+      details: JSON.stringify({ targetUserId: userId }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, message: 'Sessions invalidiert' });
+  } catch (error: any) {
+    console.error('Error invalidating sessions:', error);
+    res.status(500).json({ error: 'Failed to invalidate sessions' });
+  }
+});
+
+// ============================================
+// SYSTEM LOGS
+// ============================================
+
+// GET /api/admin/system/logs - Get application logs
+router.get('/system/logs', async (req, res) => {
+  try {
+    const lines = parseInt(req.query.lines as string) || 100;
+    const logType = req.query.type as string || 'app';
+
+    let logPath: string;
+    switch (logType) {
+      case 'error':
+        logPath = '/var/log/app/error.log';
+        break;
+      case 'access':
+        logPath = '/var/log/app/access.log';
+        break;
+      default:
+        logPath = '/var/log/app/app.log';
+    }
+
+    let logs: string[] = [];
+
+    // Try to read log file
+    try {
+      if (fs.existsSync(logPath)) {
+        const { stdout } = await execAsync(`tail -n ${lines} "${logPath}"`, { timeout: 10000 });
+        logs = stdout.split('\n').filter(Boolean).reverse();
+      }
+    } catch {
+      // Log file not accessible, try docker logs
+      try {
+        const containerName = process.env.APP_CONTAINER || 'timetracking-app';
+        const { stdout } = await execAsync(
+          `docker logs --tail ${lines} ${containerName} 2>&1`,
+          { timeout: 10000 }
+        );
+        logs = stdout.split('\n').filter(Boolean).reverse();
+      } catch {
+        logs = ['Logs nicht verfügbar'];
+      }
+    }
+
+    res.json({ logs, logType });
+  } catch (error: any) {
+    console.error('Error fetching logs:', error);
+    res.status(500).json({ error: 'Failed to fetch logs' });
+  }
+});
+
+// ============================================
+// SYSTEM NOTIFICATIONS
+// ============================================
+
+// GET /api/admin/notifications - Get system notifications
+router.get('/notifications', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM system_notifications
+      ORDER BY created_at DESC
+      LIMIT 50
+    `);
+    res.json({ notifications: result.rows });
+  } catch (error: any) {
+    // Table might not exist
+    if (error.code === '42P01') {
+      res.json({ notifications: [], tableExists: false });
+    } else {
+      console.error('Error fetching notifications:', error);
+      res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+  }
+});
+
+// POST /api/admin/notifications - Create system notification
+router.post('/notifications', async (req: AuthRequest, res) => {
+  try {
+    const { title, message, type = 'info', expiresAt } = req.body;
+
+    if (!title || !message) {
+      return res.status(400).json({ error: 'Titel und Nachricht sind erforderlich' });
+    }
+
+    // Create table if not exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS system_notifications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        type VARCHAR(50) DEFAULT 'info',
+        created_by UUID REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        expires_at TIMESTAMP,
+        is_active BOOLEAN DEFAULT true
+      )
+    `);
+
+    const result = await pool.query(`
+      INSERT INTO system_notifications (title, message, type, created_by, expires_at)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [title, message, type, req.user!.id, expiresAt || null]);
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'notification.create',
+      details: JSON.stringify({ title, type }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, notification: result.rows[0] });
+  } catch (error: any) {
+    console.error('Error creating notification:', error);
+    res.status(500).json({ error: 'Failed to create notification' });
+  }
+});
+
+// DELETE /api/admin/notifications/:id - Delete notification
+router.delete('/notifications/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM system_notifications WHERE id = $1', [id]);
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'notification.delete',
+      details: JSON.stringify({ notificationId: id }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error deleting notification:', error);
+    res.status(500).json({ error: 'Failed to delete notification' });
+  }
+});
+
+// PUT /api/admin/notifications/:id/toggle - Toggle notification active status
+router.put('/notifications/:id/toggle', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(`
+      UPDATE system_notifications
+      SET is_active = NOT is_active
+      WHERE id = $1
+      RETURNING *
+    `, [id]);
+
+    res.json({ success: true, notification: result.rows[0] });
+  } catch (error: any) {
+    console.error('Error toggling notification:', error);
+    res.status(500).json({ error: 'Failed to toggle notification' });
+  }
+});
+
 export default router;

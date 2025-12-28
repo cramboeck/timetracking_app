@@ -20,7 +20,16 @@ import {
   RefreshCw,
   Archive,
   FileArchive,
-  AlertTriangle
+  AlertTriangle,
+  Activity,
+  Server,
+  Cpu,
+  Bell,
+  Plus,
+  Lock,
+  UserX,
+  Terminal,
+  Zap
 } from 'lucide-react';
 import { adminApi } from '../services/adminApi';
 import { useAuth } from '../contexts/AuthContext';
@@ -83,7 +92,42 @@ interface BackupFile {
   compressed: boolean;
 }
 
-type AdminTab = 'dashboard' | 'users' | 'features' | 'audit' | 'backup';
+interface SystemStatus {
+  timestamp: string;
+  database: { status: string; latency: number; error?: string };
+  docker: { containers: Array<{ name: string; status: string; image: string }>; error?: string };
+  disk: { total: string; used: string; percentage: number; error?: string };
+  memory: { total: string; used: string; percentage: number; error?: string };
+  uptime: number;
+}
+
+interface DatabaseStats {
+  databaseSize: string;
+  tables: Array<{ table_name: string; total_size: string; size_bytes: number; row_count: number }>;
+  connections: { total: number; active: number; idle: number };
+  indexes: Array<{ table_name: string; index_name: string; scans: number; size: string }>;
+  cacheHitRatio: string;
+}
+
+interface SecurityData {
+  sessions: Array<{ id: string; user_id: string; username: string; email: string; created_at: string }>;
+  loginStats: {
+    attempts: Record<string, number>;
+    failedByIp: Array<{ ip_address: string; attempts: number; last_attempt: string }>;
+  };
+}
+
+interface SystemNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  created_at: string;
+  expires_at: string | null;
+  is_active: boolean;
+}
+
+type AdminTab = 'dashboard' | 'users' | 'features' | 'audit' | 'backup' | 'system' | 'database' | 'security' | 'logs' | 'notifications';
 
 export default function AdminPortal() {
   const { currentUser } = useAuth();
@@ -122,6 +166,30 @@ export default function AdminPortal() {
   const [backupCreating, setBackupCreating] = useState(false);
   const [backupRestoring, setBackupRestoring] = useState<string | null>(null);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState<string | null>(null);
+
+  // System status state
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [systemStatusLoading, setSystemStatusLoading] = useState(false);
+
+  // Database stats state
+  const [databaseStats, setDatabaseStats] = useState<DatabaseStats | null>(null);
+  const [databaseStatsLoading, setDatabaseStatsLoading] = useState(false);
+  const [vacuumRunning, setVacuumRunning] = useState(false);
+
+  // Security state
+  const [securityData, setSecurityData] = useState<SecurityData | null>(null);
+  const [securityLoading, setSecurityLoading] = useState(false);
+
+  // Logs state
+  const [logs, setLogs] = useState<string[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logType, setLogType] = useState<string>('app');
+
+  // Notifications state
+  const [notifications, setNotifications] = useState<SystemNotification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [newNotification, setNewNotification] = useState({ title: '', message: '', type: 'info' });
+  const [showNotificationForm, setShowNotificationForm] = useState(false);
 
   // Check if user is admin
   const isAdmin = currentUser?.role === 'admin';
@@ -289,6 +357,162 @@ export default function AdminPortal() {
     }
   };
 
+  // Load system status
+  useEffect(() => {
+    if (activeTab !== 'system' || !isAdmin) return;
+    loadSystemStatus();
+  }, [activeTab, isAdmin]);
+
+  const loadSystemStatus = async () => {
+    try {
+      setSystemStatusLoading(true);
+      const response = await adminApi.getSystemStatus();
+      setSystemStatus(response);
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Laden des Systemstatus');
+    } finally {
+      setSystemStatusLoading(false);
+    }
+  };
+
+  // Load database stats
+  useEffect(() => {
+    if (activeTab !== 'database' || !isAdmin) return;
+    loadDatabaseStats();
+  }, [activeTab, isAdmin]);
+
+  const loadDatabaseStats = async () => {
+    try {
+      setDatabaseStatsLoading(true);
+      const response = await adminApi.getDatabaseStats();
+      setDatabaseStats(response);
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Laden der Datenbankstatistiken');
+    } finally {
+      setDatabaseStatsLoading(false);
+    }
+  };
+
+  const handleVacuum = async () => {
+    if (!confirm('VACUUM ANALYZE ausführen? Dies kann einige Zeit dauern.')) return;
+    try {
+      setVacuumRunning(true);
+      await adminApi.runVacuum();
+      await loadDatabaseStats();
+    } catch (err: any) {
+      setError(err.message || 'VACUUM fehlgeschlagen');
+    } finally {
+      setVacuumRunning(false);
+    }
+  };
+
+  // Load security data
+  useEffect(() => {
+    if (activeTab !== 'security' || !isAdmin) return;
+    loadSecurityData();
+  }, [activeTab, isAdmin]);
+
+  const loadSecurityData = async () => {
+    try {
+      setSecurityLoading(true);
+      const response = await adminApi.getSecurityData();
+      setSecurityData(response);
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Laden der Sicherheitsdaten');
+    } finally {
+      setSecurityLoading(false);
+    }
+  };
+
+  const handleInvalidateSessions = async (userId: string, username: string) => {
+    if (!confirm(`Alle Sessions von "${username}" invalidieren?`)) return;
+    try {
+      await adminApi.invalidateUserSessions(userId);
+      await loadSecurityData();
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Invalidieren der Sessions');
+    }
+  };
+
+  // Load logs
+  useEffect(() => {
+    if (activeTab !== 'logs' || !isAdmin) return;
+    loadLogs();
+  }, [activeTab, logType, isAdmin]);
+
+  const loadLogs = async () => {
+    try {
+      setLogsLoading(true);
+      const response = await adminApi.getSystemLogs(100, logType);
+      setLogs(response.logs || []);
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Laden der Logs');
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  // Load notifications
+  useEffect(() => {
+    if (activeTab !== 'notifications' || !isAdmin) return;
+    loadNotifications();
+  }, [activeTab, isAdmin]);
+
+  const loadNotifications = async () => {
+    try {
+      setNotificationsLoading(true);
+      const response = await adminApi.getNotifications();
+      setNotifications(response.notifications || []);
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Laden der Benachrichtigungen');
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const handleCreateNotification = async () => {
+    if (!newNotification.title || !newNotification.message) {
+      setError('Titel und Nachricht sind erforderlich');
+      return;
+    }
+    try {
+      await adminApi.createNotification(newNotification.title, newNotification.message, newNotification.type);
+      setNewNotification({ title: '', message: '', type: 'info' });
+      setShowNotificationForm(false);
+      await loadNotifications();
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Erstellen der Benachrichtigung');
+    }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    if (!confirm('Benachrichtigung wirklich löschen?')) return;
+    try {
+      await adminApi.deleteNotification(id);
+      await loadNotifications();
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Löschen');
+    }
+  };
+
+  const handleToggleNotification = async (id: string) => {
+    try {
+      await adminApi.toggleNotification(id);
+      await loadNotifications();
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Umschalten');
+    }
+  };
+
+  const formatUptime = (seconds: number): string => {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    if (days > 0) return `${days}d ${hours}h ${mins}m`;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins}m`;
+  };
+
   // Handle feature toggle
   const handleFeatureToggle = async (userId: string, packageName: string, currentlyEnabled: boolean) => {
     try {
@@ -385,18 +609,18 @@ export default function AdminPortal() {
       )}
 
       {/* Tabs */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex gap-1 px-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+        <div className="flex gap-1 px-4 min-w-max">
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'dashboard'
                 ? 'border-purple-600 text-purple-600'
                 : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
             <BarChart3 size={18} />
-            Dashboard
+            <span className="hidden sm:inline">Dashboard</span>
           </button>
           <button
             onClick={() => setActiveTab('users')}
@@ -433,14 +657,69 @@ export default function AdminPortal() {
           </button>
           <button
             onClick={() => setActiveTab('backup')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'backup'
                 ? 'border-purple-600 text-purple-600'
                 : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
             <HardDrive size={18} />
-            Backup
+            <span className="hidden sm:inline">Backup</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('system')}
+            className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'system'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+            }`}
+          >
+            <Activity size={18} />
+            <span className="hidden sm:inline">System</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('database')}
+            className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'database'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+            }`}
+          >
+            <Database size={18} />
+            <span className="hidden sm:inline">Datenbank</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('security')}
+            className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'security'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+            }`}
+          >
+            <Lock size={18} />
+            <span className="hidden sm:inline">Sicherheit</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'logs'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+            }`}
+          >
+            <Terminal size={18} />
+            <span className="hidden sm:inline">Logs</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('notifications')}
+            className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'notifications'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+            }`}
+          >
+            <Bell size={18} />
+            <span className="hidden sm:inline">Meldungen</span>
           </button>
         </div>
       </div>
@@ -978,6 +1257,514 @@ export default function AdminPortal() {
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* System Status Tab */}
+        {activeTab === 'system' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold dark:text-white">System-Status</h2>
+              <button
+                onClick={loadSystemStatus}
+                disabled={systemStatusLoading}
+                className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={systemStatusLoading ? 'animate-spin' : ''} />
+                Aktualisieren
+              </button>
+            </div>
+
+            {systemStatusLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="animate-spin text-purple-600" size={32} />
+              </div>
+            ) : systemStatus ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Database Status */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`p-2 rounded-lg ${systemStatus.database.status === 'connected' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
+                      <Database className={systemStatus.database.status === 'connected' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} size={20} />
+                    </div>
+                    <div>
+                      <p className="font-medium dark:text-white">Datenbank</p>
+                      <p className={`text-sm ${systemStatus.database.status === 'connected' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {systemStatus.database.status === 'connected' ? 'Verbunden' : 'Fehler'}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Latenz: {systemStatus.database.latency}ms
+                  </p>
+                </div>
+
+                {/* Memory Usage */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                      <Cpu className="text-blue-600 dark:text-blue-400" size={20} />
+                    </div>
+                    <div>
+                      <p className="font-medium dark:text-white">Arbeitsspeicher</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {systemStatus.memory.used} / {systemStatus.memory.total}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full ${systemStatus.memory.percentage > 90 ? 'bg-red-500' : systemStatus.memory.percentage > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                      style={{ width: `${systemStatus.memory.percentage}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{systemStatus.memory.percentage}% belegt</p>
+                </div>
+
+                {/* Disk Usage */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                      <HardDrive className="text-purple-600 dark:text-purple-400" size={20} />
+                    </div>
+                    <div>
+                      <p className="font-medium dark:text-white">Festplatte</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {systemStatus.disk.used} / {systemStatus.disk.total}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full ${systemStatus.disk.percentage > 90 ? 'bg-red-500' : systemStatus.disk.percentage > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                      style={{ width: `${systemStatus.disk.percentage}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{systemStatus.disk.percentage}% belegt</p>
+                </div>
+
+                {/* Uptime */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                      <Clock className="text-orange-600 dark:text-orange-400" size={20} />
+                    </div>
+                    <div>
+                      <p className="font-medium dark:text-white">Server Uptime</p>
+                      <p className="text-xl font-bold text-orange-600 dark:text-orange-400">
+                        {formatUptime(systemStatus.uptime)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Docker Containers */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700 md:col-span-2">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
+                      <Server className="text-cyan-600 dark:text-cyan-400" size={20} />
+                    </div>
+                    <p className="font-medium dark:text-white">Docker Container</p>
+                  </div>
+                  {systemStatus.docker.error ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{systemStatus.docker.error}</p>
+                  ) : systemStatus.docker.containers.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Keine Container gefunden</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {systemStatus.docker.containers.map((container, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${container.status.includes('Up') ? 'bg-green-500' : 'bg-red-500'}`} />
+                            <span className="text-sm font-medium dark:text-white">{container.name}</span>
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">{container.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">Keine Daten verfügbar</p>
+            )}
+          </div>
+        )}
+
+        {/* Database Stats Tab */}
+        {activeTab === 'database' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold dark:text-white">Datenbank-Statistiken</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={loadDatabaseStats}
+                  disabled={databaseStatsLoading}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                >
+                  <RefreshCw size={16} className={databaseStatsLoading ? 'animate-spin' : ''} />
+                  Aktualisieren
+                </button>
+                <button
+                  onClick={handleVacuum}
+                  disabled={vacuumRunning}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {vacuumRunning ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                  VACUUM
+                </button>
+              </div>
+            </div>
+
+            {databaseStatsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="animate-spin text-purple-600" size={32} />
+              </div>
+            ) : databaseStats ? (
+              <div className="space-y-4">
+                {/* Overview Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Datenbankgröße</p>
+                    <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{databaseStats.databaseSize}</p>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Verbindungen</p>
+                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                      {databaseStats.connections.active} <span className="text-sm font-normal text-gray-500">aktiv</span> / {databaseStats.connections.total} <span className="text-sm font-normal text-gray-500">gesamt</span>
+                    </p>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Cache Hit Ratio</p>
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{databaseStats.cacheHitRatio}%</p>
+                  </div>
+                </div>
+
+                {/* Tables */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="font-medium dark:text-white">Tabellen</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Tabelle</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Zeilen</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Größe</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {databaseStats.tables.map((table) => (
+                          <tr key={table.table_name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td className="px-4 py-2 text-sm font-mono dark:text-white">{table.table_name}</td>
+                            <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-gray-400">{table.row_count.toLocaleString()}</td>
+                            <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-gray-400">{table.total_size}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">Keine Daten verfügbar</p>
+            )}
+          </div>
+        )}
+
+        {/* Security Tab */}
+        {activeTab === 'security' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold dark:text-white">Sicherheit & Sessions</h2>
+              <button
+                onClick={loadSecurityData}
+                disabled={securityLoading}
+                className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={securityLoading ? 'animate-spin' : ''} />
+                Aktualisieren
+              </button>
+            </div>
+
+            {securityLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="animate-spin text-purple-600" size={32} />
+              </div>
+            ) : securityData ? (
+              <div className="space-y-4">
+                {/* Login Stats */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="text-green-600 dark:text-green-400" size={24} />
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Erfolgreiche Logins (24h)</p>
+                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                          {securityData.loginStats.attempts['login.success'] || 0}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="text-red-600 dark:text-red-400" size={24} />
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Fehlgeschlagene Logins (24h)</p>
+                        <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                          {securityData.loginStats.attempts['login.failed'] || 0}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-3">
+                      <Lock className="text-orange-600 dark:text-orange-400" size={24} />
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">MFA-Fehler (24h)</p>
+                        <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                          {securityData.loginStats.attempts['login.mfa_failed'] || 0}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Failed by IP */}
+                {securityData.loginStats.failedByIp.length > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                      <h3 className="font-medium dark:text-white">Fehlgeschlagene Logins nach IP (24h)</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 dark:bg-gray-700">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">IP-Adresse</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Versuche</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Letzter Versuch</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {securityData.loginStats.failedByIp.map((item) => (
+                            <tr key={item.ip_address} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                              <td className="px-4 py-2 text-sm font-mono dark:text-white">{item.ip_address}</td>
+                              <td className="px-4 py-2 text-sm text-right text-red-600 dark:text-red-400 font-bold">{item.attempts}</td>
+                              <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-gray-400">{formatDate(item.last_attempt)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Active Sessions */}
+                {securityData.sessions.length > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                      <h3 className="font-medium dark:text-white">Aktive Sessions</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 dark:bg-gray-700">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Benutzer</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Erstellt</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Aktion</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {securityData.sessions.map((session) => (
+                            <tr key={session.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                              <td className="px-4 py-2">
+                                <p className="text-sm font-medium dark:text-white">{session.username}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{session.email}</p>
+                              </td>
+                              <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{formatDate(session.created_at)}</td>
+                              <td className="px-4 py-2 text-right">
+                                <button
+                                  onClick={() => handleInvalidateSessions(session.user_id, session.username)}
+                                  className="p-1 text-red-600 hover:text-red-800 dark:text-red-400"
+                                  title="Sessions invalidieren"
+                                >
+                                  <UserX size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">Keine Daten verfügbar</p>
+            )}
+          </div>
+        )}
+
+        {/* Logs Tab */}
+        {activeTab === 'logs' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <h2 className="text-lg font-semibold dark:text-white">System-Logs</h2>
+              <div className="flex gap-2">
+                <select
+                  value={logType}
+                  onChange={(e) => setLogType(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="app">Application</option>
+                  <option value="error">Error</option>
+                  <option value="access">Access</option>
+                </select>
+                <button
+                  onClick={loadLogs}
+                  disabled={logsLoading}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                >
+                  <RefreshCw size={16} className={logsLoading ? 'animate-spin' : ''} />
+                  Aktualisieren
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-gray-900 rounded-xl shadow-sm border border-gray-700 overflow-hidden">
+              {logsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="animate-spin text-purple-600" size={32} />
+                </div>
+              ) : (
+                <div className="p-4 max-h-[600px] overflow-auto font-mono text-xs text-green-400">
+                  {logs.length === 0 ? (
+                    <p className="text-gray-500">Keine Logs verfügbar</p>
+                  ) : (
+                    logs.map((log, idx) => (
+                      <div key={idx} className="py-0.5 hover:bg-gray-800">
+                        {log}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Notifications Tab */}
+        {activeTab === 'notifications' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold dark:text-white">System-Benachrichtigungen</h2>
+              <button
+                onClick={() => setShowNotificationForm(!showNotificationForm)}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+              >
+                <Plus size={16} />
+                Neue Meldung
+              </button>
+            </div>
+
+            {/* Create Form */}
+            {showNotificationForm && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 space-y-4">
+                <input
+                  type="text"
+                  placeholder="Titel"
+                  value={newNotification.title}
+                  onChange={(e) => setNewNotification(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                />
+                <textarea
+                  placeholder="Nachricht"
+                  value={newNotification.message}
+                  onChange={(e) => setNewNotification(prev => ({ ...prev, message: e.target.value }))}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                />
+                <div className="flex gap-2">
+                  <select
+                    value={newNotification.type}
+                    onChange={(e) => setNewNotification(prev => ({ ...prev, type: e.target.value }))}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="info">Info</option>
+                    <option value="warning">Warnung</option>
+                    <option value="error">Fehler</option>
+                    <option value="success">Erfolg</option>
+                  </select>
+                  <button
+                    onClick={handleCreateNotification}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  >
+                    Erstellen
+                  </button>
+                  <button
+                    onClick={() => setShowNotificationForm(false)}
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white rounded-lg hover:bg-gray-300"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Notifications List */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {notificationsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="animate-spin text-purple-600" size={32} />
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                  <Bell size={48} className="mb-3 opacity-50" />
+                  <p>Keine Benachrichtigungen</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {notifications.map((notification) => (
+                    <div key={notification.id} className={`p-4 ${!notification.is_active ? 'opacity-50' : ''}`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                              notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                              notification.type === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                              notification.type === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                              'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                            }`}>
+                              {notification.type}
+                            </span>
+                            <h3 className="font-medium dark:text-white">{notification.title}</h3>
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{notification.message}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">{formatDate(notification.created_at)}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleToggleNotification(notification.id)}
+                            className={`p-1.5 rounded ${notification.is_active ? 'text-green-600 hover:text-green-800' : 'text-gray-400 hover:text-gray-600'}`}
+                            title={notification.is_active ? 'Deaktivieren' : 'Aktivieren'}
+                          >
+                            {notification.is_active ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteNotification(notification.id)}
+                            className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400"
+                            title="Löschen"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
