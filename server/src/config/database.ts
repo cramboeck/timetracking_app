@@ -263,6 +263,8 @@ export async function initializeDatabase() {
         duration INTEGER,
         description TEXT,
         is_running BOOLEAN DEFAULT FALSE,
+        external_id TEXT,
+        external_source TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
@@ -2675,6 +2677,21 @@ export async function initializeDatabase() {
       END $$;
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_billable ON time_entries(is_billable)');
+
+    // Migration: Add external_id and external_source columns for import tracking (prevents duplicates)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'external_id'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN external_id TEXT;
+          ALTER TABLE time_entries ADD COLUMN external_source TEXT;
+        END IF;
+      END $$;
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_external ON time_entries(organization_id, external_source, external_id)');
 
     // ============================================
     // Clockodo Integration

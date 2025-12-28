@@ -711,16 +711,14 @@ export async function executeApiImport(
   );
   const existingProjects = new Map(projectsResult.rows.map(p => [`${p.customer_name.toLowerCase()}|${p.name.toLowerCase()}`, p]));
 
-  // Get existing time entries for duplicate detection
+  // Get existing Clockodo entry IDs for 100% reliable duplicate detection
   const existingEntriesResult = await query(
-    `SELECT DATE(start_time) as entry_date, duration, description, project_id
-     FROM time_entries WHERE organization_id = $1`,
+    `SELECT external_id FROM time_entries
+     WHERE organization_id = $1 AND external_source = 'clockodo' AND external_id IS NOT NULL`,
     [organizationId]
   );
-  const existingEntryKeys = new Set(
-    existingEntriesResult.rows.map(e =>
-      `${e.entry_date}|${e.duration}|${(e.description || '').substring(0, 100)}|${e.project_id}`
-    )
+  const existingClockodoIds = new Set(
+    existingEntriesResult.rows.map(e => e.external_id)
   );
 
   // Caches for created customers/projects
@@ -823,25 +821,24 @@ export async function executeApiImport(
       // Parse dates
       const startTime = parseClockodoDate(entry.timeSince);
       const endTime = parseClockodoDate(entry.timeUntil);
-      const date = startTime.split('T')[0];
 
-      // Check for duplicates
-      const entryKey = `${date}|${entry.duration}|${(entry.text || '').substring(0, 100)}|${projectId}`;
-      if (skipDuplicates && existingEntryKeys.has(entryKey)) {
+      // Check for duplicates using Clockodo entry ID (100% reliable)
+      const clockodoEntryId = String(entry.id);
+      if (skipDuplicates && existingClockodoIds.has(clockodoEntryId)) {
         duplicateCount++;
         continue;
       }
 
-      // Create time entry
+      // Create time entry with external_id for future duplicate detection
       const entryId = uuidv4();
       await query(
-        `INSERT INTO time_entries (id, user_id, organization_id, project_id, start_time, end_time, duration, description, is_running, is_billable, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, true, NOW())`,
-        [entryId, userId, organizationId, projectId, startTime, endTime, entry.duration, entry.text || '']
+        `INSERT INTO time_entries (id, user_id, organization_id, project_id, start_time, end_time, duration, description, is_running, is_billable, external_id, external_source, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, true, $9, 'clockodo', NOW())`,
+        [entryId, userId, organizationId, projectId, startTime, endTime, entry.duration, entry.text || '', clockodoEntryId]
       );
 
-      // Add to existing keys to prevent duplicates within same import
-      existingEntryKeys.add(entryKey);
+      // Add to existing IDs to prevent duplicates within same import
+      existingClockodoIds.add(clockodoEntryId);
       importedCount++;
     } catch (err: any) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';

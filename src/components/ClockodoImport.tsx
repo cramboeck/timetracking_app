@@ -685,30 +685,9 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                 className="w-5 h-5 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
               />
               <span className="dark:text-gray-300">
-                Duplikate überspringen (gleicher Tag, Dauer, Beschreibung)
+                Duplikate überspringen (bereits importierte Einträge werden erkannt)
               </span>
             </label>
-
-            {/* Default project fallback */}
-            {!createMissingProjects && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Fallback-Projekt (für nicht zugeordnete Einträge)
-                </label>
-                <select
-                  value={defaultProjectId}
-                  onChange={(e) => setDefaultProjectId(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
-                >
-                  <option value="">-- Projekt wählen --</option>
-                  {previewData.existingProjects.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.customerName} - {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             {/* Manual project mapping for unmatched */}
             {previewData.projects.filter(p => !p.matchedId).length > 0 && !createMissingProjects && (
@@ -762,7 +741,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
             </button>
             <button
               onClick={handleImport}
-              disabled={!createMissingProjects && !defaultProjectId}
+              disabled={!createMissingProjects && previewData.projects.filter(p => !p.matchedId).some(p => !projectMapping[`${p.customerName}|${p.name}`])}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Import starten

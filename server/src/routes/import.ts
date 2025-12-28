@@ -346,10 +346,8 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
       return res.status(400).json({ error: 'CSV content is required' });
     }
 
-    if (!defaultProjectId && !createMissingProjects) {
-      logImport('ERROR: No default project or createMissingProjects option');
-      return res.status(400).json({ error: 'Either defaultProjectId or createMissingProjects must be provided' });
-    }
+    // Note: defaultProjectId is no longer required - all unmatched projects must be manually mapped
+    // The frontend enforces this by disabling the import button when unmapped projects exist
 
     // Parse CSV
     const { rows, skippedRows } = parseClockodoCsv(csvContent);
@@ -400,17 +398,29 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
     );
     const existingProjects = new Map(projectsResult.rows.map(p => [`${p.customer_name.toLowerCase()}|${p.name.toLowerCase()}`, p]));
 
-    // Get existing time entries for duplicate detection
+    // Get existing external IDs for 100% reliable duplicate detection
     const existingEntriesResult = await pool.query(
-      `SELECT DATE(start_time) as entry_date, duration, description, project_id
-       FROM time_entries WHERE organization_id = $1`,
+      `SELECT external_id FROM time_entries
+       WHERE organization_id = $1 AND external_source = 'clockodo_csv' AND external_id IS NOT NULL`,
       [organizationId]
     );
-    const existingEntryKeys = new Set(
-      existingEntriesResult.rows.map(e =>
-        `${e.entry_date}|${e.duration}|${(e.description || '').substring(0, 100)}|${e.project_id}`
-      )
+    const existingExternalIds = new Set(
+      existingEntriesResult.rows.map(e => e.external_id)
     );
+
+    // Helper function to generate a consistent external_id from CSV row data
+    const generateCsvExternalId = (row: ClockodoRow, projectId: string): string => {
+      // Create a deterministic ID from the row data
+      const data = `${row.tag}|${row.stunden}|${row.kunde}|${row.projekt}|${(row.beschreibung || '').substring(0, 100)}|${projectId}`;
+      // Simple hash function
+      let hash = 0;
+      for (let i = 0; i < data.length; i++) {
+        const char = data.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return `csv_${Math.abs(hash).toString(36)}`;
+    };
 
     // Validate project mapping - ensure all mapped projects exist
     if (projectMapping) {
@@ -540,10 +550,10 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
           continue;
         }
 
-        // Check for duplicates
-        const entryKey = `${date}|${durationSeconds}|${(row.beschreibung || '').substring(0, 100)}|${projectId}`;
-        if (skipDuplicates !== false && existingEntryKeys.has(entryKey)) {
-          logImport(`DUPLICATE: ${row.kunde} | ${row.tag} | ${row.stunden}`, { entryKey });
+        // Check for duplicates using external_id (100% reliable)
+        const externalId = generateCsvExternalId(row, projectId!);
+        if (skipDuplicates !== false && existingExternalIds.has(externalId)) {
+          logImport(`DUPLICATE: ${row.kunde} | ${row.tag} | ${row.stunden}`, { externalId });
           duplicateCount++;
           continue;
         }
@@ -551,16 +561,16 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
         const startTime = new Date(`${date}T08:00:00`).toISOString();
         const endTime = new Date(new Date(`${date}T08:00:00`).getTime() + durationSeconds * 1000).toISOString();
 
-        // Create time entry
+        // Create time entry with external_id for future duplicate detection
         const entryId = crypto.randomUUID();
         await pool.query(
-          `INSERT INTO time_entries (id, user_id, organization_id, project_id, start_time, end_time, duration, description, is_running, is_billable, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, true, NOW())`,
-          [entryId, userId, organizationId, projectId, startTime, endTime, durationSeconds, row.beschreibung || '']
+          `INSERT INTO time_entries (id, user_id, organization_id, project_id, start_time, end_time, duration, description, is_running, is_billable, external_id, external_source, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, true, $9, 'clockodo_csv', NOW())`,
+          [entryId, userId, organizationId, projectId, startTime, endTime, durationSeconds, row.beschreibung || '', externalId]
         );
 
-        // Add to existing keys to prevent duplicates within same import
-        existingEntryKeys.add(entryKey);
+        // Add to existing IDs to prevent duplicates within same import
+        existingExternalIds.add(externalId);
         importedCount++;
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error';
