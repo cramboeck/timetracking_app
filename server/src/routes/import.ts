@@ -496,9 +496,9 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
                 // Create new customer
                 const newCustomerId = crypto.randomUUID();
                 await pool.query(
-                  `INSERT INTO customers (id, organization_id, name, customer_number, email, color, created_at)
-                   VALUES ($1, $2, $3, $4, '', $5, NOW())`,
-                  [newCustomerId, organizationId, row.kunde, row.kundennummer || null, '#6366f1']
+                  `INSERT INTO customers (id, user_id, organization_id, name, customer_number, email, color, created_at)
+                   VALUES ($1, $2, $3, $4, $5, '', $6, NOW())`,
+                  [newCustomerId, userId, organizationId, row.kunde, row.kundennummer || null, '#6366f1']
                 );
                 customerId = newCustomerId;
                 createdCustomers.set(customerKey, newCustomerId);
@@ -509,9 +509,9 @@ router.post('/clockodo/execute', authenticateToken, attachOrganization, requireO
             if (customerId && !createdProjects.has(projectKey)) {
               const newProjectId = crypto.randomUUID();
               await pool.query(
-                `INSERT INTO projects (id, organization_id, customer_id, name, hourly_rate, is_active, created_at)
-                 VALUES ($1, $2, $3, $4, 0, true, NOW())`,
-                [newProjectId, organizationId, customerId, row.projekt]
+                `INSERT INTO projects (id, user_id, organization_id, customer_id, name, hourly_rate, is_active, created_at)
+                 VALUES ($1, $2, $3, $4, $5, 0, true, NOW())`,
+                [newProjectId, userId, organizationId, customerId, row.projekt]
               );
               projectId = newProjectId;
               createdProjects.set(projectKey, newProjectId);

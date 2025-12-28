@@ -788,9 +788,9 @@ export async function executeApiImport(
         // Create new customer
         const newCustomerId = uuidv4();
         await query(
-          `INSERT INTO customers (id, organization_id, name, customer_number, email, color, created_at)
-           VALUES ($1, $2, $3, $4, '', $5, NOW())`,
-          [newCustomerId, organizationId, clockodoCustomer.name, clockodoCustomer.number || null, '#6366f1']
+          `INSERT INTO customers (id, user_id, organization_id, name, customer_number, email, color, created_at)
+           VALUES ($1, $2, $3, $4, $5, '', $6, NOW())`,
+          [newCustomerId, userId, organizationId, clockodoCustomer.name, clockodoCustomer.number || null, '#6366f1']
         );
         localCustomerId = newCustomerId;
         createdCustomers.set(entry.customersId, newCustomerId);
@@ -826,9 +826,9 @@ export async function executeApiImport(
             // Create new project
             const newProjectId = uuidv4();
             await query(
-              `INSERT INTO projects (id, organization_id, customer_id, name, hourly_rate, is_active, created_at)
-               VALUES ($1, $2, $3, $4, 0, true, NOW())`,
-              [newProjectId, organizationId, localCustomerId, clockodoProject.name]
+              `INSERT INTO projects (id, user_id, organization_id, customer_id, name, hourly_rate, is_active, created_at)
+               VALUES ($1, $2, $3, $4, $5, 0, true, NOW())`,
+              [newProjectId, userId, organizationId, localCustomerId, clockodoProject.name]
             );
             projectId = newProjectId;
             createdProjects.set(createdProjectKey, newProjectId);
