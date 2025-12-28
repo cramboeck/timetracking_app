@@ -345,19 +345,31 @@ function parseClockodoDate(dateStr: string | null | undefined): string | null {
   if (!dateStr) return null;
 
   try {
-    // Clockodo returns dates in format "YYYY-MM-DD HH:MM:SS"
-    // Convert to ISO format for PostgreSQL
-    const date = new Date(dateStr.replace(' ', 'T') + 'Z');
+    let date: Date;
+
+    // Handle different Clockodo date formats:
+    // 1. ISO format: "2024-01-15T10:30:00Z" or "2024-01-15T10:30:00+00:00"
+    // 2. Space-separated: "2024-01-15 10:30:00"
+    if (dateStr.includes('T') || dateStr.includes('Z') || dateStr.includes('+')) {
+      // Already ISO-ish format, parse directly
+      date = new Date(dateStr);
+    } else if (dateStr.includes(' ')) {
+      // Space-separated format "YYYY-MM-DD HH:MM:SS" - treat as UTC
+      date = new Date(dateStr.replace(' ', 'T') + 'Z');
+    } else {
+      // Just a date "YYYY-MM-DD" - treat as UTC midnight
+      date = new Date(dateStr + 'T00:00:00Z');
+    }
 
     // Check if date is valid
     if (isNaN(date.getTime())) {
-      console.warn(`Invalid Clockodo date: ${dateStr}`);
+      console.error(`Invalid Clockodo date format: "${dateStr}"`);
       return null;
     }
 
     return date.toISOString();
   } catch (err) {
-    console.warn(`Failed to parse Clockodo date: ${dateStr}`, err);
+    console.error(`Failed to parse Clockodo date: "${dateStr}"`, err);
     return null;
   }
 }
