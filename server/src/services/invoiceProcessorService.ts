@@ -20,6 +20,17 @@ const pdfParse = require('pdf-parse');
 // PDF to image conversion for Vision API
 import { pdf } from 'pdf-to-img';
 
+// Interface for invoice line items (for MSP rebilling)
+export interface InvoiceLineItem {
+  description: string;
+  customerName: string | null;  // Customer name extracted from invoice (e.g. "Mustermann GmbH")
+  quantity: number | null;
+  unitPrice: number | null;
+  totalPrice: number | null;
+  period: string | null;        // e.g. "01.12.2024 - 31.12.2024"
+  productType: string | null;   // e.g. "Microsoft 365", "Azure", "License"
+}
+
 // Interface for extracted invoice data
 export interface ExtractedInvoiceData {
   supplierName: string | null;
@@ -33,6 +44,7 @@ export interface ExtractedInvoiceData {
   currency: string;
   confidence: number;
   rawText?: string;
+  lineItems?: InvoiceLineItem[];  // Line items for MSP rebilling
 }
 
 export interface ProcessedInvoice {
@@ -1313,14 +1325,28 @@ Antworte NUR im folgenden JSON-Format (keine anderen Texte):
   "grossAmount": Bruttobetrag als Zahl oder null,
   "vatAmount": MwSt-Betrag als Zahl oder null,
   "vatRate": MwSt-Satz als Zahl (z.B. 19) oder null,
-  "currency": "EUR" oder andere Währung
+  "currency": "EUR" oder andere Währung,
+  "lineItems": [
+    {
+      "description": "Beschreibung der Position",
+      "customerName": "Name des Endkunden falls angegeben oder null",
+      "quantity": Anzahl als Zahl oder null,
+      "unitPrice": Einzelpreis als Zahl oder null,
+      "totalPrice": Gesamtpreis der Position als Zahl oder null,
+      "period": "Abrechnungszeitraum z.B. 01.12.2024 - 31.12.2024 oder null",
+      "productType": "Produkttyp z.B. Microsoft 365, Azure, License, Hosting oder null"
+    }
+  ]
 }
 
 Wichtig:
 - Beträge als Zahlen ohne Währungssymbol (z.B. 119.00 nicht "119,00 €")
 - Daten im ISO-Format (YYYY-MM-DD)
 - Bei nicht gefundenen Werten: null
-- supplierName ist der ABSENDER/Lieferant, nicht der Empfänger der Rechnung`,
+- supplierName ist der ABSENDER/Lieferant, nicht der Empfänger der Rechnung
+- lineItems: Extrahiere ALLE Positionen/Zeilen der Rechnung
+- customerName in lineItems: Falls die Position einem bestimmten Kunden/Mandanten zugeordnet ist (z.B. bei Microsoft CSP Rechnungen), extrahiere den Kundennamen
+- Bei Sammelrechnungen für mehrere Kunden: Jede Position mit dem zugehörigen Kundennamen extrahieren`,
                 },
                 {
                   type: 'image_url',
@@ -1332,7 +1358,7 @@ Wichtig:
               ],
             },
           ],
-          max_tokens: 1000,
+          max_tokens: 4000,
           temperature: 0.1,
         }),
       });
@@ -1354,6 +1380,23 @@ Wichtig:
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
+
+        // Parse line items if present
+        let lineItems: InvoiceLineItem[] | undefined = undefined;
+        if (Array.isArray(parsed.lineItems) && parsed.lineItems.length > 0) {
+          const parsedItems: InvoiceLineItem[] = parsed.lineItems.map((item: any) => ({
+            description: item.description || '',
+            customerName: item.customerName || null,
+            quantity: this.parseNumberFromAny(item.quantity),
+            unitPrice: this.parseNumberFromAny(item.unitPrice),
+            totalPrice: this.parseNumberFromAny(item.totalPrice),
+            period: item.period || null,
+            productType: item.productType || null,
+          }));
+          lineItems = parsedItems;
+          console.log(`Extracted ${parsedItems.length} line items`);
+        }
+
         return {
           supplierName: parsed.supplierName || null,
           invoiceNumber: parsed.invoiceNumber || null,
@@ -1365,6 +1408,7 @@ Wichtig:
           vatRate: typeof parsed.vatRate === 'number' ? parsed.vatRate : null,
           currency: parsed.currency || 'EUR',
           confidence: 0.9, // High confidence for Vision extraction
+          lineItems,
         };
       }
 

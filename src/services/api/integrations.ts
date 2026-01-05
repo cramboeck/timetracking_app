@@ -967,6 +967,16 @@ export interface InvoiceDocument {
   createdAt: string;
 }
 
+export interface InvoiceLineItem {
+  description: string;
+  customerName: string | null;
+  quantity: number | null;
+  unitPrice: number | null;
+  totalPrice: number | null;
+  period: string | null;
+  productType: string | null;
+}
+
 export interface ExtractedInvoiceData {
   supplierName: string | null;
   invoiceNumber: string | null;
@@ -979,6 +989,7 @@ export interface ExtractedInvoiceData {
   currency: string;
   confidence: number;
   rawText?: string;
+  lineItems?: InvoiceLineItem[];
 }
 
 export interface SupportEmail {

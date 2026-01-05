@@ -901,6 +901,61 @@ export const InvoiceInbox = () => {
                         </select>
                       </div>
                     </div>
+
+                    {/* Line Items Section */}
+                    {extractedData.lineItems && extractedData.lineItems.length > 0 && (
+                      <div className="mt-6 pt-4 border-t border-gray-200 dark:border-dark-300">
+                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                          Rechnungspositionen ({extractedData.lineItems.length})
+                        </h4>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {extractedData.lineItems.map((item, index) => (
+                            <div
+                              key={index}
+                              className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3 text-sm"
+                            >
+                              <div className="flex justify-between items-start gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-gray-900 dark:text-white truncate">
+                                    {item.description}
+                                  </div>
+                                  {item.customerName && (
+                                    <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                      Kunde: {item.customerName}
+                                    </div>
+                                  )}
+                                  {item.productType && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                      {item.productType}
+                                    </div>
+                                  )}
+                                  {item.period && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                      Zeitraum: {item.period}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  {item.quantity !== null && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                      {item.quantity}x {item.unitPrice !== null ? `à ${formatAmount(item.unitPrice)} €` : ''}
+                                    </div>
+                                  )}
+                                  {item.totalPrice !== null && (
+                                    <div className="font-medium text-gray-900 dark:text-white">
+                                      {formatAmount(item.totalPrice)} €
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          Diese Positionen können später für die Weiterverrechnung verwendet werden.
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : null}
               </div>
