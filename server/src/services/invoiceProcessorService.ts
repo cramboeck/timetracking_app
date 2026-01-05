@@ -17,6 +17,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
+// PDF to image conversion for Vision API
+import { pdf } from 'pdf-to-img';
 
 // Interface for extracted invoice data
 export interface ExtractedInvoiceData {
@@ -845,6 +847,8 @@ class InvoiceProcessorService {
       if (aiConfigResult.rows.length > 0 && this.needsAIExtraction(result)) {
         console.log('Using AI extraction...');
         const aiConfig = aiConfigResult.rows[0];
+
+        // Try text-based AI first
         const aiExtraction = await this.extractWithAI(rawText, aiConfig);
         console.log('AI extraction:', aiExtraction);
 
@@ -862,6 +866,51 @@ class InvoiceProcessorService {
           confidence: aiExtraction.confidence > 0 ? aiExtraction.confidence : result.confidence,
           rawText: rawText.substring(0, 2000),
         };
+
+        // If still missing amounts and OpenAI is configured, try Vision
+        if ((!result.grossAmount && !result.netAmount) && aiConfig.provider === 'openai') {
+          console.log('Text extraction incomplete, trying Vision...');
+          const visionExtraction = await this.extractWithVision(fileBuffer, aiConfig);
+          console.log('Vision extraction:', visionExtraction);
+
+          if (visionExtraction.confidence > result.confidence) {
+            result = {
+              supplierName: visionExtraction.supplierName || result.supplierName,
+              invoiceNumber: visionExtraction.invoiceNumber || result.invoiceNumber,
+              invoiceDate: visionExtraction.invoiceDate || result.invoiceDate,
+              dueDate: visionExtraction.dueDate || result.dueDate,
+              netAmount: visionExtraction.netAmount ?? result.netAmount,
+              grossAmount: visionExtraction.grossAmount ?? result.grossAmount,
+              vatAmount: visionExtraction.vatAmount ?? result.vatAmount,
+              vatRate: visionExtraction.vatRate ?? result.vatRate,
+              currency: visionExtraction.currency || result.currency,
+              confidence: visionExtraction.confidence,
+              rawText: result.rawText,
+            };
+          }
+        }
+      } else if (aiConfigResult.rows.length > 0 && (!result.grossAmount && !result.netAmount)) {
+        // No text extraction worked, try Vision directly if OpenAI
+        const aiConfig = aiConfigResult.rows[0];
+        if (aiConfig.provider === 'openai') {
+          console.log('Text extraction failed, trying Vision directly...');
+          const visionExtraction = await this.extractWithVision(fileBuffer, aiConfig);
+          console.log('Vision extraction:', visionExtraction);
+
+          result = {
+            supplierName: visionExtraction.supplierName || result.supplierName,
+            invoiceNumber: visionExtraction.invoiceNumber || result.invoiceNumber,
+            invoiceDate: visionExtraction.invoiceDate || result.invoiceDate,
+            dueDate: visionExtraction.dueDate || result.dueDate,
+            netAmount: visionExtraction.netAmount ?? result.netAmount,
+            grossAmount: visionExtraction.grossAmount ?? result.grossAmount,
+            vatAmount: visionExtraction.vatAmount ?? result.vatAmount,
+            vatRate: visionExtraction.vatRate ?? result.vatRate,
+            currency: visionExtraction.currency || result.currency,
+            confidence: visionExtraction.confidence > 0 ? visionExtraction.confidence : result.confidence,
+            rawText: result.rawText,
+          };
+        }
       }
 
       return result;
@@ -1199,6 +1248,147 @@ Wichtig:
     }
 
     return this.createEmptyExtraction('KI-Extraktion fehlgeschlagen');
+  }
+
+  /**
+   * Extract invoice data using OpenAI Vision API (for scanned/image PDFs)
+   */
+  private async extractWithVision(pdfBuffer: Buffer, aiConfig: any): Promise<ExtractedInvoiceData> {
+    console.log('Starting Vision extraction...');
+
+    // Only works with OpenAI
+    if (aiConfig.provider !== 'openai') {
+      console.log('Vision extraction only available with OpenAI');
+      return this.createEmptyExtraction('Vision nur mit OpenAI verfügbar');
+    }
+
+    const apiKey = aiConfig.api_key;
+    if (!apiKey) {
+      return this.createEmptyExtraction('Kein API-Key konfiguriert');
+    }
+
+    try {
+      // Convert first page of PDF to image
+      const document = await pdf(pdfBuffer, { scale: 2.0 });
+      let firstPageImage: Buffer | null = null;
+
+      for await (const image of document) {
+        firstPageImage = image;
+        break; // Only take first page
+      }
+
+      if (!firstPageImage) {
+        console.log('Failed to convert PDF to image');
+        return this.createEmptyExtraction('PDF konnte nicht in Bild konvertiert werden');
+      }
+
+      // Convert to base64
+      const base64Image = firstPageImage.toString('base64');
+      console.log('PDF converted to image, size:', Math.round(base64Image.length / 1024), 'KB');
+
+      // Call OpenAI Vision API
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `Analysiere diese Rechnung und extrahiere die folgenden Informationen.
+
+Antworte NUR im folgenden JSON-Format (keine anderen Texte):
+{
+  "supplierName": "Name des Lieferanten/Absenders (Firma die die Rechnung stellt)",
+  "invoiceNumber": "Rechnungsnummer",
+  "invoiceDate": "YYYY-MM-DD",
+  "dueDate": "YYYY-MM-DD oder null",
+  "netAmount": Nettobetrag als Zahl oder null,
+  "grossAmount": Bruttobetrag als Zahl oder null,
+  "vatAmount": MwSt-Betrag als Zahl oder null,
+  "vatRate": MwSt-Satz als Zahl (z.B. 19) oder null,
+  "currency": "EUR" oder andere Währung
+}
+
+Wichtig:
+- Beträge als Zahlen ohne Währungssymbol (z.B. 119.00 nicht "119,00 €")
+- Daten im ISO-Format (YYYY-MM-DD)
+- Bei nicht gefundenen Werten: null
+- supplierName ist der ABSENDER/Lieferant, nicht der Empfänger der Rechnung`,
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:image/png;base64,${base64Image}`,
+                    detail: 'high',
+                  },
+                },
+              ],
+            },
+          ],
+          max_tokens: 1000,
+          temperature: 0.1,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Vision API error:', response.status, errorText);
+        return this.createEmptyExtraction(`Vision API Fehler: ${response.status}`);
+      }
+
+      const data = await response.json() as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+
+      const content = data.choices?.[0]?.message?.content || '';
+      console.log('Vision API response:', content);
+
+      // Parse JSON from response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          supplierName: parsed.supplierName || null,
+          invoiceNumber: parsed.invoiceNumber || null,
+          invoiceDate: parsed.invoiceDate || null,
+          dueDate: parsed.dueDate || null,
+          netAmount: typeof parsed.netAmount === 'number' ? parsed.netAmount : this.parseNumberFromAny(parsed.netAmount),
+          grossAmount: typeof parsed.grossAmount === 'number' ? parsed.grossAmount : this.parseNumberFromAny(parsed.grossAmount),
+          vatAmount: typeof parsed.vatAmount === 'number' ? parsed.vatAmount : this.parseNumberFromAny(parsed.vatAmount),
+          vatRate: typeof parsed.vatRate === 'number' ? parsed.vatRate : null,
+          currency: parsed.currency || 'EUR',
+          confidence: 0.9, // High confidence for Vision extraction
+        };
+      }
+
+      return this.createEmptyExtraction('Keine JSON-Antwort von Vision API');
+
+    } catch (error: any) {
+      console.error('Vision extraction error:', error.message);
+      return this.createEmptyExtraction(`Vision Fehler: ${error.message}`);
+    }
+  }
+
+  /**
+   * Helper to parse numbers that might come as strings from AI
+   */
+  private parseNumberFromAny(value: any): number | null {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      // Handle German format
+      const cleaned = value.replace(/[^\d,.\-]/g, '').replace(',', '.');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? null : num;
+    }
+    return null;
   }
 
   private async callAI(config: any, prompt: string): Promise<string> {
