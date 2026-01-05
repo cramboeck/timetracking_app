@@ -145,6 +145,35 @@
 - [ ] Ressourcenplanung
 - [ ] Abwesenheitsverwaltung
 
+### CRM - Kunden-/Lieferanten-360°-Ansicht
+- [ ] **E-Mail-Historie pro Kunde/Lieferant**
+  - Microsoft 365 E-Mails synchronisieren
+  - Eingehend + Ausgehend anzeigen
+  - Nach Absender/Empfänger filtern
+  - Volltextsuche in E-Mails
+  - E-Mails direkt aus App versenden
+- [ ] **Dokumente pro Kunde/Lieferant**
+  - Beliebige Dateien hochladen (PDF, Word, Excel)
+  - Kategorien (Vertrag, Angebot, Dokumentation, Sonstiges)
+  - Versionierung bei Änderungen
+  - sevDesk-Dokumente automatisch verknüpfen
+- [ ] **Unified Timeline / Aktivitätsverlauf**
+  - Alle Interaktionen chronologisch
+  - Tickets, E-Mails, Anrufe, Notizen
+  - Dokumente hochgeladen
+  - Rechnungen/Angebote erstellt
+  - Filter nach Aktivitätstyp
+- [ ] **Kontakt-Erweiterungen**
+  - Mehrere Ansprechpartner pro Kunde
+  - Rollen (Entscheider, Technisch, Buchhaltung)
+  - Kommunikationspräferenzen
+  - Notizen pro Kontakt
+- [ ] **Quick Actions**
+  - Schnell-Notiz hinzufügen
+  - Anruf protokollieren
+  - E-Mail direkt senden
+  - Ticket erstellen
+
 ### Marketing Hub
 - [ ] Content-Kalender für Social Media Posts
 - [ ] Multi-Plattform-Unterstützung (LinkedIn, Instagram)
