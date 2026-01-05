@@ -148,7 +148,7 @@ export const InvoiceInbox = () => {
 
   const handleApproveDraft = async (invoiceId: string) => {
     try {
-      const response = await microsoft365Api.approveDraft(invoiceId);
+      const response = await microsoft365Api.approveInvoiceDraft(invoiceId);
       if (response.success) {
         await loadProcessedInvoices();
         setSuccess('Rechnung bestätigt');
