@@ -86,6 +86,7 @@ export type {
   Microsoft365Config,
   ProcessedInvoice,
   InvoiceDocument,
+  ExtractedInvoiceData,
   SupportEmail,
   TicketEmail,
 } from './integrations';

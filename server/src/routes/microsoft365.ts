@@ -1015,14 +1015,50 @@ router.delete('/invoices/all', requireOrgRole('admin'), async (req: AuthRequest,
   }
 });
 
+// GET /api/microsoft365/invoices/:id/extract - Extract invoice data from PDF
+router.get('/invoices/:id/extract', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const processedInvoiceId = req.params.id;
+
+    const extractedData = await invoiceProcessorService.extractInvoiceData(organizationId, processedInvoiceId);
+
+    if (extractedData) {
+      res.json({
+        success: true,
+        data: extractedData,
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'Keine Daten zum Extrahieren gefunden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Extract invoice data error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to extract invoice data',
+    });
+  }
+});
+
 // POST /api/microsoft365/invoices/:id/approve - Approve a draft invoice
 router.post('/invoices/:id/approve', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const processedInvoiceId = req.params.id;
+    const { extractedData } = req.body;
 
-    const success = await invoiceProcessorService.approveDraft(organizationId, processedInvoiceId);
+    // If extracted data is provided, use the new approval flow
+    let success: boolean;
+    if (extractedData) {
+      success = await invoiceProcessorService.approveDraftWithData(organizationId, processedInvoiceId, extractedData);
+    } else {
+      success = await invoiceProcessorService.approveDraft(organizationId, processedInvoiceId);
+    }
 
     if (success) {
       res.json({ success: true });

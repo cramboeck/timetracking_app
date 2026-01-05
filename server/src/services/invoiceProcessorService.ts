@@ -15,6 +15,23 @@ import { getConfig } from './microsoft365ConfigService';
 import { uploadVoucherFile, createVoucherFromFile } from './sevdeskService';
 import * as fs from 'fs';
 import * as path from 'path';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require('pdf-parse');
+
+// Interface for extracted invoice data
+export interface ExtractedInvoiceData {
+  supplierName: string | null;
+  invoiceNumber: string | null;
+  invoiceDate: string | null;
+  dueDate: string | null;
+  netAmount: number | null;
+  grossAmount: number | null;
+  vatAmount: number | null;
+  vatRate: number | null;
+  currency: string;
+  confidence: number;
+  rawText?: string;
+}
 
 export interface ProcessedInvoice {
   id: string;
@@ -735,6 +752,489 @@ class InvoiceProcessorService {
       [organizationId]
     );
     return result.rows.length;
+  }
+
+  /**
+   * Extract invoice data from PDF using text extraction and AI parsing
+   */
+  async extractInvoiceData(organizationId: string, processedInvoiceId: string): Promise<ExtractedInvoiceData | null> {
+    // Get the first document for this invoice
+    const docResult = await query(
+      `SELECT * FROM invoice_documents
+       WHERE processed_invoice_id = $1
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      [processedInvoiceId]
+    );
+
+    if (docResult.rows.length === 0) {
+      console.log('No documents found for invoice', processedInvoiceId);
+      return null;
+    }
+
+    const doc = docResult.rows[0];
+
+    // Only process PDFs
+    if (!doc.mime_type?.includes('pdf') && !doc.original_filename?.toLowerCase().endsWith('.pdf')) {
+      console.log('Document is not a PDF:', doc.mime_type);
+      return this.createEmptyExtraction('Kein PDF-Dokument');
+    }
+
+    try {
+      // Read the PDF file
+      const fileBuffer = await fs.promises.readFile(doc.storage_path);
+
+      // Extract text from PDF
+      const pdfData = await pdfParse(fileBuffer);
+      const rawText = pdfData.text;
+
+      if (!rawText || rawText.trim().length < 50) {
+        console.log('PDF has insufficient text content');
+        return this.createEmptyExtraction('PDF enthält keinen extrahierbaren Text');
+      }
+
+      // Try to extract data using regex patterns first (faster, no API cost)
+      const regexExtraction = this.extractWithRegex(rawText);
+
+      // Get AI config for this organization to use AI parsing if available
+      const aiConfigResult = await query(
+        `SELECT ac.* FROM ai_config ac
+         JOIN users u ON ac.user_id = u.id
+         WHERE u.organization_id = $1 AND ac.enabled = true AND ac.api_key IS NOT NULL
+         LIMIT 1`,
+        [organizationId]
+      );
+
+      // If we have AI config and regex extraction is incomplete, use AI
+      if (aiConfigResult.rows.length > 0 && this.needsAIExtraction(regexExtraction)) {
+        const aiConfig = aiConfigResult.rows[0];
+        const aiExtraction = await this.extractWithAI(rawText, aiConfig);
+
+        // Merge AI extraction with regex extraction (prefer AI if available)
+        return {
+          supplierName: aiExtraction.supplierName || regexExtraction.supplierName,
+          invoiceNumber: aiExtraction.invoiceNumber || regexExtraction.invoiceNumber,
+          invoiceDate: aiExtraction.invoiceDate || regexExtraction.invoiceDate,
+          dueDate: aiExtraction.dueDate || regexExtraction.dueDate,
+          netAmount: aiExtraction.netAmount ?? regexExtraction.netAmount,
+          grossAmount: aiExtraction.grossAmount ?? regexExtraction.grossAmount,
+          vatAmount: aiExtraction.vatAmount ?? regexExtraction.vatAmount,
+          vatRate: aiExtraction.vatRate ?? regexExtraction.vatRate,
+          currency: aiExtraction.currency || regexExtraction.currency || 'EUR',
+          confidence: aiExtraction.confidence,
+          rawText: rawText.substring(0, 2000), // First 2000 chars for reference
+        };
+      }
+
+      // Return regex extraction if no AI available
+      return {
+        ...regexExtraction,
+        rawText: rawText.substring(0, 2000),
+      };
+
+    } catch (error: any) {
+      console.error('Error extracting invoice data:', error.message);
+      return this.createEmptyExtraction(`Fehler: ${error.message}`);
+    }
+  }
+
+  private createEmptyExtraction(reason: string): ExtractedInvoiceData {
+    return {
+      supplierName: null,
+      invoiceNumber: null,
+      invoiceDate: null,
+      dueDate: null,
+      netAmount: null,
+      grossAmount: null,
+      vatAmount: null,
+      vatRate: null,
+      currency: 'EUR',
+      confidence: 0,
+      rawText: reason,
+    };
+  }
+
+  private needsAIExtraction(extraction: ExtractedInvoiceData): boolean {
+    // Use AI if we're missing critical fields
+    return !extraction.supplierName ||
+           (!extraction.grossAmount && !extraction.netAmount) ||
+           !extraction.invoiceNumber;
+  }
+
+  private extractWithRegex(text: string): ExtractedInvoiceData {
+    const result: ExtractedInvoiceData = {
+      supplierName: null,
+      invoiceNumber: null,
+      invoiceDate: null,
+      dueDate: null,
+      netAmount: null,
+      grossAmount: null,
+      vatAmount: null,
+      vatRate: null,
+      currency: 'EUR',
+      confidence: 0.3, // Low confidence for regex-only extraction
+    };
+
+    // Clean up text
+    const cleanText = text.replace(/\s+/g, ' ').trim();
+
+    // Extract invoice number patterns
+    const invoicePatterns = [
+      /(?:Rechnung(?:s)?(?:nummer|nr\.?)?|Invoice(?:\s+No\.?)?|Beleg(?:nummer|nr\.?)?|RE-?)\s*[:#]?\s*([A-Z0-9][A-Z0-9\-\/\.]+)/i,
+      /(?:Nr\.|Nummer|No\.)\s*[:#]?\s*([A-Z0-9][A-Z0-9\-\/\.]+)/i,
+    ];
+    for (const pattern of invoicePatterns) {
+      const match = cleanText.match(pattern);
+      if (match && match[1]) {
+        result.invoiceNumber = match[1].trim();
+        break;
+      }
+    }
+
+    // Extract date patterns (German and ISO formats)
+    const datePatterns = [
+      /(?:Rechnungsdatum|Datum|Date|Belegdatum)\s*[:#]?\s*(\d{1,2}[\.\/\-]\d{1,2}[\.\/\-]\d{2,4})/i,
+      /(\d{1,2}[\.\/]\d{1,2}[\.\/]\d{4})/,
+    ];
+    for (const pattern of datePatterns) {
+      const match = cleanText.match(pattern);
+      if (match && match[1]) {
+        result.invoiceDate = this.parseGermanDate(match[1]);
+        break;
+      }
+    }
+
+    // Extract due date
+    const dueDatePatterns = [
+      /(?:Fällig(?:keit)?(?:sdatum)?|Zahlbar\s*bis|Due\s*(?:Date)?)\s*[:#]?\s*(\d{1,2}[\.\/\-]\d{1,2}[\.\/\-]\d{2,4})/i,
+    ];
+    for (const pattern of dueDatePatterns) {
+      const match = cleanText.match(pattern);
+      if (match && match[1]) {
+        result.dueDate = this.parseGermanDate(match[1]);
+        break;
+      }
+    }
+
+    // Extract amounts (German format with comma as decimal separator)
+    const amountPatterns = {
+      gross: [
+        /(?:Gesamt(?:betrag)?|Brutto|Total|Endbetrag|Rechnungsbetrag|Zu\s*zahlen)\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+        /(?:EUR|€)\s*([\d\.,]+)\s*(?:Gesamt|Brutto|Total)/i,
+      ],
+      net: [
+        /(?:Netto(?:betrag)?|Zwischensumme|Subtotal)\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+      ],
+      vat: [
+        /(?:MwSt\.?|USt\.?|VAT|Mehrwertsteuer)\s*(?:\d+%?)?\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+      ],
+    };
+
+    // Extract gross amount
+    for (const pattern of amountPatterns.gross) {
+      const match = cleanText.match(pattern);
+      if (match && match[1]) {
+        result.grossAmount = this.parseGermanNumber(match[1]);
+        break;
+      }
+    }
+
+    // Extract net amount
+    for (const pattern of amountPatterns.net) {
+      const match = cleanText.match(pattern);
+      if (match && match[1]) {
+        result.netAmount = this.parseGermanNumber(match[1]);
+        break;
+      }
+    }
+
+    // Extract VAT amount
+    for (const pattern of amountPatterns.vat) {
+      const match = cleanText.match(pattern);
+      if (match && match[1]) {
+        result.vatAmount = this.parseGermanNumber(match[1]);
+        break;
+      }
+    }
+
+    // Extract VAT rate
+    const vatRateMatch = cleanText.match(/(?:MwSt\.?|USt\.?|VAT)\s*(\d{1,2})\s*%/i);
+    if (vatRateMatch) {
+      result.vatRate = parseInt(vatRateMatch[1], 10);
+    }
+
+    // Try to extract supplier name (usually at the top of the invoice)
+    const firstLines = text.split('\n').slice(0, 10).join(' ').trim();
+    // Look for company patterns
+    const companyPatterns = [
+      /^([A-ZÄÖÜ][A-Za-zäöüßÄÖÜ\s&\.\-]+(?:GmbH|AG|KG|OHG|e\.?V\.?|UG|mbH|Inc\.?|Ltd\.?|LLC))/m,
+      /^([A-ZÄÖÜ][A-Za-zäöüßÄÖÜ\s&\.\-]{2,50})\n/m,
+    ];
+    for (const pattern of companyPatterns) {
+      const match = firstLines.match(pattern);
+      if (match && match[1] && match[1].length > 3) {
+        result.supplierName = match[1].trim();
+        break;
+      }
+    }
+
+    // Calculate confidence based on what we found
+    let fieldsFound = 0;
+    if (result.supplierName) fieldsFound++;
+    if (result.invoiceNumber) fieldsFound++;
+    if (result.invoiceDate) fieldsFound++;
+    if (result.grossAmount || result.netAmount) fieldsFound++;
+    result.confidence = Math.min(0.3 + (fieldsFound * 0.15), 0.75);
+
+    return result;
+  }
+
+  private parseGermanDate(dateStr: string): string | null {
+    try {
+      // Handle DD.MM.YYYY or DD/MM/YYYY format
+      const parts = dateStr.split(/[\.\/\-]/);
+      if (parts.length === 3) {
+        let day = parseInt(parts[0], 10);
+        let month = parseInt(parts[1], 10);
+        let year = parseInt(parts[2], 10);
+
+        // Handle 2-digit years
+        if (year < 100) {
+          year += year > 50 ? 1900 : 2000;
+        }
+
+        // Create ISO date string
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  private parseGermanNumber(numStr: string): number | null {
+    try {
+      // German format: 1.234,56 -> 1234.56
+      // Remove thousand separators (dots or spaces)
+      let cleaned = numStr.replace(/[\s\.]/g, '');
+      // Replace comma with dot for decimal
+      cleaned = cleaned.replace(',', '.');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? null : Math.round(num * 100) / 100;
+    } catch {
+      return null;
+    }
+  }
+
+  private async extractWithAI(text: string, aiConfig: any): Promise<ExtractedInvoiceData> {
+    const prompt = `Analysiere den folgenden Rechnungstext und extrahiere die wichtigsten Informationen.
+
+TEXT:
+${text.substring(0, 4000)}
+
+Antworte NUR im folgenden JSON-Format (keine anderen Texte):
+{
+  "supplierName": "Name des Lieferanten/Absenders",
+  "invoiceNumber": "Rechnungsnummer",
+  "invoiceDate": "YYYY-MM-DD",
+  "dueDate": "YYYY-MM-DD oder null",
+  "netAmount": Nettobetrag als Zahl oder null,
+  "grossAmount": Bruttobetrag als Zahl oder null,
+  "vatAmount": MwSt-Betrag als Zahl oder null,
+  "vatRate": MwSt-Satz als Zahl (z.B. 19) oder null,
+  "currency": "EUR" oder andere Währung
+}
+
+Wichtig:
+- Beträge als Zahlen ohne Währungssymbol
+- Daten im ISO-Format (YYYY-MM-DD)
+- Bei nicht gefundenen Werten: null
+- supplierName ist der Absender/Lieferant, nicht der Empfänger`;
+
+    try {
+      const response = await this.callAI(aiConfig, prompt);
+
+      // Try to parse JSON from response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          supplierName: parsed.supplierName || null,
+          invoiceNumber: parsed.invoiceNumber || null,
+          invoiceDate: parsed.invoiceDate || null,
+          dueDate: parsed.dueDate || null,
+          netAmount: typeof parsed.netAmount === 'number' ? parsed.netAmount : null,
+          grossAmount: typeof parsed.grossAmount === 'number' ? parsed.grossAmount : null,
+          vatAmount: typeof parsed.vatAmount === 'number' ? parsed.vatAmount : null,
+          vatRate: typeof parsed.vatRate === 'number' ? parsed.vatRate : null,
+          currency: parsed.currency || 'EUR',
+          confidence: 0.85, // Higher confidence for AI extraction
+        };
+      }
+    } catch (error: any) {
+      console.error('AI extraction failed:', error.message);
+    }
+
+    return this.createEmptyExtraction('KI-Extraktion fehlgeschlagen');
+  }
+
+  private async callAI(config: any, prompt: string): Promise<string> {
+    const provider = config.provider || 'openai';
+    const apiKey = config.api_key;
+    const model = config.model || (provider === 'openai' ? 'gpt-4o-mini' : 'claude-3-haiku-20240307');
+
+    if (!apiKey) {
+      throw new Error('No API key configured');
+    }
+
+    if (provider === 'anthropic') {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }],
+          system: 'Du bist ein Experte für das Extrahieren von Daten aus Rechnungen. Antworte immer im angeforderten JSON-Format.',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Anthropic API error: ${response.status}`);
+      }
+
+      const data = await response.json() as { content?: Array<{ text?: string }> };
+      return data.content?.[0]?.text || '';
+    } else {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: 'system',
+              content: 'Du bist ein Experte für das Extrahieren von Daten aus Rechnungen. Antworte immer im angeforderten JSON-Format.',
+            },
+            { role: 'user', content: prompt },
+          ],
+          max_tokens: 1000,
+          temperature: 0.1,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.status}`);
+      }
+
+      const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+      return data.choices?.[0]?.message?.content || '';
+    }
+  }
+
+  /**
+   * Approve a draft invoice with extracted data
+   */
+  async approveDraftWithData(
+    organizationId: string,
+    processedInvoiceId: string,
+    extractedData: ExtractedInvoiceData
+  ): Promise<boolean> {
+    // Get the invoice details
+    const invoiceResult = await query(
+      `SELECT pi.*, c.name as vendor_name
+       FROM processed_invoices pi
+       LEFT JOIN customers c ON pi.vendor_id = c.id
+       WHERE pi.id = $1 AND pi.organization_id = $2 AND pi.status = 'draft'`,
+      [processedInvoiceId, organizationId]
+    );
+
+    if (invoiceResult.rows.length === 0) {
+      return false;
+    }
+
+    const invoice = invoiceResult.rows[0];
+
+    // Get the first document for this invoice
+    const docResult = await query(
+      `SELECT * FROM invoice_documents
+       WHERE processed_invoice_id = $1
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      [processedInvoiceId]
+    );
+
+    let sevdeskVoucherId: string | null = null;
+
+    // Try to create sevDesk voucher if we have a document
+    if (docResult.rows.length > 0) {
+      try {
+        // Get sevDesk API token for this organization
+        const configResult = await query(
+          `SELECT api_token FROM sevdesk_config WHERE organization_id = $1`,
+          [organizationId]
+        );
+
+        if (configResult.rows.length > 0 && configResult.rows[0].api_token) {
+          const apiToken = configResult.rows[0].api_token;
+          const doc = docResult.rows[0];
+
+          // Read the file
+          const fileBuffer = await fs.promises.readFile(doc.storage_path);
+
+          // Upload to sevDesk
+          const uploadResult = await uploadVoucherFile(
+            apiToken,
+            fileBuffer,
+            doc.original_filename,
+            doc.mime_type
+          );
+
+          // Use extracted data for voucher creation
+          const voucherDate = extractedData.invoiceDate || invoice.received_at || new Date().toISOString();
+          const supplierName = extractedData.supplierName || invoice.vendor_name || invoice.sender_name || undefined;
+
+          // Create voucher with extracted amount
+          const voucherResult = await createVoucherFromFile(
+            apiToken,
+            uploadResult.id,
+            {
+              voucherDate,
+              description: invoice.email_subject || 'Eingangsrechnung',
+              supplierName,
+              creditDebit: 'D', // Debit = Ausgabe (Eingangsrechnung)
+              taxRate: extractedData.vatRate || 19,
+              sumGross: extractedData.grossAmount ?? undefined,
+              sumNet: extractedData.netAmount ?? undefined,
+            }
+          );
+
+          sevdeskVoucherId = voucherResult.voucherId;
+          console.log(`Created sevDesk voucher ${sevdeskVoucherId} for invoice ${processedInvoiceId}`);
+        }
+      } catch (err) {
+        console.error(`Failed to create sevDesk voucher for invoice ${processedInvoiceId}:`, err);
+        // Continue anyway - we still mark as processed even if sevDesk fails
+      }
+    }
+
+    // Update the invoice status
+    const updateResult = await query(
+      `UPDATE processed_invoices
+       SET status = 'processed', processed_at = NOW(), sevdesk_voucher_id = $3
+       WHERE id = $1 AND organization_id = $2 AND status = 'draft'
+       RETURNING id`,
+      [processedInvoiceId, organizationId, sevdeskVoucherId]
+    );
+
+    return updateResult.rows.length > 0;
   }
 
   /**

@@ -967,6 +967,20 @@ export interface InvoiceDocument {
   createdAt: string;
 }
 
+export interface ExtractedInvoiceData {
+  supplierName: string | null;
+  invoiceNumber: string | null;
+  invoiceDate: string | null;
+  dueDate: string | null;
+  netAmount: number | null;
+  grossAmount: number | null;
+  vatAmount: number | null;
+  vatRate: number | null;
+  currency: string;
+  confidence: number;
+  rawText?: string;
+}
+
 export interface SupportEmail {
   id: string;
   conversationId: string;
@@ -1105,8 +1119,19 @@ export const microsoft365Api = {
     return authFetch(`/microsoft365/invoices/${invoiceId}/retry`, { method: 'POST' });
   },
 
-  approveInvoiceDraft: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
-    return authFetch(`/microsoft365/invoices/${invoiceId}/approve`, { method: 'POST' });
+  extractInvoiceData: async (invoiceId: string): Promise<{
+    success: boolean;
+    data?: ExtractedInvoiceData;
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/invoices/${invoiceId}/extract`);
+  },
+
+  approveInvoiceDraft: async (invoiceId: string, extractedData?: ExtractedInvoiceData): Promise<{ success: boolean; error?: string }> => {
+    return authFetch(`/microsoft365/invoices/${invoiceId}/approve`, {
+      method: 'POST',
+      body: extractedData ? JSON.stringify({ extractedData }) : undefined,
+    });
   },
 
   revertInvoiceToDraft: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {

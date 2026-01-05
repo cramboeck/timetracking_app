@@ -2,9 +2,9 @@ import { useState, useEffect, Fragment } from 'react';
 import {
   FileText, RefreshCw, Loader2, Eye, Download, Check, Trash2,
   ChevronDown, ChevronUp, File, Undo2, CheckCircle, XCircle,
-  Mail, AlertTriangle
+  Mail, AlertTriangle, X, Edit2
 } from 'lucide-react';
-import { microsoft365Api, ProcessedInvoice, InvoiceDocument } from '../services/api';
+import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData } from '../services/api';
 
 // Format file size helper
 const formatFileSize = (bytes: number): string => {
@@ -35,6 +35,13 @@ export const InvoiceInbox = () => {
   // Config state
   const [invoiceMailbox, setInvoiceMailbox] = useState<string>('');
   const [isConfigured, setIsConfigured] = useState(false);
+
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmingInvoice, setConfirmingInvoice] = useState<ProcessedInvoice | null>(null);
+  const [extractedData, setExtractedData] = useState<ExtractedInvoiceData | null>(null);
+  const [extractingData, setExtractingData] = useState(false);
+  const [approving, setApproving] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -147,15 +154,105 @@ export const InvoiceInbox = () => {
   };
 
   const handleApproveDraft = async (invoiceId: string) => {
+    // Find the invoice
+    const invoice = processedInvoices.find(inv => inv.id === invoiceId);
+    if (!invoice) return;
+
+    setConfirmingInvoice(invoice);
+    setExtractedData(null);
+    setShowConfirmModal(true);
+    setExtractingData(true);
+    setError('');
+
     try {
-      const response = await microsoft365Api.approveInvoiceDraft(invoiceId);
+      // Extract invoice data from PDF
+      const response = await microsoft365Api.extractInvoiceData(invoiceId);
+      if (response.success && response.data) {
+        setExtractedData(response.data);
+      } else {
+        // Set empty data if extraction fails
+        setExtractedData({
+          supplierName: invoice.senderName || null,
+          invoiceNumber: null,
+          invoiceDate: null,
+          dueDate: null,
+          netAmount: null,
+          grossAmount: null,
+          vatAmount: null,
+          vatRate: 19,
+          currency: 'EUR',
+          confidence: 0,
+        });
+      }
+    } catch (err: any) {
+      console.error('Data extraction failed:', err);
+      // Set default data on error
+      setExtractedData({
+        supplierName: invoice.senderName || null,
+        invoiceNumber: null,
+        invoiceDate: null,
+        dueDate: null,
+        netAmount: null,
+        grossAmount: null,
+        vatAmount: null,
+        vatRate: 19,
+        currency: 'EUR',
+        confidence: 0,
+      });
+    } finally {
+      setExtractingData(false);
+    }
+  };
+
+  const handleConfirmApproval = async () => {
+    if (!confirmingInvoice || !extractedData) return;
+
+    setApproving(true);
+    setError('');
+
+    try {
+      const response = await microsoft365Api.approveInvoiceDraft(confirmingInvoice.id, extractedData);
       if (response.success) {
+        setShowConfirmModal(false);
+        setConfirmingInvoice(null);
+        setExtractedData(null);
         await loadProcessedInvoices();
-        setSuccess('Rechnung bestätigt');
+        setSuccess('Rechnung bestätigt und sevDesk-Beleg erstellt');
+      } else {
+        setError(response.error || 'Fehler beim Bestätigen');
       }
     } catch (err: any) {
       setError(err.message || 'Fehler beim Bestätigen');
+    } finally {
+      setApproving(false);
     }
+  };
+
+  const handleCancelApproval = () => {
+    setShowConfirmModal(false);
+    setConfirmingInvoice(null);
+    setExtractedData(null);
+  };
+
+  const updateExtractedField = (field: keyof ExtractedInvoiceData, value: any) => {
+    if (!extractedData) return;
+    setExtractedData({ ...extractedData, [field]: value });
+  };
+
+  const formatAmount = (amount: number | null): string => {
+    if (amount === null) return '';
+    return new Intl.NumberFormat('de-DE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const parseAmount = (value: string): number | null => {
+    if (!value.trim()) return null;
+    // Parse German format: 1.234,56 -> 1234.56
+    const cleaned = value.replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? null : num;
   };
 
   const handleDeleteDraft = async (invoiceId: string) => {
@@ -646,6 +743,199 @@ export const InvoiceInbox = () => {
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && confirmingInvoice && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/50 transition-opacity"
+              onClick={handleCancelApproval}
+            />
+
+            {/* Modal */}
+            <div className="relative bg-white dark:bg-dark-100 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-300">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Rechnungsdaten prüfen
+                </h3>
+                <button
+                  onClick={handleCancelApproval}
+                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-4 space-y-4">
+                {/* Invoice Info */}
+                <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3 text-sm">
+                  <div className="text-gray-600 dark:text-gray-400">Betreff</div>
+                  <div className="font-medium text-gray-900 dark:text-white">{confirmingInvoice.emailSubject}</div>
+                  <div className="text-gray-600 dark:text-gray-400 mt-2">Absender</div>
+                  <div className="text-gray-900 dark:text-white">{confirmingInvoice.senderName} ({confirmingInvoice.senderEmail})</div>
+                </div>
+
+                {extractingData ? (
+                  <div className="flex items-center justify-center py-8 text-gray-500 dark:text-gray-400">
+                    <Loader2 size={24} className="animate-spin mr-2" />
+                    Extrahiere Rechnungsdaten aus PDF...
+                  </div>
+                ) : extractedData ? (
+                  <>
+                    {/* Confidence Indicator */}
+                    {extractedData.confidence > 0 && (
+                      <div className={`text-sm px-3 py-2 rounded-lg ${
+                        extractedData.confidence >= 0.7
+                          ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                          : extractedData.confidence >= 0.4
+                          ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+                          : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+                      }`}>
+                        {extractedData.confidence >= 0.7 ? 'Hohe' : extractedData.confidence >= 0.4 ? 'Mittlere' : 'Niedrige'} Extraktions-Zuverlässigkeit ({Math.round(extractedData.confidence * 100)}%)
+                        {extractedData.confidence < 0.7 && ' - Bitte prüfen Sie die Daten'}
+                      </div>
+                    )}
+
+                    {/* Extracted Fields */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Supplier Name */}
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Lieferant / Anbieter
+                        </label>
+                        <input
+                          type="text"
+                          value={extractedData.supplierName || ''}
+                          onChange={(e) => updateExtractedField('supplierName', e.target.value || null)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                          placeholder="Name des Lieferanten"
+                        />
+                      </div>
+
+                      {/* Invoice Number */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Rechnungsnummer
+                        </label>
+                        <input
+                          type="text"
+                          value={extractedData.invoiceNumber || ''}
+                          onChange={(e) => updateExtractedField('invoiceNumber', e.target.value || null)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                          placeholder="RE-12345"
+                        />
+                      </div>
+
+                      {/* Invoice Date */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Rechnungsdatum
+                        </label>
+                        <input
+                          type="date"
+                          value={extractedData.invoiceDate || ''}
+                          onChange={(e) => updateExtractedField('invoiceDate', e.target.value || null)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                        />
+                      </div>
+
+                      {/* Net Amount */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Nettobetrag (EUR)
+                        </label>
+                        <input
+                          type="text"
+                          value={extractedData.netAmount !== null ? formatAmount(extractedData.netAmount) : ''}
+                          onChange={(e) => updateExtractedField('netAmount', parseAmount(e.target.value))}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                          placeholder="0,00"
+                        />
+                      </div>
+
+                      {/* VAT Amount */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          MwSt. (EUR)
+                        </label>
+                        <input
+                          type="text"
+                          value={extractedData.vatAmount !== null ? formatAmount(extractedData.vatAmount) : ''}
+                          onChange={(e) => updateExtractedField('vatAmount', parseAmount(e.target.value))}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                          placeholder="0,00"
+                        />
+                      </div>
+
+                      {/* Gross Amount */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Bruttobetrag (EUR)
+                        </label>
+                        <input
+                          type="text"
+                          value={extractedData.grossAmount !== null ? formatAmount(extractedData.grossAmount) : ''}
+                          onChange={(e) => updateExtractedField('grossAmount', parseAmount(e.target.value))}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                          placeholder="0,00"
+                        />
+                      </div>
+
+                      {/* VAT Rate */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          MwSt.-Satz (%)
+                        </label>
+                        <select
+                          value={extractedData.vatRate || 19}
+                          onChange={(e) => updateExtractedField('vatRate', parseInt(e.target.value, 10))}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                        >
+                          <option value={0}>0%</option>
+                          <option value={7}>7%</option>
+                          <option value={19}>19%</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-300 bg-gray-50 dark:bg-dark-200">
+                <button
+                  onClick={handleCancelApproval}
+                  disabled={approving}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-100 border border-gray-300 dark:border-dark-300 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-200 disabled:opacity-50 transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleConfirmApproval}
+                  disabled={extractingData || approving || !extractedData}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                >
+                  {approving ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Bestätige...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} />
+                      Bestätigen & sevDesk-Beleg erstellen
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1304,8 +1304,9 @@ export async function createVoucherFromFile(
     voucherDate: string;
     description?: string;
     supplierName?: string;
-    sumNet?: number;
-    sumGross?: number;
+    sumNet?: number | string;
+    sumGross?: number | string;
+    sumTax?: number | string;
     taxRate?: number;
     creditDebit?: 'C' | 'D';
   }
@@ -1326,10 +1327,17 @@ export async function createVoucherFromFile(
     // If no supplier found, we'll create the voucher without one
   }
 
-  // Build voucher data
+  // Build voucher data - handle both number and string inputs
   const taxRate = voucherData.taxRate || 19;
-  const sumNet = voucherData.sumNet || 0;
-  const sumGross = voucherData.sumGross || (sumNet * (1 + taxRate / 100));
+  const sumNetInput = typeof voucherData.sumNet === 'string' ? parseFloat(voucherData.sumNet) : voucherData.sumNet;
+  const sumGrossInput = typeof voucherData.sumGross === 'string' ? parseFloat(voucherData.sumGross) : voucherData.sumGross;
+
+  // Calculate net from gross if only gross is provided
+  let sumNet = sumNetInput || 0;
+  if (!sumNet && sumGrossInput) {
+    sumNet = sumGrossInput / (1 + taxRate / 100);
+  }
+  const sumGross = sumGrossInput || (sumNet * (1 + taxRate / 100));
 
   const voucherPayload: Record<string, unknown> = {
     voucher: {
