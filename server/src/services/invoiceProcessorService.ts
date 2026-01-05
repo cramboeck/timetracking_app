@@ -1249,31 +1249,45 @@ Wichtig:
    * Extract invoice data using OpenAI Vision API (for scanned/image PDFs)
    */
   private async extractWithVision(pdfBuffer: Buffer, aiConfig: any): Promise<ExtractedInvoiceData> {
-    console.log('Starting Vision extraction...');
+    console.log('=== Starting Vision extraction ===');
+    console.log('AI Config:', { provider: aiConfig.provider, hasApiKey: !!aiConfig.api_key });
 
     // Only works with OpenAI
     if (aiConfig.provider !== 'openai') {
-      console.log('Vision extraction only available with OpenAI');
+      console.log('Vision extraction only available with OpenAI, got:', aiConfig.provider);
       return this.createEmptyExtraction('Vision nur mit OpenAI verfügbar');
     }
 
     const apiKey = aiConfig.api_key;
     if (!apiKey) {
+      console.log('No API key found in config');
       return this.createEmptyExtraction('Kein API-Key konfiguriert');
     }
 
+    console.log('API key found, length:', apiKey.length);
+
     try {
       // Convert first page of PDF to image
-      const document = await pdf(pdfBuffer, { scale: 2.0 });
+      console.log('Converting PDF to image, buffer size:', pdfBuffer.length);
+      let document;
+      try {
+        document = await pdf(pdfBuffer, { scale: 2.0 });
+      } catch (pdfError: any) {
+        console.error('PDF to image conversion failed:', pdfError.message);
+        console.error('Full error:', pdfError);
+        return this.createEmptyExtraction(`PDF-Konvertierung fehlgeschlagen: ${pdfError.message}`);
+      }
+
       let firstPageImage: Buffer | null = null;
 
       for await (const image of document) {
         firstPageImage = image;
+        console.log('Got first page image, size:', image.length);
         break; // Only take first page
       }
 
       if (!firstPageImage) {
-        console.log('Failed to convert PDF to image');
+        console.log('Failed to convert PDF to image - no pages extracted');
         return this.createEmptyExtraction('PDF konnte nicht in Bild konvertiert werden');
       }
 
@@ -1398,7 +1412,9 @@ Wichtig:
       return this.createEmptyExtraction('Keine JSON-Antwort von Vision API');
 
     } catch (error: any) {
-      console.error('Vision extraction error:', error.message);
+      console.error('=== Vision extraction error ===');
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
       return this.createEmptyExtraction(`Vision Fehler: ${error.message}`);
     }
   }
