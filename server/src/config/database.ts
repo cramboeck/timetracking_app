@@ -3159,6 +3159,19 @@ export async function initializeDatabase() {
     `);
     console.log('✅ processed_invoices status constraint updated');
 
+    // Migration: Add sevdesk_voucher_id to processed_invoices for linking to sevDesk vouchers
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'processed_invoices' AND column_name = 'sevdesk_voucher_id'
+        ) THEN
+          ALTER TABLE processed_invoices ADD COLUMN sevdesk_voucher_id TEXT;
+        END IF;
+      END $$;
+    `);
+
     // ============================================
     // Ticket Email Integration
     // ============================================

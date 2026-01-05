@@ -12,6 +12,7 @@ import { query } from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 import { mailboxMonitorService, EmailMessage, EmailAttachment } from './mailboxMonitorService';
 import { getConfig } from './microsoft365ConfigService';
+import { uploadVoucherFile, createVoucherFromFile } from './sevdeskService';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -544,17 +545,90 @@ class InvoiceProcessorService {
   }
 
   /**
-   * Approve a draft invoice (mark as processed)
+   * Approve a draft invoice (mark as processed and create sevDesk voucher)
    */
   async approveDraft(organizationId: string, processedInvoiceId: string): Promise<boolean> {
-    const result = await query(
-      `UPDATE processed_invoices
-       SET status = 'processed', processed_at = NOW()
-       WHERE id = $1 AND organization_id = $2 AND status = 'draft'
-       RETURNING id`,
+    // Get the invoice details
+    const invoiceResult = await query(
+      `SELECT pi.*, c.name as vendor_name
+       FROM processed_invoices pi
+       LEFT JOIN customers c ON pi.vendor_id = c.id
+       WHERE pi.id = $1 AND pi.organization_id = $2 AND pi.status = 'draft'`,
       [processedInvoiceId, organizationId]
     );
-    return result.rows.length > 0;
+
+    if (invoiceResult.rows.length === 0) {
+      return false;
+    }
+
+    const invoice = invoiceResult.rows[0];
+
+    // Get the first document for this invoice
+    const docResult = await query(
+      `SELECT * FROM invoice_documents
+       WHERE processed_invoice_id = $1
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      [processedInvoiceId]
+    );
+
+    let sevdeskVoucherId: string | null = null;
+
+    // Try to create sevDesk voucher if we have a document
+    if (docResult.rows.length > 0) {
+      try {
+        // Get sevDesk API token for this organization
+        const configResult = await query(
+          `SELECT api_token FROM sevdesk_config WHERE organization_id = $1`,
+          [organizationId]
+        );
+
+        if (configResult.rows.length > 0 && configResult.rows[0].api_token) {
+          const apiToken = configResult.rows[0].api_token;
+          const doc = docResult.rows[0];
+
+          // Read the file
+          const fileBuffer = await fs.promises.readFile(doc.storage_path);
+
+          // Upload to sevDesk
+          const uploadResult = await uploadVoucherFile(
+            apiToken,
+            fileBuffer,
+            doc.original_filename,
+            doc.mime_type
+          );
+
+          // Create voucher
+          const voucherResult = await createVoucherFromFile(
+            apiToken,
+            uploadResult.id,
+            {
+              voucherDate: invoice.received_at || new Date().toISOString(),
+              description: invoice.email_subject || 'Eingangsrechnung',
+              supplierName: invoice.vendor_name || invoice.sender_name || undefined,
+              creditDebit: 'D', // Debit = Ausgabe (Eingangsrechnung)
+            }
+          );
+
+          sevdeskVoucherId = voucherResult.voucherId;
+          console.log(`Created sevDesk voucher ${sevdeskVoucherId} for invoice ${processedInvoiceId}`);
+        }
+      } catch (err) {
+        console.error(`Failed to create sevDesk voucher for invoice ${processedInvoiceId}:`, err);
+        // Continue anyway - we still mark as processed even if sevDesk fails
+      }
+    }
+
+    // Update the invoice status
+    const updateResult = await query(
+      `UPDATE processed_invoices
+       SET status = 'processed', processed_at = NOW(), sevdesk_voucher_id = $3
+       WHERE id = $1 AND organization_id = $2 AND status = 'draft'
+       RETURNING id`,
+      [processedInvoiceId, organizationId, sevdeskVoucherId]
+    );
+
+    return updateResult.rows.length > 0;
   }
 
   /**
