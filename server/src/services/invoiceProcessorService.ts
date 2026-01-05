@@ -758,6 +758,19 @@ class InvoiceProcessorService {
    * Extract invoice data from PDF using text extraction and AI parsing
    */
   async extractInvoiceData(organizationId: string, processedInvoiceId: string): Promise<ExtractedInvoiceData | null> {
+    // Get the invoice with email info for fallback extraction
+    const invoiceResult = await query(
+      `SELECT * FROM processed_invoices WHERE id = $1`,
+      [processedInvoiceId]
+    );
+
+    if (invoiceResult.rows.length === 0) {
+      console.log('Invoice not found:', processedInvoiceId);
+      return null;
+    }
+
+    const invoice = invoiceResult.rows[0];
+
     // Get the first document for this invoice
     const docResult = await query(
       `SELECT * FROM invoice_documents
@@ -767,9 +780,13 @@ class InvoiceProcessorService {
       [processedInvoiceId]
     );
 
+    // Start with fallback extraction from email metadata
+    let result = this.extractFromEmailMetadata(invoice);
+    console.log('Email metadata extraction:', result);
+
     if (docResult.rows.length === 0) {
       console.log('No documents found for invoice', processedInvoiceId);
-      return null;
+      return result;
     }
 
     const doc = docResult.rows[0];
@@ -777,7 +794,7 @@ class InvoiceProcessorService {
     // Only process PDFs
     if (!doc.mime_type?.includes('pdf') && !doc.original_filename?.toLowerCase().endsWith('.pdf')) {
       console.log('Document is not a PDF:', doc.mime_type);
-      return this.createEmptyExtraction('Kein PDF-Dokument');
+      return result;
     }
 
     try {
@@ -787,14 +804,33 @@ class InvoiceProcessorService {
       // Extract text from PDF
       const pdfData = await pdfParse(fileBuffer);
       const rawText = pdfData.text;
+      console.log('PDF text length:', rawText?.length || 0);
+      console.log('PDF text preview:', rawText?.substring(0, 500));
 
       if (!rawText || rawText.trim().length < 50) {
         console.log('PDF has insufficient text content');
-        return this.createEmptyExtraction('PDF enthält keinen extrahierbaren Text');
+        result.rawText = 'PDF enthält keinen extrahierbaren Text';
+        return result;
       }
 
       // Try to extract data using regex patterns first (faster, no API cost)
       const regexExtraction = this.extractWithRegex(rawText);
+      console.log('Regex extraction:', regexExtraction);
+
+      // Merge regex extraction with email fallback (prefer regex if found)
+      result = {
+        supplierName: regexExtraction.supplierName || result.supplierName,
+        invoiceNumber: regexExtraction.invoiceNumber || result.invoiceNumber,
+        invoiceDate: regexExtraction.invoiceDate || result.invoiceDate,
+        dueDate: regexExtraction.dueDate || result.dueDate,
+        netAmount: regexExtraction.netAmount ?? result.netAmount,
+        grossAmount: regexExtraction.grossAmount ?? result.grossAmount,
+        vatAmount: regexExtraction.vatAmount ?? result.vatAmount,
+        vatRate: regexExtraction.vatRate ?? result.vatRate,
+        currency: regexExtraction.currency || result.currency,
+        confidence: Math.max(regexExtraction.confidence, result.confidence),
+        rawText: rawText.substring(0, 2000),
+      };
 
       // Get AI config for this organization to use AI parsing if available
       const aiConfigResult = await query(
@@ -805,37 +841,124 @@ class InvoiceProcessorService {
         [organizationId]
       );
 
-      // If we have AI config and regex extraction is incomplete, use AI
-      if (aiConfigResult.rows.length > 0 && this.needsAIExtraction(regexExtraction)) {
+      // If we have AI config and still missing critical fields, use AI
+      if (aiConfigResult.rows.length > 0 && this.needsAIExtraction(result)) {
+        console.log('Using AI extraction...');
         const aiConfig = aiConfigResult.rows[0];
         const aiExtraction = await this.extractWithAI(rawText, aiConfig);
+        console.log('AI extraction:', aiExtraction);
 
-        // Merge AI extraction with regex extraction (prefer AI if available)
-        return {
-          supplierName: aiExtraction.supplierName || regexExtraction.supplierName,
-          invoiceNumber: aiExtraction.invoiceNumber || regexExtraction.invoiceNumber,
-          invoiceDate: aiExtraction.invoiceDate || regexExtraction.invoiceDate,
-          dueDate: aiExtraction.dueDate || regexExtraction.dueDate,
-          netAmount: aiExtraction.netAmount ?? regexExtraction.netAmount,
-          grossAmount: aiExtraction.grossAmount ?? regexExtraction.grossAmount,
-          vatAmount: aiExtraction.vatAmount ?? regexExtraction.vatAmount,
-          vatRate: aiExtraction.vatRate ?? regexExtraction.vatRate,
-          currency: aiExtraction.currency || regexExtraction.currency || 'EUR',
-          confidence: aiExtraction.confidence,
-          rawText: rawText.substring(0, 2000), // First 2000 chars for reference
+        // Merge AI extraction (prefer AI if available)
+        result = {
+          supplierName: aiExtraction.supplierName || result.supplierName,
+          invoiceNumber: aiExtraction.invoiceNumber || result.invoiceNumber,
+          invoiceDate: aiExtraction.invoiceDate || result.invoiceDate,
+          dueDate: aiExtraction.dueDate || result.dueDate,
+          netAmount: aiExtraction.netAmount ?? result.netAmount,
+          grossAmount: aiExtraction.grossAmount ?? result.grossAmount,
+          vatAmount: aiExtraction.vatAmount ?? result.vatAmount,
+          vatRate: aiExtraction.vatRate ?? result.vatRate,
+          currency: aiExtraction.currency || result.currency,
+          confidence: aiExtraction.confidence > 0 ? aiExtraction.confidence : result.confidence,
+          rawText: rawText.substring(0, 2000),
         };
       }
 
-      // Return regex extraction if no AI available
-      return {
-        ...regexExtraction,
-        rawText: rawText.substring(0, 2000),
-      };
+      return result;
 
     } catch (error: any) {
       console.error('Error extracting invoice data:', error.message);
-      return this.createEmptyExtraction(`Fehler: ${error.message}`);
+      result.rawText = `Fehler: ${error.message}`;
+      return result;
     }
+  }
+
+  /**
+   * Extract data from email metadata (subject, sender) as fallback
+   */
+  private extractFromEmailMetadata(invoice: any): ExtractedInvoiceData {
+    const result: ExtractedInvoiceData = {
+      supplierName: null,
+      invoiceNumber: null,
+      invoiceDate: null,
+      dueDate: null,
+      netAmount: null,
+      grossAmount: null,
+      vatAmount: null,
+      vatRate: 19,
+      currency: 'EUR',
+      confidence: 0.2,
+    };
+
+    const subject = invoice.email_subject || '';
+    const senderName = invoice.sender_name || '';
+    const senderEmail = invoice.sender_email || '';
+
+    // Extract invoice number from subject
+    // Patterns: "Rechnung 1258543", "RE-12345", "Invoice #123", etc.
+    const invoiceNumberPatterns = [
+      /Rechnung\s*[:#]?\s*(\d+)/i,
+      /RE[-\s]?(\d+)/i,
+      /Invoice\s*[:#]?\s*(\d+)/i,
+      /Nr\.?\s*[:#]?\s*(\d+)/i,
+      /(\d{6,})/,  // Any 6+ digit number as last resort
+    ];
+
+    for (const pattern of invoiceNumberPatterns) {
+      const match = subject.match(pattern);
+      if (match && match[1]) {
+        result.invoiceNumber = match[1];
+        break;
+      }
+    }
+
+    // Extract supplier name from sender
+    // Pattern: "Nina Moscato | ELOVADE" -> "ELOVADE"
+    // Pattern: "Max Mustermann (Firma GmbH)" -> "Firma GmbH"
+    // Pattern: sender email domain -> "elovade" from "info@elovade.com"
+    if (senderName) {
+      // Try to extract company name after | or from ()
+      const pipeMatch = senderName.match(/\|\s*(.+)$/);
+      const parenMatch = senderName.match(/\(([^)]+)\)/);
+      const companyMatch = senderName.match(/([A-Za-zäöüÄÖÜß\s&\.\-]+(?:GmbH|AG|KG|OHG|e\.?V\.?|UG|mbH|Inc\.?|Ltd\.?|LLC))/i);
+
+      if (pipeMatch && pipeMatch[1]) {
+        result.supplierName = pipeMatch[1].trim();
+      } else if (parenMatch && parenMatch[1]) {
+        result.supplierName = parenMatch[1].trim();
+      } else if (companyMatch && companyMatch[1]) {
+        result.supplierName = companyMatch[1].trim();
+      } else if (senderName.length > 2 && senderName.length < 100) {
+        // Use full sender name if it's reasonable length
+        result.supplierName = senderName.trim();
+      }
+    }
+
+    // If no supplier name found, try to extract from email domain
+    if (!result.supplierName && senderEmail) {
+      const domainMatch = senderEmail.match(/@([^.]+)\./);
+      if (domainMatch && domainMatch[1] && domainMatch[1].length > 2) {
+        // Capitalize first letter
+        const domain = domainMatch[1];
+        result.supplierName = domain.charAt(0).toUpperCase() + domain.slice(1);
+      }
+    }
+
+    // Try to extract date from subject
+    const dateMatch = subject.match(/(\d{1,2}[\.\/]\d{1,2}[\.\/]\d{2,4})/);
+    if (dateMatch) {
+      result.invoiceDate = this.parseGermanDate(dateMatch[1]);
+    }
+
+    // Use received date as fallback for invoice date
+    if (!result.invoiceDate && invoice.received_at) {
+      const received = new Date(invoice.received_at);
+      if (!isNaN(received.getTime())) {
+        result.invoiceDate = received.toISOString().split('T')[0];
+      }
+    }
+
+    return result;
   }
 
   private createEmptyExtraction(reason: string): ExtractedInvoiceData {
