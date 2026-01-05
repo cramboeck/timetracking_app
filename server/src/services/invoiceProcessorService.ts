@@ -855,37 +855,20 @@ class InvoiceProcessorService {
         [organizationId]
       );
 
-      // If we have AI config and still missing critical fields, use AI
-      if (aiConfigResult.rows.length > 0 && this.needsAIExtraction(result)) {
-        console.log('Using AI extraction...');
+      console.log('AI config found:', aiConfigResult.rows.length > 0 ? 'Yes' : 'No');
+
+      // If OpenAI is configured, always use Vision for best results (includes line items)
+      if (aiConfigResult.rows.length > 0) {
         const aiConfig = aiConfigResult.rows[0];
+        console.log('AI provider:', aiConfig.provider);
 
-        // Try text-based AI first
-        const aiExtraction = await this.extractWithAI(rawText, aiConfig);
-        console.log('AI extraction:', aiExtraction);
-
-        // Merge AI extraction (prefer AI if available)
-        result = {
-          supplierName: aiExtraction.supplierName || result.supplierName,
-          invoiceNumber: aiExtraction.invoiceNumber || result.invoiceNumber,
-          invoiceDate: aiExtraction.invoiceDate || result.invoiceDate,
-          dueDate: aiExtraction.dueDate || result.dueDate,
-          netAmount: aiExtraction.netAmount ?? result.netAmount,
-          grossAmount: aiExtraction.grossAmount ?? result.grossAmount,
-          vatAmount: aiExtraction.vatAmount ?? result.vatAmount,
-          vatRate: aiExtraction.vatRate ?? result.vatRate,
-          currency: aiExtraction.currency || result.currency,
-          confidence: aiExtraction.confidence > 0 ? aiExtraction.confidence : result.confidence,
-          rawText: rawText.substring(0, 2000),
-        };
-
-        // If still missing amounts and OpenAI is configured, try Vision
-        if ((!result.grossAmount && !result.netAmount) && aiConfig.provider === 'openai') {
-          console.log('Text extraction incomplete, trying Vision...');
+        if (aiConfig.provider === 'openai') {
+          // Use Vision directly for best extraction (handles scanned PDFs, extracts line items)
+          console.log('Using OpenAI Vision for comprehensive extraction...');
           const visionExtraction = await this.extractWithVision(fileBuffer, aiConfig);
-          console.log('Vision extraction:', visionExtraction);
+          console.log('Vision extraction result:', visionExtraction);
 
-          if (visionExtraction.confidence > result.confidence) {
+          if (visionExtraction.confidence > 0) {
             result = {
               supplierName: visionExtraction.supplierName || result.supplierName,
               invoiceNumber: visionExtraction.invoiceNumber || result.invoiceNumber,
@@ -898,31 +881,31 @@ class InvoiceProcessorService {
               currency: visionExtraction.currency || result.currency,
               confidence: visionExtraction.confidence,
               rawText: result.rawText,
+              lineItems: visionExtraction.lineItems,
             };
           }
-        }
-      } else if (aiConfigResult.rows.length > 0 && (!result.grossAmount && !result.netAmount)) {
-        // No text extraction worked, try Vision directly if OpenAI
-        const aiConfig = aiConfigResult.rows[0];
-        if (aiConfig.provider === 'openai') {
-          console.log('Text extraction failed, trying Vision directly...');
-          const visionExtraction = await this.extractWithVision(fileBuffer, aiConfig);
-          console.log('Vision extraction:', visionExtraction);
+        } else {
+          // For Anthropic, use text-based extraction
+          console.log('Using text-based AI extraction...');
+          const aiExtraction = await this.extractWithAI(rawText, aiConfig);
+          console.log('AI extraction:', aiExtraction);
 
           result = {
-            supplierName: visionExtraction.supplierName || result.supplierName,
-            invoiceNumber: visionExtraction.invoiceNumber || result.invoiceNumber,
-            invoiceDate: visionExtraction.invoiceDate || result.invoiceDate,
-            dueDate: visionExtraction.dueDate || result.dueDate,
-            netAmount: visionExtraction.netAmount ?? result.netAmount,
-            grossAmount: visionExtraction.grossAmount ?? result.grossAmount,
-            vatAmount: visionExtraction.vatAmount ?? result.vatAmount,
-            vatRate: visionExtraction.vatRate ?? result.vatRate,
-            currency: visionExtraction.currency || result.currency,
-            confidence: visionExtraction.confidence > 0 ? visionExtraction.confidence : result.confidence,
-            rawText: result.rawText,
+            supplierName: aiExtraction.supplierName || result.supplierName,
+            invoiceNumber: aiExtraction.invoiceNumber || result.invoiceNumber,
+            invoiceDate: aiExtraction.invoiceDate || result.invoiceDate,
+            dueDate: aiExtraction.dueDate || result.dueDate,
+            netAmount: aiExtraction.netAmount ?? result.netAmount,
+            grossAmount: aiExtraction.grossAmount ?? result.grossAmount,
+            vatAmount: aiExtraction.vatAmount ?? result.vatAmount,
+            vatRate: aiExtraction.vatRate ?? result.vatRate,
+            currency: aiExtraction.currency || result.currency,
+            confidence: aiExtraction.confidence > 0 ? aiExtraction.confidence : result.confidence,
+            rawText: rawText.substring(0, 2000),
           };
         }
+      } else {
+        console.log('No AI config found - using regex/email extraction only');
       }
 
       return result;
