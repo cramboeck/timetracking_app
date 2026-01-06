@@ -868,9 +868,9 @@ router.post('/create-default-projects', authenticateToken, attachOrganization, r
 
     logImport('=== CREATE DEFAULT PROJECTS STARTED ===', { userId, organizationId });
 
-    // Get all customers without a default project
+    // Get all customers without a default project (include hourly_rate for new projects)
     const customersResult = await pool.query(
-      `SELECT c.id, c.name
+      `SELECT c.id, c.name, c.hourly_rate
        FROM customers c
        WHERE c.organization_id = $1
          AND (c.default_project_id IS NULL OR NOT EXISTS (
@@ -902,17 +902,18 @@ router.post('/create-default-projects', authenticateToken, attachOrganization, r
         projectName = existingProjectsResult.rows[0].name;
         logImport(`Using oldest project "${projectName}" as default for customer "${customer.name}"`, { projectId });
       } else {
-        // No projects exist - create new "Standard" project
+        // No projects exist - create new "Standard" project with customer's hourly rate
         const { v4: uuidv4 } = await import('uuid');
         projectId = uuidv4();
         projectName = 'Standard';
+        const hourlyRate = customer.hourly_rate || 0;
         await pool.query(
           `INSERT INTO projects (id, user_id, organization_id, customer_id, name, hourly_rate, is_active, rate_type, created_at)
-           VALUES ($1, $2, $3, $4, $5, 0, true, 'hourly', NOW())`,
-          [projectId, userId, organizationId, customer.id, projectName]
+           VALUES ($1, $2, $3, $4, $5, $6, true, 'hourly', NOW())`,
+          [projectId, userId, organizationId, customer.id, projectName, hourlyRate]
         );
         created++;
-        logImport(`Created "Standard" project for customer "${customer.name}"`, { projectId });
+        logImport(`Created "Standard" project for customer "${customer.name}" with rate ${hourlyRate}€/h`, { projectId, hourlyRate });
       }
 
       // Set as default project for this customer
@@ -942,6 +943,69 @@ router.post('/create-default-projects', authenticateToken, attachOrganization, r
     console.error('Create default projects error:', error);
     logImport('=== CREATE DEFAULT PROJECTS FAILED ===', { error: error.message });
     res.status(500).json({ error: error.message || 'Failed to create default projects' });
+  }
+});
+
+// ============================================
+// Sync Standard project rates with customer rates
+// Updates projects named "Standard" to use customer's hourly_rate
+// ============================================
+router.post('/sync-standard-project-rates', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    logImport('=== SYNC STANDARD PROJECT RATES STARTED ===', { organizationId });
+
+    // Find all "Standard" projects with hourly_rate = 0 or NULL,
+    // where the customer has a valid hourly_rate
+    const result = await pool.query(
+      `UPDATE projects p
+       SET hourly_rate = c.hourly_rate
+       FROM customers c
+       WHERE p.customer_id = c.id
+         AND p.organization_id = $1
+         AND p.name = 'Standard'
+         AND (p.hourly_rate IS NULL OR p.hourly_rate = 0)
+         AND c.hourly_rate IS NOT NULL
+         AND c.hourly_rate > 0
+       RETURNING p.id, p.name as project_name, c.name as customer_name, c.hourly_rate as new_rate`,
+      [organizationId]
+    );
+
+    const updated = result.rows;
+    logImport(`Updated ${updated.length} Standard projects with customer rates`, { updated });
+
+    // Also get projects that couldn't be updated (customer has no rate)
+    const notUpdatedResult = await pool.query(
+      `SELECT p.id, p.name as project_name, c.name as customer_name, p.hourly_rate
+       FROM projects p
+       JOIN customers c ON p.customer_id = c.id
+       WHERE p.organization_id = $1
+         AND p.name = 'Standard'
+         AND (p.hourly_rate IS NULL OR p.hourly_rate = 0)
+         AND (c.hourly_rate IS NULL OR c.hourly_rate = 0)`,
+      [organizationId]
+    );
+
+    const notUpdated = notUpdatedResult.rows;
+
+    logImport('=== SYNC STANDARD PROJECT RATES COMPLETED ===', {
+      updatedCount: updated.length,
+      notUpdatedCount: notUpdated.length
+    });
+
+    res.json({
+      success: true,
+      updated: updated.length,
+      notUpdated: notUpdated.length,
+      updatedProjects: updated,
+      projectsWithoutCustomerRate: notUpdated
+    });
+  } catch (error: any) {
+    console.error('Sync standard project rates error:', error);
+    logImport('=== SYNC STANDARD PROJECT RATES FAILED ===', { error: error.message });
+    res.status(500).json({ error: error.message || 'Failed to sync standard project rates' });
   }
 });
 
