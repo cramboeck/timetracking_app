@@ -401,6 +401,15 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
   const getCustomerById = (id: string) => customers.find(c => c.id === id);
   const getActivityById = (id: string) => activities.find(a => a.id === id);
 
+  // Get effective hourly rate: Project rate → Customer rate → 0
+  const getEffectiveHourlyRate = (project: Project | undefined): number => {
+    if (!project) return 0;
+    if (project.hourlyRate) return project.hourlyRate;
+    // Fallback to customer rate
+    const customer = getCustomerById(project.customerId);
+    return customer?.hourlyRate || 0;
+  };
+
   const calculateAmount = (entry: TimeEntry): number => {
     const hours = entry.duration / 3600;
     const project = getProjectById(entry.projectId);
@@ -413,8 +422,8 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
       }
     }
 
-    // Otherwise use hourly rate
-    return project ? hours * project.hourlyRate : 0;
+    // Use effective hourly rate (project → customer fallback)
+    return hours * getEffectiveHourlyRate(project);
   };
 
   // Get current quarter/year based on selection
@@ -496,7 +505,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
           customerColor: customer.color,
           totalSeconds: entry.duration,
           totalAmount: amount,
-          hourlyRate: project.hourlyRate,
+          hourlyRate: getEffectiveHourlyRate(project),
           entryCount: 1
         });
       }
