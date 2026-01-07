@@ -56,6 +56,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
   const [dateDisplay, setDateDisplay] = useState(formatDateGerman(today));
   const [startTime, setStartTime] = useState(startDefault);
   const [endTime, setEndTime] = useState(currentTime);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [projectId, setProjectId] = useState('');
   const [activityId, setActivityId] = useState('');
   const [description, setDescription] = useState('');
@@ -73,6 +74,26 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
   }, [date, startTime, endTime]);
 
   const activeProjects = projects.filter(p => p.isActive);
+
+  // Get customers that have active projects
+  const customersWithProjects = useMemo(() => {
+    const customerIds = new Set(activeProjects.map(p => p.customerId));
+    return customers
+      .filter(c => customerIds.has(c.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [customers, activeProjects]);
+
+  // Filter projects by selected customer
+  const filteredProjects = useMemo(() => {
+    if (!selectedCustomerId) return activeProjects;
+    return activeProjects.filter(p => p.customerId === selectedCustomerId);
+  }, [activeProjects, selectedCustomerId]);
+
+  // Reset project when customer changes
+  const handleCustomerChange = (customerId: string) => {
+    setSelectedCustomerId(customerId);
+    setProjectId(''); // Reset project selection
+  };
 
   // Handle German date input
   const handleDateChange = (value: string) => {
@@ -136,6 +157,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
     const resetOneHourAgo = new Date(resetNow.getTime() - 60 * 60 * 1000);
     const resetStartTime = resetOneHourAgo.getHours() < 8 ? '08:00' : resetOneHourAgo.toTimeString().slice(0, 5);
 
+    setSelectedCustomerId('');
     setProjectId('');
     setActivityId('');
     setDescription('');
@@ -212,28 +234,52 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
             )}
           </div>
 
+          {/* Customer Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Kunde
+            </label>
+            <select
+              value={selectedCustomerId}
+              onChange={(e) => handleCustomerChange(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Alle Kunden</option>
+              {customersWithProjects.map(customer => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Project Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Projekt *
             </label>
             <select
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               required
-              disabled={activeProjects.length === 0}
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              disabled={filteredProjects.length === 0}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-dark-200"
             >
               <option value="">
-                {activeProjects.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
+                {filteredProjects.length === 0
+                  ? 'Keine Projekte vorhanden'
+                  : selectedCustomerId
+                    ? 'Projekt wählen...'
+                    : 'Erst Kunde wählen oder Projekt suchen...'}
               </option>
-              {activeProjects.map(project => (
+              {filteredProjects.map(project => (
                 <option key={project.id} value={project.id}>
-                  {getProjectDisplay(project)}
+                  {selectedCustomerId ? project.name : getProjectDisplay(project)}
                 </option>
               ))}
             </select>
             {activeProjects.length === 0 && (
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                 Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
               </p>
             )}
