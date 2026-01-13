@@ -1978,6 +1978,153 @@ export async function createQuote(
   };
 }
 
+// Update an existing quote in sevDesk
+export async function updateQuote(
+  apiToken: string,
+  config: SevdeskConfig,
+  quoteId: string,
+  input: CreateQuoteInput
+): Promise<{ quoteId: string; quoteNumber: string }> {
+  // Get existing quote details to preserve some fields
+  const existingQuote = await getQuoteWithPositions(apiToken, quoteId);
+  if (!existingQuote) {
+    throw new Error('Angebot nicht gefunden');
+  }
+
+  // Get existing positions IDs for deletion
+  const positionsResponse = await sevdeskFetch(apiToken, `/OrderPos?order[id]=${quoteId}&order[objectName]=Order`);
+  const existingPositionIds = (positionsResponse.objects || []).map((p: any) => p.id);
+
+  // Fetch required data
+  const [userResponse, contactResponse, addressResponse] = await Promise.all([
+    sevdeskFetch(apiToken, '/SevUser'),
+    sevdeskFetch(apiToken, `/Contact/${input.contactId}`),
+    sevdeskFetch(apiToken, `/ContactAddress?contact[id]=${input.contactId}&contact[objectName]=Contact`),
+  ]);
+
+  const sevUser = userResponse.objects?.[0];
+  if (!sevUser) {
+    throw new Error('Could not get sevDesk user for contactPerson');
+  }
+
+  const contact = contactResponse.objects;
+  const addresses = addressResponse.objects || [];
+  const mainAddress = addresses[0] || {};
+
+  // Build address fields
+  const addressName = contact?.name || `${contact?.surename || ''} ${contact?.familyname || ''}`.trim() || '';
+  const addressStreet = mainAddress.street || null;
+  const addressZip = mainAddress.zip || null;
+  const addressCity = mainAddress.city || null;
+
+  const addressParts: string[] = [];
+  if (addressName) addressParts.push(addressName);
+  if (addressStreet) addressParts.push(addressStreet);
+  if (addressZip || addressCity) addressParts.push([addressZip, addressCity].filter(Boolean).join(' '));
+  const fullAddress = addressParts.join('\n');
+
+  // Use Unix timestamp for date
+  const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
+  const orderDateTimestamp = Math.floor(dateObj.getTime() / 1000);
+  const taxRate = config.taxRate || 19;
+
+  // Build order data with ID for update
+  const orderData: Record<string, unknown> = {
+    order: {
+      id: parseInt(quoteId),
+      orderNumber: existingQuote.quoteNumber,
+      contact: {
+        id: parseInt(input.contactId),
+        objectName: 'Contact',
+      },
+      orderDate: orderDateTimestamp,
+      status: input.status || existingQuote.status || 100,
+      header: input.header || existingQuote.header,
+      headText: input.headText ?? existingQuote.headText ?? '',
+      footText: input.footText ?? existingQuote.footText ?? '',
+      addressName: addressName,
+      addressStreet: addressStreet,
+      addressZip: addressZip,
+      addressCity: addressCity,
+      address: fullAddress,
+      addressCountry: {
+        id: mainAddress.country?.id || 1,
+        objectName: 'StaticCountry',
+      },
+      version: 0,
+      smallSettlement: false,
+      contactPerson: {
+        id: parseInt(sevUser.id),
+        objectName: 'SevUser',
+      },
+      taxRate: 0,
+      taxType: null,
+      taxRule: {
+        id: 1,
+        objectName: 'TaxRule',
+      },
+      orderType: 'AN',
+      currency: 'EUR',
+      showNet: false,
+      mapAll: true,
+      objectName: 'Order',
+    },
+    orderPosSave: input.positions.map((pos, index) => ({
+      quantity: pos.quantity,
+      price: pos.price,
+      priceNet: pos.price,
+      priceTax: 0,
+      priceGross: pos.price * (1 + taxRate / 100),
+      name: pos.name || null,
+      unity: {
+        id: 9, // Stunden
+        objectName: 'Unity',
+      },
+      positionNumber: index,
+      text: pos.text || '',
+      discount: null,
+      optional: false,
+      taxRate: pos.taxRate || taxRate,
+      objectName: 'OrderPos',
+      mapAll: true,
+    })),
+    orderPosDelete: existingPositionIds.length > 0 ? existingPositionIds.map((id: string) => ({
+      id: parseInt(id),
+      objectName: 'OrderPos',
+    })) : null,
+  };
+
+  const formBody = objectToFormData(orderData);
+
+  console.log('[sevDesk] Updating quote with form-urlencoded data');
+
+  const response = await fetch(`${SEVDESK_API_URL}/Order/Factory/saveOrder`, {
+    method: 'POST',
+    headers: {
+      'Authorization': apiToken,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: formBody,
+  });
+
+  const responseText = await response.text();
+  console.log('[sevDesk] Update response:', response.status, responseText.substring(0, 500));
+
+  if (!response.ok) {
+    throw new Error(`Failed to update quote: ${responseText}`);
+  }
+
+  const quoteData = JSON.parse(responseText) as { objects: { order: { id: string; orderNumber: string } } };
+  const updatedQuoteNumber = quoteData.objects.order.orderNumber;
+
+  console.log('[sevDesk] Quote updated:', quoteId, updatedQuoteNumber);
+
+  return {
+    quoteId,
+    quoteNumber: updatedQuoteNumber,
+  };
+}
+
 // Get previous invoices for a contact (from local DB)
 export async function getPreviousInvoicesForContact(
   userId: string,

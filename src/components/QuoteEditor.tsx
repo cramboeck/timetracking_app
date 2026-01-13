@@ -36,6 +36,7 @@ interface QuotePosition {
 interface QuoteEditorProps {
   onClose: () => void;
   onSuccess?: (quoteNumber: string) => void;
+  quoteId?: string; // If provided, edit existing quote instead of creating new one
 }
 
 // Text templates with variable support
@@ -93,11 +94,14 @@ const FOOT_TEXT_TEMPLATES = [
   },
 ];
 
-export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
+export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) => {
+  const isEditing = !!quoteId;
+
   // Contact selection
   const [contacts, setContacts] = useState<SevdeskContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [selectedContact, setSelectedContact] = useState<SevdeskContact | null>(null);
+  const [loadingQuote, setLoadingQuote] = useState(isEditing);
 
   // Quote details
   const [header, setHeader] = useState('');
@@ -175,7 +179,54 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
   useEffect(() => {
     loadContacts();
     checkAiConfig();
-  }, []);
+    if (quoteId) {
+      loadExistingQuote(quoteId);
+    }
+  }, [quoteId]);
+
+  // Load existing quote for editing
+  const loadExistingQuote = async (id: string) => {
+    setLoadingQuote(true);
+    try {
+      const response = await sevdeskApi.getQuote(id);
+      if (response.success && response.data) {
+        const quote = response.data;
+        setHeader(quote.header);
+        setHeadText(quote.headText || '');
+        setFootText(quote.footText || '');
+        // Convert positions
+        setPositions(quote.positions.map((p, index) => ({
+          id: `existing-${index}`,
+          name: p.name,
+          text: p.text || '',
+          quantity: p.quantity,
+          price: p.price,
+          isHeading: p.quantity === 0 && p.price === 0,
+        })));
+        // Find and set contact
+        const contact = contacts.find(c => c.id === quote.contact.id);
+        if (contact) {
+          setSelectedContact(contact);
+        } else {
+          // Contact might not be loaded yet, wait and try again
+          setTimeout(async () => {
+            const loadedContacts = await sevdeskApi.getContacts();
+            if (loadedContacts.success) {
+              const foundContact = loadedContacts.data.contacts.find(c => c.id === quote.contact.id);
+              if (foundContact) {
+                setSelectedContact(foundContact);
+              }
+            }
+          }, 500);
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to load quote:', err);
+      setError(err.message || 'Fehler beim Laden des Angebots');
+    } finally {
+      setLoadingQuote(false);
+    }
+  };
 
   const checkAiConfig = async () => {
     try {
@@ -444,16 +495,24 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
         status: createAsDraft ? 100 : 200,
       };
 
-      const response = await sevdeskApi.createQuote(input);
+      let response;
+      if (isEditing && quoteId) {
+        response = await sevdeskApi.updateQuote(quoteId, input);
+      } else {
+        response = await sevdeskApi.createQuote(input);
+      }
 
       if (response.success) {
-        setSuccess(`Angebot ${response.data.quoteNumber} wurde erstellt!`);
+        setSuccess(isEditing
+          ? `Angebot ${response.data.quoteNumber} wurde aktualisiert!`
+          : `Angebot ${response.data.quoteNumber} wurde erstellt!`
+        );
         if (onSuccess) {
           setTimeout(() => onSuccess(response.data.quoteNumber), 1500);
         }
       }
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Erstellen des Angebots');
+      setError(err.message || (isEditing ? 'Fehler beim Aktualisieren des Angebots' : 'Fehler beim Erstellen des Angebots'));
     } finally {
       setSubmitting(false);
     }
@@ -466,7 +525,7 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <FileText size={20} />
-            Neues Angebot erstellen
+            {isEditing ? 'Angebot bearbeiten' : 'Neues Angebot erstellen'}
           </h3>
           <button
             onClick={onClose}

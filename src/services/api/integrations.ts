@@ -434,6 +434,13 @@ export const sevdeskApi = {
     });
   },
 
+  updateQuote: async (quoteId: string, data: CreateQuoteInput): Promise<{ success: boolean; data: { quoteId: string; quoteNumber: string } }> => {
+    return authFetch(`/sevdesk/quotes/${quoteId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
   getImportPreview: async (showAll?: boolean): Promise<{
     success: boolean;
     data: {

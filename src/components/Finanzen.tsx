@@ -28,6 +28,7 @@ import {
   Upload,
   Camera,
   X,
+  Pencil,
 } from 'lucide-react';
 import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, DocumentSearchResult } from '../services/api';
 import { QuoteEditor } from './QuoteEditor';
@@ -1062,6 +1063,7 @@ const DocumentsTab = () => {
 
   // Quote Editor
   const [showQuoteEditor, setShowQuoteEditor] = useState(false);
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
 
   // Voucher Upload
   const [showVoucherUpload, setShowVoucherUpload] = useState(false);
@@ -1571,6 +1573,20 @@ const DocumentsTab = () => {
                       {formatDate(quote.quoteDate)}
                     </p>
                   </div>
+                  {/* Edit Button - only for draft quotes */}
+                  {quote.status === 100 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingQuoteId(quote.id);
+                        setShowQuoteEditor(true);
+                      }}
+                      className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors flex-shrink-0"
+                      title="Angebot bearbeiten"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                  )}
                   <ChevronRight size={18} className="text-gray-400 flex-shrink-0 hidden sm:block" />
                 </div>
               ))
@@ -1640,9 +1656,14 @@ const DocumentsTab = () => {
       {/* Quote Editor Modal */}
       {showQuoteEditor && (
         <QuoteEditor
-          onClose={() => setShowQuoteEditor(false)}
+          quoteId={editingQuoteId || undefined}
+          onClose={() => {
+            setShowQuoteEditor(false);
+            setEditingQuoteId(null);
+          }}
           onSuccess={() => {
             setShowQuoteEditor(false);
+            setEditingQuoteId(null);
             loadDocuments();
             loadSyncStatus();
           }}

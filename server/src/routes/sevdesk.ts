@@ -1044,6 +1044,95 @@ router.post('/quotes/create', authenticateToken, requireBillingFeature, async (r
   }
 });
 
+// GET /api/sevdesk/quotes/:id - Get a single quote with positions
+router.get('/quotes/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const quoteId = req.params.id;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    const quote = await sevdeskService.getQuoteWithPositions(config.apiToken, quoteId);
+
+    if (!quote) {
+      return res.status(404).json({ success: false, error: 'Angebot nicht gefunden' });
+    }
+
+    res.json({
+      success: true,
+      data: quote,
+    });
+  } catch (error: any) {
+    console.error('Get quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/sevdesk/quotes/:id - Update an existing quote
+router.put('/quotes/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const quoteId = req.params.id;
+    const { contactId, quoteDate, header, headText, footText, positions, status } = req.body;
+
+    // Validate required fields
+    if (!contactId) {
+      return res.status(400).json({ success: false, error: 'contactId is required' });
+    }
+    if (!header || header.trim() === '') {
+      return res.status(400).json({ success: false, error: 'header (Betreff) is required' });
+    }
+    if (!positions || !Array.isArray(positions) || positions.length === 0) {
+      return res.status(400).json({ success: false, error: 'At least one position is required' });
+    }
+
+    // Validate each position
+    for (const pos of positions) {
+      if (!pos.name || pos.name.trim() === '') {
+        return res.status(400).json({ success: false, error: 'Each position must have a name' });
+      }
+      // Allow quantity=0 for headings (sections)
+      if (typeof pos.quantity !== 'number' || pos.quantity < 0) {
+        return res.status(400).json({ success: false, error: 'Each position must have a valid quantity >= 0' });
+      }
+      if (pos.quantity === 0 && pos.price !== 0) {
+        return res.status(400).json({ success: false, error: 'Position with price must have quantity > 0' });
+      }
+      if (typeof pos.price !== 'number' || pos.price < 0) {
+        return res.status(400).json({ success: false, error: 'Each position must have a valid price >= 0' });
+      }
+    }
+
+    // Get config
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    // Update the quote
+    const result = await sevdeskService.updateQuote(config.apiToken, config, quoteId, {
+      contactId,
+      quoteDate,
+      header,
+      headText,
+      footText,
+      positions,
+      status: status || 100,
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Update quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================
 // Customer Import Routes
 // ============================================
