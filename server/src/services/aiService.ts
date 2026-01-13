@@ -869,6 +869,69 @@ Formatiere die Preise klar mit EUR.`;
   };
 }
 
+// Generate description text for a quote position
+export async function generatePositionDescription(
+  userId: string,
+  positionName: string,
+  context?: {
+    customerName?: string;
+    quoteHeader?: string;
+    otherPositions?: string[];
+  }
+): Promise<string> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const systemPrompt = `Du bist ein erfahrener IT-Vertriebsprofi, der überzeugende Positionsbeschreibungen für Angebote schreibt.
+Deine Aufgabe ist es, kurze, prägnante Beschreibungstexte zu erstellen, die:
+- Den Mehrwert für den Kunden hervorheben
+- Technisch korrekt aber verständlich formuliert sind
+- Professionell und überzeugend klingen
+- Maximal 2-3 Sätze lang sind
+- In Deutsch geschrieben sind`;
+
+  let prompt = `Erstelle eine kurze Beschreibung für folgende Angebotsposition:
+
+Position: ${positionName}`;
+
+  if (context?.customerName) {
+    prompt += `\nKunde: ${context.customerName}`;
+  }
+  if (context?.quoteHeader) {
+    prompt += `\nAngebot-Betreff: ${context.quoteHeader}`;
+  }
+  if (context?.otherPositions && context.otherPositions.length > 0) {
+    prompt += `\nAndere Positionen im Angebot: ${context.otherPositions.slice(0, 5).join(', ')}`;
+  }
+
+  prompt += `\n\nGib NUR den Beschreibungstext zurück, ohne Anführungszeichen oder zusätzliche Formatierung.`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      systemPrompt
+    );
+  } else {
+    result = await callOpenAI(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      systemPrompt
+    );
+  }
+
+  return result.content.trim();
+}
+
 // ============================================
 // Knowledge Base AI Generation
 // ============================================

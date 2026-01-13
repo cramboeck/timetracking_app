@@ -1004,8 +1004,13 @@ router.post('/quotes/create', authenticateToken, requireBillingFeature, async (r
       if (!pos.name || pos.name.trim() === '') {
         return res.status(400).json({ success: false, error: 'Each position must have a name' });
       }
-      if (typeof pos.quantity !== 'number' || pos.quantity <= 0) {
-        return res.status(400).json({ success: false, error: 'Each position must have a valid quantity > 0' });
+      // Allow quantity=0 for headings (sections)
+      if (typeof pos.quantity !== 'number' || pos.quantity < 0) {
+        return res.status(400).json({ success: false, error: 'Each position must have a valid quantity >= 0' });
+      }
+      // For normal positions (quantity > 0), validate it's not zero
+      if (pos.quantity === 0 && pos.price !== 0) {
+        return res.status(400).json({ success: false, error: 'Position with price must have quantity > 0' });
       }
       if (typeof pos.price !== 'number' || pos.price < 0) {
         return res.status(400).json({ success: false, error: 'Each position must have a valid price >= 0' });

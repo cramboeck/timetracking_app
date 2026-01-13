@@ -244,6 +244,35 @@ router.post(
   }
 );
 
+// POST /api/ai/quote/generate-position-description - Generate description for a quote position
+router.post(
+  '/quote/generate-position-description',
+  authenticateToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { positionName, context } = req.body;
+
+      if (!positionName) {
+        return res.status(400).json({
+          success: false,
+          error: 'Positionsname ist erforderlich',
+        });
+      }
+
+      const description = await aiService.generatePositionDescription(userId, positionName, context);
+
+      res.json({
+        success: true,
+        data: { description },
+      });
+    } catch (error: any) {
+      console.error('Generate position description error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
 // ============================================
 // Time Entry AI Routes
 // ============================================

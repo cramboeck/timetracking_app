@@ -747,6 +747,20 @@ export const aiApi = {
     });
   },
 
+  generatePositionDescription: async (
+    positionName: string,
+    context?: {
+      customerName?: string;
+      quoteHeader?: string;
+      otherPositions?: string[];
+    }
+  ): Promise<{ success: boolean; data: { description: string } }> => {
+    return authFetch('/ai/quote/generate-position-description', {
+      method: 'POST',
+      body: JSON.stringify({ positionName, context }),
+    });
+  },
+
   suggestTimeEntryDescription: async (
     context: {
       projectName?: string;

@@ -165,6 +165,7 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
   const [generatingFootText, setGeneratingFootText] = useState(false);
   const [researchingPrice, setResearchingPrice] = useState<string | null>(null); // position id being researched
   const [priceResearchResult, setPriceResearchResult] = useState<{positionId: string; result: string} | null>(null);
+  const [generatingDescription, setGeneratingDescription] = useState<string | null>(null); // position id being generated
 
   // Margin settings
   const [showMarginSettings, setShowMarginSettings] = useState(false);
@@ -255,6 +256,27 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
       setError(err.message || 'Fehler bei der Preisrecherche');
     } finally {
       setResearchingPrice(null);
+    }
+  };
+
+  // AI Position Description Generation
+  const generateDescription = async (positionId: string, positionName: string) => {
+    if (!aiConfigured || !positionName) return;
+    setGeneratingDescription(positionId);
+    try {
+      const response = await aiApi.generatePositionDescription(positionName, {
+        customerName: selectedContact?.name,
+        quoteHeader: header,
+        otherPositions: positions.filter(p => p.id !== positionId && !p.isHeading).map(p => p.name),
+      });
+      if (response.success && response.data?.description) {
+        updatePosition(positionId, { text: response.data.description });
+      }
+    } catch (err: any) {
+      console.error('Failed to generate description:', err);
+      setError(err.message || 'Fehler beim Generieren der Beschreibung');
+    } finally {
+      setGeneratingDescription(null);
     }
   };
 
@@ -761,25 +783,42 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
                         {!pos.isHeading && (
                           <>
                             <div>
-                              <div className="flex items-center justify-between">
+                              <div className="flex items-center justify-between flex-wrap gap-1">
                                 <label className="text-xs text-gray-500 dark:text-gray-400">
                                   Beschreibung (optional)
                                 </label>
-                                {aiConfigured && pos.name && (
-                                  <button
-                                    onClick={() => researchPrice(pos.id, pos.name)}
-                                    disabled={researchingPrice === pos.id}
-                                    className="flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
-                                    title="KI Preisrecherche"
-                                  >
-                                    {researchingPrice === pos.id ? (
-                                      <Loader2 size={10} className="animate-spin" />
-                                    ) : (
-                                      <Bot size={10} />
-                                    )}
-                                    Preis recherchieren
-                                  </button>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  {aiConfigured && pos.name && (
+                                    <>
+                                      <button
+                                        onClick={() => generateDescription(pos.id, pos.name)}
+                                        disabled={generatingDescription === pos.id}
+                                        className="flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                                        title="KI generiert Beschreibung"
+                                      >
+                                        {generatingDescription === pos.id ? (
+                                          <Loader2 size={10} className="animate-spin" />
+                                        ) : (
+                                          <Sparkles size={10} />
+                                        )}
+                                        Beschreibung
+                                      </button>
+                                      <button
+                                        onClick={() => researchPrice(pos.id, pos.name)}
+                                        disabled={researchingPrice === pos.id}
+                                        className="flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                                        title="KI Preisrecherche"
+                                      >
+                                        {researchingPrice === pos.id ? (
+                                          <Loader2 size={10} className="animate-spin" />
+                                        ) : (
+                                          <Bot size={10} />
+                                        )}
+                                        Preis
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                               <textarea
                                 value={pos.text}
