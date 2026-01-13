@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { TimePicker } from './TimePicker';
 import { SearchableSelect } from './SearchableSelect';
+import { Toast, useToast } from './Toast';
 
 // Helper to format duration as H:MM
 const formatDurationDisplay = (seconds: number): string => {
@@ -41,6 +42,7 @@ interface ManualEntryProps {
 
 export const ManualEntry = ({ onSave, projects, customers, activities }: ManualEntryProps) => {
   const { currentUser } = useAuth();
+  const { toast, showToast, hideToast } = useToast();
   const today = new Date().toISOString().split('T')[0];
 
   // Current time rounded to nearest 5 minutes for end time
@@ -168,6 +170,9 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
     };
 
     onSave(entry);
+
+    // Show success toast
+    showToast('Zeiteintrag gespeichert', 'success');
 
     // Reset form with current time
     const resetNow = new Date();
@@ -336,6 +341,14 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
           Speichern
         </button>
       </form>
+
+      {/* Success Toast */}
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        visible={toast.visible}
+        onClose={hideToast}
+      />
     </div>
   );
 };
