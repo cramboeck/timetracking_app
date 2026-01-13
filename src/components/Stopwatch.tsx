@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Play, Pause, Square, Plus, Sparkles, Loader2, Check } from 'lucide-react';
 import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { aiApi } from '../services/api';
+import { SearchableSelect } from './SearchableSelect';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => Promise<boolean> | void;
@@ -117,6 +118,30 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const projectsForCustomer = customerId
     ? activeProjects.filter(p => p.customerId === customerId)
     : [];
+
+  // Options for SearchableSelect components
+  const customerOptions = useMemo(() => {
+    return customersWithProjects.map(c => ({
+      value: c.id,
+      label: c.name,
+    }));
+  }, [customersWithProjects]);
+
+  const projectOptions = useMemo(() => {
+    return projectsForCustomer.map(p => ({
+      value: p.id,
+      label: p.name,
+    }));
+  }, [projectsForCustomer]);
+
+  const activityOptions = useMemo(() => {
+    return activities.map(a => ({
+      value: a.id,
+      label: a.pricingType === 'flat' && a.flatRate
+        ? `${a.name} (Pauschale: ${a.flatRate.toFixed(2)}€)`
+        : a.name,
+    }));
+  }, [activities]);
 
   // Handle prefilled entry (from repeat action or ticket)
   useEffect(() => {
@@ -357,24 +382,17 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Kunde
               </label>
-              <select
+              <SearchableSelect
+                options={customerOptions}
                 value={customerId}
-                onChange={(e) => {
-                  setCustomerId(e.target.value);
+                onChange={(value) => {
+                  setCustomerId(value);
                   setProjectId(''); // Reset project when customer changes
                 }}
+                placeholder={customersWithProjects.length === 0 ? 'Keine Kunden vorhanden' : 'Kunde suchen...'}
+                emptyMessage="Keine Kunden gefunden"
                 disabled={isRunning || customersWithProjects.length === 0}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
-              >
-                <option value="">
-                  {customersWithProjects.length === 0 ? 'Keine Kunden vorhanden' : 'Kunde wählen...'}
-                </option>
-                {customersWithProjects.map(customer => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
-              </select>
+              />
               {customersWithProjects.length === 0 && (
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                   Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
@@ -387,40 +405,29 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Projekt
               </label>
-              <select
+              <SearchableSelect
+                options={projectOptions}
                 value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
+                onChange={(value) => setProjectId(value)}
+                placeholder={!customerId ? 'Erst Kunde wählen...' : projectsForCustomer.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt suchen...'}
+                emptyMessage="Keine Projekte gefunden"
                 disabled={isRunning || !customerId || projectsForCustomer.length === 0}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
-              >
-                <option value="">
-                  {!customerId ? 'Erst Kunde wählen...' : projectsForCustomer.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
-                </option>
-                {projectsForCustomer.map(project => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Tätigkeit (optional)
               </label>
-              <select
+              <SearchableSelect
+                options={activityOptions}
                 value={activityId}
-                onChange={(e) => setActivityId(e.target.value)}
+                onChange={(value) => setActivityId(value)}
+                placeholder="Tätigkeit suchen..."
+                emptyMessage="Keine Tätigkeiten gefunden"
                 disabled={isRunning}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
-              >
-                <option value="">Keine Tätigkeit</option>
-                {activities.map(activity => (
-                  <option key={activity.id} value={activity.id}>
-                    {activity.name} {activity.pricingType === 'flat' && activity.flatRate ? `(Pauschale: ${activity.flatRate.toFixed(2)}€)` : ''}
-                  </option>
-                ))}
-              </select>
+                allowClear={true}
+              />
               {activityId && activities.find(a => a.id === activityId)?.description && (
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                   {activities.find(a => a.id === activityId)?.description}
