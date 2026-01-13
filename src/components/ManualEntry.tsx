@@ -5,6 +5,7 @@ import { calculateDuration } from '../utils/time';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { TimePicker } from './TimePicker';
+import { SearchableSelect } from './SearchableSelect';
 
 // Helper to format duration as H:MM
 const formatDurationDisplay = (seconds: number): string => {
@@ -88,6 +89,25 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
     if (!selectedCustomerId) return activeProjects;
     return activeProjects.filter(p => p.customerId === selectedCustomerId);
   }, [activeProjects, selectedCustomerId]);
+
+  // Options for SearchableSelect components
+  const customerOptions = useMemo(() => {
+    return customersWithProjects.map(c => ({
+      value: c.id,
+      label: c.name,
+    }));
+  }, [customersWithProjects]);
+
+  const projectOptions = useMemo(() => {
+    return filteredProjects.map(p => {
+      const customer = customers.find(c => c.id === p.customerId);
+      return {
+        value: p.id,
+        label: selectedCustomerId ? p.name : `${customer?.name} - ${p.name}`,
+        sublabel: selectedCustomerId ? undefined : p.name,
+      };
+    });
+  }, [filteredProjects, customers, selectedCustomerId]);
 
   // Reset project when customer changes
   const handleCustomerChange = (customerId: string) => {
@@ -239,18 +259,14 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Kunde
             </label>
-            <select
+            <SearchableSelect
+              options={customerOptions}
               value={selectedCustomerId}
-              onChange={(e) => handleCustomerChange(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Alle Kunden</option>
-              {customersWithProjects.map(customer => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
+              onChange={handleCustomerChange}
+              placeholder="Kunde suchen..."
+              emptyMessage="Keine Kunden gefunden"
+              allowClear={true}
+            />
           </div>
 
           {/* Project Selection */}
@@ -258,26 +274,16 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Projekt *
             </label>
-            <select
+            <SearchableSelect
+              options={projectOptions}
               value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              required
+              onChange={setProjectId}
+              placeholder={selectedCustomerId ? 'Projekt suchen...' : 'Kunde wählen oder Projekt suchen...'}
+              emptyMessage="Keine Projekte gefunden"
               disabled={filteredProjects.length === 0}
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-dark-200"
-            >
-              <option value="">
-                {filteredProjects.length === 0
-                  ? 'Keine Projekte vorhanden'
-                  : selectedCustomerId
-                    ? 'Projekt wählen...'
-                    : 'Erst Kunde wählen oder Projekt suchen...'}
-              </option>
-              {filteredProjects.map(project => (
-                <option key={project.id} value={project.id}>
-                  {selectedCustomerId ? project.name : getProjectDisplay(project)}
-                </option>
-              ))}
-            </select>
+              required={true}
+              allowClear={false}
+            />
             {activeProjects.length === 0 && (
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                 Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
