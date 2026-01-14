@@ -1,6 +1,7 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import { pool } from '../config/database';
 import { microsoftGraphService } from './microsoftGraphService';
+import crypto from 'crypto';
 
 interface EmailOptions {
   to: string;
@@ -12,6 +13,16 @@ interface EmailOptions {
     content: Buffer | string;
     contentType?: string;
   }>;
+}
+
+interface EmailLogOptions {
+  emailType: string;
+  subject: string;
+  recipientEmail: string;
+  recipientName?: string;
+  userId?: string;
+  organizationId?: string;
+  metadata?: Record<string, any>;
 }
 
 interface NotificationData {
@@ -132,8 +143,13 @@ class EmailService {
     };
   }
 
-  async sendEmail(options: EmailOptions): Promise<boolean> {
+  async sendEmail(options: EmailOptions, logOptions?: EmailLogOptions): Promise<boolean> {
     const originalTo = options.to;
+    const startTime = Date.now();
+    let usedProvider: 'smtp' | 'graph' | 'test' = 'smtp';
+    let messageId: string | undefined;
+    let errorMessage: string | undefined;
+    let errorCode: string | undefined;
 
     try {
       // In test mode, override recipient
@@ -141,6 +157,7 @@ class EmailService {
         console.log(`📧 TEST MODE: Email would be sent to ${options.to}`);
         console.log(`📧 TEST MODE: Redirecting to ${this.testRecipient}`);
         options.to = this.testRecipient;
+        usedProvider = 'test';
 
         // Add test mode indicator to subject
         options.subject = `[TEST] ${options.subject}`;
@@ -162,6 +179,7 @@ class EmailService {
       // Try Graph API first if configured
       if (useGraph) {
         try {
+          usedProvider = 'graph';
           await microsoftGraphService.sendEmail({
             to: options.to,
             subject: options.subject,
@@ -170,14 +188,37 @@ class EmailService {
             attachments: options.attachments,
           });
           console.log('✅ Email sent via Graph API to:', options.to);
+
+          // Log success
+          if (logOptions) {
+            await this.logEmailDetailed({
+              ...logOptions,
+              provider: usedProvider,
+              status: 'sent',
+              processingTimeMs: Date.now() - startTime,
+            });
+          }
           return true;
         } catch (graphError: any) {
           console.error('❌ Graph API email failed:', graphError.message);
+          errorMessage = graphError.message;
+          errorCode = graphError.code;
 
           // Fallback to SMTP if available and provider is 'auto'
           if (this.provider === 'auto' && this.transporter) {
             console.log('⚠️ Falling back to SMTP...');
           } else {
+            // Log failure
+            if (logOptions) {
+              await this.logEmailDetailed({
+                ...logOptions,
+                provider: usedProvider,
+                status: 'failed',
+                errorMessage,
+                errorCode,
+                processingTimeMs: Date.now() - startTime,
+              });
+            }
             throw graphError;
           }
         }
@@ -186,6 +227,16 @@ class EmailService {
       // Use SMTP
       if (!this.transporter && !this.testMode) {
         console.error('❌ No email provider available');
+        errorMessage = 'No email provider available';
+        if (logOptions) {
+          await this.logEmailDetailed({
+            ...logOptions,
+            provider: 'smtp',
+            status: 'failed',
+            errorMessage,
+            processingTimeMs: Date.now() - startTime,
+          });
+        }
         return false;
       }
 
@@ -194,10 +245,19 @@ class EmailService {
         console.log('📧 TEST MODE (No Provider): Email simulation');
         console.log('To:', options.to);
         console.log('Subject:', options.subject);
+        if (logOptions) {
+          await this.logEmailDetailed({
+            ...logOptions,
+            provider: 'test',
+            status: 'sent',
+            processingTimeMs: Date.now() - startTime,
+          });
+        }
         return true;
       }
 
       if (this.transporter) {
+        usedProvider = 'smtp';
         const mailOptions: any = {
           from: process.env.EMAIL_FROM,
           to: options.to,
@@ -216,29 +276,115 @@ class EmailService {
         }
 
         const info = await this.transporter.sendMail(mailOptions);
-        console.log('✅ Email sent via SMTP:', info.messageId);
+        messageId = info.messageId;
+        console.log('✅ Email sent via SMTP:', messageId);
+
+        // Log success
+        if (logOptions) {
+          await this.logEmailDetailed({
+            ...logOptions,
+            provider: usedProvider,
+            status: 'sent',
+            providerMessageId: messageId,
+            processingTimeMs: Date.now() - startTime,
+          });
+        }
         return true;
       }
 
       return false;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to send email:', error);
+      errorMessage = error.message || 'Unknown error';
+      errorCode = error.code;
+
+      // Log failure
+      if (logOptions) {
+        await this.logEmailDetailed({
+          ...logOptions,
+          provider: usedProvider,
+          status: 'failed',
+          errorMessage,
+          errorCode,
+          processingTimeMs: Date.now() - startTime,
+        });
+      }
       return false;
+    }
+  }
+
+  /**
+   * Log detailed email information to email_logs table
+   */
+  private async logEmailDetailed(options: {
+    emailType: string;
+    subject: string;
+    recipientEmail: string;
+    recipientName?: string;
+    userId?: string;
+    organizationId?: string;
+    provider: 'smtp' | 'graph' | 'test';
+    status: 'pending' | 'sent' | 'failed' | 'bounced';
+    providerMessageId?: string;
+    errorMessage?: string;
+    errorCode?: string;
+    processingTimeMs?: number;
+    metadata?: Record<string, any>;
+  }): Promise<void> {
+    try {
+      const senderEmail = options.provider === 'graph'
+        ? microsoftGraphService.getSenderEmail()
+        : process.env.EMAIL_FROM || '';
+
+      await pool.query(
+        `INSERT INTO email_logs (
+          id, organization_id, user_id, email_type, subject, recipient_email, recipient_name,
+          sender_email, provider, provider_message_id, status, error_message, error_code,
+          processing_time_ms, metadata, sent_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+        [
+          crypto.randomUUID(),
+          options.organizationId || null,
+          options.userId || null,
+          options.emailType,
+          options.subject,
+          options.recipientEmail,
+          options.recipientName || null,
+          senderEmail,
+          options.provider,
+          options.providerMessageId || null,
+          options.status,
+          options.errorMessage || null,
+          options.errorCode || null,
+          options.processingTimeMs || null,
+          JSON.stringify(options.metadata || {}),
+          options.status === 'sent' ? new Date().toISOString() : null,
+        ]
+      );
+    } catch (error) {
+      console.error('Failed to log email details:', error);
     }
   }
 
   async sendWelcomeEmail(data: NotificationData): Promise<boolean> {
     const html = this.generateWelcomeEmailHTML(data);
     const text = this.generateWelcomeEmailText(data);
+    const subject = 'Willkommen bei TimeTrack! 🎉';
 
     const success = await this.sendEmail({
       to: data.userEmail,
-      subject: 'Willkommen bei TimeTrack! 🎉',
+      subject,
       html,
       text,
+    }, {
+      emailType: 'welcome',
+      subject,
+      recipientEmail: data.userEmail,
+      recipientName: data.userName,
+      userId: data.userId,
     });
 
-    // Log notification
+    // Log notification (legacy)
     await this.logNotification(data.userId, 'welcome', success);
 
     return success;
@@ -247,12 +393,19 @@ class EmailService {
   async sendMonthEndReminderEmail(data: NotificationData & { daysRemaining: number }): Promise<boolean> {
     const html = this.generateMonthEndReminderHTML(data);
     const text = this.generateMonthEndReminderText(data);
+    const subject = `📅 Monatsende naht! Noch ${data.daysRemaining} Tag(e)`;
 
     const success = await this.sendEmail({
       to: data.userEmail,
-      subject: `📅 Monatsende naht! Noch ${data.daysRemaining} Tag(e)`,
+      subject,
       html,
       text,
+    }, {
+      emailType: 'month_end_reminder',
+      subject,
+      recipientEmail: data.userEmail,
+      recipientName: data.userName,
+      userId: data.userId,
     });
 
     await this.logNotification(data.userId, 'month_end', success);
@@ -262,12 +415,19 @@ class EmailService {
   async sendDailyReminderEmail(data: NotificationData): Promise<boolean> {
     const html = this.generateDailyReminderHTML(data);
     const text = this.generateDailyReminderText(data);
+    const subject = '⏰ Zeiterfassung vergessen?';
 
     const success = await this.sendEmail({
       to: data.userEmail,
-      subject: '⏰ Zeiterfassung vergessen?',
+      subject,
       html,
       text,
+    }, {
+      emailType: 'daily_reminder',
+      subject,
+      recipientEmail: data.userEmail,
+      recipientName: data.userName,
+      userId: data.userId,
     });
 
     await this.logNotification(data.userId, 'daily_reminder', success);
@@ -277,12 +437,20 @@ class EmailService {
   async sendQualityCheckEmail(data: NotificationData & { missingCount: number }): Promise<boolean> {
     const html = this.generateQualityCheckHTML(data);
     const text = this.generateQualityCheckText(data);
+    const subject = '✍️ Beschreibungen fehlen';
 
     const success = await this.sendEmail({
       to: data.userEmail,
-      subject: '✍️ Beschreibungen fehlen',
+      subject,
       html,
       text,
+    }, {
+      emailType: 'quality_check',
+      subject,
+      recipientEmail: data.userEmail,
+      recipientName: data.userName,
+      userId: data.userId,
+      metadata: { missingCount: data.missingCount },
     });
 
     await this.logNotification(data.userId, 'quality_check', success);
@@ -292,12 +460,20 @@ class EmailService {
   async sendWeeklyReportEmail(data: NotificationData & { totalHours: number; entries: any[] }): Promise<boolean> {
     const html = this.generateWeeklyReportHTML(data);
     const text = this.generateWeeklyReportText(data);
+    const subject = '📊 Dein Wochenreport ist da!';
 
     const success = await this.sendEmail({
       to: data.userEmail,
-      subject: '📊 Dein Wochenreport ist da!',
+      subject,
       html,
       text,
+    }, {
+      emailType: 'weekly_report',
+      subject,
+      recipientEmail: data.userEmail,
+      recipientName: data.userName,
+      userId: data.userId,
+      metadata: { totalHours: data.totalHours, entriesCount: data.entries.length },
     });
 
     await this.logNotification(data.userId, 'weekly_report', success);

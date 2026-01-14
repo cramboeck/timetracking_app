@@ -1601,4 +1601,335 @@ router.put('/notifications/:id/toggle', async (req: AuthRequest, res) => {
   }
 });
 
+// ============================================
+// Email Dashboard Routes
+// ============================================
+
+// GET /api/admin/email/stats - Get email statistics
+router.get('/email/stats', async (req, res) => {
+  try {
+    // Get stats for different time periods
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const monthAgo = new Date(today);
+    monthAgo.setDate(monthAgo.getDate() - 30);
+
+    // Total emails today
+    const todayResult = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+    `, [today.toISOString()]);
+
+    // Emails this week
+    const weekResult = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+    `, [weekAgo.toISOString()]);
+
+    // Emails this month
+    const monthResult = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+    `, [monthAgo.toISOString()]);
+
+    // By provider
+    const providerResult = await pool.query(`
+      SELECT
+        provider,
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+      GROUP BY provider
+    `, [monthAgo.toISOString()]);
+
+    // By email type
+    const typeResult = await pool.query(`
+      SELECT
+        email_type,
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+      GROUP BY email_type
+      ORDER BY total DESC
+      LIMIT 10
+    `, [monthAgo.toISOString()]);
+
+    // Average processing time
+    const avgTimeResult = await pool.query(`
+      SELECT AVG(processing_time_ms) as avg_time
+      FROM email_logs
+      WHERE created_at >= $1 AND processing_time_ms IS NOT NULL
+    `, [monthAgo.toISOString()]);
+
+    // Daily trend (last 7 days)
+    const trendResult = await pool.query(`
+      SELECT
+        DATE(created_at) as date,
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+    `, [weekAgo.toISOString()]);
+
+    // Recent failures
+    const recentFailuresResult = await pool.query(`
+      SELECT id, email_type, recipient_email, error_message, created_at
+      FROM email_logs
+      WHERE status = 'failed'
+      ORDER BY created_at DESC
+      LIMIT 5
+    `);
+
+    res.json({
+      today: {
+        total: parseInt(todayResult.rows[0]?.total || 0),
+        sent: parseInt(todayResult.rows[0]?.sent || 0),
+        failed: parseInt(todayResult.rows[0]?.failed || 0),
+      },
+      week: {
+        total: parseInt(weekResult.rows[0]?.total || 0),
+        sent: parseInt(weekResult.rows[0]?.sent || 0),
+        failed: parseInt(weekResult.rows[0]?.failed || 0),
+      },
+      month: {
+        total: parseInt(monthResult.rows[0]?.total || 0),
+        sent: parseInt(monthResult.rows[0]?.sent || 0),
+        failed: parseInt(monthResult.rows[0]?.failed || 0),
+      },
+      byProvider: providerResult.rows.map(r => ({
+        provider: r.provider,
+        total: parseInt(r.total),
+        sent: parseInt(r.sent),
+        failed: parseInt(r.failed),
+      })),
+      byType: typeResult.rows.map(r => ({
+        type: r.email_type,
+        total: parseInt(r.total),
+        sent: parseInt(r.sent),
+        failed: parseInt(r.failed),
+      })),
+      avgProcessingTime: Math.round(parseFloat(avgTimeResult.rows[0]?.avg_time || 0)),
+      trend: trendResult.rows.map(r => ({
+        date: r.date,
+        total: parseInt(r.total),
+        sent: parseInt(r.sent),
+        failed: parseInt(r.failed),
+      })),
+      recentFailures: recentFailuresResult.rows,
+    });
+  } catch (error: any) {
+    // Table might not exist yet
+    if (error.code === '42P01') {
+      res.json({
+        today: { total: 0, sent: 0, failed: 0 },
+        week: { total: 0, sent: 0, failed: 0 },
+        month: { total: 0, sent: 0, failed: 0 },
+        byProvider: [],
+        byType: [],
+        avgProcessingTime: 0,
+        trend: [],
+        recentFailures: [],
+        tableExists: false,
+      });
+    } else {
+      console.error('Error fetching email stats:', error);
+      res.status(500).json({ error: 'Failed to fetch email statistics' });
+    }
+  }
+});
+
+// GET /api/admin/email/logs - Get email logs with pagination
+router.get('/email/logs', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+    const status = req.query.status as string;
+    const emailType = req.query.type as string;
+    const search = req.query.search as string;
+
+    let whereClause = '1=1';
+    const params: any[] = [];
+    let paramIndex = 0;
+
+    if (status) {
+      paramIndex++;
+      whereClause += ` AND status = $${paramIndex}`;
+      params.push(status);
+    }
+
+    if (emailType) {
+      paramIndex++;
+      whereClause += ` AND email_type = $${paramIndex}`;
+      params.push(emailType);
+    }
+
+    if (search) {
+      paramIndex++;
+      whereClause += ` AND (recipient_email ILIKE $${paramIndex} OR subject ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+    }
+
+    // Get total count
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM email_logs WHERE ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    // Get logs
+    const logsResult = await pool.query(`
+      SELECT
+        el.*,
+        u.username,
+        u.email as user_email
+      FROM email_logs el
+      LEFT JOIN users u ON el.user_id = u.id
+      WHERE ${whereClause}
+      ORDER BY el.created_at DESC
+      LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+    `, [...params, limit, offset]);
+
+    res.json({
+      logs: logsResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error: any) {
+    if (error.code === '42P01') {
+      res.json({ logs: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 }, tableExists: false });
+    } else {
+      console.error('Error fetching email logs:', error);
+      res.status(500).json({ error: 'Failed to fetch email logs' });
+    }
+  }
+});
+
+// GET /api/admin/email/config - Get current email configuration
+router.get('/email/config', async (req, res) => {
+  try {
+    // Import emailService dynamically to get current state
+    const { emailService } = await import('../services/emailService');
+    const result = await emailService.testConnection();
+
+    res.json({
+      provider: result.provider,
+      status: result.success ? 'connected' : 'disconnected',
+      error: result.error,
+      details: result.details,
+      config: {
+        emailProvider: process.env.EMAIL_PROVIDER || 'auto',
+        smtpConfigured: !!process.env.EMAIL_HOST,
+        graphConfigured: !!process.env.AZURE_CLIENT_ID && !!process.env.GRAPH_MAIL_FROM,
+        testMode: process.env.EMAIL_TEST_MODE === 'true',
+        fromAddress: process.env.EMAIL_FROM || process.env.GRAPH_MAIL_FROM || 'Not configured',
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching email config:', error);
+    res.status(500).json({ error: 'Failed to fetch email configuration' });
+  }
+});
+
+// POST /api/admin/email/test - Send a test email
+router.post('/email/test', async (req: AuthRequest, res) => {
+  try {
+    const { to } = req.body;
+    const testEmail = to || req.user?.email;
+
+    if (!testEmail) {
+      return res.status(400).json({ error: 'Email address required' });
+    }
+
+    // Import emailService
+    const { emailService } = await import('../services/emailService');
+
+    const success = await emailService.sendEmail({
+      to: testEmail,
+      subject: '🧪 Test-Email von RamboFlow Admin',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #7c3aed;">Test-Email erfolgreich!</h2>
+          <p>Diese Test-Email wurde vom Admin Portal gesendet.</p>
+          <p><strong>Zeitpunkt:</strong> ${new Date().toLocaleString('de-DE')}</p>
+          <p><strong>Gesendet von:</strong> ${req.user?.username}</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+          <p style="color: #6b7280; font-size: 12px;">
+            Diese E-Mail wurde automatisch von RamboFlow generiert.
+          </p>
+        </div>
+      `,
+      text: `Test-Email erfolgreich!\n\nDiese Test-Email wurde vom Admin Portal gesendet.\nZeitpunkt: ${new Date().toLocaleString('de-DE')}\nGesendet von: ${req.user?.username}`,
+    }, {
+      emailType: 'admin_test',
+      subject: '🧪 Test-Email von RamboFlow Admin',
+      recipientEmail: testEmail,
+      userId: req.user?.id,
+      metadata: { sentBy: req.user?.username },
+    });
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'email.test',
+      details: JSON.stringify({ to: testEmail, success }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    if (success) {
+      res.json({ success: true, message: `Test-Email wurde an ${testEmail} gesendet` });
+    } else {
+      res.status(500).json({ success: false, error: 'Email konnte nicht gesendet werden' });
+    }
+  } catch (error: any) {
+    console.error('Error sending test email:', error);
+    res.status(500).json({ error: error.message || 'Failed to send test email' });
+  }
+});
+
+// GET /api/admin/email/types - Get distinct email types
+router.get('/email/types', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT email_type, COUNT(*) as count
+      FROM email_logs
+      GROUP BY email_type
+      ORDER BY count DESC
+    `);
+    res.json({ types: result.rows });
+  } catch (error: any) {
+    if (error.code === '42P01') {
+      res.json({ types: [], tableExists: false });
+    } else {
+      console.error('Error fetching email types:', error);
+      res.status(500).json({ error: 'Failed to fetch email types' });
+    }
+  }
+});
+
 export default router;

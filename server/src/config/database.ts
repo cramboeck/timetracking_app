@@ -3309,6 +3309,80 @@ export async function initializeDatabase() {
     `);
     console.log('✅ NinjaRMM alert timestamps fixed');
 
+    // ============================================
+    // Extended Email Logs Table
+    // ============================================
+
+    // Extended email_logs table for detailed email monitoring
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS email_logs (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+
+        -- Email details
+        email_type TEXT NOT NULL,
+        subject TEXT,
+        recipient_email TEXT NOT NULL,
+        recipient_name TEXT,
+        sender_email TEXT,
+
+        -- Provider info
+        provider TEXT NOT NULL CHECK(provider IN ('smtp', 'graph', 'test')),
+        provider_message_id TEXT,
+
+        -- Status
+        status TEXT NOT NULL CHECK(status IN ('pending', 'sent', 'failed', 'bounced')),
+        error_message TEXT,
+        error_code TEXT,
+
+        -- Performance
+        processing_time_ms INTEGER,
+
+        -- Metadata
+        metadata JSONB DEFAULT '{}',
+
+        -- Timestamps
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        sent_at TIMESTAMP
+      )
+    `);
+
+    // Create indexes for email_logs
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_org ON email_logs(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_user ON email_logs(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_status ON email_logs(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_type ON email_logs(email_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_created ON email_logs(created_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_recipient ON email_logs(recipient_email)');
+
+    // Migration: Add columns to existing email_notifications table if they don't exist
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'email_notifications' AND column_name = 'recipient_email'
+        ) THEN
+          ALTER TABLE email_notifications ADD COLUMN recipient_email TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'email_notifications' AND column_name = 'subject'
+        ) THEN
+          ALTER TABLE email_notifications ADD COLUMN subject TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'email_notifications' AND column_name = 'provider'
+        ) THEN
+          ALTER TABLE email_notifications ADD COLUMN provider TEXT;
+        END IF;
+      END $$;
+    `);
+
+    console.log('✅ Email logs tables created');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

@@ -192,5 +192,36 @@ export const adminApi = {
     return adminFetch(`/admin/notifications/${id}/toggle`, {
       method: 'PUT'
     });
+  },
+
+  // Email Dashboard
+  getEmailStats: async () => {
+    return adminFetch('/admin/email/stats');
+  },
+
+  getEmailLogs: async (page: number = 1, limit: number = 50, filters: { status?: string; type?: string; search?: string } = {}) => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...(filters.status && { status: filters.status }),
+      ...(filters.type && { type: filters.type }),
+      ...(filters.search && { search: filters.search })
+    });
+    return adminFetch(`/admin/email/logs?${params}`);
+  },
+
+  getEmailConfig: async () => {
+    return adminFetch('/admin/email/config');
+  },
+
+  sendTestEmail: async (to?: string) => {
+    return adminFetch('/admin/email/test', {
+      method: 'POST',
+      body: JSON.stringify({ to })
+    });
+  },
+
+  getEmailTypes: async () => {
+    return adminFetch('/admin/email/types');
   }
 };
