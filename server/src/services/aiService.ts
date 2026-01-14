@@ -869,6 +869,69 @@ Formatiere die Preise klar mit EUR.`;
   };
 }
 
+// Generate description text for a quote position
+export async function generatePositionDescription(
+  userId: string,
+  positionName: string,
+  context?: {
+    customerName?: string;
+    quoteHeader?: string;
+    otherPositions?: string[];
+  }
+): Promise<string> {
+  const config = await getAIConfig(userId);
+  if (!config || !config.enabled || !config.apiKey) {
+    throw new Error('KI-Assistent ist nicht konfiguriert oder deaktiviert');
+  }
+
+  const systemPrompt = `Du bist ein erfahrener IT-Vertriebsprofi, der überzeugende Positionsbeschreibungen für Angebote schreibt.
+Deine Aufgabe ist es, kurze, prägnante Beschreibungstexte zu erstellen, die:
+- Den Mehrwert für den Kunden hervorheben
+- Technisch korrekt aber verständlich formuliert sind
+- Professionell und überzeugend klingen
+- Maximal 2-3 Sätze lang sind
+- In Deutsch geschrieben sind`;
+
+  let prompt = `Erstelle eine kurze Beschreibung für folgende Angebotsposition:
+
+Position: ${positionName}`;
+
+  if (context?.customerName) {
+    prompt += `\nKunde: ${context.customerName}`;
+  }
+  if (context?.quoteHeader) {
+    prompt += `\nAngebot-Betreff: ${context.quoteHeader}`;
+  }
+  if (context?.otherPositions && context.otherPositions.length > 0) {
+    prompt += `\nAndere Positionen im Angebot: ${context.otherPositions.slice(0, 5).join(', ')}`;
+  }
+
+  prompt += `\n\nGib NUR den Beschreibungstext zurück, ohne Anführungszeichen oder zusätzliche Formatierung.`;
+
+  let result: { content: string; tokensUsed: number };
+  if (config.provider === 'anthropic') {
+    result = await callAnthropic(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      systemPrompt
+    );
+  } else {
+    result = await callOpenAI(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.maxTokens,
+      config.temperature,
+      systemPrompt
+    );
+  }
+
+  return result.content.trim();
+}
+
 // ============================================
 // Knowledge Base AI Generation
 // ============================================
@@ -1592,10 +1655,10 @@ async function universalQualityCheck(
   config: QualityCheckConfig
 ): Promise<{ score: number; issues: string[] }> {
   const criteriaByType: Record<ContentType, string> = {
-    post: `1. HOOK (25%): Stoppt er den Scroll? Erste Zeile magnetisch?
-2. WERT (25%): Echter Mehrwert oder leere Worte?
-3. AUTHENTIZITÄT (25%): Klingt es echt oder wie Corporate-Blabla?
-4. CTA (25%): Klarer, motivierender Call-to-Action?`,
+    post: `1. HOOK (30%): Nutzt er eine bewährte Formel (Zahlen, Frage, Kontrast, Story, Pattern-Interrupt)? Ist er KONKRET und SPEZIFISCH? Generische Aussagen wie "X ist wichtig" = maximal 30/100!
+2. WERT (25%): Liefert der Hauptteil echten Mehrwert? Praxisnahe Tipps oder nur Behauptungen?
+3. ROTER FADEN (20%): Führt der Content logisch vom Hook über den Hauptteil zum CTA?
+4. CTA (25%): Konkrete Handlung mit klarem Nutzen? Niedrigschwellig? "Kontaktieren Sie uns" = 0 Punkte!`,
     story: `1. VISUAL IMPACT (30%): Ist das Konzept visuell stark?
 2. HOOK (25%): Fängt es in 1 Sekunde die Aufmerksamkeit?
 3. MESSAGE (25%): Klare, prägnante Botschaft?
@@ -3028,7 +3091,28 @@ export interface MarketingAnalysis {
   emotionalTone: string;
   readabilityScore: number;
   viralPotential: number;
+  // NEW: Tonality and character limit checks
+  tonalityFit?: {
+    score: number;
+    expected: string;
+    actual: string;
+    feedback: string;
+  };
+  characterCount?: {
+    current: number;
+    limit: number;
+    isWithinLimit: boolean;
+  };
 }
+
+// Platform character limits
+const PLATFORM_LIMITS: Record<string, number> = {
+  linkedin: 3000,
+  instagram: 2200,
+  twitter: 280,
+  facebook: 63206,
+  threads: 500
+};
 
 /**
  * Analyze content like a marketing expert - critical and honest
@@ -3038,7 +3122,8 @@ export async function analyzeContentAsExpert(
   content: string,
   platform: string,
   goal: 'reach' | 'engagement' | 'leads' | 'branding',
-  targetAudience?: string
+  targetAudience?: string,
+  expectedTonality?: string
 ): Promise<MarketingAnalysis> {
   const config = await getAIConfig(userId);
   if (!config || !config.apiKey) {
@@ -3055,15 +3140,37 @@ export async function analyzeContentAsExpert(
   // Use dynamic system prompt with audience and platform context
   const systemPrompt = getMarketingExpertPrompt(targetAudience, platform);
 
+  // Calculate character count and limit
+  const characterCount = content.length;
+  const platformKey = platform.toLowerCase();
+  const characterLimit = PLATFORM_LIMITS[platformKey] || 3000;
+  const isWithinLimit = characterCount <= characterLimit;
+
+  // Build tonality section if expected tonality is provided
+  const tonalitySection = expectedTonality
+    ? `7. TONALITÄT (0-100): Passt die Tonalität zum gewünschten Stil "${expectedTonality}"?`
+    : '';
+
+  const tonalityJsonSection = expectedTonality
+    ? `"tonalityFit": {
+    "score": 80,
+    "expected": "${expectedTonality}",
+    "actual": "erkannte Tonalität des Posts",
+    "feedback": "Passt die Tonalität? Was sollte angepasst werden?"
+  },`
+    : '';
+
   const prompt = `Analysiere diesen Social Media Post wie ein professioneller Social Media Manager.
 Sei kritisch aber konstruktiv - gib konkretes, umsetzbares Feedback.
 
 ═══════════════════════════════════════
 KONTEXT:
 ═══════════════════════════════════════
-PLATTFORM: ${platform}
+PLATTFORM: ${platform} (Max. ${characterLimit} Zeichen)
 ZIEL: ${goalDescriptions[goal]}
 ${targetAudience ? `ZIELGRUPPE: ${targetAudience}` : 'ZIELGRUPPE: B2B-Entscheider'}
+${expectedTonality ? `GEWÜNSCHTE TONALITÄT: ${expectedTonality}` : ''}
+ZEICHENANZAHL: ${characterCount}/${characterLimit} ${isWithinLimit ? '✓' : '⚠️ ZU LANG!'}
 
 ═══════════════════════════════════════
 ZU ANALYSIERENDER POST:
@@ -3081,12 +3188,14 @@ BEWERTUNGSKRITERIEN:
 4. CTA (0-100): Ist der Call-to-Action logisch zum Hook passend und handlungsauslösend?
 5. CONVERSION-FIT (0-100): Wird die Zielgruppe zur gewünschten Aktion motiviert?
 6. AUTHENTIZITÄT: Wirkt es wie Expertenwissen oder wie Werbung?
+${tonalitySection}
 
 ═══════════════════════════════════════
 DEINE ANALYSE:
 ═══════════════════════════════════════
 Bewerte EHRLICH. Ein guter Score ist 70+, exzellent ist 85+.
 Bei Verbesserungsvorschlägen: Gib KONKRETE Beispiele wie es besser wäre.
+${!isWithinLimit ? `\n⚠️ WICHTIG: Der Post ist ${characterCount - characterLimit} Zeichen zu lang! Schlage Kürzungen vor.\n` : ''}
 
 WICHTIG: Antworte NUR im JSON-Format:
 {
@@ -3114,9 +3223,15 @@ WICHTIG: Antworte NUR im JSON-Format:
     "feedback": "Konkrete Bewertung des CTA",
     "suggestions": ["Konkreter CTA-Vorschlag 1", "Konkreter CTA-Vorschlag 2"]
   },
+  ${tonalityJsonSection}
   "emotionalTone": "sachlich-professionell/inspirierend/etc.",
   "readabilityScore": 85,
-  "viralPotential": 45
+  "viralPotential": 45,
+  "characterCount": {
+    "current": ${characterCount},
+    "limit": ${characterLimit},
+    "isWithinLimit": ${isWithinLimit}
+  }
 }`;
 
   let result: { content: string; tokensUsed: number };
@@ -3279,25 +3394,56 @@ LÄNGE: ${lengthInstructions[contentLength]}
 ═══════════════════════════════════════
 QUALITÄTSANFORDERUNGEN:
 ═══════════════════════════════════════
-HOOK (erste 1-2 Zeilen):
-- Konkret und spezifisch (keine generischen Aussagen)
-- Dringlichkeit oder Neugier wecken (OHNE Clickbait!)
-- Direkt relevant für die Zielgruppe
-- Beispiel SCHLECHT: "Digitalisierung ist wichtig"
-- Beispiel GUT: "3 von 4 KMU verlieren Aufträge durch veraltete IT-Prozesse"
+
+🎯 HOOK (erste 1-2 Zeilen) - KRITISCH FÜR ERFOLG:
+Wähle EINE dieser bewährten Hook-Formeln:
+
+1. ZAHLEN-HOOK: "[Überraschende Zahl] + [Konsequenz]"
+   ✅ "87% der KMU haben keinen IT-Notfallplan. Bei einem Ausfall kostet jede Stunde 10.000€."
+   ❌ "IT-Sicherheit ist wichtig für Unternehmen."
+
+2. FRAGEN-HOOK: "[Provozierende Frage die Schmerz adressiert]"
+   ✅ "Hand aufs Herz: Wie lange würde Ihr Unternehmen ohne IT überleben?"
+   ❌ "Haben Sie schon mal über IT-Sicherheit nachgedacht?"
+
+3. KONTRAST-HOOK: "[Erwartung] vs. [Realität]"
+   ✅ "Alle reden von KI-Revolution. Die Realität? 90% scheitern an fehlenden Basics."
+   ❌ "KI ist ein wichtiges Thema."
+
+4. STORY-HOOK: "[Konkretes Ereignis/Moment]"
+   ✅ "Montag, 6:47 Uhr. Der Anruf kam vom Geschäftsführer: 'Nichts geht mehr.'"
+   ❌ "Ich möchte heute über IT-Probleme sprechen."
+
+5. PATTERN-INTERRUPT: "[Unerwartete Aussage]"
+   ✅ "Vergessen Sie alles, was Sie über Backups wissen."
+   ❌ "Backups sind wichtig."
 
 HAUPTTEIL:
 - Echten Mehrwert liefern (nicht nur behaupten)
 - Praxisnahe Insights oder konkrete Tipps
 - Positioniert als Experte, nicht als Verkäufer
-- Keine leeren Marketing-Phrasen
+- Keine leeren Marketing-Phrasen ("innovative Lösungen", "ganzheitlicher Ansatz")
+- ROTER FADEN: Hauptteil muss logisch vom Hook zum CTA führen
 
-CTA (Call-to-Action):
-- Logisch zum Hook passend (roter Faden!)
-- Konkrete, niedrigschwellige Handlung
-- Klar formuliert was der Leser bekommt
-- Beispiel SCHLECHT: "Kontaktieren Sie uns"
-- Beispiel GUT: "Laden Sie unsere IT-Sicherheits-Checkliste herunter (kostenlos, 2 Min. Lesezeit)"
+🎯 CTA (Call-to-Action) - KRITISCH FÜR KONVERSION:
+Der CTA MUSS zum Hook passen und eine KONKRETE Handlung sein:
+
+1. RESSOURCEN-CTA: "[Konkretes Asset] + [Zeitaufwand] + [Ergebnis]"
+   ✅ "📥 IT-Notfallplan-Template downloaden (5 Min. Aufwand, Stunden gespart im Ernstfall)"
+   ✅ "🔗 Link in Bio: Kostenlose Checkliste mit den 7 kritischsten Sicherheitslücken"
+
+2. ENGAGEMENT-CTA: "[Einfache Frage die zum Kommentieren einlädt]"
+   ✅ "Was ist Ihre größte IT-Sorge? 💬 Schreiben Sie es in die Kommentare."
+   ✅ "Welcher Punkt trifft auf Ihr Unternehmen zu? 1, 2 oder 3?"
+
+3. GESPRÄCH-CTA: "[Niedrigschwelliges Angebot]"
+   ✅ "DM 'CHECK' und ich schicke Ihnen unsere kostenlose Erstanalyse."
+   ✅ "Kommentieren Sie 'INTERESSE' für ein unverbindliches 15-Min-Gespräch."
+
+VERBOTEN im CTA:
+❌ "Kontaktieren Sie uns" (zu vage)
+❌ "Besuchen Sie unsere Website" (kein konkreter Nutzen)
+❌ "Mehr Infos auf Anfrage" (zu hohe Hürde)
 
 ═══════════════════════════════════════
 OUTPUT (NUR JSON):
@@ -3456,7 +3602,8 @@ export async function improveContentWithExpert(
   platform: string,
   improvementFocus: string,
   targetAudience?: string,
-  goal?: string
+  goal?: string,
+  currentScores?: { platform?: number; viral?: number; cta?: number; overall?: number }
 ): Promise<ContentImprovement> {
   const config = await getAIConfig(userId);
   if (!config || !config.apiKey) {
@@ -3467,17 +3614,77 @@ export async function improveContentWithExpert(
   const systemPrompt = getMarketingExpertPrompt(targetAudience, platform);
 
   const focusDescriptions: Record<string, string> = {
-    hook: 'FOKUS: Hook optimieren - konkret, dringlich, neugierig machend (KEIN Clickbait)',
-    cta: 'FOKUS: CTA optimieren - logisch zum Hook passend, klare Handlungsaufforderung',
+    hook: `FOKUS: Hook KOMPLETT neu schreiben mit bewährter Formel:
+    1. ZAHLEN-HOOK: "[Überraschende Zahl] + [Konsequenz]" z.B. "87% der KMU haben keinen IT-Notfallplan."
+    2. FRAGEN-HOOK: Provokative Frage die Schmerz adressiert z.B. "Wie lange überlebt Ihr Unternehmen ohne IT?"
+    3. KONTRAST-HOOK: "[Erwartung] vs. [Realität]" z.B. "Alle reden von KI. Die Realität? 90% scheitern an Basics."
+    4. STORY-HOOK: Konkreter Moment z.B. "Montag, 6:47 Uhr. Der Anruf: 'Nichts geht mehr.'"
+    5. PATTERN-INTERRUPT: Unerwartete Aussage z.B. "Vergessen Sie alles über Backups."
+    VERBOTEN: Generische Aussagen wie "X ist wichtig" oder "Heute möchte ich..."`,
+    cta: `FOKUS: CTA KOMPLETT neu schreiben mit konkreter Handlung:
+    1. RESSOURCEN-CTA: "[Asset] + [Zeitaufwand] + [Nutzen]" z.B. "📥 IT-Checkliste downloaden (5 Min. Aufwand)"
+    2. ENGAGEMENT-CTA: Einfache Frage z.B. "Welcher Punkt trifft auf Sie zu? 1, 2 oder 3?"
+    3. GESPRÄCH-CTA: Niedrigschwellig z.B. "DM 'CHECK' für kostenlose Erstanalyse"
+    VERBOTEN: "Kontaktieren Sie uns", "Besuchen Sie unsere Website", "Mehr Infos auf Anfrage"`,
     value: 'FOKUS: Mehrwert erhöhen - was lernt/gewinnt der Leser konkret?',
     emotion: 'FOKUS: Emotionale Resonanz verstärken - authentisch, nicht manipulativ',
     clarity: 'FOKUS: Klarheit verbessern - Kernbotschaft sofort verständlich',
-    all: 'FOKUS: Vollständige Optimierung aller Aspekte'
+    all: 'FOKUS: Gezielte Optimierung der schwachen Bereiche'
   };
 
   const focusDescription = focusDescriptions[improvementFocus.toLowerCase()] || `FOKUS: ${improvementFocus}`;
 
-  const prompt = `Optimiere diesen Social Media Post wie ein professioneller Social Media Manager.
+  // Build preservation instructions based on current scores
+  let preserveInstructions = '';
+  let weakAreasInstructions = '';
+
+  if (currentScores) {
+    const strongAreas: string[] = [];
+    const weakAreas: string[] = [];
+
+    if (currentScores.platform !== undefined) {
+      if (currentScores.platform >= 75) {
+        strongAreas.push(`Platform-Optimierung (Score: ${currentScores.platform}/100)`);
+      } else {
+        weakAreas.push(`Platform-Optimierung (aktuell: ${currentScores.platform}/100)`);
+      }
+    }
+    if (currentScores.viral !== undefined) {
+      if (currentScores.viral >= 75) {
+        strongAreas.push(`Viralitätspotential/Hook (Score: ${currentScores.viral}/100)`);
+      } else {
+        weakAreas.push(`Viralitätspotential/Hook (aktuell: ${currentScores.viral}/100)`);
+      }
+    }
+    if (currentScores.cta !== undefined) {
+      if (currentScores.cta >= 75) {
+        strongAreas.push(`Call-to-Action (Score: ${currentScores.cta}/100)`);
+      } else {
+        weakAreas.push(`Call-to-Action (aktuell: ${currentScores.cta}/100)`);
+      }
+    }
+
+    if (strongAreas.length > 0) {
+      preserveInstructions = `
+═══════════════════════════════════════
+⚠️ WICHTIG - DIESE ELEMENTE SIND GUT UND MÜSSEN ERHALTEN BLEIBEN:
+═══════════════════════════════════════
+${strongAreas.map(a => `✓ ${a} - NICHT VERSCHLECHTERN!`).join('\n')}
+
+Die guten Elemente dürfen NICHT verändert werden, außer sie passen nicht mehr zum verbesserten Teil.
+Fokussiere dich NUR auf die Verbesserung der schwachen Bereiche!`;
+    }
+
+    if (weakAreas.length > 0) {
+      weakAreasInstructions = `
+═══════════════════════════════════════
+🎯 DIESE BEREICHE MÜSSEN VERBESSERT WERDEN:
+═══════════════════════════════════════
+${weakAreas.map(a => `✗ ${a} - MUSS auf mindestens 75 verbessert werden`).join('\n')}`;
+    }
+  }
+
+  const prompt = `Optimiere diesen Social Media Post GEZIELT wie ein professioneller Social Media Manager.
 
 ═══════════════════════════════════════
 KONTEXT:
@@ -3486,6 +3693,8 @@ PLATTFORM: ${platform}
 ${targetAudience ? `ZIELGRUPPE: ${targetAudience}` : 'ZIELGRUPPE: B2B-Entscheider (Geschäftsführer, IT-Leiter in KMU)'}
 ${goal ? `ZIEL: ${goal}` : ''}
 ${focusDescription}
+${preserveInstructions}
+${weakAreasInstructions}
 
 ═══════════════════════════════════════
 ORIGINAL-POST:
@@ -3497,6 +3706,8 @@ ${originalContent}
 ═══════════════════════════════════════
 OPTIMIERUNGSRICHTLINIEN:
 ═══════════════════════════════════════
+⚠️ KRITISCH: Verändere NUR die schwachen Bereiche! Behalte die Stärken bei!
+
 1. HOOK: Konkret, dringlich, neugierig machend - KEIN Clickbait
    - SCHLECHT: "Digitalisierung ist wichtig"
    - GUT: "73% der KMU unterschätzen dieses IT-Risiko"
@@ -3519,20 +3730,19 @@ OPTIMIERUNGSRICHTLINIEN:
 OUTPUT (NUR JSON):
 ═══════════════════════════════════════
 {
-  "improvedContent": "Der KOMPLETT überarbeitete Post-Text mit allen Verbesserungen eingebaut",
+  "improvedContent": "Der Post mit GEZIELTEN Verbesserungen - gute Teile BEIBEHALTEN, nur schwache Bereiche verbessert",
   "alternativeHooks": [
-    "Alternativer Hook 1 (z.B. Frage-Format)",
-    "Alternativer Hook 2 (z.B. Statistik-Format)"
+    "Alternativer Hook 1 (nur falls Hook schwach war)",
+    "Alternativer Hook 2 (nur falls Hook schwach war)"
   ],
   "ctaSuggestions": [
-    "Konkreter CTA-Vorschlag 1",
-    "Konkreter CTA-Vorschlag 2"
+    "Konkreter CTA-Vorschlag (nur falls CTA schwach war)"
   ],
   "changes": [
-    "Was wurde geändert und warum (konkret)",
-    "Weitere Änderung und Begründung"
+    "GENAU welcher Teil geändert wurde und warum",
+    "Welche Teile bewusst NICHT geändert wurden (weil sie gut waren)"
   ],
-  "reasoning": "Kurze Erklärung warum diese Optimierung besser konvertiert (1-2 Sätze)"
+  "reasoning": "Warum diese gezielte Änderung den Score verbessert ohne die Stärken zu verlieren"
 }`;
 
   let result: { content: string; tokensUsed: number };
@@ -3599,8 +3809,9 @@ export async function autoImproveContent(
   platform: string,
   goal: string,
   targetAudience?: string,
-  minScore: number = 75,
-  maxIterations: number = 3
+  minScore: number = 90,
+  maxIterations: number = 5,
+  expectedTonality?: string
 ): Promise<AutoImprovementResult> {
   const startTime = Date.now();
 
@@ -3623,7 +3834,8 @@ export async function autoImproveContent(
       currentContent,
       platform,
       goal as 'reach' | 'engagement' | 'leads' | 'branding',
-      targetAudience
+      targetAudience,
+      expectedTonality
     );
 
     const currentScore = analysis.overallScore;
@@ -3673,7 +3885,16 @@ export async function autoImproveContent(
     console.log(`Focus area: "${focusArea.area}" (priority: ${focusArea.priority})`);
     console.log(`Suggestion: ${focusArea.suggestion}`);
 
-    // Step 4: Improve content with targeted focus
+    // Extract current scores to tell the AI what to preserve
+    const currentScores = {
+      platform: analysis.platformFit?.score,
+      viral: analysis.viralPotential,
+      cta: analysis.callToActionEffectiveness?.score,
+      overall: analysis.overallScore
+    };
+    console.log(`Current scores - Platform: ${currentScores.platform}, Viral: ${currentScores.viral}, CTA: ${currentScores.cta}`);
+
+    // Step 4: Improve content with targeted focus - pass scores so AI knows what to preserve
     try {
       const improvement = await improveContentWithExpert(
         userId,
@@ -3681,7 +3902,8 @@ export async function autoImproveContent(
         platform,
         focusName,
         targetAudience,
-        goal
+        goal,
+        currentScores
       );
 
       // Collect alternative hooks and CTA suggestions
@@ -3698,7 +3920,8 @@ export async function autoImproveContent(
         improvement.improvedContent,
         platform,
         goal as 'reach' | 'engagement' | 'leads' | 'branding',
-        targetAudience
+        targetAudience,
+        expectedTonality
       );
 
       const newScore = newAnalysis.overallScore;
@@ -3721,14 +3944,15 @@ export async function autoImproveContent(
         console.log(`✗ Improvement rejected (score didn't improve)`);
         // Try a different approach - focus on "all" if specific focus didn't help
         if (focusName !== 'all' && i < maxIterations - 1) {
-          console.log(`Trying comprehensive improvement...`);
+          console.log(`Trying comprehensive improvement with score preservation...`);
           const comprehensiveImprovement = await improveContentWithExpert(
             userId,
             currentContent,
             platform,
             'all',
             targetAudience,
-            goal
+            goal,
+            currentScores // Pass scores so AI knows what to preserve
           );
 
           const comprehensiveAnalysis = await analyzeContentAsExpert(
@@ -3736,7 +3960,8 @@ export async function autoImproveContent(
             comprehensiveImprovement.improvedContent,
             platform,
             goal as 'reach' | 'engagement' | 'leads' | 'branding',
-            targetAudience
+            targetAudience,
+            expectedTonality
           );
 
           if (comprehensiveAnalysis.overallScore > currentScore) {
@@ -3758,7 +3983,8 @@ export async function autoImproveContent(
     currentContent,
     platform,
     goal as 'reach' | 'engagement' | 'leads' | 'branding',
-    targetAudience
+    targetAudience,
+    expectedTonality
   );
 
   // Use best version if final isn't better

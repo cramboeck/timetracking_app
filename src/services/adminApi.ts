@@ -78,5 +78,119 @@ export const adminApi = {
   // Analytics
   getAnalytics: async () => {
     return adminFetch('/admin/analytics');
+  },
+
+  // Feature Management
+  getFeatures: async (page: number = 1, limit: number = 50, search: string = '') => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...(search && { search })
+    });
+    return adminFetch(`/admin/features?${params}`);
+  },
+
+  updateUserFeature: async (userId: string, packageName: string, enabled: boolean, expiresAt?: string) => {
+    return adminFetch(`/admin/features/${userId}/${packageName}`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled, expiresAt })
+    });
+  },
+
+  bulkUpdateFeatures: async (userIds: string[], packageName: string, enabled: boolean, expiresAt?: string) => {
+    return adminFetch('/admin/features/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ userIds, packageName, enabled, expiresAt })
+    });
+  },
+
+  // Backup Management
+  getBackups: async () => {
+    return adminFetch('/admin/backups');
+  },
+
+  createBackup: async (compress: boolean = true) => {
+    return adminFetch('/admin/backups', {
+      method: 'POST',
+      body: JSON.stringify({ compress })
+    });
+  },
+
+  restoreBackup: async (filename: string) => {
+    return adminFetch(`/admin/backups/${encodeURIComponent(filename)}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ confirm: 'RESTORE' })
+    });
+  },
+
+  deleteBackup: async (filename: string) => {
+    return adminFetch(`/admin/backups/${encodeURIComponent(filename)}`, {
+      method: 'DELETE'
+    });
+  },
+
+  cleanupBackups: async (olderThanDays: number = 30) => {
+    return adminFetch('/admin/backups', {
+      method: 'DELETE',
+      body: JSON.stringify({ olderThanDays })
+    });
+  },
+
+  // System Status
+  getSystemStatus: async () => {
+    return adminFetch('/admin/system/status');
+  },
+
+  // Database Statistics
+  getDatabaseStats: async () => {
+    return adminFetch('/admin/database/stats');
+  },
+
+  runVacuum: async (table?: string) => {
+    return adminFetch('/admin/database/vacuum', {
+      method: 'POST',
+      body: JSON.stringify({ table })
+    });
+  },
+
+  // Security / Sessions
+  getSecurityData: async () => {
+    return adminFetch('/admin/security/sessions');
+  },
+
+  invalidateUserSessions: async (userId: string) => {
+    return adminFetch(`/admin/security/sessions/${userId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // System Logs
+  getSystemLogs: async (lines: number = 100, type: string = 'app') => {
+    const params = new URLSearchParams({ lines: lines.toString(), type });
+    return adminFetch(`/admin/system/logs?${params}`);
+  },
+
+  // System Notifications
+  getNotifications: async () => {
+    return adminFetch('/admin/notifications');
+  },
+
+  createNotification: async (title: string, message: string, type: string = 'info', expiresAt?: string) => {
+    return adminFetch('/admin/notifications', {
+      method: 'POST',
+      body: JSON.stringify({ title, message, type, expiresAt })
+    });
+  },
+
+  deleteNotification: async (id: string) => {
+    return adminFetch(`/admin/notifications/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  toggleNotification: async (id: string) => {
+    return adminFetch(`/admin/notifications/${id}/toggle`, {
+      method: 'PUT'
+    });
   }
 };

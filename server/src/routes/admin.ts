@@ -3,6 +3,13 @@ import { pool } from '../config/database';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/adminAuth';
 import { auditLog } from '../services/auditLog';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const execAsync = promisify(exec);
+const BACKUP_DIR = process.env.BACKUP_DIR || '/app/backups';
 
 const router = Router();
 
@@ -610,6 +617,987 @@ router.delete('/maintenance/bulk', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error bulk deleting maintenance announcements:', error);
     res.status(500).json({ error: 'Failed to delete maintenance announcements' });
+  }
+});
+
+// ============================================
+// FEATURE MANAGEMENT
+// ============================================
+
+// Package definitions (mirrored from features.ts)
+const PACKAGES = {
+  support: {
+    name: 'support',
+    label: 'Support Paket',
+    description: 'Tickets, Geräte/NinjaRMM, Alerts',
+    features: ['tickets', 'devices', 'alerts', 'customer_portal_admin'],
+  },
+  business: {
+    name: 'business',
+    label: 'Business Paket',
+    description: 'Dashboard, Finanzen, sevDesk, Berichte',
+    features: ['dashboard_advanced', 'billing', 'sevdesk', 'reports'],
+  },
+} as const;
+
+// GET /api/admin/features - Get all users with their feature packages
+router.get('/features', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const search = req.query.search as string || '';
+    const offset = (page - 1) * limit;
+
+    let query = `
+      SELECT
+        u.id, u.username, u.email, u.account_type, u.created_at,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'packageName', fp.package_name,
+              'enabled', fp.enabled,
+              'enabledAt', fp.enabled_at,
+              'expiresAt', fp.expires_at
+            )
+          ) FILTER (WHERE fp.id IS NOT NULL),
+          '[]'
+        ) as packages
+      FROM users u
+      LEFT JOIN feature_packages fp ON u.id = fp.user_id
+    `;
+
+    const params: any[] = [];
+    let paramCount = 0;
+
+    if (search) {
+      paramCount++;
+      query += ` WHERE (u.username ILIKE $${paramCount} OR u.email ILIKE $${paramCount})`;
+      params.push(`%${search}%`);
+    }
+
+    query += ` GROUP BY u.id ORDER BY u.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
+
+    // Get total count
+    let countQuery = 'SELECT COUNT(*) as count FROM users';
+    const countParams: any[] = [];
+    if (search) {
+      countQuery += ' WHERE (username ILIKE $1 OR email ILIKE $1)';
+      countParams.push(`%${search}%`);
+    }
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      users: result.rows,
+      packages: Object.values(PACKAGES),
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching features:', error);
+    res.status(500).json({ error: 'Failed to fetch features' });
+  }
+});
+
+// PUT /api/admin/features/:userId/:packageName - Enable/disable package for user
+router.put('/features/:userId/:packageName', async (req: AuthRequest, res) => {
+  try {
+    const { userId, packageName } = req.params;
+    const { enabled, expiresAt } = req.body;
+
+    // Validate package name
+    if (!PACKAGES[packageName as keyof typeof PACKAGES]) {
+      return res.status(400).json({ error: 'Invalid package name' });
+    }
+
+    // Check if user exists
+    const userResult = await pool.query('SELECT id, username FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (enabled) {
+      // Enable package - upsert
+      await pool.query(
+        `INSERT INTO feature_packages (id, user_id, package_name, enabled, enabled_at, expires_at)
+         VALUES ($1, $2, $3, true, NOW(), $4)
+         ON CONFLICT (user_id, package_name)
+         DO UPDATE SET enabled = true, enabled_at = NOW(), expires_at = $4`,
+        [crypto.randomUUID(), userId, packageName, expiresAt || null]
+      );
+    } else {
+      // Disable package
+      await pool.query(
+        `UPDATE feature_packages SET enabled = false WHERE user_id = $1 AND package_name = $2`,
+        [userId, packageName]
+      );
+    }
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'features.update',
+      details: JSON.stringify({
+        targetUserId: userId,
+        targetUsername: userResult.rows[0].username,
+        packageName,
+        enabled,
+        expiresAt
+      }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, message: `Package ${packageName} ${enabled ? 'enabled' : 'disabled'} for user` });
+  } catch (error) {
+    console.error('Error updating feature:', error);
+    res.status(500).json({ error: 'Failed to update feature' });
+  }
+});
+
+// POST /api/admin/features/bulk - Bulk enable/disable package for multiple users
+router.post('/features/bulk', async (req: AuthRequest, res) => {
+  try {
+    const { userIds, packageName, enabled, expiresAt } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: 'userIds must be a non-empty array' });
+    }
+
+    if (!PACKAGES[packageName as keyof typeof PACKAGES]) {
+      return res.status(400).json({ error: 'Invalid package name' });
+    }
+
+    let updatedCount = 0;
+
+    for (const userId of userIds) {
+      if (enabled) {
+        await pool.query(
+          `INSERT INTO feature_packages (id, user_id, package_name, enabled, enabled_at, expires_at)
+           VALUES ($1, $2, $3, true, NOW(), $4)
+           ON CONFLICT (user_id, package_name)
+           DO UPDATE SET enabled = true, enabled_at = NOW(), expires_at = $4`,
+          [crypto.randomUUID(), userId, packageName, expiresAt || null]
+        );
+      } else {
+        await pool.query(
+          `UPDATE feature_packages SET enabled = false WHERE user_id = $1 AND package_name = $2`,
+          [userId, packageName]
+        );
+      }
+      updatedCount++;
+    }
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'features.bulk_update',
+      details: JSON.stringify({
+        userCount: updatedCount,
+        packageName,
+        enabled,
+        expiresAt
+      }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      updatedCount,
+      message: `Package ${packageName} ${enabled ? 'enabled' : 'disabled'} for ${updatedCount} users`
+    });
+  } catch (error) {
+    console.error('Error bulk updating features:', error);
+    res.status(500).json({ error: 'Failed to bulk update features' });
+  }
+});
+
+// ============================================
+// BACKUP MANAGEMENT
+// ============================================
+
+interface BackupFile {
+  filename: string;
+  size: string;
+  sizeBytes: number;
+  createdAt: string;
+  compressed: boolean;
+}
+
+// GET /api/admin/backups - List available backups
+router.get('/backups', async (req, res) => {
+  try {
+    // Check if backup directory exists
+    if (!fs.existsSync(BACKUP_DIR)) {
+      return res.json({ backups: [], backupDir: BACKUP_DIR });
+    }
+
+    const files = fs.readdirSync(BACKUP_DIR);
+    const backups: BackupFile[] = [];
+
+    for (const file of files) {
+      if (file.startsWith('backup_') && (file.endsWith('.sql') || file.endsWith('.sql.gz'))) {
+        const filePath = path.join(BACKUP_DIR, file);
+        const stats = fs.statSync(filePath);
+
+        // Format file size
+        const sizeBytes = stats.size;
+        let size: string;
+        if (sizeBytes >= 1024 * 1024 * 1024) {
+          size = (sizeBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        } else if (sizeBytes >= 1024 * 1024) {
+          size = (sizeBytes / (1024 * 1024)).toFixed(2) + ' MB';
+        } else if (sizeBytes >= 1024) {
+          size = (sizeBytes / 1024).toFixed(2) + ' KB';
+        } else {
+          size = sizeBytes + ' B';
+        }
+
+        backups.push({
+          filename: file,
+          size,
+          sizeBytes,
+          createdAt: stats.mtime.toISOString(),
+          compressed: file.endsWith('.gz')
+        });
+      }
+    }
+
+    // Sort by date, newest first
+    backups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    res.json({ backups, backupDir: BACKUP_DIR });
+  } catch (error) {
+    console.error('Error listing backups:', error);
+    res.status(500).json({ error: 'Failed to list backups' });
+  }
+});
+
+// POST /api/admin/backups - Create a new backup
+router.post('/backups', async (req: AuthRequest, res) => {
+  try {
+    const { compress = true } = req.body;
+
+    // Ensure backup directory exists
+    if (!fs.existsSync(BACKUP_DIR)) {
+      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const dbName = process.env.POSTGRES_DB || 'timetracking';
+    const dbUser = process.env.POSTGRES_USER || 'timetracking';
+    const dbContainer = process.env.DB_CONTAINER || 'timetracking-postgres';
+
+    const baseFilename = `backup_${dbName}_${timestamp}`;
+    const filename = compress ? `${baseFilename}.sql.gz` : `${baseFilename}.sql`;
+    const filePath = path.join(BACKUP_DIR, filename);
+
+    // Execute backup command
+    let command: string;
+    if (compress) {
+      command = `docker exec ${dbContainer} pg_dump -U ${dbUser} ${dbName} | gzip > "${filePath}"`;
+    } else {
+      command = `docker exec ${dbContainer} pg_dump -U ${dbUser} ${dbName} > "${filePath}"`;
+    }
+
+    await execAsync(command, { timeout: 300000 }); // 5 minute timeout
+
+    // Get file info
+    const stats = fs.statSync(filePath);
+    const sizeBytes = stats.size;
+    let size: string;
+    if (sizeBytes >= 1024 * 1024) {
+      size = (sizeBytes / (1024 * 1024)).toFixed(2) + ' MB';
+    } else if (sizeBytes >= 1024) {
+      size = (sizeBytes / 1024).toFixed(2) + ' KB';
+    } else {
+      size = sizeBytes + ' B';
+    }
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'backup.create',
+      details: JSON.stringify({ filename, size, compressed: compress }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      message: 'Backup erfolgreich erstellt',
+      backup: {
+        filename,
+        size,
+        sizeBytes,
+        createdAt: stats.mtime.toISOString(),
+        compressed: compress
+      }
+    });
+  } catch (error: any) {
+    console.error('Error creating backup:', error);
+    res.status(500).json({ error: `Backup fehlgeschlagen: ${error.message}` });
+  }
+});
+
+// POST /api/admin/backups/:filename/restore - Restore from a backup
+router.post('/backups/:filename/restore', async (req: AuthRequest, res) => {
+  try {
+    const { filename } = req.params;
+    const { confirm } = req.body;
+
+    if (confirm !== 'RESTORE') {
+      return res.status(400).json({
+        error: 'Bitte bestätige die Wiederherstellung mit confirm: "RESTORE"'
+      });
+    }
+
+    const filePath = path.join(BACKUP_DIR, filename);
+
+    // Security check - ensure file is in backup directory
+    const resolvedPath = path.resolve(filePath);
+    if (!resolvedPath.startsWith(path.resolve(BACKUP_DIR))) {
+      return res.status(400).json({ error: 'Ungültiger Dateipfad' });
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Backup-Datei nicht gefunden' });
+    }
+
+    const dbName = process.env.POSTGRES_DB || 'timetracking';
+    const dbUser = process.env.POSTGRES_USER || 'timetracking';
+    const dbContainer = process.env.DB_CONTAINER || 'timetracking-postgres';
+
+    // Terminate active connections
+    await execAsync(
+      `docker exec ${dbContainer} psql -U ${dbUser} -d postgres -c "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = '${dbName}' AND pid <> pg_backend_pid();"`,
+      { timeout: 30000 }
+    ).catch(() => {}); // Ignore errors if no connections
+
+    // Drop and recreate database
+    await execAsync(
+      `docker exec ${dbContainer} psql -U ${dbUser} -d postgres -c "DROP DATABASE IF EXISTS ${dbName};"`,
+      { timeout: 30000 }
+    );
+    await execAsync(
+      `docker exec ${dbContainer} psql -U ${dbUser} -d postgres -c "CREATE DATABASE ${dbName} OWNER ${dbUser};"`,
+      { timeout: 30000 }
+    );
+
+    // Restore backup
+    let restoreCommand: string;
+    if (filename.endsWith('.gz')) {
+      restoreCommand = `gunzip -c "${filePath}" | docker exec -i ${dbContainer} psql -U ${dbUser} -d ${dbName}`;
+    } else {
+      restoreCommand = `docker exec -i ${dbContainer} psql -U ${dbUser} -d ${dbName} < "${filePath}"`;
+    }
+
+    await execAsync(restoreCommand, { timeout: 600000 }); // 10 minute timeout
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'backup.restore',
+      details: JSON.stringify({ filename }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      message: 'Datenbank erfolgreich wiederhergestellt. Server-Neustart empfohlen.'
+    });
+  } catch (error: any) {
+    console.error('Error restoring backup:', error);
+    res.status(500).json({ error: `Wiederherstellung fehlgeschlagen: ${error.message}` });
+  }
+});
+
+// DELETE /api/admin/backups/:filename - Delete a backup
+router.delete('/backups/:filename', async (req: AuthRequest, res) => {
+  try {
+    const { filename } = req.params;
+    const filePath = path.join(BACKUP_DIR, filename);
+
+    // Security check - ensure file is in backup directory
+    const resolvedPath = path.resolve(filePath);
+    if (!resolvedPath.startsWith(path.resolve(BACKUP_DIR))) {
+      return res.status(400).json({ error: 'Ungültiger Dateipfad' });
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Backup-Datei nicht gefunden' });
+    }
+
+    // Get file size before deleting
+    const stats = fs.statSync(filePath);
+
+    fs.unlinkSync(filePath);
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'backup.delete',
+      details: JSON.stringify({ filename, sizeBytes: stats.size }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      message: 'Backup gelöscht'
+    });
+  } catch (error: any) {
+    console.error('Error deleting backup:', error);
+    res.status(500).json({ error: `Löschen fehlgeschlagen: ${error.message}` });
+  }
+});
+
+// DELETE /api/admin/backups - Delete old backups (cleanup)
+router.delete('/backups', async (req: AuthRequest, res) => {
+  try {
+    const { olderThanDays = 30 } = req.body;
+
+    if (!fs.existsSync(BACKUP_DIR)) {
+      return res.json({ success: true, deletedCount: 0 });
+    }
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+
+    const files = fs.readdirSync(BACKUP_DIR);
+    let deletedCount = 0;
+    const deletedFiles: string[] = [];
+
+    for (const file of files) {
+      if (file.startsWith('backup_') && (file.endsWith('.sql') || file.endsWith('.sql.gz'))) {
+        const filePath = path.join(BACKUP_DIR, file);
+        const stats = fs.statSync(filePath);
+
+        if (stats.mtime < cutoffDate) {
+          fs.unlinkSync(filePath);
+          deletedFiles.push(file);
+          deletedCount++;
+        }
+      }
+    }
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'backup.cleanup',
+      details: JSON.stringify({ olderThanDays, deletedCount, deletedFiles }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      deletedCount,
+      message: `${deletedCount} alte Backup(s) gelöscht`
+    });
+  } catch (error: any) {
+    console.error('Error cleaning up backups:', error);
+    res.status(500).json({ error: `Aufräumen fehlgeschlagen: ${error.message}` });
+  }
+});
+
+// ============================================
+// SYSTEM STATUS / HEALTH CHECK
+// ============================================
+
+// GET /api/admin/system/status - Get system health status
+router.get('/system/status', async (req, res) => {
+  try {
+    const status: any = {
+      timestamp: new Date().toISOString(),
+      database: { status: 'unknown', latency: 0 },
+      docker: { containers: [] },
+      disk: { used: 0, total: 0, percentage: 0 },
+      memory: { used: 0, total: 0, percentage: 0 },
+      uptime: process.uptime()
+    };
+
+    // Check database connection
+    const dbStart = Date.now();
+    try {
+      await pool.query('SELECT 1');
+      status.database = {
+        status: 'connected',
+        latency: Date.now() - dbStart
+      };
+    } catch (dbError: any) {
+      status.database = {
+        status: 'error',
+        error: dbError.message,
+        latency: Date.now() - dbStart
+      };
+    }
+
+    // Check Docker containers
+    try {
+      const { stdout } = await execAsync(
+        'docker ps --format "{{.Names}}|{{.Status}}|{{.Image}}" 2>/dev/null || echo ""',
+        { timeout: 10000 }
+      );
+      if (stdout.trim()) {
+        status.docker.containers = stdout.trim().split('\n').map(line => {
+          const [name, containerStatus, image] = line.split('|');
+          return { name, status: containerStatus, image };
+        });
+      }
+    } catch {
+      status.docker.error = 'Docker nicht verfügbar';
+    }
+
+    // Check disk usage
+    try {
+      const { stdout } = await execAsync(
+        "df -h / | tail -1 | awk '{print $2,$3,$5}'",
+        { timeout: 5000 }
+      );
+      const [total, used, percentage] = stdout.trim().split(' ');
+      status.disk = {
+        total,
+        used,
+        percentage: parseInt(percentage) || 0
+      };
+    } catch {
+      status.disk.error = 'Festplatteninfo nicht verfügbar';
+    }
+
+    // Check memory usage
+    try {
+      const { stdout } = await execAsync(
+        "free -h | grep Mem | awk '{print $2,$3}'",
+        { timeout: 5000 }
+      );
+      const [total, used] = stdout.trim().split(' ');
+      const memInfo = await execAsync("free | grep Mem | awk '{print $2,$3}'", { timeout: 5000 });
+      const [totalBytes, usedBytes] = memInfo.stdout.trim().split(' ').map(Number);
+      status.memory = {
+        total,
+        used,
+        percentage: Math.round((usedBytes / totalBytes) * 100)
+      };
+    } catch {
+      status.memory.error = 'Speicherinfo nicht verfügbar';
+    }
+
+    res.json(status);
+  } catch (error: any) {
+    console.error('Error fetching system status:', error);
+    res.status(500).json({ error: 'Failed to fetch system status' });
+  }
+});
+
+// ============================================
+// DATABASE STATISTICS
+// ============================================
+
+// GET /api/admin/database/stats - Get database statistics
+router.get('/database/stats', async (req, res) => {
+  try {
+    // Get table sizes
+    const tableSizes = await pool.query(`
+      SELECT
+        relname as table_name,
+        pg_size_pretty(pg_total_relation_size(relid)) as total_size,
+        pg_total_relation_size(relid) as size_bytes,
+        n_live_tup as row_count
+      FROM pg_stat_user_tables
+      ORDER BY pg_total_relation_size(relid) DESC
+    `);
+
+    // Get database size
+    const dbSize = await pool.query(`
+      SELECT pg_size_pretty(pg_database_size(current_database())) as size
+    `);
+
+    // Get connection stats
+    const connections = await pool.query(`
+      SELECT
+        count(*) as total,
+        count(*) FILTER (WHERE state = 'active') as active,
+        count(*) FILTER (WHERE state = 'idle') as idle
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+    `);
+
+    // Get index usage
+    const indexUsage = await pool.query(`
+      SELECT
+        schemaname,
+        relname as table_name,
+        indexrelname as index_name,
+        idx_scan as scans,
+        pg_size_pretty(pg_relation_size(indexrelid)) as size
+      FROM pg_stat_user_indexes
+      ORDER BY idx_scan DESC
+      LIMIT 20
+    `);
+
+    // Get cache hit ratio
+    const cacheRatio = await pool.query(`
+      SELECT
+        sum(heap_blks_hit) / NULLIF(sum(heap_blks_hit) + sum(heap_blks_read), 0) * 100 as ratio
+      FROM pg_statio_user_tables
+    `);
+
+    // Get slow queries (if pg_stat_statements is available)
+    let slowQueries: any[] = [];
+    try {
+      const slowQueryResult = await pool.query(`
+        SELECT
+          query,
+          calls,
+          mean_exec_time as avg_time_ms,
+          total_exec_time as total_time_ms
+        FROM pg_stat_statements
+        WHERE userid = (SELECT usesysid FROM pg_user WHERE usename = current_user)
+        ORDER BY mean_exec_time DESC
+        LIMIT 10
+      `);
+      slowQueries = slowQueryResult.rows;
+    } catch {
+      // pg_stat_statements not available
+    }
+
+    res.json({
+      databaseSize: dbSize.rows[0]?.size || 'Unknown',
+      tables: tableSizes.rows,
+      connections: connections.rows[0] || { total: 0, active: 0, idle: 0 },
+      indexes: indexUsage.rows,
+      cacheHitRatio: cacheRatio.rows[0]?.ratio?.toFixed(2) || '0',
+      slowQueries
+    });
+  } catch (error: any) {
+    console.error('Error fetching database stats:', error);
+    res.status(500).json({ error: 'Failed to fetch database statistics' });
+  }
+});
+
+// POST /api/admin/database/vacuum - Run VACUUM ANALYZE
+router.post('/database/vacuum', async (req: AuthRequest, res) => {
+  try {
+    const { table } = req.body;
+
+    if (table) {
+      // Validate table name to prevent SQL injection
+      const validTables = await pool.query(
+        "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+      );
+      const tableNames = validTables.rows.map((r: any) => r.tablename);
+      if (!tableNames.includes(table)) {
+        return res.status(400).json({ error: 'Ungültige Tabelle' });
+      }
+      await pool.query(`VACUUM ANALYZE ${table}`);
+    } else {
+      await pool.query('VACUUM ANALYZE');
+    }
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'database.vacuum',
+      details: JSON.stringify({ table: table || 'all' }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, message: 'VACUUM ANALYZE erfolgreich ausgeführt' });
+  } catch (error: any) {
+    console.error('Error running vacuum:', error);
+    res.status(500).json({ error: `VACUUM fehlgeschlagen: ${error.message}` });
+  }
+});
+
+// ============================================
+// SECURITY / SESSIONS
+// ============================================
+
+// GET /api/admin/security/sessions - Get active sessions
+router.get('/security/sessions', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    // Get active sessions from tokens table if exists
+    let sessions: any[] = [];
+    try {
+      const result = await pool.query(`
+        SELECT
+          s.id,
+          s.user_id,
+          u.username,
+          u.email,
+          s.created_at,
+          s.last_activity,
+          s.ip_address,
+          s.user_agent
+        FROM user_sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.expires_at > NOW()
+        ORDER BY s.last_activity DESC
+        LIMIT $1 OFFSET $2
+      `, [limit, offset]);
+      sessions = result.rows;
+    } catch {
+      // Sessions table might not exist, try refresh_tokens
+      try {
+        const result = await pool.query(`
+          SELECT
+            rt.id,
+            rt.user_id,
+            u.username,
+            u.email,
+            rt.created_at,
+            rt.expires_at
+          FROM refresh_tokens rt
+          JOIN users u ON rt.user_id = u.id
+          WHERE rt.expires_at > NOW()
+          ORDER BY rt.created_at DESC
+          LIMIT $1 OFFSET $2
+        `, [limit, offset]);
+        sessions = result.rows;
+      } catch {
+        // No session tracking available
+      }
+    }
+
+    // Get login attempts from audit log
+    const loginAttempts = await pool.query(`
+      SELECT
+        action,
+        COUNT(*) as count,
+        MAX(timestamp) as last_attempt
+      FROM audit_logs
+      WHERE action IN ('login.success', 'login.failed', 'login.mfa_failed')
+        AND timestamp > NOW() - INTERVAL '24 hours'
+      GROUP BY action
+    `);
+
+    // Get failed logins by IP
+    const failedByIp = await pool.query(`
+      SELECT
+        ip_address,
+        COUNT(*) as attempts,
+        MAX(timestamp) as last_attempt
+      FROM audit_logs
+      WHERE action = 'login.failed'
+        AND timestamp > NOW() - INTERVAL '24 hours'
+      GROUP BY ip_address
+      ORDER BY attempts DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      sessions,
+      loginStats: {
+        attempts: loginAttempts.rows.reduce((acc: any, row: any) => {
+          acc[row.action] = parseInt(row.count);
+          return acc;
+        }, {}),
+        failedByIp: failedByIp.rows
+      }
+    });
+  } catch (error: any) {
+    console.error('Error fetching security data:', error);
+    res.status(500).json({ error: 'Failed to fetch security data' });
+  }
+});
+
+// DELETE /api/admin/security/sessions/:userId - Invalidate user sessions
+router.delete('/security/sessions/:userId', async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Try to delete from user_sessions
+    try {
+      await pool.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+    } catch {
+      // Try refresh_tokens
+      await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
+    }
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'security.sessions_invalidated',
+      details: JSON.stringify({ targetUserId: userId }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, message: 'Sessions invalidiert' });
+  } catch (error: any) {
+    console.error('Error invalidating sessions:', error);
+    res.status(500).json({ error: 'Failed to invalidate sessions' });
+  }
+});
+
+// ============================================
+// SYSTEM LOGS
+// ============================================
+
+// GET /api/admin/system/logs - Get application logs
+router.get('/system/logs', async (req, res) => {
+  try {
+    const lines = parseInt(req.query.lines as string) || 100;
+    const logType = req.query.type as string || 'app';
+
+    let logPath: string;
+    switch (logType) {
+      case 'error':
+        logPath = '/var/log/app/error.log';
+        break;
+      case 'access':
+        logPath = '/var/log/app/access.log';
+        break;
+      default:
+        logPath = '/var/log/app/app.log';
+    }
+
+    let logs: string[] = [];
+
+    // Try to read log file
+    try {
+      if (fs.existsSync(logPath)) {
+        const { stdout } = await execAsync(`tail -n ${lines} "${logPath}"`, { timeout: 10000 });
+        logs = stdout.split('\n').filter(Boolean).reverse();
+      }
+    } catch {
+      // Log file not accessible, try docker logs
+      try {
+        const containerName = process.env.APP_CONTAINER || 'timetracking-app';
+        const { stdout } = await execAsync(
+          `docker logs --tail ${lines} ${containerName} 2>&1`,
+          { timeout: 10000 }
+        );
+        logs = stdout.split('\n').filter(Boolean).reverse();
+      } catch {
+        logs = ['Logs nicht verfügbar'];
+      }
+    }
+
+    res.json({ logs, logType });
+  } catch (error: any) {
+    console.error('Error fetching logs:', error);
+    res.status(500).json({ error: 'Failed to fetch logs' });
+  }
+});
+
+// ============================================
+// SYSTEM NOTIFICATIONS
+// ============================================
+
+// GET /api/admin/notifications - Get system notifications
+router.get('/notifications', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM system_notifications
+      ORDER BY created_at DESC
+      LIMIT 50
+    `);
+    res.json({ notifications: result.rows });
+  } catch (error: any) {
+    // Table might not exist
+    if (error.code === '42P01') {
+      res.json({ notifications: [], tableExists: false });
+    } else {
+      console.error('Error fetching notifications:', error);
+      res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+  }
+});
+
+// POST /api/admin/notifications - Create system notification
+router.post('/notifications', async (req: AuthRequest, res) => {
+  try {
+    const { title, message, type = 'info', expiresAt } = req.body;
+
+    if (!title || !message) {
+      return res.status(400).json({ error: 'Titel und Nachricht sind erforderlich' });
+    }
+
+    // Create table if not exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS system_notifications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        type VARCHAR(50) DEFAULT 'info',
+        created_by UUID REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        expires_at TIMESTAMP,
+        is_active BOOLEAN DEFAULT true
+      )
+    `);
+
+    const result = await pool.query(`
+      INSERT INTO system_notifications (title, message, type, created_by, expires_at)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [title, message, type, req.user!.id, expiresAt || null]);
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'notification.create',
+      details: JSON.stringify({ title, type }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, notification: result.rows[0] });
+  } catch (error: any) {
+    console.error('Error creating notification:', error);
+    res.status(500).json({ error: 'Failed to create notification' });
+  }
+});
+
+// DELETE /api/admin/notifications/:id - Delete notification
+router.delete('/notifications/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM system_notifications WHERE id = $1', [id]);
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'notification.delete',
+      details: JSON.stringify({ notificationId: id }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error deleting notification:', error);
+    res.status(500).json({ error: 'Failed to delete notification' });
+  }
+});
+
+// PUT /api/admin/notifications/:id/toggle - Toggle notification active status
+router.put('/notifications/:id/toggle', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(`
+      UPDATE system_notifications
+      SET is_active = NOT is_active
+      WHERE id = $1
+      RETURNING *
+    `, [id]);
+
+    res.json({ success: true, notification: result.rows[0] });
+  } catch (error: any) {
+    console.error('Error toggling notification:', error);
+    res.status(500).json({ error: 'Failed to toggle notification' });
   }
 });
 

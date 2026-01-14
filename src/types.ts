@@ -13,6 +13,16 @@ export interface Customer {
   timeRoundingInterval?: number; // Time rounding interval in minutes for billing (e.g., 15 = round up to nearest 15 min)
   paymentTermsDays?: number; // Payment terms in days for invoices (default: 14)
   ninjarmmOrganizationId?: string; // Link to NinjaRMM organization (Support feature)
+  displayName?: string; // Short display name for PDFs (instead of full name)
+  importAliases?: string[]; // Alternative names for CSV import matching (e.g., ["IHE", "IHE GmbH"])
+  customerType?: 'company' | 'individual'; // Type of customer (company = Firma, individual = Privatperson)
+  defaultProjectId?: string; // Default project for imports when no project is specified
+  // Vendor/Supplier Hub fields
+  isVendor?: boolean; // Mark as vendor/supplier
+  vendorDomain?: string; // Email domain for matching (e.g., "elovade.com")
+  vendorNotes?: string; // Notes about vendor relationship
+  vendorApiConfig?: Record<string, any>; // Configuration for external API connections
+  invoiceCount?: number; // Computed: number of processed invoices (from vendor list endpoint)
   createdAt: string;
 }
 
@@ -86,12 +96,15 @@ export interface TeamInvitation {
   createdAt: string;
 }
 
+export type UserRole = 'user' | 'admin';
+
 export interface User {
   id: string;
   username: string;
   email: string;
   passwordHash: string;
   accountType: AccountType;
+  role: UserRole; // Admin or regular user
   organizationName?: string; // For business/team accounts
   customerNumber?: string; // User's customer number (e.g., RBF-000001)
   displayName?: string; // User's display name
@@ -154,6 +167,7 @@ export interface TimeEntry {
   ticketId?: string; // Optional: link to ticket
   description: string;
   isRunning: boolean;
+  isBillable: boolean; // Whether this entry should be included in billing/reports
   createdAt: string;
 }
 

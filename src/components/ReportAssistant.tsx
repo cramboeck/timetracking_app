@@ -270,6 +270,7 @@ export const ReportAssistant = ({
 
     entries.forEach(entry => {
       if (entry.isRunning) return;
+      if (entry.isBillable === false) return; // Skip non-billable entries
 
       const entryDate = new Date(entry.startTime);
       if (entryDate < dateRange.start || entryDate > dateRange.end) return;
@@ -293,6 +294,7 @@ export const ReportAssistant = ({
         const projectIds = new Set<string>();
         entries.forEach(e => {
           if (e.isRunning) return;
+          if (e.isBillable === false) return; // Skip non-billable entries
           const eDate = new Date(e.startTime);
           if (eDate < dateRange.start || eDate > dateRange.end) return;
           const p = projects.find(pr => pr.id === e.projectId);
@@ -339,6 +341,7 @@ export const ReportAssistant = ({
 
     entries.forEach(entry => {
       if (entry.isRunning) return;
+      if (entry.isBillable === false) return; // Skip non-billable entries
 
       const entryDate = new Date(entry.startTime);
       if (entryDate < dateRange.start || entryDate > dateRange.end) return;

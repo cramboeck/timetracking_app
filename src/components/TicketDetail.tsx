@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb, Pencil, Check, Sparkles, ThumbsUp, ThumbsDown, RefreshCw, Bot, Loader2, Copy, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb, Pencil, Check, Sparkles, ThumbsUp, ThumbsDown, RefreshCw, Bot, Loader2, Copy, ArrowRight, Mail } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl, organizationsApi, aiApi, AISuggestion } from '../services/api';
+import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl, organizationsApi, aiApi, AISuggestion, microsoft365Api, TicketEmail } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SlaStatus } from './SlaStatus';
 import { TicketMergeDialog } from './TicketMergeDialog';
@@ -92,6 +92,12 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const [activities, setActivities] = useState<TicketActivity[]>([]);
   const [showActivities, setShowActivities] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
+
+  // Email History
+  const [ticketEmails, setTicketEmails] = useState<TicketEmail[]>([]);
+  const [showEmails, setShowEmails] = useState(false);
+  const [loadingEmails, setLoadingEmails] = useState(false);
+  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
 
   // Attachments
   const [attachments, setAttachments] = useState<TicketAttachment[]>([]);
@@ -511,6 +517,37 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       loadActivities();
     }
     setShowActivities(!showActivities);
+  };
+
+  const loadTicketEmails = async () => {
+    try {
+      setLoadingEmails(true);
+      const response = await microsoft365Api.getTicketEmails(ticketId);
+      if (response.success) {
+        setTicketEmails(response.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load ticket emails:', err);
+    } finally {
+      setLoadingEmails(false);
+    }
+  };
+
+  const toggleEmails = () => {
+    if (!showEmails && ticketEmails.length === 0) {
+      loadTicketEmails();
+    }
+    setShowEmails(!showEmails);
+  };
+
+  const formatEmailDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const getActivityLabel = (activity: TicketActivity): string => {
@@ -1812,6 +1849,116 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
             </div>
           )}
         </div>
+
+        {/* Email History */}
+        {ticket.source === 'email' && (
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
+            <button
+              onClick={toggleEmails}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Mail size={16} className="text-blue-500" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  E-Mail-Verlauf
+                </span>
+                {ticketEmails.length > 0 && (
+                  <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 rounded">
+                    {ticketEmails.length}
+                  </span>
+                )}
+              </div>
+              <ChevronRight
+                size={16}
+                className={`text-gray-400 transition-transform ${showEmails ? 'rotate-90' : ''}`}
+              />
+            </button>
+            {showEmails && (
+              <div className="border-t border-gray-200 dark:border-gray-700">
+                {loadingEmails ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
+                  </div>
+                ) : ticketEmails.length === 0 ? (
+                  <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                    Keine E-Mails mit diesem Ticket verknüpft
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {ticketEmails.map((email) => (
+                      <div key={email.id} className="px-4 py-3">
+                        <div
+                          className="flex items-start gap-3 cursor-pointer"
+                          onClick={() => setExpandedEmailId(expandedEmailId === email.id ? null : email.id)}
+                        >
+                          <div className={`p-1.5 rounded-full ${
+                            email.direction === 'inbound'
+                              ? 'bg-blue-100 dark:bg-blue-900/30'
+                              : 'bg-green-100 dark:bg-green-900/30'
+                          }`}>
+                            <Mail size={14} className={
+                              email.direction === 'inbound'
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : 'text-green-600 dark:text-green-400'
+                            } />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                {email.direction === 'inbound' ? email.from_name || email.from_email : 'Gesendet'}
+                              </span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                email.direction === 'inbound'
+                                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                                  : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
+                              }`}>
+                                {email.direction === 'inbound' ? 'Empfangen' : 'Gesendet'}
+                              </span>
+                              {email.has_attachments && (
+                                <Paperclip size={12} className="text-gray-400" />
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                              {email.subject}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-500">
+                              {formatEmailDate(email.received_at)}
+                            </p>
+                          </div>
+                          <ChevronRight
+                            size={14}
+                            className={`text-gray-400 transition-transform flex-shrink-0 ${
+                              expandedEmailId === email.id ? 'rotate-90' : ''
+                            }`}
+                          />
+                        </div>
+                        {expandedEmailId === email.id && (
+                          <div className="mt-3 pl-9">
+                            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 text-sm">
+                              <div className="mb-2 text-xs text-gray-500 dark:text-gray-500">
+                                <span className="font-medium">Von:</span> {email.from_name} &lt;{email.from_email}&gt;
+                              </div>
+                              {email.body_html ? (
+                                <div
+                                  className="prose prose-sm dark:prose-invert max-w-none"
+                                  dangerouslySetInnerHTML={{ __html: email.body_html }}
+                                />
+                              ) : (
+                                <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300">
+                                  {email.body_text}
+                                </pre>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Archive Confirmation */}

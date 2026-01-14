@@ -23,6 +23,7 @@ export type AuditAction =
   | 'customer_contact.update'
   | 'customer_contact.delete'
   | 'customer_contact.send_invite'
+  | 'customer_contact.set_password'
   // Project actions
   | 'project.create'
   | 'project.update'
@@ -96,8 +97,24 @@ export type AuditAction =
   // Admin maintenance actions
   | 'maintenance.admin_delete'
   | 'maintenance.admin_bulk_delete'
+  // Feature management actions
+  | 'features.update'
+  | 'features.bulk_update'
   // Import actions
-  | 'import.clockodo';
+  | 'import.clockodo'
+  | 'import.clockodo_api'
+  // Admin backup actions
+  | 'backup.create'
+  | 'backup.restore'
+  | 'backup.delete'
+  | 'backup.cleanup'
+  // Admin database actions
+  | 'database.vacuum'
+  // Admin security actions
+  | 'security.sessions_invalidated'
+  // Admin notification actions
+  | 'notification.create'
+  | 'notification.delete';
 
 export interface AuditLogEntry {
   id: string;

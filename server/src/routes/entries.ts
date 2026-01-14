@@ -19,7 +19,8 @@ const createEntrySchema = z.object({
   activityId: z.string().uuid().optional(),
   ticketId: z.string().uuid().optional(),
   description: z.string().max(1000).optional(),
-  isRunning: z.boolean().default(false)
+  isRunning: z.boolean().default(false),
+  isBillable: z.boolean().default(true)
 });
 
 const updateEntrySchema = z.object({
@@ -30,7 +31,8 @@ const updateEntrySchema = z.object({
   activityId: z.string().uuid().optional(),
   ticketId: z.string().uuid().optional().nullable(),
   description: z.string().max(1000).optional(),
-  isRunning: z.boolean().optional()
+  isRunning: z.boolean().optional(),
+  isBillable: z.boolean().optional()
 });
 
 // GET /api/entries - Get all entries for current organization
@@ -104,6 +106,10 @@ router.put('/bulk-update', authenticateToken, attachOrganization, requireOrgRole
       fields.push(`description = $${paramCount++}`);
       values.push(updates.description);
     }
+    if (updates.isBillable !== undefined) {
+      fields.push(`is_billable = $${paramCount++}`);
+      values.push(updates.isBillable);
+    }
 
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
@@ -164,7 +170,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { startTime, endTime, duration, projectId, activityId, ticketId, description, isRunning } = req.body;
+    const { startTime, endTime, duration, projectId, activityId, ticketId, description, isRunning, isBillable = true } = req.body;
 
     // Verify project belongs to organization
     const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2', [projectId, organizationId]);
@@ -192,8 +198,8 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, is_billable, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
         id,
         userId,
@@ -206,6 +212,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
         duration,
         description || '',
         isRunning, // PostgreSQL uses boolean, not 0/1
+        isBillable,
         createdAt
       ]
     );
@@ -318,6 +325,10 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (updates.isRunning !== undefined) {
       fields.push(`is_running = $${paramCount++}`);
       values.push(updates.isRunning); // PostgreSQL uses boolean
+    }
+    if (updates.isBillable !== undefined) {
+      fields.push(`is_billable = $${paramCount++}`);
+      values.push(updates.isBillable);
     }
 
     if (fields.length === 0) {

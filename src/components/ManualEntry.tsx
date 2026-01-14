@@ -5,6 +5,8 @@ import { calculateDuration } from '../utils/time';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { TimePicker } from './TimePicker';
+import { SearchableSelect } from './SearchableSelect';
+import { Toast, useToast } from './Toast';
 
 // Helper to format duration as H:MM
 const formatDurationDisplay = (seconds: number): string => {
@@ -40,6 +42,7 @@ interface ManualEntryProps {
 
 export const ManualEntry = ({ onSave, projects, customers, activities }: ManualEntryProps) => {
   const { currentUser } = useAuth();
+  const { toast, showToast, hideToast } = useToast();
   const today = new Date().toISOString().split('T')[0];
 
   // Current time rounded to nearest 5 minutes for end time
@@ -56,6 +59,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
   const [dateDisplay, setDateDisplay] = useState(formatDateGerman(today));
   const [startTime, setStartTime] = useState(startDefault);
   const [endTime, setEndTime] = useState(currentTime);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [projectId, setProjectId] = useState('');
   const [activityId, setActivityId] = useState('');
   const [description, setDescription] = useState('');
@@ -73,6 +77,45 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
   }, [date, startTime, endTime]);
 
   const activeProjects = projects.filter(p => p.isActive);
+
+  // Get customers that have active projects
+  const customersWithProjects = useMemo(() => {
+    const customerIds = new Set(activeProjects.map(p => p.customerId));
+    return customers
+      .filter(c => customerIds.has(c.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [customers, activeProjects]);
+
+  // Filter projects by selected customer
+  const filteredProjects = useMemo(() => {
+    if (!selectedCustomerId) return activeProjects;
+    return activeProjects.filter(p => p.customerId === selectedCustomerId);
+  }, [activeProjects, selectedCustomerId]);
+
+  // Options for SearchableSelect components
+  const customerOptions = useMemo(() => {
+    return customersWithProjects.map(c => ({
+      value: c.id,
+      label: c.name,
+    }));
+  }, [customersWithProjects]);
+
+  const projectOptions = useMemo(() => {
+    return filteredProjects.map(p => {
+      const customer = customers.find(c => c.id === p.customerId);
+      return {
+        value: p.id,
+        label: selectedCustomerId ? p.name : `${customer?.name} - ${p.name}`,
+        sublabel: selectedCustomerId ? undefined : p.name,
+      };
+    });
+  }, [filteredProjects, customers, selectedCustomerId]);
+
+  // Reset project when customer changes
+  const handleCustomerChange = (customerId: string) => {
+    setSelectedCustomerId(customerId);
+    setProjectId(''); // Reset project selection
+  };
 
   // Handle German date input
   const handleDateChange = (value: string) => {
@@ -128,6 +171,9 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
 
     onSave(entry);
 
+    // Show success toast
+    showToast('Zeiteintrag gespeichert', 'success');
+
     // Reset form with current time
     const resetNow = new Date();
     const resetMinutes = Math.round(resetNow.getMinutes() / 5) * 5;
@@ -136,6 +182,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
     const resetOneHourAgo = new Date(resetNow.getTime() - 60 * 60 * 1000);
     const resetStartTime = resetOneHourAgo.getHours() < 8 ? '08:00' : resetOneHourAgo.toTimeString().slice(0, 5);
 
+    setSelectedCustomerId('');
     setProjectId('');
     setActivityId('');
     setDescription('');
@@ -144,11 +191,11 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
   };
 
   return (
-    <div className="flex flex-col h-full p-4 sm:p-6">
+    <div className="p-4 sm:p-6 pb-8">
       <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Manuelle Erfassung</h1>
 
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
-        <div className="space-y-4 flex-1">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Datum
@@ -212,28 +259,38 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
             )}
           </div>
 
+          {/* Customer Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Kunde
+            </label>
+            <SearchableSelect
+              options={customerOptions}
+              value={selectedCustomerId}
+              onChange={handleCustomerChange}
+              placeholder="Kunde suchen..."
+              emptyMessage="Keine Kunden gefunden"
+              allowClear={true}
+            />
+          </div>
+
+          {/* Project Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Projekt *
             </label>
-            <select
+            <SearchableSelect
+              options={projectOptions}
               value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              required
-              disabled={activeProjects.length === 0}
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-            >
-              <option value="">
-                {activeProjects.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
-              </option>
-              {activeProjects.map(project => (
-                <option key={project.id} value={project.id}>
-                  {getProjectDisplay(project)}
-                </option>
-              ))}
-            </select>
+              onChange={setProjectId}
+              placeholder={selectedCustomerId ? 'Projekt suchen...' : 'Kunde wählen oder Projekt suchen...'}
+              emptyMessage="Keine Projekte gefunden"
+              disabled={filteredProjects.length === 0}
+              required={true}
+              allowClear={false}
+            />
             {activeProjects.length === 0 && (
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                 Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
               </p>
             )}
@@ -284,6 +341,14 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
           Speichern
         </button>
       </form>
+
+      {/* Success Toast */}
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        visible={toast.visible}
+        onClose={hideToast}
+      />
     </div>
   );
 };

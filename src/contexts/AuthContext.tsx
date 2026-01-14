@@ -89,7 +89,28 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       console.log('🔄 [INIT] Token found, fetching user data...');
 
+      // Check for cached user data first (for offline support)
+      const cachedUser = storage.getCurrentUser();
+
       try {
+        // Check if we're online before trying to fetch
+        if (!navigator.onLine) {
+          console.log('📴 [INIT] Offline - using cached user data');
+          if (cachedUser) {
+            setCurrentUser(cachedUser);
+            // Initialize theme from cached user preferences
+            accentColor.set(cachedUser.accentColor);
+            grayTone.set(cachedUser.grayTone);
+            darkMode.syncFromUser(cachedUser.darkMode);
+            applyAccentColorToRoot(cachedUser.accentColor);
+            console.log('✅ [INIT] Loaded from cache:', cachedUser.username);
+          } else {
+            console.log('⚠️ [INIT] Offline and no cached user - staying logged out');
+          }
+          setIsLoading(false);
+          return;
+        }
+
         // Fetch user data from backend
         const userResponse = await userApi.getMe();
         console.log('✅ [INIT] User data loaded:', userResponse);
@@ -97,16 +118,45 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         const user = userResponse.data as User;
         setCurrentUser(user);
 
+        // Cache user data for offline use
+        storage.setCurrentUser(user);
+
         // Initialize theme from user preferences
         accentColor.set(user.accentColor);
         grayTone.set(user.grayTone);
         darkMode.syncFromUser(user.darkMode);
         applyAccentColorToRoot(user.accentColor);
         console.log('✅ [INIT] Theme initialized:', { accentColor: user.accentColor, grayTone: user.grayTone, darkMode: user.darkMode });
-      } catch (error) {
-        console.error('❌ [INIT] Failed to load user, clearing token:', error);
-        // Token is invalid, clear it
-        localStorage.removeItem('auth_token');
+      } catch (error: any) {
+        console.error('❌ [INIT] Failed to load user:', error);
+
+        // Check if it's a network error - if so, use cached data
+        // Different browsers throw different errors when offline
+        const isNetworkError = !navigator.onLine ||
+          (error instanceof TypeError) ||
+          error.message?.includes('fetch') ||
+          error.message?.includes('network') ||
+          error.message?.includes('Failed to fetch') ||
+          error.name === 'TypeError';
+
+        if (isNetworkError) {
+          console.log('📴 [INIT] Network error detected - using cached user data');
+          if (cachedUser) {
+            setCurrentUser(cachedUser);
+            accentColor.set(cachedUser.accentColor);
+            grayTone.set(cachedUser.grayTone);
+            darkMode.syncFromUser(cachedUser.darkMode);
+            applyAccentColorToRoot(cachedUser.accentColor);
+            console.log('✅ [INIT] Loaded from cache:', cachedUser.username);
+          } else {
+            console.log('⚠️ [INIT] No cached user available - please login when online');
+          }
+        } else {
+          // Only clear token if we're online and it's truly invalid (e.g., 401 error)
+          console.log('❌ [INIT] Token invalid, clearing...');
+          localStorage.removeItem('auth_token');
+          storage.setCurrentUser(null);
+        }
       }
 
       setIsLoading(false);
@@ -146,9 +196,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       const user = userResponse.data as User;
 
-      // Store user in state
+      // Store user in state and cache for offline use
       setCurrentUser(user);
-      console.log('✅ [AUTH] User stored in React state');
+      storage.setCurrentUser(user);
+      console.log('✅ [AUTH] User stored in React state and cached');
 
       // Apply user's theme
       accentColor.set(user.accentColor);
@@ -183,9 +234,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       const user = userResponse.data as User;
 
-      // Store user in state
+      // Store user in state and cache for offline use
       setCurrentUser(user);
-      console.log('✅ [AUTH] User stored in React state');
+      storage.setCurrentUser(user);
+      console.log('✅ [AUTH] User stored in React state and cached');
 
       // Apply user's theme
       accentColor.set(user.accentColor);
@@ -259,9 +311,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       const user = userResponse.data as User;
 
-      // Store user in state
+      // Store user in state and cache for offline use
       setCurrentUser(user);
-      console.log('✅ [REGISTER] User stored in React state');
+      storage.setCurrentUser(user);
+      console.log('✅ [REGISTER] User stored in React state and cached');
 
       // Apply default theme
       accentColor.set(user.accentColor);

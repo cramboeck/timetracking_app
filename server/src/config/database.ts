@@ -263,6 +263,8 @@ export async function initializeDatabase() {
         duration INTEGER,
         description TEXT,
         is_running BOOLEAN DEFAULT FALSE,
+        external_id TEXT,
+        external_source TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
@@ -564,6 +566,60 @@ export async function initializeDatabase() {
           WHERE table_name = 'customers' AND column_name = 'payment_terms_days'
         ) THEN
           ALTER TABLE customers ADD COLUMN payment_terms_days INTEGER DEFAULT 14;
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Add display_name and import_aliases to customers (for PDFs and import)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'display_name'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN display_name TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'import_aliases'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN import_aliases TEXT[] DEFAULT '{}';
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Add vendor/supplier support to customers (Lieferanten-Hub)
+    await client.query(`
+      DO $$
+      BEGIN
+        -- is_vendor flag to mark customers as vendors/suppliers
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'is_vendor'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN is_vendor BOOLEAN DEFAULT false;
+        END IF;
+        -- vendor_domain for email matching (e.g., 'elovade.com')
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'vendor_domain'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN vendor_domain TEXT;
+        END IF;
+        -- vendor_notes for additional vendor information
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'vendor_notes'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN vendor_notes TEXT;
+        END IF;
+        -- vendor_api_config for external API connections (JSON)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'vendor_api_config'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN vendor_api_config JSONB;
         END IF;
       END $$;
     `);
@@ -2454,6 +2510,119 @@ export async function initializeDatabase() {
     console.log('✅ Contract Management tables created');
 
     // ============================================
+    // sevDesk Integration
+    // ============================================
+
+    // sevDesk configuration per user
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sevdesk_config (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        api_token TEXT,
+        default_hourly_rate DECIMAL(10, 2) DEFAULT 95.00,
+        payment_terms_days INTEGER DEFAULT 14,
+        tax_rate DECIMAL(5, 2) DEFAULT 19.00,
+        auto_sync_customers BOOLEAN DEFAULT FALSE,
+        create_as_final BOOLEAN DEFAULT FALSE,
+        last_sync_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id)
+      )
+    `);
+
+    // sevDesk synced documents (invoices & quotes for search)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sevdesk_documents (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        sevdesk_id TEXT NOT NULL,
+        document_type TEXT NOT NULL CHECK(document_type IN ('invoice', 'quote')),
+        document_number TEXT,
+        contact_id TEXT,
+        contact_name TEXT,
+        document_date TIMESTAMP,
+        status INTEGER,
+        status_name TEXT,
+        header TEXT,
+        head_text TEXT,
+        foot_text TEXT,
+        sum_net DECIMAL(12, 2),
+        sum_gross DECIMAL(12, 2),
+        sum_tax DECIMAL(12, 2),
+        currency TEXT DEFAULT 'EUR',
+        positions_json JSONB DEFAULT '[]',
+        full_text TEXT,
+        search_vector TSVECTOR,
+        synced_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, sevdesk_id, document_type)
+      )
+    `);
+
+    // Create search vector trigger for sevdesk_documents
+    await client.query(`
+      CREATE OR REPLACE FUNCTION update_sevdesk_documents_search_vector()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        NEW.search_vector := to_tsvector('german',
+          COALESCE(NEW.document_number, '') || ' ' ||
+          COALESCE(NEW.contact_name, '') || ' ' ||
+          COALESCE(NEW.header, '') || ' ' ||
+          COALESCE(NEW.full_text, '')
+        );
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_sevdesk_documents_search_vector') THEN
+          CREATE TRIGGER trigger_sevdesk_documents_search_vector
+          BEFORE INSERT OR UPDATE ON sevdesk_documents
+          FOR EACH ROW EXECUTE FUNCTION update_sevdesk_documents_search_vector();
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Add sevdesk_customer_id to customers
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'sevdesk_customer_id'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN sevdesk_customer_id TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // Migration: Add hourly_rate to customers
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'hourly_rate'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN hourly_rate DECIMAL(10, 2);
+        END IF;
+      END $$;
+    `);
+
+    // Create indexes for sevDesk tables
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_config_user ON sevdesk_config(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_user ON sevdesk_documents(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_type ON sevdesk_documents(document_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_contact ON sevdesk_documents(contact_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_search ON sevdesk_documents USING GIN(search_vector)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customers_sevdesk ON customers(sevdesk_customer_id)');
+
+    console.log('✅ sevDesk Integration tables created');
+
+    // ============================================
     // Invoice Export System (for Billing/Finanzen)
     // ============================================
 
@@ -2494,6 +2663,112 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_export ON time_entries(invoice_export_id)');
 
     console.log('✅ Invoice Export tables created');
+
+    // Add is_billable column to time_entries (defaults to true for backward compatibility)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'is_billable'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN is_billable BOOLEAN DEFAULT TRUE;
+        END IF;
+      END $$;
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_billable ON time_entries(is_billable)');
+
+    // Migration: Add external_id and external_source columns for import tracking (prevents duplicates)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'external_id'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN external_id TEXT;
+          ALTER TABLE time_entries ADD COLUMN external_source TEXT;
+        END IF;
+      END $$;
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_external ON time_entries(organization_id, external_source, external_id)');
+
+    // Migration: Add default_project_id to customers (fallback for imports)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'default_project_id'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN default_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // ============================================
+    // Clockodo Integration
+    // ============================================
+
+    // Clockodo configuration per user
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS clockodo_config (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        api_email TEXT,
+        api_key TEXT,
+        last_sync_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_clockodo_config_user ON clockodo_config(user_id)');
+
+    console.log('✅ Clockodo Integration tables created');
+
+    // ============================================
+    // Microsoft 365 Integration
+    // ============================================
+
+    // Microsoft 365 configuration per organization
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS microsoft365_config (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        tenant_id TEXT,
+        client_id TEXT,
+        client_secret TEXT,
+        mail_from TEXT,
+        support_mailbox TEXT,
+        invoice_mailbox TEXT,
+        is_configured BOOLEAN DEFAULT FALSE,
+        last_connection_test TIMESTAMP,
+        last_connection_status TEXT,
+        features_enabled JSONB DEFAULT '{"email": false, "inbox_monitoring": false, "calendar": false}'::jsonb,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(organization_id)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_microsoft365_config_org ON microsoft365_config(organization_id)');
+
+    // Migration: Add invoice_mailbox if not exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'microsoft365_config' AND column_name = 'invoice_mailbox'
+        ) THEN
+          ALTER TABLE microsoft365_config ADD COLUMN invoice_mailbox TEXT;
+        END IF;
+      END $$
+    `);
+
+    console.log('✅ Microsoft 365 Integration tables created');
 
     // ============================================
     // Social Media Manager
@@ -2814,6 +3089,225 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_story_templates_org ON social_media_story_templates(organization_id)');
 
     console.log('✅ Social Media Manager tables created');
+
+    // Processed Invoices table - tracks emails processed from invoice mailbox
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS processed_invoices (
+        id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        email_id TEXT NOT NULL,
+        email_subject TEXT,
+        sender_email TEXT,
+        sender_name TEXT,
+        received_at TIMESTAMP,
+        attachment_count INTEGER DEFAULT 0,
+        document_ids JSONB DEFAULT '[]',
+        vendor_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'draft', 'processed', 'failed', 'skipped')),
+        error_message TEXT,
+        processed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(organization_id, email_id)
+      )
+    `);
+
+    // Invoice Documents table - stores attachments from processed emails
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS invoice_documents (
+        id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        processed_invoice_id TEXT REFERENCES processed_invoices(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        original_filename TEXT NOT NULL,
+        mime_type TEXT NOT NULL DEFAULT 'application/pdf',
+        size INTEGER NOT NULL DEFAULT 0,
+        storage_path TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Indexes for invoice processing tables
+    await client.query('CREATE INDEX IF NOT EXISTS idx_processed_invoices_org ON processed_invoices(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_processed_invoices_status ON processed_invoices(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_processed_invoices_vendor ON processed_invoices(vendor_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_processed_invoices_received ON processed_invoices(received_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_org ON invoice_documents(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_invoice ON invoice_documents(processed_invoice_id)');
+
+    console.log('✅ Invoice processing tables created');
+
+    // Migration: Update processed_invoices status check constraint to include 'draft'
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Drop old constraint if it exists
+        IF EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name = 'processed_invoices_status_check'
+          AND table_name = 'processed_invoices'
+        ) THEN
+          ALTER TABLE processed_invoices DROP CONSTRAINT processed_invoices_status_check;
+        END IF;
+        -- Add new constraint with all status values including 'draft'
+        ALTER TABLE processed_invoices
+          ADD CONSTRAINT processed_invoices_status_check
+          CHECK (status IN ('pending', 'draft', 'processed', 'failed', 'skipped'));
+      EXCEPTION
+        WHEN duplicate_object THEN
+          -- Constraint already exists with correct definition
+          NULL;
+      END $$;
+    `);
+    console.log('✅ processed_invoices status constraint updated');
+
+    // Migration: Add sevdesk_voucher_id to processed_invoices for linking to sevDesk vouchers
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'processed_invoices' AND column_name = 'sevdesk_voucher_id'
+        ) THEN
+          ALTER TABLE processed_invoices ADD COLUMN sevdesk_voucher_id TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // ============================================
+    // Ticket Email Integration
+    // ============================================
+
+    // Add email tracking fields to tickets table
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'email_conversation_id'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN email_conversation_id TEXT;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'email_from'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN email_from TEXT;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'tickets' AND column_name = 'email_subject'
+        ) THEN
+          ALTER TABLE tickets ADD COLUMN email_subject TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // Create index for finding tickets by email conversation
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_email_conversation ON tickets(email_conversation_id) WHERE email_conversation_id IS NOT NULL');
+
+    // Ticket emails table - stores all emails linked to a ticket
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_emails (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+        -- Email identifiers from Microsoft Graph
+        message_id TEXT NOT NULL,
+        conversation_id TEXT,
+        internet_message_id TEXT,
+
+        -- Direction
+        direction TEXT NOT NULL CHECK(direction IN ('inbound', 'outbound')),
+
+        -- Email metadata
+        subject TEXT,
+        body_preview TEXT,
+        body_html TEXT,
+        body_text TEXT,
+
+        -- Sender/recipients
+        from_name TEXT,
+        from_email TEXT NOT NULL,
+        to_recipients JSONB DEFAULT '[]',
+        cc_recipients JSONB DEFAULT '[]',
+
+        -- Status
+        is_read BOOLEAN DEFAULT false,
+        importance TEXT DEFAULT 'normal' CHECK(importance IN ('low', 'normal', 'high')),
+        has_attachments BOOLEAN DEFAULT false,
+
+        -- Timestamps
+        received_at TIMESTAMP NOT NULL,
+        sent_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+
+        -- Prevent duplicate imports
+        UNIQUE(organization_id, message_id)
+      )
+    `);
+
+    // Ticket email attachments
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_email_attachments (
+        id TEXT PRIMARY KEY,
+        ticket_email_id TEXT NOT NULL REFERENCES ticket_emails(id) ON DELETE CASCADE,
+
+        -- Attachment info
+        attachment_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        content_type TEXT,
+        size INTEGER,
+
+        -- Storage - can be stored locally or just reference the Graph API
+        stored_locally BOOLEAN DEFAULT false,
+        local_path TEXT,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Create indexes for ticket emails
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_emails_ticket ON ticket_emails(ticket_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_emails_conversation ON ticket_emails(conversation_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_emails_org ON ticket_emails(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_emails_received ON ticket_emails(received_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_email_attachments_email ON ticket_email_attachments(ticket_email_id)');
+
+    console.log('✅ Ticket email integration tables created');
+
+    // Fix NinjaRMM alert timestamps that were incorrectly stored (Unix seconds instead of milliseconds)
+    // This updates alerts where activity_time is before 1980 (indicating a seconds-based timestamp was used)
+    // and recalculates from the activityTime field in alert_data JSON
+    // Note: activityTime can be a decimal, so we use NUMERIC and TRUNC to handle it
+    await client.query(`
+      UPDATE ninjarmm_alerts
+      SET activity_time = to_timestamp(TRUNC(CAST((alert_data->>'activityTime') AS NUMERIC) / 1000))
+      WHERE activity_time < '1980-01-01'
+        AND alert_data IS NOT NULL
+        AND alert_data->>'activityTime' IS NOT NULL
+        AND CAST((alert_data->>'activityTime') AS NUMERIC) > 1000000000000
+    `);
+    // Also handle case where activityTime is in seconds
+    await client.query(`
+      UPDATE ninjarmm_alerts
+      SET activity_time = to_timestamp(TRUNC(CAST((alert_data->>'activityTime') AS NUMERIC)))
+      WHERE activity_time < '1980-01-01'
+        AND alert_data IS NOT NULL
+        AND alert_data->>'activityTime' IS NOT NULL
+        AND CAST((alert_data->>'activityTime') AS NUMERIC) > 1000000000
+        AND CAST((alert_data->>'activityTime') AS NUMERIC) < 10000000000
+    `);
+    // Fallback: set to created_at for remaining old timestamps
+    await client.query(`
+      UPDATE ninjarmm_alerts
+      SET activity_time = created_at
+      WHERE activity_time < '1980-01-01'
+        AND created_at IS NOT NULL
+        AND created_at > '1980-01-01'
+    `);
+    console.log('✅ NinjaRMM alert timestamps fixed');
 
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');

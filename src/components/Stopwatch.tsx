@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, Plus, Sparkles, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Play, Pause, Square, Plus, Sparkles, Loader2, Check } from 'lucide-react';
 import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { aiApi } from '../services/api';
+import { SearchableSelect } from './SearchableSelect';
 
 interface StopwatchProps {
-  onSave: (entry: TimeEntry) => void;
+  onSave: (entry: TimeEntry) => Promise<boolean> | void;
   runningEntry: TimeEntry | null;
   onUpdateRunning: (entry: TimeEntry) => void;
   projects: Project[];
@@ -33,6 +34,10 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   // Ref to track if timer has been stopped - used to prevent stale debounced updates
   const isStoppedRef = useRef(false);
 
+  // Stop/Save state
+  const [isStopping, setIsStopping] = useState(false);
+  const [showStopSuccess, setShowStopSuccess] = useState(false);
+
   // AI state
   const [aiConfigured, setAiConfigured] = useState(false);
   const [generatingDescription, setGeneratingDescription] = useState(false);
@@ -54,12 +59,32 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
   // Generate AI description
   const generateAiDescription = async () => {
-    if (!aiConfigured) return;
+    console.log('🤖 [STOPWATCH] generateAiDescription called', { aiConfigured, projectId, activityId, customerId });
+
+    if (!aiConfigured) {
+      console.warn('🤖 [STOPWATCH] AI not configured');
+      return;
+    }
+
+    // Check if we have enough context
+    if (!projectId && !activityId) {
+      console.warn('🤖 [STOPWATCH] No project or activity selected');
+      alert('Bitte wähle zuerst ein Projekt oder eine Tätigkeit aus');
+      return;
+    }
+
     setGeneratingDescription(true);
     try {
       const selectedProject = projects.find(p => p.id === projectId);
       const selectedCustomer = customers.find(c => c.id === customerId);
       const selectedActivity = activities.find(a => a.id === activityId);
+
+      console.log('🤖 [STOPWATCH] Calling AI with context:', {
+        projectName: selectedProject?.name,
+        customerName: selectedCustomer?.name,
+        activityName: selectedActivity?.name,
+        existingDescription: description || undefined,
+      });
 
       const response = await aiApi.suggestTimeEntryDescription({
         projectName: selectedProject?.name,
@@ -68,11 +93,17 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
         existingDescription: description || undefined,
       });
 
+      console.log('🤖 [STOPWATCH] AI response:', response);
+
       if (response.success && response.data.suggestion) {
         setDescription(response.data.suggestion);
+      } else {
+        console.warn('🤖 [STOPWATCH] No suggestion in response:', response);
+        alert('KI konnte keinen Vorschlag generieren. Bitte versuche es später erneut.');
       }
-    } catch (err) {
-      console.error('Failed to generate description:', err);
+    } catch (err: any) {
+      console.error('🤖 [STOPWATCH] Failed to generate description:', err);
+      alert(`Fehler beim Generieren: ${err.message || 'Unbekannter Fehler'}`);
     } finally {
       setGeneratingDescription(false);
     }
@@ -87,6 +118,30 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const projectsForCustomer = customerId
     ? activeProjects.filter(p => p.customerId === customerId)
     : [];
+
+  // Options for SearchableSelect components
+  const customerOptions = useMemo(() => {
+    return customersWithProjects.map(c => ({
+      value: c.id,
+      label: c.name,
+    }));
+  }, [customersWithProjects]);
+
+  const projectOptions = useMemo(() => {
+    return projectsForCustomer.map(p => ({
+      value: p.id,
+      label: p.name,
+    }));
+  }, [projectsForCustomer]);
+
+  const activityOptions = useMemo(() => {
+    return activities.map(a => ({
+      value: a.id,
+      label: a.pricingType === 'flat' && a.flatRate
+        ? `${a.name} (Pauschale: ${a.flatRate.toFixed(2)}€)`
+        : a.name,
+    }));
+  }, [activities]);
 
   // Handle prefilled entry (from repeat action or ticket)
   useEffect(() => {
@@ -181,11 +236,12 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     setIsRunning(true);
   };
 
-  const handleStop = () => {
-    if (!startTimeRef.current || !currentUser) return;
+  const handleStop = async () => {
+    if (!startTimeRef.current || !currentUser || isStopping) return;
 
     // IMPORTANT: Mark as stopped FIRST to prevent any pending updates
     isStoppedRef.current = true;
+    setIsStopping(true);
 
     // Clear any pending description updates to prevent race conditions
     if (descriptionUpdateTimeoutRef.current) {
@@ -193,14 +249,21 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       descriptionUpdateTimeoutRef.current = null;
     }
 
+    // Stop the timer interval immediately for visual feedback
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
     const endTime = new Date().toISOString();
+    const finalDuration = elapsedSeconds;
 
     const entry: TimeEntry = {
       id: runningEntry?.id || generateUUID(),
       userId: currentUser.id,
       startTime: startTimeRef.current,
       endTime,
-      duration: elapsedSeconds, // Exact duration - rounding happens in reports
+      duration: finalDuration, // Exact duration - rounding happens in reports
       projectId,
       activityId: activityId || undefined,
       ticketId: ticketId || runningEntry?.ticketId || undefined,
@@ -209,15 +272,53 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       createdAt: runningEntry?.createdAt || startTimeRef.current,
     };
 
-    onSave(entry);
-    setIsRunning(false);
-    setElapsedSeconds(0);
-    startTimeRef.current = null;
-    setCustomerId('');
-    setProjectId('');
-    setActivityId('');
-    setTicketId(undefined);
-    setDescription('');
+    try {
+      console.log('🛑 [STOPWATCH] Stopping timer, saving entry:', entry.id);
+      const result = await onSave(entry);
+
+      // Check if save was successful (if onSave returns a boolean)
+      if (result === false) {
+        console.error('❌ [STOPWATCH] Save returned false, keeping timer state');
+        isStoppedRef.current = false;
+        setIsStopping(false);
+        // Restart the interval since save failed
+        if (!intervalRef.current) {
+          intervalRef.current = window.setInterval(() => {
+            setElapsedSeconds(prev => prev + 1);
+          }, 1000);
+        }
+        return;
+      }
+
+      console.log('✅ [STOPWATCH] Timer stopped and saved successfully');
+
+      // Show success feedback
+      setShowStopSuccess(true);
+      setTimeout(() => setShowStopSuccess(false), 2000);
+
+      // Reset all state after successful save
+      setIsRunning(false);
+      setElapsedSeconds(0);
+      startTimeRef.current = null;
+      setCustomerId('');
+      setProjectId('');
+      setActivityId('');
+      setTicketId(undefined);
+      setDescription('');
+    } catch (error) {
+      console.error('❌ [STOPWATCH] Error stopping timer:', error);
+      // Reset stopped flag on error
+      isStoppedRef.current = false;
+      // Restart the interval since save failed
+      if (!intervalRef.current) {
+        intervalRef.current = window.setInterval(() => {
+          setElapsedSeconds(prev => prev + 1);
+        }, 1000);
+      }
+      alert('Fehler beim Speichern. Bitte versuche es erneut.');
+    } finally {
+      setIsStopping(false);
+    }
   };
 
   const getProjectDisplay = (project: Project) => {
@@ -281,24 +382,17 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Kunde
               </label>
-              <select
+              <SearchableSelect
+                options={customerOptions}
                 value={customerId}
-                onChange={(e) => {
-                  setCustomerId(e.target.value);
+                onChange={(value) => {
+                  setCustomerId(value);
                   setProjectId(''); // Reset project when customer changes
                 }}
+                placeholder={customersWithProjects.length === 0 ? 'Keine Kunden vorhanden' : 'Kunde suchen...'}
+                emptyMessage="Keine Kunden gefunden"
                 disabled={isRunning || customersWithProjects.length === 0}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
-              >
-                <option value="">
-                  {customersWithProjects.length === 0 ? 'Keine Kunden vorhanden' : 'Kunde wählen...'}
-                </option>
-                {customersWithProjects.map(customer => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
-              </select>
+              />
               {customersWithProjects.length === 0 && (
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                   Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
@@ -311,40 +405,29 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Projekt
               </label>
-              <select
+              <SearchableSelect
+                options={projectOptions}
                 value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
+                onChange={(value) => setProjectId(value)}
+                placeholder={!customerId ? 'Erst Kunde wählen...' : projectsForCustomer.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt suchen...'}
+                emptyMessage="Keine Projekte gefunden"
                 disabled={isRunning || !customerId || projectsForCustomer.length === 0}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
-              >
-                <option value="">
-                  {!customerId ? 'Erst Kunde wählen...' : projectsForCustomer.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt wählen...'}
-                </option>
-                {projectsForCustomer.map(project => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Tätigkeit (optional)
               </label>
-              <select
+              <SearchableSelect
+                options={activityOptions}
                 value={activityId}
-                onChange={(e) => setActivityId(e.target.value)}
+                onChange={(value) => setActivityId(value)}
+                placeholder="Tätigkeit suchen..."
+                emptyMessage="Keine Tätigkeiten gefunden"
                 disabled={isRunning}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
-              >
-                <option value="">Keine Tätigkeit</option>
-                {activities.map(activity => (
-                  <option key={activity.id} value={activity.id}>
-                    {activity.name} {activity.pricingType === 'flat' && activity.flatRate ? `(Pauschale: ${activity.flatRate.toFixed(2)}€)` : ''}
-                  </option>
-                ))}
-              </select>
+                allowClear={true}
+              />
               {activityId && activities.find(a => a.id === activityId)?.description && (
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                   {activities.find(a => a.id === activityId)?.description}
@@ -364,7 +447,12 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 </label>
                 {aiConfigured && (projectId || activityId) && (
                   <button
-                    onClick={generateAiDescription}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      generateAiDescription();
+                    }}
                     disabled={generatingDescription}
                     className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
                     title="KI-Vorschlag generieren"
@@ -418,7 +506,17 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
           {/* Control Buttons */}
           <div className="flex flex-wrap gap-3 justify-center">
-            {!isRunning && elapsedSeconds === 0 && (
+            {/* Success feedback message */}
+            {showStopSuccess && (
+              <div className="w-full flex justify-center mb-2">
+                <div className="flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-medium animate-fade-in">
+                  <Check size={16} />
+                  Zeit erfolgreich gespeichert!
+                </div>
+              </div>
+            )}
+
+            {!isRunning && elapsedSeconds === 0 && !isStopping && (
               <button
                 onClick={handleStart}
                 className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
@@ -429,26 +527,41 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               </button>
             )}
 
-            {isRunning && (
+            {(isRunning || isStopping) && (
               <>
                 <button
                   onClick={handlePause}
-                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-yellow-500 text-white rounded-full font-semibold hover:bg-yellow-600 active:bg-yellow-700 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
+                  disabled={isStopping}
+                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-yellow-500 text-white rounded-full font-semibold hover:bg-yellow-600 active:bg-yellow-700 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Pause size={20} className="sm:w-6 sm:h-6" />
                   Pause
                 </button>
                 <button
                   onClick={handleStop}
-                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
+                  disabled={isStopping}
+                  className={`flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-white rounded-full font-semibold touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:cursor-not-allowed ${
+                    isStopping
+                      ? 'bg-red-400 cursor-wait'
+                      : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
+                  }`}
                 >
-                  <Square size={20} className="sm:w-6 sm:h-6" />
-                  Stop
+                  {isStopping ? (
+                    <>
+                      <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
+                      Speichere...
+                    </>
+                  ) : (
+                    <>
+                      <Square size={20} className="sm:w-6 sm:h-6" />
+                      Stop
+                    </>
+                  )}
                 </button>
               </>
             )}
 
-            {!isRunning && elapsedSeconds > 0 && (
+            {!isRunning && elapsedSeconds > 0 && !isStopping && (
               <>
                 <button
                   onClick={handleResume}
@@ -459,10 +572,24 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 </button>
                 <button
                   onClick={handleStop}
-                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 active:bg-red-800 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
+                  disabled={isStopping}
+                  className={`flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-white rounded-full font-semibold touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:cursor-not-allowed ${
+                    isStopping
+                      ? 'bg-red-400 cursor-wait'
+                      : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
+                  }`}
                 >
-                  <Square size={20} className="sm:w-6 sm:h-6" />
-                  Stop
+                  {isStopping ? (
+                    <>
+                      <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
+                      Speichere...
+                    </>
+                  ) : (
+                    <>
+                      <Square size={20} className="sm:w-6 sm:h-6" />
+                      Stop
+                    </>
+                  )}
                 </button>
               </>
             )}

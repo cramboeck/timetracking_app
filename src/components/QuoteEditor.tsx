@@ -36,6 +36,7 @@ interface QuotePosition {
 interface QuoteEditorProps {
   onClose: () => void;
   onSuccess?: (quoteNumber: string) => void;
+  quoteId?: string; // If provided, edit existing quote instead of creating new one
 }
 
 // Text templates with variable support
@@ -93,11 +94,14 @@ const FOOT_TEXT_TEMPLATES = [
   },
 ];
 
-export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
+export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) => {
+  const isEditing = !!quoteId;
+
   // Contact selection
   const [contacts, setContacts] = useState<SevdeskContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [selectedContact, setSelectedContact] = useState<SevdeskContact | null>(null);
+  const [loadingQuote, setLoadingQuote] = useState(isEditing);
 
   // Quote details
   const [header, setHeader] = useState('');
@@ -165,6 +169,7 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
   const [generatingFootText, setGeneratingFootText] = useState(false);
   const [researchingPrice, setResearchingPrice] = useState<string | null>(null); // position id being researched
   const [priceResearchResult, setPriceResearchResult] = useState<{positionId: string; result: string} | null>(null);
+  const [generatingDescription, setGeneratingDescription] = useState<string | null>(null); // position id being generated
 
   // Margin settings
   const [showMarginSettings, setShowMarginSettings] = useState(false);
@@ -174,7 +179,54 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
   useEffect(() => {
     loadContacts();
     checkAiConfig();
-  }, []);
+    if (quoteId) {
+      loadExistingQuote(quoteId);
+    }
+  }, [quoteId]);
+
+  // Load existing quote for editing
+  const loadExistingQuote = async (id: string) => {
+    setLoadingQuote(true);
+    try {
+      const response = await sevdeskApi.getQuote(id);
+      if (response.success && response.data) {
+        const quote = response.data;
+        setHeader(quote.header);
+        setHeadText(quote.headText || '');
+        setFootText(quote.footText || '');
+        // Convert positions
+        setPositions(quote.positions.map((p, index) => ({
+          id: `existing-${index}`,
+          name: p.name,
+          text: p.text || '',
+          quantity: p.quantity,
+          price: p.price,
+          isHeading: p.quantity === 0 && p.price === 0,
+        })));
+        // Find and set contact
+        const contact = contacts.find(c => c.id === quote.contact.id);
+        if (contact) {
+          setSelectedContact(contact);
+        } else {
+          // Contact might not be loaded yet, wait and try again
+          setTimeout(async () => {
+            const loadedContacts = await sevdeskApi.getContacts();
+            if (loadedContacts.success) {
+              const foundContact = loadedContacts.data.contacts.find(c => c.id === quote.contact.id);
+              if (foundContact) {
+                setSelectedContact(foundContact);
+              }
+            }
+          }, 500);
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to load quote:', err);
+      setError(err.message || 'Fehler beim Laden des Angebots');
+    } finally {
+      setLoadingQuote(false);
+    }
+  };
 
   const checkAiConfig = async () => {
     try {
@@ -255,6 +307,27 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
       setError(err.message || 'Fehler bei der Preisrecherche');
     } finally {
       setResearchingPrice(null);
+    }
+  };
+
+  // AI Position Description Generation
+  const generateDescription = async (positionId: string, positionName: string) => {
+    if (!aiConfigured || !positionName) return;
+    setGeneratingDescription(positionId);
+    try {
+      const response = await aiApi.generatePositionDescription(positionName, {
+        customerName: selectedContact?.name,
+        quoteHeader: header,
+        otherPositions: positions.filter(p => p.id !== positionId && !p.isHeading).map(p => p.name),
+      });
+      if (response.success && response.data?.description) {
+        updatePosition(positionId, { text: response.data.description });
+      }
+    } catch (err: any) {
+      console.error('Failed to generate description:', err);
+      setError(err.message || 'Fehler beim Generieren der Beschreibung');
+    } finally {
+      setGeneratingDescription(null);
     }
   };
 
@@ -422,16 +495,24 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
         status: createAsDraft ? 100 : 200,
       };
 
-      const response = await sevdeskApi.createQuote(input);
+      let response;
+      if (isEditing && quoteId) {
+        response = await sevdeskApi.updateQuote(quoteId, input);
+      } else {
+        response = await sevdeskApi.createQuote(input);
+      }
 
       if (response.success) {
-        setSuccess(`Angebot ${response.data.quoteNumber} wurde erstellt!`);
+        setSuccess(isEditing
+          ? `Angebot ${response.data.quoteNumber} wurde aktualisiert!`
+          : `Angebot ${response.data.quoteNumber} wurde erstellt!`
+        );
         if (onSuccess) {
           setTimeout(() => onSuccess(response.data.quoteNumber), 1500);
         }
       }
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Erstellen des Angebots');
+      setError(err.message || (isEditing ? 'Fehler beim Aktualisieren des Angebots' : 'Fehler beim Erstellen des Angebots'));
     } finally {
       setSubmitting(false);
     }
@@ -444,7 +525,7 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <FileText size={20} />
-            Neues Angebot erstellen
+            {isEditing ? 'Angebot bearbeiten' : 'Neues Angebot erstellen'}
           </h3>
           <button
             onClick={onClose}
@@ -761,25 +842,42 @@ export const QuoteEditor = ({ onClose, onSuccess }: QuoteEditorProps) => {
                         {!pos.isHeading && (
                           <>
                             <div>
-                              <div className="flex items-center justify-between">
+                              <div className="flex items-center justify-between flex-wrap gap-1">
                                 <label className="text-xs text-gray-500 dark:text-gray-400">
                                   Beschreibung (optional)
                                 </label>
-                                {aiConfigured && pos.name && (
-                                  <button
-                                    onClick={() => researchPrice(pos.id, pos.name)}
-                                    disabled={researchingPrice === pos.id}
-                                    className="flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
-                                    title="KI Preisrecherche"
-                                  >
-                                    {researchingPrice === pos.id ? (
-                                      <Loader2 size={10} className="animate-spin" />
-                                    ) : (
-                                      <Bot size={10} />
-                                    )}
-                                    Preis recherchieren
-                                  </button>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  {aiConfigured && pos.name && (
+                                    <>
+                                      <button
+                                        onClick={() => generateDescription(pos.id, pos.name)}
+                                        disabled={generatingDescription === pos.id}
+                                        className="flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                                        title="KI generiert Beschreibung"
+                                      >
+                                        {generatingDescription === pos.id ? (
+                                          <Loader2 size={10} className="animate-spin" />
+                                        ) : (
+                                          <Sparkles size={10} />
+                                        )}
+                                        Beschreibung
+                                      </button>
+                                      <button
+                                        onClick={() => researchPrice(pos.id, pos.name)}
+                                        disabled={researchingPrice === pos.id}
+                                        className="flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                                        title="KI Preisrecherche"
+                                      >
+                                        {researchingPrice === pos.id ? (
+                                          <Loader2 size={10} className="animate-spin" />
+                                        ) : (
+                                          <Bot size={10} />
+                                        )}
+                                        Preis
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                               <textarea
                                 value={pos.text}

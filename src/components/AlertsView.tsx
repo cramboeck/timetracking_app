@@ -115,6 +115,27 @@ export const AlertsView = () => {
   const openCount = alerts.filter(a => !a.resolved).length;
   const resolvedCount = alerts.filter(a => a.resolved).length;
 
+  // Helper to safely format timestamp (handles Unix seconds vs milliseconds)
+  const formatTimestamp = (timestamp: string | number | null | undefined): string => {
+    if (!timestamp) return '-';
+
+    let ts = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp;
+    if (isNaN(ts) || ts <= 0) return '-';
+
+    // If timestamp is in seconds (before year 2001 in ms), convert to ms
+    if (ts < 1000000000000) {
+      ts = ts * 1000;
+    }
+
+    const date = new Date(ts);
+    // Check if date is valid and not 1970
+    if (isNaN(date.getTime()) || date.getFullYear() < 2000) {
+      return '-';
+    }
+
+    return date.toLocaleString('de-DE');
+  };
+
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'CRITICAL': return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
@@ -261,7 +282,7 @@ export const AlertsView = () => {
                   </p>
                 </td>
                 <td className="px-4 py-3 hidden lg:table-cell text-gray-500 dark:text-dark-400 text-sm">
-                  {alert.activityTime ? new Date(alert.activityTime).toLocaleString('de-DE') : '-'}
+                  {formatTimestamp(alert.activityTime)}
                 </td>
               </tr>
             ))}
@@ -341,7 +362,7 @@ export const AlertsView = () => {
                     <div className="flex justify-between">
                       <dt className="text-gray-500 dark:text-dark-400">Zeit</dt>
                       <dd className="text-gray-900 dark:text-white">
-                        {selectedAlert.activityTime ? new Date(selectedAlert.activityTime).toLocaleString('de-DE') : '-'}
+                        {formatTimestamp(selectedAlert.activityTime)}
                       </dd>
                     </div>
                     {selectedAlert.ticketId && (

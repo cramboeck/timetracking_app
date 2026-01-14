@@ -7,6 +7,23 @@ import { sendPushToUser } from '../services/pushNotifications';
 
 const router = express.Router();
 
+// Helper function to parse Unix timestamps (handles both seconds and milliseconds)
+function parseTimestamp(timestamp: number | string | null | undefined): Date {
+  if (!timestamp) return new Date();
+
+  const ts = typeof timestamp === 'string' ? parseFloat(timestamp) : timestamp;
+  if (isNaN(ts) || ts <= 0) return new Date();
+
+  // If timestamp is less than 10^12 (before year 2001 in ms, but year 2286 in seconds),
+  // it's likely in seconds - convert to milliseconds
+  // A timestamp of 1000000000000 ms = Sep 9, 2001
+  // A timestamp of 1000000000 seconds = Sep 9, 2001
+  if (ts < 10000000000) {
+    return new Date(ts * 1000);
+  }
+  return new Date(ts);
+}
+
 // Middleware to check if NinjaRMM feature is enabled
 async function requireNinjaFeature(req: AuthRequest, res: Response, next: Function) {
   try {
@@ -1177,7 +1194,7 @@ async function handleNewAlert(
       payload.sourceType || payload.activitySourceType || 'webhook',
       payload.sourceName || payload.activitySourceName || deviceName,
       JSON.stringify(payload),
-      payload.activityTime ? new Date(payload.activityTime) : new Date(),
+      parseTimestamp(payload.activityTime),
     ]
   );
 

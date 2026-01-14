@@ -33,7 +33,7 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.userId!;
 
     const result = await pool.query(
-      `SELECT id, username, email, account_type, organization_name, customer_number, display_name,
+      `SELECT id, username, email, account_type, role, organization_name, customer_number, display_name,
               team_id, team_role, mfa_enabled, accent_color, gray_tone, dark_mode, time_rounding_interval,
               time_format, has_ticket_access, preferences, created_at, last_login
        FROM users WHERE id = $1`,
@@ -100,7 +100,7 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
     await pool.query(query, values);
 
     const userResult = await pool.query(
-      `SELECT id, username, email, account_type, organization_name, customer_number, display_name,
+      `SELECT id, username, email, account_type, role, organization_name, customer_number, display_name,
               team_id, team_role, mfa_enabled, accent_color, gray_tone, dark_mode, time_rounding_interval,
               time_format, has_ticket_access, created_at, last_login
        FROM users WHERE id = $1`,

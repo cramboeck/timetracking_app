@@ -113,6 +113,21 @@
 - [ ] Feiertags-Kalender
 - [ ] Drag & Drop im Kalender
 
+### Rechnungseingang (Invoice Inbox)
+- [x] E-Mail-Postfach für Eingangsrechnungen
+- [x] PDF-Anhänge automatisch extrahieren
+- [x] Bestätigungsmodal mit Datenprüfung
+- [x] sevDesk-Beleg automatisch erstellen
+- [~] Rechnungsdaten-Extraktion mit OpenAI Vision
+- [ ] **Azure Document Intelligence** für Rechnungs-OCR
+  - Spezialisiertes Invoice-Modell (höhere Genauigkeit)
+  - Kein poppler/Canvas nötig
+  - Line Items nativ extrahieren
+  - Deutsche Rechnungen optimiert
+- [ ] Weiterverrechnung: Positionen an Kunden zuordnen
+- [ ] MSP-Rechnungen: Kundennamen aus Line Items matchen
+- [ ] Automatische Rechnungserstellung für Endkunden
+
 ### KI-Features
 - [ ] Intelligente Angebotserstellung
 - [ ] Textverbesserung für Beschreibungen
@@ -130,6 +145,35 @@
 - [ ] Ressourcenplanung
 - [ ] Abwesenheitsverwaltung
 
+### CRM - Kunden-/Lieferanten-360°-Ansicht
+- [ ] **E-Mail-Historie pro Kunde/Lieferant**
+  - Microsoft 365 E-Mails synchronisieren
+  - Eingehend + Ausgehend anzeigen
+  - Nach Absender/Empfänger filtern
+  - Volltextsuche in E-Mails
+  - E-Mails direkt aus App versenden
+- [ ] **Dokumente pro Kunde/Lieferant**
+  - Beliebige Dateien hochladen (PDF, Word, Excel)
+  - Kategorien (Vertrag, Angebot, Dokumentation, Sonstiges)
+  - Versionierung bei Änderungen
+  - sevDesk-Dokumente automatisch verknüpfen
+- [ ] **Unified Timeline / Aktivitätsverlauf**
+  - Alle Interaktionen chronologisch
+  - Tickets, E-Mails, Anrufe, Notizen
+  - Dokumente hochgeladen
+  - Rechnungen/Angebote erstellt
+  - Filter nach Aktivitätstyp
+- [ ] **Kontakt-Erweiterungen**
+  - Mehrere Ansprechpartner pro Kunde
+  - Rollen (Entscheider, Technisch, Buchhaltung)
+  - Kommunikationspräferenzen
+  - Notizen pro Kontakt
+- [ ] **Quick Actions**
+  - Schnell-Notiz hinzufügen
+  - Anruf protokollieren
+  - E-Mail direkt senden
+  - Ticket erstellen
+
 ### Marketing Hub
 - [ ] Content-Kalender für Social Media Posts
 - [ ] Multi-Plattform-Unterstützung (LinkedIn, Instagram)
@@ -146,6 +190,13 @@
 ---
 
 ## Changelog
+
+### Januar 2025
+- Invoice Inbox: E-Mail-basierter Rechnungseingang
+- PDF-Extraktion mit OpenAI Vision (in Arbeit)
+- Bestätigungsmodal mit editierbaren Feldern
+- Line Items Extraktion für MSP-Weiterverrechnung
+- sevDesk-Beleg automatisch erstellen
 
 ### Dezember 2024
 - Ticket-Tasks mit Drag & Drop
@@ -186,4 +237,4 @@
 
 ---
 
-*Zuletzt aktualisiert: Dezember 2024*
+*Zuletzt aktualisiert: Januar 2025*

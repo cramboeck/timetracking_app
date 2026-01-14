@@ -662,6 +662,135 @@ router.get('/quotes/:id', authenticateToken, requireBillingFeature, async (req: 
 });
 
 // ============================================
+// Voucher (Beleg) Routes
+// ============================================
+
+// GET /api/sevdesk/vouchers - Get vouchers from sevDesk
+router.get('/vouchers', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const limit = parseInt(req.query.limit as string) || 500;
+    const creditDebit = req.query.creditDebit as 'C' | 'D' | undefined;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk not configured' });
+    }
+
+    const vouchers = await sevdeskService.getVouchers(config.apiToken, {
+      limit,
+      creditDebit,
+    });
+
+    res.json({
+      success: true,
+      data: vouchers,
+    });
+  } catch (error: any) {
+    console.error('Get vouchers error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/vouchers/:id - Get single voucher
+router.get('/vouchers/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const voucherId = req.params.id;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk not configured' });
+    }
+
+    const voucher = await sevdeskService.getVoucherDetail(config.apiToken, voucherId);
+    if (!voucher) {
+      return res.status(404).json({ success: false, error: 'Voucher not found' });
+    }
+
+    res.json({
+      success: true,
+      data: voucher,
+    });
+  } catch (error: any) {
+    console.error('Get voucher detail error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/vouchers/upload - Upload a voucher file
+router.post('/vouchers/upload', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk not configured' });
+    }
+
+    // Check if file data is provided (base64 encoded)
+    const { fileData, filename, mimeType } = req.body;
+    if (!fileData || !filename) {
+      return res.status(400).json({ success: false, error: 'File data and filename required' });
+    }
+
+    // Convert base64 to buffer
+    const buffer = Buffer.from(fileData, 'base64');
+
+    const result = await sevdeskService.uploadVoucherFile(
+      config.apiToken,
+      buffer,
+      filename,
+      mimeType || 'application/pdf'
+    );
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Upload voucher file error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/vouchers/create - Create voucher from uploaded file
+router.post('/vouchers/create', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk not configured' });
+    }
+
+    const { fileId, voucherDate, description, supplierName, sumNet, sumGross, taxRate, creditDebit } = req.body;
+
+    if (!fileId || !voucherDate) {
+      return res.status(400).json({ success: false, error: 'fileId and voucherDate are required' });
+    }
+
+    const result = await sevdeskService.createVoucherFromFile(config.apiToken, fileId, {
+      voucherDate,
+      description,
+      supplierName,
+      sumNet: sumNet ? parseFloat(sumNet) : undefined,
+      sumGross: sumGross ? parseFloat(sumGross) : undefined,
+      taxRate: taxRate ? parseFloat(taxRate) : undefined,
+      creditDebit,
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Create voucher error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
 // Document Sync & Search Routes
 // ============================================
 
@@ -875,8 +1004,13 @@ router.post('/quotes/create', authenticateToken, requireBillingFeature, async (r
       if (!pos.name || pos.name.trim() === '') {
         return res.status(400).json({ success: false, error: 'Each position must have a name' });
       }
-      if (typeof pos.quantity !== 'number' || pos.quantity <= 0) {
-        return res.status(400).json({ success: false, error: 'Each position must have a valid quantity > 0' });
+      // Allow quantity=0 for headings (sections)
+      if (typeof pos.quantity !== 'number' || pos.quantity < 0) {
+        return res.status(400).json({ success: false, error: 'Each position must have a valid quantity >= 0' });
+      }
+      // For normal positions (quantity > 0), validate it's not zero
+      if (pos.quantity === 0 && pos.price !== 0) {
+        return res.status(400).json({ success: false, error: 'Position with price must have quantity > 0' });
       }
       if (typeof pos.price !== 'number' || pos.price < 0) {
         return res.status(400).json({ success: false, error: 'Each position must have a valid price >= 0' });
@@ -906,6 +1040,197 @@ router.post('/quotes/create', authenticateToken, requireBillingFeature, async (r
     });
   } catch (error: any) {
     console.error('Create quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/quotes/:id - Get a single quote with positions
+router.get('/quotes/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const quoteId = req.params.id;
+
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    const quote = await sevdeskService.getQuoteWithPositions(config.apiToken, quoteId);
+
+    if (!quote) {
+      return res.status(404).json({ success: false, error: 'Angebot nicht gefunden' });
+    }
+
+    res.json({
+      success: true,
+      data: quote,
+    });
+  } catch (error: any) {
+    console.error('Get quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/sevdesk/quotes/:id - Update an existing quote
+router.put('/quotes/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const quoteId = req.params.id;
+    const { contactId, quoteDate, header, headText, footText, positions, status } = req.body;
+
+    // Validate required fields
+    if (!contactId) {
+      return res.status(400).json({ success: false, error: 'contactId is required' });
+    }
+    if (!header || header.trim() === '') {
+      return res.status(400).json({ success: false, error: 'header (Betreff) is required' });
+    }
+    if (!positions || !Array.isArray(positions) || positions.length === 0) {
+      return res.status(400).json({ success: false, error: 'At least one position is required' });
+    }
+
+    // Validate each position
+    for (const pos of positions) {
+      if (!pos.name || pos.name.trim() === '') {
+        return res.status(400).json({ success: false, error: 'Each position must have a name' });
+      }
+      // Allow quantity=0 for headings (sections)
+      if (typeof pos.quantity !== 'number' || pos.quantity < 0) {
+        return res.status(400).json({ success: false, error: 'Each position must have a valid quantity >= 0' });
+      }
+      if (pos.quantity === 0 && pos.price !== 0) {
+        return res.status(400).json({ success: false, error: 'Position with price must have quantity > 0' });
+      }
+      if (typeof pos.price !== 'number' || pos.price < 0) {
+        return res.status(400).json({ success: false, error: 'Each position must have a valid price >= 0' });
+      }
+    }
+
+    // Get config
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    // Update the quote
+    const result = await sevdeskService.updateQuote(config.apiToken, config, quoteId, {
+      contactId,
+      quoteDate,
+      header,
+      headText,
+      footText,
+      positions,
+      status: status || 100,
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Update quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// Customer Import Routes
+// ============================================
+
+// GET /api/sevdesk/import/preview - Get preview of customers to import
+router.get('/import/preview', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const showAll = req.query.showAll === 'true';
+    const includeSubContacts = req.query.includeSubContacts === 'true';
+
+    // Get config
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    const preview = await sevdeskService.getCustomerImportPreview(userId, config.apiToken, {
+      showAll,
+      includeSubContacts,
+    });
+
+    // Count by status
+    const counts = {
+      new: preview.filter(p => p.matchStatus === 'new').length,
+      name_match: preview.filter(p => p.matchStatus === 'name_match').length,
+      linked: preview.filter(p => p.matchStatus === 'linked').length,
+      subContacts: preview.filter(p => p.isSubContact).length,
+      total: preview.length,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        customers: preview,
+        counts,
+      },
+    });
+  } catch (error: any) {
+    console.error('Import preview error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/import/execute - Execute customer import
+router.post('/import/execute', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { imports } = req.body;
+
+    if (!imports || !Array.isArray(imports)) {
+      return res.status(400).json({ success: false, error: 'imports array is required' });
+    }
+
+    // Get config
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    const result = await sevdeskService.batchImportSevdeskCustomers(
+      userId,
+      config.apiToken,
+      imports
+    );
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Import execute error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/import/single - Import a single customer
+router.post('/import/single', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { sevdeskId, name, customerNumber, email, address, color, hourlyRate } = req.body;
+
+    if (!sevdeskId || !name) {
+      return res.status(400).json({ success: false, error: 'sevdeskId and name are required' });
+    }
+
+    const result = await sevdeskService.importSevdeskCustomer(
+      userId,
+      { sevdeskId, name, customerNumber, email, address },
+      { color, hourlyRate }
+    );
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Single import error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

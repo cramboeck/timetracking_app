@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, Mail, Send, Trash2, Edit2, Check, UserCheck, UserX, Users, Bell } from 'lucide-react';
+import { X, Plus, Mail, Send, Trash2, Edit2, Check, UserCheck, UserX, Users, Bell, Key, Eye, EyeOff } from 'lucide-react';
 import { Customer, CustomerContact } from '../types';
 import { ticketsApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -38,6 +38,12 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
   // Invite sending
   const [sendingInvite, setSendingInvite] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+
+  // Password setting
+  const [passwordContact, setPasswordContact] = useState<CustomerContact | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [settingPassword, setSettingPassword] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -172,6 +178,25 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       alert('Fehler beim Senden der Einladung');
     } finally {
       setSendingInvite(null);
+    }
+  };
+
+  const handleSetPassword = async () => {
+    if (!passwordContact || !newPassword || newPassword.length < 8) return;
+
+    try {
+      setSettingPassword(true);
+      await ticketsApi.setContactPassword(customer.id, passwordContact.id, newPassword);
+      // Reload contacts to update the isActivated status
+      await loadContacts();
+      setPasswordContact(null);
+      setNewPassword('');
+      setShowPassword(false);
+    } catch (err) {
+      console.error('Failed to set password:', err);
+      alert('Fehler beim Setzen des Passworts');
+    } finally {
+      setSettingPassword(false);
     }
   };
 
@@ -502,24 +527,33 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                       </div>
                       <div className="flex items-center gap-1">
                         {!contact.isActivated && (
-                          <button
-                            onClick={() => handleSendInvite(contact)}
-                            disabled={sendingInvite === contact.id}
-                            className={`p-2 rounded-lg transition-colors ${
-                              inviteSuccess === contact.id
-                                ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
-                                : 'hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400'
-                            }`}
-                            title="Einladung senden"
-                          >
-                            {sendingInvite === contact.id ? (
-                              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                            ) : inviteSuccess === contact.id ? (
-                              <Check size={18} />
-                            ) : (
-                              <Send size={18} />
-                            )}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleSendInvite(contact)}
+                              disabled={sendingInvite === contact.id}
+                              className={`p-2 rounded-lg transition-colors ${
+                                inviteSuccess === contact.id
+                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
+                                  : 'hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400'
+                              }`}
+                              title="Einladung senden"
+                            >
+                              {sendingInvite === contact.id ? (
+                                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                              ) : inviteSuccess === contact.id ? (
+                                <Check size={18} />
+                              ) : (
+                                <Send size={18} />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => setPasswordContact(contact)}
+                              className="p-2 hover:bg-orange-100 dark:hover:bg-orange-900/30 rounded-lg text-orange-600 dark:text-orange-400"
+                              title="Passwort setzen"
+                            >
+                              <Key size={18} />
+                            </button>
+                          </>
                         )}
                         <button
                           onClick={() => openForm(contact)}
@@ -567,6 +601,76 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
           confirmText={deleting ? 'Löschen...' : 'Löschen'}
           variant="danger"
         />
+
+        {/* Set Password Dialog */}
+        {passwordContact && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => { setPasswordContact(null); setNewPassword(''); setShowPassword(false); }} />
+            <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md">
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                    <Key size={20} className="text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Passwort setzen
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {passwordContact.name}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={(e) => { e.preventDefault(); handleSetPassword(); }} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Neues Passwort
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Mindestens 8 Zeichen"
+                      className="w-full px-4 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      required
+                      minLength={8}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Das Passwort muss mindestens 8 Zeichen lang sein.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setPasswordContact(null); setNewPassword(''); setShowPassword(false); }}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={settingPassword || newPassword.length < 8}
+                    className="flex-1 px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white rounded-lg font-medium"
+                  >
+                    {settingPassword ? 'Speichern...' : 'Passwort setzen'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

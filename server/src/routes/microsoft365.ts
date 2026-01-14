@@ -1,0 +1,1132 @@
+import { Router, Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as crypto from 'crypto';
+import { AuthRequest, authenticateToken } from '../middleware/auth';
+import { attachOrganization, requireOrgRole } from '../middleware/organization';
+import * as microsoft365Service from '../services/microsoft365ConfigService';
+import { mailboxMonitorService } from '../services/mailboxMonitorService';
+import { invoiceProcessorService } from '../services/invoiceProcessorService';
+import { query } from '../config/database';
+
+interface OrganizationRequest extends AuthRequest {
+  organization: {
+    id: string;
+    name: string;
+    role: string;
+  };
+}
+
+const router = Router();
+
+// Apply auth and organization middleware to all routes
+router.use(authenticateToken);
+router.use(attachOrganization);
+
+// GET /api/microsoft365/config - Get Microsoft 365 config
+router.get('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const config = await microsoft365Service.getConfig(organizationId);
+
+    if (!config) {
+      return res.json({
+        success: true,
+        data: {
+          configured: false,
+          tenantId: '',
+          clientId: '',
+          hasClientSecret: false,
+          mailFrom: '',
+          supportMailbox: '',
+          featuresEnabled: { email: false, inboxMonitoring: false, calendar: false },
+        },
+      });
+    }
+
+    // Don't return the actual client secret
+    res.json({
+      success: true,
+      data: {
+        configured: config.isConfigured,
+        tenantId: config.tenantId || '',
+        clientId: config.clientId || '',
+        hasClientSecret: !!config.clientSecret,
+        mailFrom: config.mailFrom || '',
+        supportMailbox: config.supportMailbox || '',
+        invoiceMailbox: config.invoiceMailbox || '',
+        featuresEnabled: config.featuresEnabled,
+        lastConnectionTest: config.lastConnectionTest,
+        lastConnectionStatus: config.lastConnectionStatus,
+      },
+    });
+  } catch (error) {
+    console.error('Get Microsoft 365 config error:', error);
+    res.status(500).json({ error: 'Failed to get config' });
+  }
+});
+
+// POST /api/microsoft365/config - Save Microsoft 365 config
+router.post('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { tenantId, clientId, clientSecret, mailFrom, supportMailbox, invoiceMailbox, featuresEnabled } = req.body;
+
+    const config = await microsoft365Service.saveConfig(organizationId, {
+      tenantId,
+      clientId,
+      clientSecret,
+      mailFrom,
+      supportMailbox,
+      invoiceMailbox,
+      featuresEnabled,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        configured: config.isConfigured,
+        tenantId: config.tenantId || '',
+        clientId: config.clientId || '',
+        hasClientSecret: !!config.clientSecret,
+        mailFrom: config.mailFrom || '',
+        supportMailbox: config.supportMailbox || '',
+        invoiceMailbox: config.invoiceMailbox || '',
+        featuresEnabled: config.featuresEnabled,
+      },
+    });
+  } catch (error) {
+    console.error('Save Microsoft 365 config error:', error);
+    res.status(500).json({ error: 'Failed to save config' });
+  }
+});
+
+// POST /api/microsoft365/test - Test Microsoft 365 connection
+router.post('/test', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    let { tenantId, clientId, clientSecret, mailFrom } = req.body;
+
+    // If clientSecret is placeholder, get it from database
+    if (clientSecret === '__USE_STORED__') {
+      const storedConfig = await microsoft365Service.getConfig(organizationId);
+      if (storedConfig?.clientSecret) {
+        clientSecret = storedConfig.clientSecret;
+        console.log('Using stored client secret from database');
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'Kein Client Secret gespeichert. Bitte geben Sie ein neues Secret ein.',
+        });
+      }
+    }
+
+    // Debug logging
+    console.log('=== Microsoft 365 Test Debug ===');
+    console.log('Tenant ID:', tenantId);
+    console.log('Client ID:', clientId);
+    console.log('Client Secret Length:', clientSecret?.length);
+    console.log('Client Secret First 4:', clientSecret?.substring(0, 4));
+    console.log('Client Secret Last 4:', clientSecret?.substring(clientSecret.length - 4));
+    console.log('================================');
+
+    if (!tenantId || !clientId || !clientSecret) {
+      return res.status(400).json({
+        success: false,
+        error: 'Tenant ID, Client ID und Client Secret sind erforderlich',
+      });
+    }
+
+    const result = await microsoft365Service.testConnection(
+      tenantId,
+      clientId,
+      clientSecret,
+      mailFrom
+    );
+
+    // Update test result in database
+    await microsoft365Service.updateConnectionTestResult(
+      organizationId,
+      result.success,
+      result.error
+    );
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.userInfo,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error: any) {
+    console.error('Microsoft 365 connection test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Connection test failed',
+    });
+  }
+});
+
+// DELETE /api/microsoft365/config - Remove Microsoft 365 config
+router.delete('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    await microsoft365Service.deleteConfig(organizationId);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete Microsoft 365 config error:', error);
+    res.status(500).json({ error: 'Failed to delete config' });
+  }
+});
+
+// ========================================
+// Mailbox Monitoring Endpoints
+// ========================================
+
+// POST /api/microsoft365/mailbox/test - Test mailbox access
+router.post('/mailbox/test', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { mailbox, mailboxType } = req.body;
+
+    const result = await mailboxMonitorService.testMailboxAccess(organizationId, mailbox, mailboxType || 'support');
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.mailboxInfo,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error: any) {
+    console.error('Mailbox test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Mailbox test failed',
+    });
+  }
+});
+
+// GET /api/microsoft365/mailbox/emails - Get unread emails
+router.get('/mailbox/emails', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const maxResults = parseInt(req.query.maxResults as string) || 50;
+    const mailboxType = (req.query.mailboxType as string) || 'support';
+
+    const result = await mailboxMonitorService.getUnreadEmails(organizationId, {
+      maxResults,
+      mailboxType: mailboxType as 'support' | 'invoice',
+    });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.emails,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error: any) {
+    console.error('Get emails error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get emails',
+    });
+  }
+});
+
+// GET /api/microsoft365/mailbox/emails/:id - Get specific email
+router.get('/mailbox/emails/:id', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+    const mailboxType = (req.query.mailboxType as string) || 'support';
+
+    const email = await mailboxMonitorService.getEmail(organizationId, messageId, mailboxType as 'support' | 'invoice');
+
+    if (email) {
+      res.json({
+        success: true,
+        data: email,
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'E-Mail nicht gefunden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Get email error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get email',
+    });
+  }
+});
+
+// GET /api/microsoft365/mailbox/emails/:id/attachments - Get email attachments
+router.get('/mailbox/emails/:id/attachments', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+    const mailboxType = (req.query.mailboxType as string) || 'support';
+
+    const attachments = await mailboxMonitorService.getAttachments(organizationId, messageId, mailboxType as 'support' | 'invoice');
+
+    res.json({
+      success: true,
+      data: attachments,
+    });
+  } catch (error: any) {
+    console.error('Get attachments error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get attachments',
+    });
+  }
+});
+
+// POST /api/microsoft365/mailbox/emails/:id/read - Mark email as read
+router.post('/mailbox/emails/:id/read', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+    const { mailboxType } = req.body;
+
+    const success = await mailboxMonitorService.markAsRead(organizationId, messageId, mailboxType || 'support');
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Konnte E-Mail nicht als gelesen markieren',
+      });
+    }
+  } catch (error: any) {
+    console.error('Mark as read error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to mark email as read',
+    });
+  }
+});
+
+// POST /api/microsoft365/mailbox/emails/:id/reply - Reply to email
+router.post('/mailbox/emails/:id/reply', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+    const { content, replyAll, mailboxType } = req.body;
+
+    if (!content) {
+      return res.status(400).json({
+        success: false,
+        error: 'Antwort-Inhalt erforderlich',
+      });
+    }
+
+    const success = await mailboxMonitorService.replyToEmail(
+      organizationId,
+      messageId,
+      content,
+      replyAll || false,
+      mailboxType || 'support'
+    );
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Konnte Antwort nicht senden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Reply to email error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to send reply',
+    });
+  }
+});
+
+// ========================================
+// Support Email to Ticket Endpoints
+// ========================================
+
+// Helper function to generate ticket number
+async function generateTicketNumber(organizationId: string): Promise<string> {
+  const result = await query(`
+    SELECT COALESCE(MAX(CAST(SUBSTRING(ticket_number FROM 5) AS INTEGER)), 0) + 1 as next_number
+    FROM tickets WHERE organization_id = $1
+  `, [organizationId]);
+  const nextNumber = result.rows[0]?.next_number || 1;
+  return `TKT-${String(nextNumber).padStart(6, '0')}`;
+}
+
+// Helper function to find customer by email
+async function findCustomerByEmail(organizationId: string, email: string): Promise<{ id: string; name: string } | null> {
+  // First check customer contacts
+  const contactResult = await query(`
+    SELECT c.id, c.company_name as name FROM customers c
+    JOIN customer_contacts cc ON c.id = cc.customer_id
+    WHERE c.organization_id = $1 AND LOWER(cc.email) = LOWER($2)
+    LIMIT 1
+  `, [organizationId, email]);
+
+  if (contactResult.rows.length > 0) {
+    return contactResult.rows[0];
+  }
+
+  // Then check customer email field
+  const customerResult = await query(`
+    SELECT id, company_name as name FROM customers
+    WHERE organization_id = $1 AND LOWER(email) = LOWER($2)
+    LIMIT 1
+  `, [organizationId, email]);
+
+  return customerResult.rows.length > 0 ? customerResult.rows[0] : null;
+}
+
+// Helper to save email to ticket_emails table
+async function saveEmailToTicket(
+  organizationId: string,
+  ticketId: string,
+  email: any,
+  messageId: string,
+  direction: 'inbound' | 'outbound'
+): Promise<string> {
+  const emailRecordId = crypto.randomUUID();
+
+  // Extract plain text from HTML if needed
+  let bodyText = email.body.content;
+  if (email.body.contentType === 'html') {
+    bodyText = bodyText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  await query(`
+    INSERT INTO ticket_emails (
+      id, ticket_id, organization_id, message_id, conversation_id,
+      direction, subject, body_preview, body_html, body_text,
+      from_name, from_email, to_recipients, cc_recipients,
+      is_read, importance, has_attachments, received_at
+    ) VALUES (
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+    )
+    ON CONFLICT (organization_id, message_id) DO NOTHING
+  `, [
+    emailRecordId,
+    ticketId,
+    organizationId,
+    messageId,
+    email.conversationId,
+    direction,
+    email.subject || '(Kein Betreff)',
+    email.bodyPreview || '',
+    email.body.contentType === 'html' ? email.body.content : null,
+    bodyText,
+    email.from.name,
+    email.from.email,
+    JSON.stringify(email.toRecipients || []),
+    JSON.stringify(email.ccRecipients || []),
+    email.isRead,
+    email.importance,
+    email.hasAttachments,
+    email.receivedDateTime
+  ]);
+
+  return emailRecordId;
+}
+
+// Helper to find ticket by conversation ID
+async function findTicketByConversationId(
+  organizationId: string,
+  conversationId: string
+): Promise<{ id: string; ticketNumber: string } | null> {
+  const result = await query(`
+    SELECT id, ticket_number
+    FROM tickets
+    WHERE organization_id = $1 AND email_conversation_id = $2
+    LIMIT 1
+  `, [organizationId, conversationId]);
+
+  if (result.rows.length > 0) {
+    return {
+      id: result.rows[0].id,
+      ticketNumber: result.rows[0].ticket_number
+    };
+  }
+  return null;
+}
+
+// POST /api/microsoft365/support/emails/:id/create-ticket - Create ticket from email
+router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const messageId = req.params.id;
+    const { priority = 'normal', customerId: providedCustomerId } = req.body;
+
+    // Get the email
+    const emailResult = await mailboxMonitorService.getEmailById(organizationId, messageId, 'support');
+
+    if (!emailResult.success || !emailResult.email) {
+      return res.status(404).json({
+        success: false,
+        error: 'E-Mail nicht gefunden',
+      });
+    }
+
+    const email = emailResult.email;
+
+    // Check if ticket already exists for this conversation
+    if (email.conversationId) {
+      const existingTicket = await findTicketByConversationId(organizationId, email.conversationId);
+      if (existingTicket) {
+        // Link email to existing ticket instead
+        await saveEmailToTicket(organizationId, existingTicket.id, email, messageId, 'inbound');
+        await mailboxMonitorService.markAsRead(organizationId, messageId, 'support');
+
+        return res.json({
+          success: true,
+          data: {
+            ticketId: existingTicket.id,
+            ticketNumber: existingTicket.ticketNumber,
+            title: email.subject,
+            linkedToExisting: true,
+          },
+        });
+      }
+    }
+
+    // Find or use provided customer
+    let customerId = providedCustomerId;
+    let customerName = null;
+
+    if (!customerId && email.from.email) {
+      const customer = await findCustomerByEmail(organizationId, email.from.email);
+      if (customer) {
+        customerId = customer.id;
+        customerName = customer.name;
+      }
+    }
+
+    // Generate ticket number
+    const ticketNumber = await generateTicketNumber(organizationId);
+    const ticketId = crypto.randomUUID();
+
+    // Create description from email body
+    let description = email.body.content;
+    if (email.body.contentType === 'html') {
+      // Strip HTML tags for plain text description
+      description = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    // Create ticket with email tracking fields
+    await query(`
+      INSERT INTO tickets (
+        id, ticket_number, user_id, organization_id, customer_id,
+        title, description, priority, status, source,
+        email_conversation_id, email_from, email_subject, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', 'email', $9, $10, $11, NOW())
+      RETURNING *
+    `, [
+      ticketId,
+      ticketNumber,
+      userId,
+      organizationId,
+      customerId || null,
+      email.subject || '(Kein Betreff)',
+      description,
+      priority,
+      email.conversationId,
+      email.from.email,
+      email.subject
+    ]);
+
+    // Save email to ticket_emails table
+    await saveEmailToTicket(organizationId, ticketId, email, messageId, 'inbound');
+
+    // Mark email as read
+    await mailboxMonitorService.markAsRead(organizationId, messageId, 'support');
+
+    res.json({
+      success: true,
+      data: {
+        ticketId,
+        ticketNumber,
+        title: email.subject,
+        customerId,
+        customerName,
+        linkedToExisting: false,
+      },
+    });
+  } catch (error: any) {
+    console.error('Create ticket from email error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to create ticket from email',
+    });
+  }
+});
+
+// GET /api/microsoft365/support/emails - Get support emails
+router.get('/support/emails', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const includeRead = req.query.includeRead === 'true';
+    const maxResults = parseInt(req.query.limit as string) || 50;
+
+    console.log(`📧 Fetching support emails for org ${organizationId}, includeRead=${includeRead}, limit=${maxResults}`);
+
+    const result = await mailboxMonitorService.getUnreadEmails(organizationId, {
+      mailboxType: 'support',
+      includeRead,
+      maxResults,
+    });
+
+    console.log(`📧 Support emails result: success=${result.success}, count=${result.emails?.length || 0}, error=${result.error || 'none'}`);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.emails,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error: any) {
+    console.error('Get support emails error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get support emails',
+    });
+  }
+});
+
+// POST /api/microsoft365/support/emails/:id/link-ticket - Link email to existing ticket
+router.post('/support/emails/:id/link-ticket', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+    const { ticketId } = req.body;
+
+    if (!ticketId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ticket ID erforderlich',
+      });
+    }
+
+    // Verify ticket exists and belongs to organization
+    const ticketResult = await query(`
+      SELECT id, ticket_number FROM tickets
+      WHERE id = $1 AND organization_id = $2
+    `, [ticketId, organizationId]);
+
+    if (ticketResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ticket nicht gefunden',
+      });
+    }
+
+    // Get the email
+    const emailResult = await mailboxMonitorService.getEmailById(organizationId, messageId, 'support');
+
+    if (!emailResult.success || !emailResult.email) {
+      return res.status(404).json({
+        success: false,
+        error: 'E-Mail nicht gefunden',
+      });
+    }
+
+    const email = emailResult.email;
+
+    // Save email to ticket_emails table
+    await saveEmailToTicket(organizationId, ticketId, email, messageId, 'inbound');
+
+    // Update ticket with conversation ID if not set
+    if (email.conversationId) {
+      await query(`
+        UPDATE tickets
+        SET email_conversation_id = COALESCE(email_conversation_id, $1),
+            email_from = COALESCE(email_from, $2)
+        WHERE id = $3
+      `, [email.conversationId, email.from.email, ticketId]);
+    }
+
+    // Mark email as read
+    await mailboxMonitorService.markAsRead(organizationId, messageId, 'support');
+
+    res.json({
+      success: true,
+      data: {
+        ticketId,
+        ticketNumber: ticketResult.rows[0].ticket_number,
+      },
+    });
+  } catch (error: any) {
+    console.error('Link email to ticket error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to link email to ticket',
+    });
+  }
+});
+
+// GET /api/microsoft365/support/emails/:id/ticket-info - Check if email is linked to ticket
+router.get('/support/emails/:id/ticket-info', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+
+    // Check if email is already in ticket_emails
+    const existingResult = await query(`
+      SELECT te.ticket_id, t.ticket_number, t.title, t.status
+      FROM ticket_emails te
+      JOIN tickets t ON t.id = te.ticket_id
+      WHERE te.organization_id = $1 AND te.message_id = $2
+    `, [organizationId, messageId]);
+
+    if (existingResult.rows.length > 0) {
+      return res.json({
+        success: true,
+        data: {
+          linked: true,
+          ticket: existingResult.rows[0],
+        },
+      });
+    }
+
+    // Check if we can find a ticket by conversation ID
+    const emailResult = await mailboxMonitorService.getEmailById(organizationId, messageId, 'support');
+    if (emailResult.success && emailResult.email?.conversationId) {
+      const ticketResult = await query(`
+        SELECT id as ticket_id, ticket_number, title, status
+        FROM tickets
+        WHERE organization_id = $1 AND email_conversation_id = $2
+        LIMIT 1
+      `, [organizationId, emailResult.email.conversationId]);
+
+      if (ticketResult.rows.length > 0) {
+        return res.json({
+          success: true,
+          data: {
+            linked: false,
+            suggestedTicket: ticketResult.rows[0],
+          },
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        linked: false,
+        suggestedTicket: null,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get email ticket info error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get email ticket info',
+    });
+  }
+});
+
+// GET /api/microsoft365/tickets/:id/emails - Get emails for a ticket
+router.get('/tickets/:id/emails', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const ticketId = req.params.id;
+
+    const result = await query(`
+      SELECT
+        id,
+        message_id,
+        conversation_id,
+        direction,
+        subject,
+        body_preview,
+        body_html,
+        body_text,
+        from_name,
+        from_email,
+        to_recipients,
+        cc_recipients,
+        is_read,
+        importance,
+        has_attachments,
+        received_at,
+        sent_at,
+        created_at
+      FROM ticket_emails
+      WHERE ticket_id = $1 AND organization_id = $2
+      ORDER BY received_at ASC
+    `, [ticketId, organizationId]);
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error: any) {
+    console.error('Get ticket emails error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get ticket emails',
+    });
+  }
+});
+
+// ========================================
+// Invoice Processing Endpoints
+// ========================================
+
+// POST /api/microsoft365/invoices/process - Process invoice mailbox
+// Set includeRead=true to also process already read emails (for re-processing after clear all)
+router.post('/invoices/process', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { includeRead = false } = req.body;
+
+    const result = await invoiceProcessorService.processInvoiceMailbox(organizationId, { includeRead });
+
+    res.json({
+      success: result.success,
+      data: {
+        processedCount: result.processedCount,
+        skippedCount: result.skippedCount,
+        failedCount: result.failedCount,
+        results: result.results,
+      },
+    });
+  } catch (error: any) {
+    console.error('Process invoice mailbox error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to process invoice mailbox',
+    });
+  }
+});
+
+// GET /api/microsoft365/invoices - Get processed invoices
+router.get('/invoices', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const status = req.query.status as string | undefined;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const result = await invoiceProcessorService.getProcessedInvoices(organizationId, {
+      status,
+      limit,
+      offset,
+    });
+
+    res.json({
+      success: true,
+      data: result.invoices,
+      total: result.total,
+    });
+  } catch (error: any) {
+    console.error('Get processed invoices error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get processed invoices',
+    });
+  }
+});
+
+// GET /api/microsoft365/invoices/:id/documents - Get documents for a processed invoice
+router.get('/invoices/:id/documents', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const processedInvoiceId = req.params.id;
+
+    const documents = await invoiceProcessorService.getInvoiceDocuments(processedInvoiceId);
+
+    res.json({
+      success: true,
+      data: documents,
+    });
+  } catch (error: any) {
+    console.error('Get invoice documents error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get invoice documents',
+    });
+  }
+});
+
+// GET /api/microsoft365/documents/:id/download - Download a document file
+router.get('/documents/:id/download', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const documentId = req.params.id;
+
+    const document = await invoiceProcessorService.getDocument(documentId, organizationId);
+
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        error: 'Dokument nicht gefunden',
+      });
+    }
+
+    // Check if file exists
+    if (!fs.existsSync(document.storagePath)) {
+      console.error(`Document file not found: ${document.storagePath}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Datei nicht gefunden',
+      });
+    }
+
+    // Read file into memory to avoid HTTP/2 streaming issues with nginx
+    const fileBuffer = fs.readFileSync(document.storagePath);
+
+    // Set appropriate headers for file download/display
+    const inline = req.query.inline === 'true';
+    const disposition = inline ? 'inline' : 'attachment';
+
+    res.setHeader('Content-Type', document.mimeType);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(document.originalFilename)}"`);
+    res.setHeader('Content-Length', fileBuffer.length);
+    // Prevent caching by browsers and service workers
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    // Send the entire file at once
+    res.send(fileBuffer);
+  } catch (error: any) {
+    console.error('Download document error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to download document',
+    });
+  }
+});
+
+// POST /api/microsoft365/invoices/:id/retry - Retry processing a failed invoice
+router.post('/invoices/:id/retry', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const processedInvoiceId = req.params.id;
+
+    const success = await invoiceProcessorService.retryProcessing(organizationId, processedInvoiceId);
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Konnte Verarbeitung nicht wiederholen',
+      });
+    }
+  } catch (error: any) {
+    console.error('Retry invoice processing error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to retry invoice processing',
+    });
+  }
+});
+
+// DELETE /api/microsoft365/invoices/failed - Clear all failed invoice entries
+// IMPORTANT: This route must be defined BEFORE /invoices/:id to avoid "failed" being matched as an id
+router.delete('/invoices/failed', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const deletedCount = await invoiceProcessorService.clearFailedEntries(organizationId);
+
+    res.json({
+      success: true,
+      deletedCount,
+    });
+  } catch (error: any) {
+    console.error('Clear failed entries error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to clear failed entries',
+    });
+  }
+});
+
+// DELETE /api/microsoft365/invoices/all - Clear ALL invoice entries (for reset/testing)
+router.delete('/invoices/all', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const deletedCount = await invoiceProcessorService.clearAllEntries(organizationId);
+
+    res.json({
+      success: true,
+      deletedCount,
+    });
+  } catch (error: any) {
+    console.error('Clear all entries error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to clear all entries',
+    });
+  }
+});
+
+// GET /api/microsoft365/invoices/:id/extract - Extract invoice data from PDF
+router.get('/invoices/:id/extract', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const processedInvoiceId = req.params.id;
+
+    const extractedData = await invoiceProcessorService.extractInvoiceData(organizationId, processedInvoiceId);
+
+    if (extractedData) {
+      res.json({
+        success: true,
+        data: extractedData,
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'Keine Daten zum Extrahieren gefunden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Extract invoice data error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to extract invoice data',
+    });
+  }
+});
+
+// POST /api/microsoft365/invoices/:id/approve - Approve a draft invoice
+router.post('/invoices/:id/approve', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const processedInvoiceId = req.params.id;
+    const { extractedData } = req.body;
+
+    // If extracted data is provided, use the new approval flow
+    let success: boolean;
+    if (extractedData) {
+      success = await invoiceProcessorService.approveDraftWithData(organizationId, processedInvoiceId, extractedData);
+    } else {
+      success = await invoiceProcessorService.approveDraft(organizationId, processedInvoiceId);
+    }
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Entwurf konnte nicht bestätigt werden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Approve draft error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to approve draft',
+    });
+  }
+});
+
+// POST /api/microsoft365/invoices/:id/revert - Revert processed invoice back to draft
+router.post('/invoices/:id/revert', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const processedInvoiceId = req.params.id;
+
+    const success = await invoiceProcessorService.revertToDraft(organizationId, processedInvoiceId);
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Konnte nicht zurückgesetzt werden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Revert to draft error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to revert to draft',
+    });
+  }
+});
+
+// DELETE /api/microsoft365/invoices/:id - Delete a draft invoice
+router.delete('/invoices/:id', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const processedInvoiceId = req.params.id;
+
+    const success = await invoiceProcessorService.deleteDraft(organizationId, processedInvoiceId);
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Entwurf konnte nicht gelöscht werden',
+      });
+    }
+  } catch (error: any) {
+    console.error('Delete draft error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to delete draft',
+    });
+  }
+});
+
+export default router;

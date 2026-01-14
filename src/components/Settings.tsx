@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -14,6 +14,7 @@ import { CustomerNinjaRMMLink } from './CustomerNinjaRMMLink';
 import { IOSSwitch } from './IOSSwitch';
 import { MFASettings } from './MFASettings';
 import { ClockodoImport } from './ClockodoImport';
+import { Microsoft365Settings } from './Microsoft365Settings';
 import { Link2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
@@ -68,7 +69,7 @@ export const Settings = ({
   onRefreshEntries
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'ai'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
   const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
@@ -110,6 +111,10 @@ export const Settings = ({
   const [customerTimeRoundingInterval, setCustomerTimeRoundingInterval] = useState('15');
   const [customerPaymentTermsDays, setCustomerPaymentTermsDays] = useState('14');
   const [customerNinjarmmOrgId, setCustomerNinjarmmOrgId] = useState('');
+  const [customerDisplayName, setCustomerDisplayName] = useState('');
+  const [customerImportAliases, setCustomerImportAliases] = useState('');
+  const [customerType, setCustomerType] = useState<'company' | 'individual'>('company');
+  const [customerDefaultProjectId, setCustomerDefaultProjectId] = useState('');
 
   // CSV Import
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -189,6 +194,10 @@ export const Settings = ({
       setCustomerTimeRoundingInterval(customer.timeRoundingInterval?.toString() || '15');
       setCustomerPaymentTermsDays(customer.paymentTermsDays?.toString() || '14');
       setCustomerNinjarmmOrgId(customer.ninjarmmOrganizationId || '');
+      setCustomerDisplayName(customer.displayName || '');
+      setCustomerImportAliases(customer.importAliases?.join(', ') || '');
+      setCustomerType(customer.customerType || 'company');
+      setCustomerDefaultProjectId(customer.defaultProjectId || '');
     } else {
       setEditingCustomer(null);
       setCustomerName('');
@@ -197,11 +206,15 @@ export const Settings = ({
       setCustomerContactPerson('');
       setCustomerEmail('');
       setCustomerAddress('');
+      setCustomerDisplayName('');
+      setCustomerImportAliases('');
       setCustomerReportTitle('');
       setCustomerHourlyRate('');
       setCustomerTimeRoundingInterval('15');
       setCustomerPaymentTermsDays('14');
       setCustomerNinjarmmOrgId('');
+      setCustomerType('company');
+      setCustomerDefaultProjectId('');
     }
     setCustomerModalOpen(true);
   };
@@ -318,6 +331,10 @@ export const Settings = ({
     const hourlyRateValue = customerHourlyRate.trim() ? parseFloat(customerHourlyRate) : undefined;
     const timeRoundingIntervalValue = customerTimeRoundingInterval.trim() ? parseInt(customerTimeRoundingInterval) : 15;
     const paymentTermsDaysValue = customerPaymentTermsDays.trim() ? parseInt(customerPaymentTermsDays) : 14;
+    // Parse import aliases from comma-separated string
+    const importAliasesValue = customerImportAliases.trim()
+      ? customerImportAliases.split(',').map(a => a.trim()).filter(a => a.length > 0)
+      : undefined;
 
     if (editingCustomer) {
       onUpdateCustomer(editingCustomer.id, {
@@ -331,7 +348,11 @@ export const Settings = ({
         hourlyRate: hourlyRateValue,
         timeRoundingInterval: timeRoundingIntervalValue,
         paymentTermsDays: paymentTermsDaysValue,
-        ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined
+        ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
+        displayName: customerDisplayName.trim() || undefined,
+        importAliases: importAliasesValue,
+        customerType: customerType,
+        defaultProjectId: customerDefaultProjectId || undefined
       });
     } else {
       onAddCustomer({
@@ -348,6 +369,10 @@ export const Settings = ({
         timeRoundingInterval: timeRoundingIntervalValue,
         paymentTermsDays: paymentTermsDaysValue,
         ninjarmmOrganizationId: customerNinjarmmOrgId.trim() || undefined,
+        displayName: customerDisplayName.trim() || undefined,
+        importAliases: importAliasesValue,
+        customerType: customerType,
+        defaultProjectId: customerDefaultProjectId || undefined,
         createdAt: new Date().toISOString()
       });
     }
@@ -921,6 +946,7 @@ export const Settings = ({
         { id: 'tickets', label: 'Ticket-System', icon: Ticket, desc: 'Tags & Textbausteine' },
         { id: 'portal', label: 'Kundenportal', icon: Book, desc: 'KB & Branding' },
         { id: 'ninjarmm', label: 'NinjaRMM', icon: Server, desc: 'Geräte & Alerts' },
+        { id: 'microsoft365', label: 'Microsoft 365', icon: Cloud, desc: 'E-Mail & Azure' },
         { id: 'ai', label: 'KI-Assistent', icon: Bot, desc: 'Lösungsvorschläge' }
       ]
     },
@@ -1574,6 +1600,17 @@ export const Settings = ({
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <h3 className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</h3>
+                                {customer.customerType === 'individual' ? (
+                                  <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                                    <UserIcon className="w-3 h-3" />
+                                    Privat
+                                  </span>
+                                ) : customer.customerType === 'company' ? (
+                                  <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                                    <Building className="w-3 h-3" />
+                                    Firma
+                                  </span>
+                                ) : null}
                                 {customer.customerNumber && (
                                   <span className="text-xs bg-gray-100 dark:bg-dark-50 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full whitespace-nowrap">
                                     #{customer.customerNumber}
@@ -2425,6 +2462,15 @@ export const Settings = ({
           </div>
         )}
 
+        {activeTab === 'microsoft365' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Microsoft 365 Settings Component */}
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <Microsoft365Settings />
+            </div>
+          </div>
+        )}
+
         {activeTab === 'ai' && (
           <div className="max-w-4xl mx-auto space-y-6">
             {/* Header */}
@@ -2652,196 +2698,316 @@ export const Settings = ({
         isOpen={customerModalOpen}
         onClose={() => setCustomerModalOpen(false)}
         title={editingCustomer ? 'Kunde bearbeiten' : 'Neuer Kunde'}
+        maxWidth="3xl"
       >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Kundenname *
-            </label>
-            <input
-              type="text"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="z.B. Musterfirma GmbH"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-            />
-          </div>
+        <div className="space-y-6">
+          {/* Two-column grid for desktop */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left column */}
+            <div className="space-y-6">
+              {/* Section: Stammdaten */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-base">📋</span> Stammdaten
+                </h3>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Kundennummer (für sevDesk)
-            </label>
-            <input
-              type="text"
-              value={customerNumber}
-              onChange={(e) => setCustomerNumber(e.target.value)}
-              placeholder="z.B. K-12345"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Kundenname *
+                  </label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="z.B. Musterfirma GmbH"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    autoFocus
+                  />
+                </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Ansprechpartner
-            </label>
-            <input
-              type="text"
-              value={customerContactPerson}
-              onChange={(e) => setCustomerContactPerson(e.target.value)}
-              placeholder="z.B. Max Mustermann"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Kundentyp
+                  </label>
+                  <div className="flex gap-3">
+                    <label className={`flex-1 flex items-center justify-center gap-2 cursor-pointer px-3 py-2 rounded-lg border transition-colors ${
+                      customerType === 'company'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                        : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="customerType"
+                        checked={customerType === 'company'}
+                        onChange={() => setCustomerType('company')}
+                        className="sr-only"
+                      />
+                      <Building className="w-4 h-4" />
+                      <span className="text-sm font-medium">Firma</span>
+                    </label>
+                    <label className={`flex-1 flex items-center justify-center gap-2 cursor-pointer px-3 py-2 rounded-lg border transition-colors ${
+                      customerType === 'individual'
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
+                        : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="customerType"
+                        checked={customerType === 'individual'}
+                        onChange={() => setCustomerType('individual')}
+                        className="sr-only"
+                      />
+                      <UserIcon className="w-4 h-4" />
+                      <span className="text-sm font-medium">Privatperson</span>
+                    </label>
+                  </div>
+                </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              E-Mail
-            </label>
-            <input
-              type="email"
-              value={customerEmail}
-              onChange={(e) => setCustomerEmail(e.target.value)}
-              placeholder="z.B. kontakt@musterfirma.de"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Kundennummer
+                    </label>
+                    <input
+                      type="text"
+                      value={customerNumber}
+                      onChange={(e) => setCustomerNumber(e.target.value)}
+                      placeholder="z.B. K-12345"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Ansprechpartner
+                    </label>
+                    <input
+                      type="text"
+                      value={customerContactPerson}
+                      onChange={(e) => setCustomerContactPerson(e.target.value)}
+                      placeholder="Max Mustermann"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    />
+                  </div>
+                </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Adresse
-            </label>
-            <textarea
-              value={customerAddress}
-              onChange={(e) => setCustomerAddress(e.target.value)}
-              placeholder="Musterstraße 123&#10;12345 Musterstadt"
-              rows={2}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            />
-          </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    E-Mail
+                  </label>
+                  <input
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    placeholder="kontakt@musterfirma.de"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  />
+                </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Report-Titel (für PDF)
-            </label>
-            <input
-              type="text"
-              value={customerReportTitle}
-              onChange={(e) => setCustomerReportTitle(e.target.value)}
-              placeholder="z.B. Stundenzettel, Tätigkeitsnachweis, Arbeitszeitnachweis"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Optional: Individueller Titel für PDF-Reports dieses Kunden (Standard: "Stundenbericht")
-            </p>
-          </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Adresse
+                  </label>
+                  <textarea
+                    value={customerAddress}
+                    onChange={(e) => setCustomerAddress(e.target.value)}
+                    placeholder="Musterstraße 123&#10;12345 Musterstadt"
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm resize-none"
+                  />
+                </div>
+              </div>
 
-          {/* Hourly Rate - only show if billing is enabled */}
-          {billingEnabled && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Stundensatz (€)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={customerHourlyRate}
-                onChange={(e) => setCustomerHourlyRate(e.target.value)}
-                placeholder="z.B. 95.00"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Kundenspezifischer Stundensatz für Abrechnungen (überschreibt den Standard)
-              </p>
+              {/* Section: Darstellung */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-base">🎨</span> Darstellung
+                </h3>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Farbe
+                  </label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {COLORS.map(color => (
+                      <button
+                        key={color}
+                        onClick={() => setCustomerColor(color)}
+                        className={`w-full h-8 rounded-lg transition-all ${
+                          customerColor === color ? 'ring-2 ring-gray-900 dark:ring-white ring-offset-2 scale-105' : 'hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Anzeigename (für PDF)
+                  </label>
+                  <input
+                    type="text"
+                    value={customerDisplayName}
+                    onChange={(e) => setCustomerDisplayName(e.target.value)}
+                    placeholder="z.B. IHE (statt langer Firmenname)"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  />
+                </div>
+              </div>
             </div>
-          )}
 
-          {/* Time Rounding Interval - only show if billing is enabled */}
-          {billingEnabled && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Zeitaufrundung (Minuten)
-              </label>
-              <select
-                value={customerTimeRoundingInterval}
-                onChange={(e) => setCustomerTimeRoundingInterval(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              >
-                <option value="1">1 Minute (keine Rundung)</option>
-                <option value="5">5 Minuten</option>
-                <option value="6">6 Minuten (0,1h)</option>
-                <option value="10">10 Minuten</option>
-                <option value="15">15 Minuten (0,25h)</option>
-                <option value="30">30 Minuten (0,5h)</option>
-                <option value="60">60 Minuten (1h)</option>
-              </select>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Zeiteinträge werden auf dieses Intervall aufgerundet (z.B. 7 Min. → 15 Min.)
-              </p>
+            {/* Right column */}
+            <div className="space-y-6">
+              {/* Section: PDF-Export */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-base">📄</span> PDF-Export
+                </h3>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Report-Titel
+                  </label>
+                  <input
+                    type="text"
+                    value={customerReportTitle}
+                    onChange={(e) => setCustomerReportTitle(e.target.value)}
+                    placeholder="z.B. Stundenzettel, Tätigkeitsnachweis"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Standard: "Stundenbericht"
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Import-Aliase
+                  </label>
+                  <input
+                    type="text"
+                    value={customerImportAliases}
+                    onChange={(e) => setCustomerImportAliases(e.target.value)}
+                    placeholder="z.B. IHE, IHE GmbH, IHE Planung"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Komma-getrennte Namen für CSV-Import
+                  </p>
+                </div>
+
+                {/* Default Project - only show when editing existing customer */}
+                {editingCustomer && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Standard-Projekt
+                    </label>
+                    <select
+                      value={customerDefaultProjectId}
+                      onChange={(e) => setCustomerDefaultProjectId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    >
+                      <option value="">— Kein Standard-Projekt —</option>
+                      {projects
+                        .filter(p => p.customerId === editingCustomer.id)
+                        .map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))
+                      }
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Fallback-Projekt für Import ohne Projektzuordnung
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Section: Abrechnung - only show if billing is enabled */}
+              {billingEnabled && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                    <span className="text-base">💰</span> Abrechnung
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Stundensatz (€)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={customerHourlyRate}
+                        onChange={(e) => setCustomerHourlyRate(e.target.value)}
+                        placeholder="95.00"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Zahlungsziel (Tage)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={customerPaymentTermsDays}
+                        onChange={(e) => setCustomerPaymentTermsDays(e.target.value)}
+                        placeholder="14"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Zeitaufrundung
+                    </label>
+                    <select
+                      value={customerTimeRoundingInterval}
+                      onChange={(e) => setCustomerTimeRoundingInterval(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    >
+                      <option value="1">1 Min. (keine Rundung)</option>
+                      <option value="5">5 Minuten</option>
+                      <option value="6">6 Min. (0,1h)</option>
+                      <option value="10">10 Minuten</option>
+                      <option value="15">15 Min. (0,25h)</option>
+                      <option value="30">30 Min. (0,5h)</option>
+                      <option value="60">60 Min. (1h)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Section: Integrationen */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-base">🔗</span> Integrationen
+                </h3>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    NinjaRMM Organisation ID
+                  </label>
+                  <input
+                    type="text"
+                    value={customerNinjarmmOrgId}
+                    onChange={(e) => setCustomerNinjarmmOrgId(e.target.value)}
+                    placeholder="z.B. org-12345"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  />
+                </div>
+              </div>
             </div>
-          )}
-
-          {/* Payment Terms - only show if billing is enabled */}
-          {billingEnabled && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Zahlungsziel (Tage)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="365"
-                value={customerPaymentTermsDays}
-                onChange={(e) => setCustomerPaymentTermsDays(e.target.value)}
-                placeholder="14"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Zahlungsfrist in Tagen ab Rechnungsdatum (Standard: 14 Tage)
-              </p>
-            </div>
-          )}
-
-          {/* NinjaRMM Organization */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              NinjaRMM Organisation ID
-            </label>
-            <input
-              type="text"
-              value={customerNinjarmmOrgId}
-              onChange={(e) => setCustomerNinjarmmOrgId(e.target.value)}
-              placeholder="z.B. org-12345"
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Verknüpfung mit einer NinjaRMM Organisation für Geräte und Alerts
-            </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Farbe
-            </label>
-            <div className="grid grid-cols-5 gap-2">
-              {COLORS.map(color => (
-                <button
-                  key={color}
-                  onClick={() => setCustomerColor(color)}
-                  className={`w-full h-12 rounded-lg transition-transform ${
-                    customerColor === color ? 'ring-2 ring-gray-900 ring-offset-2 scale-110' : ''
-                  }`}
-                  style={{ backgroundColor: color }}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-4">
+          {/* Buttons - full width */}
+          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               onClick={() => setCustomerModalOpen(false)}
-              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors"
             >
               Abbrechen
             </button>

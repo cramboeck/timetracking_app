@@ -2,9 +2,12 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import { ReportApprovalReview } from './components/ReportApprovalReview.tsx'
 import { CustomerPortal } from './components/portal/CustomerPortal.tsx'
 import MaintenanceApproval from './components/MaintenanceApproval.tsx'
+import AdminPortal from './components/AdminPortal.tsx'
+import AdminRoute from './components/AdminRoute.tsx'
 import { AuthProvider } from './contexts/AuthContext.tsx'
 import { FeaturesProvider } from './contexts/FeaturesContext.tsx'
 import { accentColor } from './utils/accentColor.ts'
@@ -32,25 +35,30 @@ initializeTheme();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <FeaturesProvider>
-          <Routes>
-            {/* Public route for report approval */}
-            <Route path="/approve/:token" element={<ReportApprovalReview />} />
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <FeaturesProvider>
+            <Routes>
+              {/* Public route for report approval */}
+              <Route path="/approve/:token" element={<ReportApprovalReview />} />
 
-            {/* Public route for maintenance approval */}
-            <Route path="/maintenance/approve/:token" element={<MaintenanceApproval />} />
+              {/* Public route for maintenance approval */}
+              <Route path="/maintenance/approve/:token" element={<MaintenanceApproval />} />
 
-            {/* Customer Portal (separate from main app) */}
-            <Route path="/portal" element={<CustomerPortal />} />
-            <Route path="/portal/activate" element={<CustomerPortal />} />
+              {/* Customer Portal (separate from main app) */}
+              <Route path="/portal" element={<CustomerPortal />} />
+              <Route path="/portal/activate" element={<CustomerPortal />} />
 
-            {/* Main app */}
-            <Route path="/*" element={<App />} />
-          </Routes>
-        </FeaturesProvider>
-      </AuthProvider>
-    </BrowserRouter>
+              {/* Admin Portal (separate from main app, with auth) */}
+              <Route path="/admin" element={<AdminRoute />} />
+
+              {/* Main app */}
+              <Route path="/*" element={<App />} />
+            </Routes>
+          </FeaturesProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

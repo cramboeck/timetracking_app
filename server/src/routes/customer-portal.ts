@@ -117,12 +117,16 @@ router.post('/login', authLimiter, async (req, res) => {
 
     if (!contact) {
       // Log failed login (user not found)
+      console.log(`🔐 Portal login failed: No contact found for email "${email}"`);
       securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    console.log(`🔐 Portal login attempt for "${email}": contact found (id: ${contact.id}), password_hash exists: ${!!contact.password_hash}`);
+
     if (!contact.password_hash) {
       // Log failed login (account not activated)
+      console.log(`🔐 Portal login failed: No password_hash for contact "${email}" (id: ${contact.id})`);
       securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Account not activated. Please contact support.' });
     }
@@ -2301,6 +2305,98 @@ router.post('/push/test', authenticateCustomerToken, async (req: CustomerAuthReq
   } catch (error) {
     console.error('Send portal test push error:', error);
     res.status(500).json({ error: 'Failed to send test notification' });
+  }
+});
+
+// DEBUG: Check contact status by email (temporary endpoint for troubleshooting)
+router.get('/debug/contact-status', async (req, res) => {
+  try {
+    const { email } = req.query;
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Email query parameter required' });
+    }
+
+    const result = await pool.query(
+      `SELECT
+        cc.id,
+        cc.email,
+        cc.name,
+        cc.customer_id,
+        c.name as customer_name,
+        cc.password_hash IS NOT NULL as has_password,
+        LENGTH(cc.password_hash) as password_hash_length,
+        cc.mfa_enabled,
+        cc.last_login,
+        cc.created_at
+       FROM customer_contacts cc
+       JOIN customers c ON cc.customer_id = c.id
+       WHERE LOWER(cc.email) = LOWER($1)`,
+      [email]
+    );
+
+    // Try to read security log for recent login attempts
+    let recentLoginAttempts: string[] = [];
+    try {
+      const logPath = process.env.SECURITY_LOG_PATH || path.join(__dirname, '../../logs/security.log');
+      if (fs.existsSync(logPath)) {
+        const logContent = fs.readFileSync(logPath, 'utf-8');
+        const lines = logContent.split('\n').filter(line => line.includes(`portal:${email.toLowerCase()}`));
+        recentLoginAttempts = lines.slice(-10); // Last 10 entries for this email
+      }
+    } catch (logError) {
+      console.error('Could not read security log:', logError);
+    }
+
+    // Check audit logs for this contact
+    let auditLogs: any[] = [];
+    if (result.rows.length > 0) {
+      try {
+        const auditResult = await pool.query(
+          `SELECT action, details, created_at, ip_address
+           FROM audit_logs
+           WHERE details LIKE $1 OR details LIKE $2
+           ORDER BY created_at DESC
+           LIMIT 10`,
+          [`%${result.rows[0].id}%`, `%${email}%`]
+        );
+        auditLogs = auditResult.rows;
+      } catch (auditError) {
+        console.error('Could not read audit logs:', auditError);
+      }
+    }
+
+    if (result.rows.length === 0) {
+      return res.json({
+        found: false,
+        message: `No contact found with email: ${email}`,
+        recentLoginAttempts,
+        auditLogs
+      });
+    }
+
+    const contact = result.rows[0];
+    res.json({
+      found: true,
+      contact: {
+        id: contact.id,
+        email: contact.email,
+        name: contact.name,
+        customerId: contact.customer_id,
+        customerName: contact.customer_name,
+        hasPassword: contact.has_password,
+        passwordHashLength: contact.password_hash_length,
+        mfaEnabled: contact.mfa_enabled,
+        lastLogin: contact.last_login,
+        createdAt: contact.created_at,
+        canLogin: contact.has_password === true
+      },
+      recentLoginAttempts,
+      auditLogs
+    });
+  } catch (error) {
+    console.error('Debug contact status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

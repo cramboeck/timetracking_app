@@ -24,6 +24,11 @@ export interface SevdeskCustomer {
   category?: { id: number; name: string };
   email?: string;
   phone?: string;
+  // Parent company info for sub-contacts (Ansprechpartner)
+  parent?: { id: string; name: string };
+  isSubContact?: boolean;
+  // Type of customer: 'company' if has company name, 'individual' if only person name
+  customerType?: 'company' | 'individual';
 }
 
 export interface SevdeskInvoice {
@@ -214,17 +219,67 @@ export async function testConnection(apiToken: string): Promise<{ success: boole
 }
 
 // Get customers from sevDesk
-export async function getSevdeskCustomers(apiToken: string): Promise<SevdeskCustomer[]> {
-  const response = await sevdeskFetch(apiToken, '/Contact?depth=1&embed=category');
+// sevDesk category IDs: 3 = Customer, 4 = Supplier, 28 = Partner
+// Options:
+// - showAll: Include all categories (not just customers)
+// - includeSuppliers: Include suppliers (category 4)
+// - includeSubContacts: Include sub-contacts (Ansprechpartner) with parent info
+export async function getSevdeskCustomers(apiToken: string, options?: { includeSuppliers?: boolean; showAll?: boolean; includeSubContacts?: boolean }): Promise<SevdeskCustomer[]> {
+  // When showAll is true, don't filter by category at all to get all contacts
+  // When includeSuppliers is true, also remove category filter
+  // By default, only fetch customers (category 3), not suppliers
+  const categoryFilter = (options?.showAll || options?.includeSuppliers) ? '' : '&category[id]=3&category[objectName]=Category';
+  const response = await sevdeskFetch(apiToken, `/Contact?depth=1&embed=category,parent${categoryFilter}`);
 
-  return (response.objects || []).map((contact: any) => ({
-    id: contact.id,
-    customerNumber: contact.customerNumber || '',
-    name: contact.name || `${contact.surename || ''} ${contact.familyname || ''}`.trim(),
-    category: contact.category ? { id: contact.category.id, name: contact.category.name } : undefined,
-    email: contact.email,
-    phone: contact.phone,
-  }));
+  // Helper to map contact to SevdeskCustomer
+  const mapContact = (contact: any): SevdeskCustomer => {
+    const hasParent = contact.parent && contact.parent.id;
+    // Detect customer type: 'company' if has company name field, 'individual' if only person name
+    const hasCompanyName = contact.name && contact.name.trim() !== '';
+    const customerType: 'company' | 'individual' = hasCompanyName ? 'company' : 'individual';
+    return {
+      id: contact.id,
+      customerNumber: contact.customerNumber || '',
+      // Build name from company name or person name
+      name: contact.name || [contact.surename, contact.familyname].filter(Boolean).join(' ') || `Kontakt ${contact.id}`,
+      category: contact.category ? { id: contact.category.id, name: contact.category.name } : undefined,
+      email: contact.email,
+      phone: contact.phone,
+      // Include parent info for sub-contacts
+      parent: hasParent ? { id: contact.parent.id.toString(), name: contact.parent.name || '' } : undefined,
+      isSubContact: hasParent,
+      customerType,
+    };
+  };
+
+  // If showAll is true, return all contacts (optionally including sub-contacts)
+  if (options?.showAll) {
+    return (response.objects || [])
+      .filter((contact: any) => {
+        const isTopLevel = !contact.parent || !contact.parent.id;
+        // Include sub-contacts if option is set
+        if (options?.includeSubContacts) return true;
+        return isTopLevel;
+      })
+      .map(mapContact);
+  }
+
+  // Filter contacts based on options
+  const filteredContacts = (response.objects || []).filter((contact: any) => {
+    const isTopLevel = !contact.parent || !contact.parent.id;
+    // Must have some form of name (company name OR person name)
+    const hasAnyName = (contact.name && contact.name.trim() !== '') ||
+                       (contact.surename && contact.surename.trim() !== '') ||
+                       (contact.familyname && contact.familyname.trim() !== '');
+
+    // Include sub-contacts if option is set, otherwise only top-level
+    if (options?.includeSubContacts) {
+      return hasAnyName;
+    }
+    return isTopLevel && hasAnyName;
+  });
+
+  return filteredContacts.map(mapContact);
 }
 
 // Sync sevDesk customer to local customer
@@ -826,6 +881,32 @@ export interface SevdeskQuoteDetail {
   }>;
 }
 
+// Voucher (Beleg) interface
+export interface SevdeskVoucherDetail {
+  id: string;
+  voucherNumber: string;
+  voucherDate: string;
+  description: string;
+  status: number;
+  statusName: string;
+  voucherType: string; // VOU = Beleg, VOU_R = Recurring
+  creditDebit: string; // C = Credit (Gutschrift), D = Debit (Ausgabe)
+  supplier: {
+    id: string;
+    name: string;
+  } | null;
+  sumNet: number;
+  sumGross: number;
+  sumTax: number;
+  taxRate: number;
+  currency: string;
+  paidAt: string | null;
+  document: {
+    id: string;
+    filename: string;
+  } | null;
+}
+
 // Get status name for invoices
 function getInvoiceStatusName(status: number): string {
   switch (status) {
@@ -851,6 +932,16 @@ function getQuoteStatusName(status: number): string {
   }
 }
 
+// Get status name for vouchers
+function getVoucherStatusName(status: number): string {
+  switch (status) {
+    case 50: return 'Entwurf';
+    case 100: return 'Unpaid';
+    case 1000: return 'Bezahlt';
+    default: return `Status ${status}`;
+  }
+}
+
 // Get invoices from sevDesk
 export async function getInvoices(
   apiToken: string,
@@ -866,6 +957,8 @@ export async function getInvoices(
   const params = new URLSearchParams();
   params.append('depth', '1');
   params.append('embed', 'contact');
+  // Sort by invoice date descending (newest first)
+  params.append('countAll', 'true');
 
   if (options.limit) params.append('limit', options.limit.toString());
   if (options.offset) params.append('offset', options.offset.toString());
@@ -876,7 +969,8 @@ export async function getInvoices(
 
   const response = await sevdeskFetch(apiToken, `/Invoice?${params.toString()}`);
 
-  return (response.objects || []).map((inv: any) => ({
+  // Sort by invoiceDate descending (newest first) since sevDesk doesn't guarantee order
+  const invoices = (response.objects || []).map((inv: any) => ({
     id: inv.id?.toString(),
     invoiceNumber: inv.invoiceNumber || '',
     contact: inv.contact ? {
@@ -896,6 +990,15 @@ export async function getInvoices(
     currency: inv.currency || 'EUR',
     positions: [], // Will be loaded separately if needed
   }));
+
+  // Sort by date descending
+  invoices.sort((a: SevdeskInvoiceDetail, b: SevdeskInvoiceDetail) => {
+    const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
+    const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  return invoices;
 }
 
 // Get single invoice with positions
@@ -967,6 +1070,7 @@ export async function getQuotes(
   const params = new URLSearchParams();
   params.append('depth', '1');
   params.append('embed', 'contact');
+  params.append('countAll', 'true');
 
   if (options.limit) params.append('limit', options.limit.toString());
   if (options.offset) params.append('offset', options.offset.toString());
@@ -975,7 +1079,7 @@ export async function getQuotes(
 
   const response = await sevdeskFetch(apiToken, `/Order?${params.toString()}`);
 
-  return (response.objects || []).map((quote: any) => ({
+  const quotes = (response.objects || []).map((quote: any) => ({
     id: quote.id?.toString(),
     quoteNumber: quote.orderNumber || '',
     contact: quote.contact ? {
@@ -993,6 +1097,15 @@ export async function getQuotes(
     currency: quote.currency || 'EUR',
     positions: [],
   }));
+
+  // Sort by date descending (newest first)
+  quotes.sort((a: SevdeskQuoteDetail, b: SevdeskQuoteDetail) => {
+    const dateA = a.quoteDate ? new Date(a.quoteDate).getTime() : 0;
+    const dateB = b.quoteDate ? new Date(b.quoteDate).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  return quotes;
 }
 
 // Get single quote with positions
@@ -1046,6 +1159,236 @@ export async function getQuoteWithPositions(
       price: parseFloat(pos.price) || 0,
       sumNet: parseFloat(pos.sumNet) || 0,
     })),
+  };
+}
+
+// ============================================
+// Voucher (Beleg) Functions
+// ============================================
+
+// Get vouchers from sevDesk
+export async function getVouchers(
+  apiToken: string,
+  options: {
+    limit?: number;
+    offset?: number;
+    status?: number;
+    creditDebit?: 'C' | 'D'; // C = Credit, D = Debit
+  } = {}
+): Promise<SevdeskVoucherDetail[]> {
+  const params = new URLSearchParams();
+  params.append('depth', '1');
+  params.append('embed', 'supplier,document');
+  params.append('countAll', 'true');
+
+  if (options.limit) params.append('limit', options.limit.toString());
+  if (options.offset) params.append('offset', options.offset.toString());
+  if (options.status) params.append('status', options.status.toString());
+  if (options.creditDebit) params.append('creditDebit', options.creditDebit);
+
+  const response = await sevdeskFetch(apiToken, `/Voucher?${params.toString()}`);
+
+  const vouchers = (response.objects || []).map((v: any) => ({
+    id: v.id?.toString(),
+    voucherNumber: v.voucherNumber || v.description || '',
+    voucherDate: v.voucherDate,
+    description: v.description || '',
+    status: parseInt(v.status) || 0,
+    statusName: getVoucherStatusName(parseInt(v.status) || 0),
+    voucherType: v.voucherType || 'VOU',
+    creditDebit: v.creditDebit || 'D',
+    supplier: v.supplier ? {
+      id: v.supplier.id?.toString(),
+      name: v.supplier.name || 'Unbekannt',
+    } : null,
+    sumNet: parseFloat(v.sumNet) || 0,
+    sumGross: parseFloat(v.sumGross) || 0,
+    sumTax: parseFloat(v.sumTax) || 0,
+    taxRate: parseFloat(v.taxRate) || 0,
+    currency: v.currency || 'EUR',
+    paidAt: v.paidDate || null,
+    document: v.document ? {
+      id: v.document.id?.toString(),
+      filename: v.document.filename || '',
+    } : null,
+  }));
+
+  // Sort by date descending (newest first)
+  vouchers.sort((a: SevdeskVoucherDetail, b: SevdeskVoucherDetail) => {
+    const dateA = a.voucherDate ? new Date(a.voucherDate).getTime() : 0;
+    const dateB = b.voucherDate ? new Date(b.voucherDate).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  return vouchers;
+}
+
+// Get single voucher details
+export async function getVoucherDetail(
+  apiToken: string,
+  voucherId: string
+): Promise<SevdeskVoucherDetail | null> {
+  const response = await sevdeskFetch(apiToken, `/Voucher/${voucherId}?depth=1&embed=supplier,document`);
+
+  let v = response.objects;
+  if (Array.isArray(v)) {
+    v = v[0];
+  }
+
+  if (!v) {
+    return null;
+  }
+
+  return {
+    id: v.id?.toString(),
+    voucherNumber: v.voucherNumber || v.description || '',
+    voucherDate: v.voucherDate,
+    description: v.description || '',
+    status: parseInt(v.status) || 0,
+    statusName: getVoucherStatusName(parseInt(v.status) || 0),
+    voucherType: v.voucherType || 'VOU',
+    creditDebit: v.creditDebit || 'D',
+    supplier: v.supplier ? {
+      id: v.supplier.id?.toString(),
+      name: v.supplier.name || 'Unbekannt',
+    } : null,
+    sumNet: parseFloat(v.sumNet) || 0,
+    sumGross: parseFloat(v.sumGross) || 0,
+    sumTax: parseFloat(v.sumTax) || 0,
+    taxRate: parseFloat(v.taxRate) || 0,
+    currency: v.currency || 'EUR',
+    paidAt: v.paidDate || null,
+    document: v.document ? {
+      id: v.document.id?.toString(),
+      filename: v.document.filename || '',
+    } : null,
+  };
+}
+
+// Upload voucher file to sevDesk
+export async function uploadVoucherFile(
+  apiToken: string,
+  file: Buffer,
+  filename: string,
+  mimeType: string
+): Promise<{ id: string; filename: string }> {
+  const formData = new FormData();
+  const blob = new Blob([file], { type: mimeType });
+  formData.append('file', blob, filename);
+
+  const response = await fetch(`${SEVDESK_API_URL}/Voucher/Factory/uploadTempFile`, {
+    method: 'POST',
+    headers: {
+      'Authorization': apiToken,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Upload failed: ${errorText}`);
+  }
+
+  const data = await response.json() as { objects?: { id?: string | number; filename?: string } };
+  return {
+    id: data.objects?.id?.toString() || '',
+    filename: data.objects?.filename || filename,
+  };
+}
+
+// Create voucher from uploaded file
+export async function createVoucherFromFile(
+  apiToken: string,
+  fileId: string,
+  voucherData: {
+    voucherDate: string;
+    description?: string;
+    supplierName?: string;
+    sumNet?: number | string;
+    sumGross?: number | string;
+    sumTax?: number | string;
+    taxRate?: number;
+    creditDebit?: 'C' | 'D';
+  }
+): Promise<{ voucherId: string }> {
+  // First, we need to get or create the supplier if provided
+  let supplierId: string | null = null;
+
+  if (voucherData.supplierName) {
+    // Search for existing supplier
+    const searchResponse = await sevdeskFetch(
+      apiToken,
+      `/Contact?name=${encodeURIComponent(voucherData.supplierName)}&category[id]=4&category[objectName]=Category`
+    );
+
+    if (searchResponse.objects && searchResponse.objects.length > 0) {
+      supplierId = searchResponse.objects[0].id?.toString();
+    }
+    // If no supplier found, we'll create the voucher without one
+  }
+
+  // Build voucher data - handle both number and string inputs
+  const taxRate = voucherData.taxRate || 19;
+  const sumNetInput = typeof voucherData.sumNet === 'string' ? parseFloat(voucherData.sumNet) : voucherData.sumNet;
+  const sumGrossInput = typeof voucherData.sumGross === 'string' ? parseFloat(voucherData.sumGross) : voucherData.sumGross;
+
+  // Calculate net from gross if only gross is provided
+  let sumNet = sumNetInput || 0;
+  if (!sumNet && sumGrossInput) {
+    sumNet = sumGrossInput / (1 + taxRate / 100);
+  }
+  const sumGross = sumGrossInput || (sumNet * (1 + taxRate / 100));
+
+  const voucherPayload: Record<string, unknown> = {
+    voucher: {
+      objectName: 'Voucher',
+      mapAll: true,
+      voucherDate: Math.floor(new Date(voucherData.voucherDate).getTime() / 1000),
+      description: voucherData.description || 'Beleg',
+      status: 50, // Draft
+      voucherType: 'VOU',
+      creditDebit: voucherData.creditDebit || 'D',
+      taxType: 'default',
+      currency: 'EUR',
+    },
+    voucherPosSave: [{
+      objectName: 'VoucherPos',
+      mapAll: true,
+      taxRate: taxRate,
+      sum: sumNet,
+      net: true,
+      accountingType: {
+        id: 26, // Default: Sonstige betriebliche Aufwendungen
+        objectName: 'AccountingType',
+      },
+    }],
+    filename: fileId,
+  };
+
+  if (supplierId) {
+    (voucherPayload.voucher as Record<string, unknown>).supplier = {
+      id: parseInt(supplierId),
+      objectName: 'Contact',
+    };
+  }
+
+  const response = await fetch(`${SEVDESK_API_URL}/Voucher/Factory/saveVoucher`, {
+    method: 'POST',
+    headers: {
+      'Authorization': apiToken,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(voucherPayload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to create voucher: ${errorText}`);
+  }
+
+  const data = await response.json() as { objects?: { voucher?: { id?: string | number } } };
+  return {
+    voucherId: data.objects?.voucher?.id?.toString() || '',
   };
 }
 
@@ -1635,6 +1978,153 @@ export async function createQuote(
   };
 }
 
+// Update an existing quote in sevDesk
+export async function updateQuote(
+  apiToken: string,
+  config: SevdeskConfig,
+  quoteId: string,
+  input: CreateQuoteInput
+): Promise<{ quoteId: string; quoteNumber: string }> {
+  // Get existing quote details to preserve some fields
+  const existingQuote = await getQuoteWithPositions(apiToken, quoteId);
+  if (!existingQuote) {
+    throw new Error('Angebot nicht gefunden');
+  }
+
+  // Get existing positions IDs for deletion
+  const positionsResponse = await sevdeskFetch(apiToken, `/OrderPos?order[id]=${quoteId}&order[objectName]=Order`);
+  const existingPositionIds = (positionsResponse.objects || []).map((p: any) => p.id);
+
+  // Fetch required data
+  const [userResponse, contactResponse, addressResponse] = await Promise.all([
+    sevdeskFetch(apiToken, '/SevUser'),
+    sevdeskFetch(apiToken, `/Contact/${input.contactId}`),
+    sevdeskFetch(apiToken, `/ContactAddress?contact[id]=${input.contactId}&contact[objectName]=Contact`),
+  ]);
+
+  const sevUser = userResponse.objects?.[0];
+  if (!sevUser) {
+    throw new Error('Could not get sevDesk user for contactPerson');
+  }
+
+  const contact = contactResponse.objects;
+  const addresses = addressResponse.objects || [];
+  const mainAddress = addresses[0] || {};
+
+  // Build address fields
+  const addressName = contact?.name || `${contact?.surename || ''} ${contact?.familyname || ''}`.trim() || '';
+  const addressStreet = mainAddress.street || null;
+  const addressZip = mainAddress.zip || null;
+  const addressCity = mainAddress.city || null;
+
+  const addressParts: string[] = [];
+  if (addressName) addressParts.push(addressName);
+  if (addressStreet) addressParts.push(addressStreet);
+  if (addressZip || addressCity) addressParts.push([addressZip, addressCity].filter(Boolean).join(' '));
+  const fullAddress = addressParts.join('\n');
+
+  // Use Unix timestamp for date
+  const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
+  const orderDateTimestamp = Math.floor(dateObj.getTime() / 1000);
+  const taxRate = config.taxRate || 19;
+
+  // Build order data with ID for update
+  const orderData: Record<string, unknown> = {
+    order: {
+      id: parseInt(quoteId),
+      orderNumber: existingQuote.quoteNumber,
+      contact: {
+        id: parseInt(input.contactId),
+        objectName: 'Contact',
+      },
+      orderDate: orderDateTimestamp,
+      status: input.status || existingQuote.status || 100,
+      header: input.header || existingQuote.header,
+      headText: input.headText ?? existingQuote.headText ?? '',
+      footText: input.footText ?? existingQuote.footText ?? '',
+      addressName: addressName,
+      addressStreet: addressStreet,
+      addressZip: addressZip,
+      addressCity: addressCity,
+      address: fullAddress,
+      addressCountry: {
+        id: mainAddress.country?.id || 1,
+        objectName: 'StaticCountry',
+      },
+      version: 0,
+      smallSettlement: false,
+      contactPerson: {
+        id: parseInt(sevUser.id),
+        objectName: 'SevUser',
+      },
+      taxRate: 0,
+      taxType: null,
+      taxRule: {
+        id: 1,
+        objectName: 'TaxRule',
+      },
+      orderType: 'AN',
+      currency: 'EUR',
+      showNet: false,
+      mapAll: true,
+      objectName: 'Order',
+    },
+    orderPosSave: input.positions.map((pos, index) => ({
+      quantity: pos.quantity,
+      price: pos.price,
+      priceNet: pos.price,
+      priceTax: 0,
+      priceGross: pos.price * (1 + taxRate / 100),
+      name: pos.name || null,
+      unity: {
+        id: 9, // Stunden
+        objectName: 'Unity',
+      },
+      positionNumber: index,
+      text: pos.text || '',
+      discount: null,
+      optional: false,
+      taxRate: pos.taxRate || taxRate,
+      objectName: 'OrderPos',
+      mapAll: true,
+    })),
+    orderPosDelete: existingPositionIds.length > 0 ? existingPositionIds.map((id: string) => ({
+      id: parseInt(id),
+      objectName: 'OrderPos',
+    })) : null,
+  };
+
+  const formBody = objectToFormData(orderData);
+
+  console.log('[sevDesk] Updating quote with form-urlencoded data');
+
+  const response = await fetch(`${SEVDESK_API_URL}/Order/Factory/saveOrder`, {
+    method: 'POST',
+    headers: {
+      'Authorization': apiToken,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: formBody,
+  });
+
+  const responseText = await response.text();
+  console.log('[sevDesk] Update response:', response.status, responseText.substring(0, 500));
+
+  if (!response.ok) {
+    throw new Error(`Failed to update quote: ${responseText}`);
+  }
+
+  const quoteData = JSON.parse(responseText) as { objects: { order: { id: string; orderNumber: string } } };
+  const updatedQuoteNumber = quoteData.objects.order.orderNumber;
+
+  console.log('[sevDesk] Quote updated:', quoteId, updatedQuoteNumber);
+
+  return {
+    quoteId,
+    quoteNumber: updatedQuoteNumber,
+  };
+}
+
 // Get previous invoices for a contact (from local DB)
 export async function getPreviousInvoicesForContact(
   userId: string,
@@ -1671,4 +2161,298 @@ export async function getPreviousInvoicesForContact(
       price: parseFloat(p.price) || 0,
     })),
   }));
+}
+
+// ============================================
+// Customer Import Functions
+// ============================================
+
+export interface CustomerImportPreview {
+  sevdeskId: string;
+  sevdeskCustomerNumber: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  // Parent company info for sub-contacts
+  parent?: { id: string; name: string };
+  isSubContact?: boolean;
+  // Type of customer
+  customerType?: 'company' | 'individual';
+  // Matching info
+  matchStatus: 'new' | 'linked' | 'name_match';
+  localCustomerId?: string;
+  localCustomerName?: string;
+}
+
+// Get import preview - compare sevDesk contacts with local customers
+export async function getCustomerImportPreview(
+  userId: string,
+  apiToken: string,
+  options?: { showAll?: boolean; includeSubContacts?: boolean }
+): Promise<CustomerImportPreview[]> {
+  // Get all sevDesk contacts (optionally including all without filtering)
+  const sevdeskCustomers = await getSevdeskCustomers(apiToken, {
+    showAll: options?.showAll,
+    includeSubContacts: options?.includeSubContacts,
+  });
+
+  // Get all local customers with their sevdesk links
+  const localResult = await query(
+    `SELECT id, name, sevdesk_customer_id, import_aliases
+     FROM customers
+     WHERE user_id = $1`,
+    [userId]
+  );
+  const localCustomers = localResult.rows;
+
+  // Build lookup maps
+  const linkedSevdeskIds = new Map<string, { id: string; name: string }>();
+  const localNameMap = new Map<string, { id: string; name: string }>();
+
+  for (const local of localCustomers) {
+    if (local.sevdesk_customer_id) {
+      linkedSevdeskIds.set(local.sevdesk_customer_id, { id: local.id, name: local.name });
+    }
+    // Normalize name for matching
+    const normalizedName = local.name.toLowerCase().trim();
+    localNameMap.set(normalizedName, { id: local.id, name: local.name });
+
+    // Also check import_aliases
+    if (local.import_aliases && Array.isArray(local.import_aliases)) {
+      for (const alias of local.import_aliases) {
+        localNameMap.set(alias.toLowerCase().trim(), { id: local.id, name: local.name });
+      }
+    }
+  }
+
+  // Get addresses for sevDesk contacts
+  const contactAddresses = new Map<string, string>();
+  try {
+    const addressResponse = await sevdeskFetch(apiToken, '/ContactAddress');
+    for (const addr of addressResponse.objects || []) {
+      if (addr.contact?.id) {
+        const parts = [
+          addr.street,
+          [addr.zip, addr.city].filter(Boolean).join(' '),
+          addr.country?.name
+        ].filter(Boolean);
+        contactAddresses.set(addr.contact.id.toString(), parts.join(', '));
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch contact addresses:', err);
+  }
+
+  // Build preview list
+  const preview: CustomerImportPreview[] = [];
+
+  for (const sevdesk of sevdeskCustomers) {
+    const sevdeskId = sevdesk.id.toString();
+
+    // Check if already linked
+    if (linkedSevdeskIds.has(sevdeskId)) {
+      const local = linkedSevdeskIds.get(sevdeskId)!;
+      preview.push({
+        sevdeskId,
+        sevdeskCustomerNumber: sevdesk.customerNumber,
+        name: sevdesk.name,
+        email: sevdesk.email,
+        phone: sevdesk.phone,
+        address: contactAddresses.get(sevdeskId),
+        parent: sevdesk.parent,
+        isSubContact: sevdesk.isSubContact,
+        customerType: sevdesk.customerType,
+        matchStatus: 'linked',
+        localCustomerId: local.id,
+        localCustomerName: local.name,
+      });
+      continue;
+    }
+
+    // Check if name matches an existing customer
+    const normalizedName = sevdesk.name.toLowerCase().trim();
+    if (localNameMap.has(normalizedName)) {
+      const local = localNameMap.get(normalizedName)!;
+      preview.push({
+        sevdeskId,
+        sevdeskCustomerNumber: sevdesk.customerNumber,
+        name: sevdesk.name,
+        email: sevdesk.email,
+        phone: sevdesk.phone,
+        address: contactAddresses.get(sevdeskId),
+        parent: sevdesk.parent,
+        isSubContact: sevdesk.isSubContact,
+        customerType: sevdesk.customerType,
+        matchStatus: 'name_match',
+        localCustomerId: local.id,
+        localCustomerName: local.name,
+      });
+      continue;
+    }
+
+    // New customer
+    preview.push({
+      sevdeskId,
+      sevdeskCustomerNumber: sevdesk.customerNumber,
+      name: sevdesk.name,
+      email: sevdesk.email,
+      phone: sevdesk.phone,
+      address: contactAddresses.get(sevdeskId),
+      parent: sevdesk.parent,
+      isSubContact: sevdesk.isSubContact,
+      customerType: sevdesk.customerType,
+      matchStatus: 'new',
+    });
+  }
+
+  // Sort: new first, then name_match, then linked
+  const statusOrder = { new: 0, name_match: 1, linked: 2 };
+  preview.sort((a, b) => statusOrder[a.matchStatus] - statusOrder[b.matchStatus]);
+
+  return preview;
+}
+
+// Import a single sevDesk contact as a new customer
+export async function importSevdeskCustomer(
+  userId: string,
+  sevdeskContact: {
+    sevdeskId: string;
+    name: string;
+    customerNumber?: string;
+    email?: string;
+    address?: string;
+    customerType?: 'company' | 'individual';
+  },
+  options: {
+    color?: string;
+    hourlyRate?: number;
+  } = {}
+): Promise<{ customerId: string }> {
+  const customerId = uuidv4();
+  const color = options.color || '#3B82F6'; // Default blue
+
+  // Get the user's organization_id from organization_members
+  const orgResult = await query(
+    'SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1',
+    [userId]
+  );
+  const organizationId = orgResult.rows[0]?.organization_id || null;
+
+  await query(
+    `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, email, address, sevdesk_customer_id, hourly_rate, customer_type, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+    [
+      customerId,
+      userId,
+      organizationId,
+      sevdeskContact.name,
+      color,
+      sevdeskContact.customerNumber || null,
+      sevdeskContact.email || null,
+      sevdeskContact.address || null,
+      sevdeskContact.sevdeskId,
+      options.hourlyRate || null,
+      sevdeskContact.customerType || null,
+    ]
+  );
+
+  return { customerId };
+}
+
+// Link an existing local customer to a sevDesk contact
+export async function linkExistingCustomerToSevdesk(
+  userId: string,
+  customerId: string,
+  sevdeskId: string
+): Promise<void> {
+  const result = await query(
+    `UPDATE customers
+     SET sevdesk_customer_id = $1
+     WHERE id = $2 AND user_id = $3`,
+    [sevdeskId, customerId, userId]
+  );
+
+  if (result.rowCount === 0) {
+    throw new Error('Customer not found');
+  }
+}
+
+// Batch import multiple customers
+export async function batchImportSevdeskCustomers(
+  userId: string,
+  apiToken: string,
+  imports: Array<{
+    sevdeskId: string;
+    action: 'import' | 'link' | 'skip';
+    linkToCustomerId?: string;  // For 'link' action
+    color?: string;             // For 'import' action
+    hourlyRate?: number;        // For 'import' action
+  }>
+): Promise<{
+  imported: number;
+  linked: number;
+  skipped: number;
+  errors: string[];
+}> {
+  const result = { imported: 0, linked: 0, skipped: 0, errors: [] as string[] };
+
+  // Get full sevDesk customer data - include ALL contacts (showAll + includeSubContacts)
+  // to ensure we can find any contact that was shown in the preview
+  const allCustomers = await getSevdeskCustomers(apiToken, { showAll: true, includeSubContacts: true });
+  const customerMap = new Map(allCustomers.map(c => [c.id.toString(), c]));
+
+  // Get addresses
+  const addressMap = new Map<string, string>();
+  try {
+    const addressResponse = await sevdeskFetch(apiToken, '/ContactAddress');
+    for (const addr of addressResponse.objects || []) {
+      if (addr.contact?.id) {
+        const parts = [
+          addr.street,
+          [addr.zip, addr.city].filter(Boolean).join(' ')
+        ].filter(Boolean);
+        addressMap.set(addr.contact.id.toString(), parts.join(', '));
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch addresses:', err);
+  }
+
+  for (const item of imports) {
+    try {
+      if (item.action === 'skip') {
+        result.skipped++;
+        continue;
+      }
+
+      const sevdeskCustomer = customerMap.get(item.sevdeskId);
+      if (!sevdeskCustomer) {
+        result.errors.push(`sevDesk contact ${item.sevdeskId} not found`);
+        continue;
+      }
+
+      if (item.action === 'import') {
+        await importSevdeskCustomer(userId, {
+          sevdeskId: item.sevdeskId,
+          name: sevdeskCustomer.name,
+          customerNumber: sevdeskCustomer.customerNumber,
+          email: sevdeskCustomer.email,
+          address: addressMap.get(item.sevdeskId),
+          customerType: sevdeskCustomer.customerType,
+        }, {
+          color: item.color,
+          hourlyRate: item.hourlyRate,
+        });
+        result.imported++;
+      } else if (item.action === 'link' && item.linkToCustomerId) {
+        await linkExistingCustomerToSevdesk(userId, item.linkToCustomerId, item.sevdeskId);
+        result.linked++;
+      }
+    } catch (err: any) {
+      result.errors.push(`${item.sevdeskId}: ${err.message}`);
+    }
+  }
+
+  return result;
 }

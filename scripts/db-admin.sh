@@ -1404,6 +1404,203 @@ cmd_user() {
 }
 
 # =============================================================================
+# NEW: Microsoft 365 Configuration Check
+# =============================================================================
+
+cmd_microsoft365() {
+    local ACTION="$2"
+
+    case "$ACTION" in
+        ""|status)
+            print_header "Microsoft 365 Konfiguration"
+
+            # Check if table exists
+            if ! table_exists "microsoft365_config"; then
+                print_warning "Tabelle microsoft365_config existiert nicht!"
+                print_info "Bitte Backend neu starten um die Tabelle zu erstellen."
+                return
+            fi
+
+            run_query_formatted "
+                SELECT
+                    o.id as \"Org ID\",
+                    o.name as \"Organisation\",
+                    COALESCE(LEFT(m.tenant_id, 8) || '...', '-') as \"Tenant ID\",
+                    COALESCE(LEFT(m.client_id, 8) || '...', '-') as \"Client ID\",
+                    CASE WHEN m.client_secret IS NOT NULL AND m.client_secret != '' THEN
+                        LEFT(m.client_secret, 4) || '...' || RIGHT(m.client_secret, 4) || ' (' || LENGTH(m.client_secret) || ' Zeichen)'
+                    ELSE '❌ Nicht gesetzt' END as \"Client Secret\",
+                    CASE WHEN m.is_configured THEN '✅' ELSE '❌' END as \"OK\"
+                FROM organizations o
+                LEFT JOIN microsoft365_config m ON o.id = m.organization_id
+                ORDER BY o.name;
+            "
+
+            echo ""
+            print_info "Verwendung:"
+            echo "  $0 microsoft365                  - Übersicht aller Konfigurationen"
+            echo "  $0 microsoft365 show <org_id>    - Details für Organisation"
+            echo "  $0 microsoft365 test-secret      - Client Secret Format prüfen"
+            echo "  $0 microsoft365 clear <org_id>   - Konfiguration löschen"
+            ;;
+
+        show)
+            local ORG_ID="$3"
+            if [ -z "$ORG_ID" ]; then
+                print_error "Bitte Organization ID angeben!"
+                echo ""
+                echo "Verfügbare Organisationen:"
+                run_query_formatted "SELECT id, name FROM organizations;"
+                exit 1
+            fi
+
+            print_header "Microsoft 365 Details"
+
+            run_query_formatted "
+                SELECT
+                    m.tenant_id as \"Tenant ID\",
+                    m.client_id as \"Client ID\",
+                    CASE WHEN m.client_secret IS NOT NULL THEN
+                        'Gesetzt (' || LENGTH(m.client_secret) || ' Zeichen)'
+                    ELSE 'Nicht gesetzt' END as \"Client Secret\",
+                    m.mail_from as \"Mail From\",
+                    m.support_mailbox as \"Support Mailbox\",
+                    m.is_configured as \"Konfiguriert\",
+                    m.last_connection_test as \"Letzter Test\",
+                    m.last_connection_status as \"Test-Status\",
+                    m.features_enabled as \"Features\",
+                    m.created_at as \"Erstellt\",
+                    m.updated_at as \"Aktualisiert\"
+                FROM microsoft365_config m
+                WHERE m.organization_id = '$ORG_ID';
+            "
+
+            # Show raw secret info for debugging
+            print_subheader "Secret Debug-Info"
+            run_query_formatted "
+                SELECT
+                    LENGTH(client_secret) as \"Länge\",
+                    LEFT(client_secret, 4) as \"Erste 4 Zeichen\",
+                    RIGHT(client_secret, 4) as \"Letzte 4 Zeichen\",
+                    CASE
+                        WHEN client_secret ~ '^[a-zA-Z0-9~._-]+$' THEN '✅ Gültiges Format'
+                        WHEN client_secret ~ '\\s' THEN '❌ Enthält Leerzeichen!'
+                        WHEN client_secret ~ '^\\s|\\s$' THEN '❌ Leerzeichen am Anfang/Ende!'
+                        ELSE '⚠️ Unbekanntes Format'
+                    END as \"Format-Check\"
+                FROM microsoft365_config
+                WHERE organization_id = '$ORG_ID'
+                  AND client_secret IS NOT NULL;
+            "
+            ;;
+
+        test-secret)
+            print_header "Client Secret Format-Prüfung"
+
+            run_query_formatted "
+                SELECT
+                    o.name as \"Organisation\",
+                    LENGTH(m.client_secret) as \"Länge\",
+                    LEFT(m.client_secret, 4) as \"Start\",
+                    RIGHT(m.client_secret, 4) as \"Ende\",
+                    CASE
+                        WHEN m.client_secret IS NULL THEN '❌ Nicht gesetzt'
+                        WHEN m.client_secret = '' THEN '❌ Leer'
+                        WHEN m.client_secret ~ '^\\s' THEN '❌ Leerzeichen am Anfang'
+                        WHEN m.client_secret ~ '\\s$' THEN '❌ Leerzeichen am Ende'
+                        WHEN m.client_secret ~ '\\n|\\r' THEN '❌ Enthält Zeilenumbruch'
+                        WHEN LENGTH(m.client_secret) < 30 THEN '⚠️ Zu kurz (< 30 Zeichen)'
+                        WHEN LENGTH(m.client_secret) > 50 THEN '⚠️ Zu lang (> 50 Zeichen)'
+                        ELSE '✅ Format OK'
+                    END as \"Status\"
+                FROM organizations o
+                LEFT JOIN microsoft365_config m ON o.id = m.organization_id
+                WHERE m.client_secret IS NOT NULL;
+            "
+
+            echo ""
+            print_info "Typische Client Secret Länge: 40 Zeichen"
+            print_info "Format: Buchstaben, Zahlen, ~, ., -, _"
+            ;;
+
+        clear)
+            local ORG_ID="$3"
+            if [ -z "$ORG_ID" ]; then
+                print_error "Bitte Organization ID angeben!"
+                exit 1
+            fi
+
+            print_warning "Microsoft 365 Konfiguration wird gelöscht für Organization: $ORG_ID"
+            read -p "Fortfahren? (ja/nein): " CONFIRM
+            if [ "$CONFIRM" != "ja" ]; then
+                print_info "Abgebrochen."
+                exit 0
+            fi
+
+            run_query "DELETE FROM microsoft365_config WHERE organization_id = '$ORG_ID';"
+            print_success "Konfiguration gelöscht."
+            ;;
+
+        update-secret)
+            local ORG_ID="$3"
+            if [ -z "$ORG_ID" ]; then
+                print_error "Bitte Organization ID angeben!"
+                echo ""
+                echo "Verfügbare Organisationen:"
+                run_query_formatted "SELECT o.id, o.name FROM organizations o JOIN microsoft365_config m ON o.id = m.organization_id;"
+                exit 1
+            fi
+
+            # Check if config exists
+            local CONFIG_EXISTS=$(run_query "SELECT COUNT(*) FROM microsoft365_config WHERE organization_id = '$ORG_ID';")
+            if [ "$CONFIG_EXISTS" -eq 0 ]; then
+                print_error "Keine Microsoft 365 Konfiguration für diese Organisation!"
+                exit 1
+            fi
+
+            print_header "Client Secret aktualisieren"
+
+            # Show current config
+            run_query_formatted "
+                SELECT
+                    o.name as \"Organisation\",
+                    m.tenant_id as \"Tenant ID\",
+                    m.client_id as \"Client ID\",
+                    CASE WHEN m.client_secret IS NOT NULL THEN
+                        LEFT(m.client_secret, 4) || '...' || RIGHT(m.client_secret, 4)
+                    ELSE 'Nicht gesetzt' END as \"Aktuelles Secret\"
+                FROM organizations o
+                JOIN microsoft365_config m ON o.id = m.organization_id
+                WHERE o.id = '$ORG_ID';
+            "
+
+            echo ""
+            read -sp "Neues Client Secret eingeben: " NEW_SECRET
+            echo ""
+
+            if [ -z "$NEW_SECRET" ]; then
+                print_error "Kein Secret eingegeben!"
+                exit 1
+            fi
+
+            # Update the secret
+            run_query "UPDATE microsoft365_config SET client_secret = '$NEW_SECRET', updated_at = NOW() WHERE organization_id = '$ORG_ID';"
+
+            print_success "Client Secret aktualisiert!"
+            echo ""
+            print_info "Neues Secret: ${NEW_SECRET:0:4}...${NEW_SECRET: -4} (${#NEW_SECRET} Zeichen)"
+            print_info "Bitte testen Sie die Verbindung in der App."
+            ;;
+
+        *)
+            print_error "Unbekannte Aktion: $ACTION"
+            echo "Verwendung: $0 microsoft365 [status|show|test-secret|update-secret|clear]"
+            exit 1
+            ;;
+    esac
+}
+
+# =============================================================================
 # Help
 # =============================================================================
 
@@ -1461,6 +1658,13 @@ cmd_help() {
     echo "  restore <file>                    Backup wiederherstellen"
     echo "                                    (mit Sicherheits-Backup Option)"
     echo ""
+    echo -e "${YELLOW}── Integrationen ──${NC}"
+    echo "  microsoft365                      Microsoft 365 Konfiguration prüfen"
+    echo "  microsoft365 show <org_id>        Details für Organisation"
+    echo "  microsoft365 test-secret          Client Secret Format prüfen"
+    echo "  microsoft365 update-secret <org>  Client Secret aktualisieren"
+    echo "  microsoft365 clear <org_id>       Konfiguration löschen"
+    echo ""
     echo -e "${YELLOW}── Sonstiges ──${NC}"
     echo "  tunnel                            SSH-Tunnel Anleitung"
     echo "  help                              Diese Hilfe"
@@ -1499,6 +1703,7 @@ case "$COMMAND" in
     mfa)            cmd_mfa "$@" ;;
     tickets)        cmd_tickets "$@" ;;
     security)       cmd_security "$@" ;;
+    microsoft365)   cmd_microsoft365 "$@" ;;
     backup)         cmd_backup "$@" ;;
     restore)        cmd_restore "$@" ;;
     query)          cmd_query "$@" ;;

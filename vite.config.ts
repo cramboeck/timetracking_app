@@ -36,6 +36,30 @@ export default defineConfig({
       workbox: {
         // Add custom service worker code for push notifications
         importScripts: ['push-sw.js'],
+        // Don't cache API responses, especially downloads
+        navigateFallbackDenylist: [/^\/api\//],
+        runtimeCaching: [
+          {
+            // Never cache download URLs
+            urlPattern: /\/api\/.*\/download/,
+            handler: 'NetworkOnly',
+          },
+          {
+            // Don't cache other API calls
+            urlPattern: /\/api\//,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60, // 1 minute max
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+        ],
       },
     })
   ]

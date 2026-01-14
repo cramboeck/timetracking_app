@@ -14,19 +14,26 @@ import { AlertsView } from './components/AlertsView';
 import MaintenanceView from './components/MaintenanceView';
 import TaskHub from './components/TaskHub';
 import Contracts from './components/Contracts';
-import SocialMediaManager from './components/SocialMediaManager';
+import { InvoiceInbox } from './components/InvoiceInbox';
+import { SupportInbox } from './components/SupportInbox';
+import { SocialMediaProvider } from './features/social-media/context';
+import SocialMediaLayout from './features/social-media/SocialMediaLayout';
+import AdminPortal from './components/AdminPortal';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
+import { OfflineBanner } from './components/OfflineBanner';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
 import { useIsDesktop } from './hooks/useMediaQuery';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { haptics } from './utils/haptics';
 import { notificationService } from './utils/notifications';
+import { addPendingEntry, getPendingEntries, removePendingEntry, getPendingCount } from './utils/offlineStorage';
 import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, userApi } from './services/api';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
@@ -34,6 +41,12 @@ const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
   const isDesktop = useIsDesktop();
+  const { isOnline, wasOffline } = useOnlineStatus();
+
+  // Offline sync state
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState(() => getPendingCount());
 
   // Track sidebar collapsed state for layout adjustment
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -406,25 +419,49 @@ function App() {
   }, [currentUser, isAuthenticated, entries]);
 
   // Time Entry handlers (API-based)
-  const handleSaveEntry = async (entry: TimeEntry) => {
+  const handleSaveEntry = async (entry: TimeEntry): Promise<boolean> => {
     // Store the previous running entry for rollback on error
     const previousRunningEntry = runningEntry;
+
+    // If this entry was running (has same ID as runningEntry), it's an update
+    const isUpdatingRunningEntry = runningEntry && entry.id === runningEntry.id;
+    const existsInState = entries.find(e => e.id === entry.id);
+    const action = (isUpdatingRunningEntry || existsInState) ? 'update' : 'create';
+
+    // Check if we're offline - save locally and return success
+    if (!navigator.onLine) {
+      console.log('📴 [ENTRY] Offline - saving entry locally:', entry.id);
+
+      // Save to local storage for later sync
+      addPendingEntry(entry, action);
+      setPendingCount(getPendingCount());
+
+      // Clear running entry if stopping
+      if (isUpdatingRunningEntry && !entry.isRunning) {
+        setRunningEntry(null);
+      }
+
+      // Add to local entries state so user sees it
+      if (action === 'update') {
+        setEntries(prev => prev.map(e => e.id === entry.id ? entry : e));
+      } else {
+        setEntries(prev => [...prev.filter(e => e.id !== entry.id), entry]);
+      }
+
+      return true; // Return success - entry is saved locally
+    }
 
     try {
       console.log('💾 [ENTRY] Saving entry:', entry.id);
       console.log('💾 [ENTRY] Entry isRunning:', entry.isRunning);
       console.log('💾 [ENTRY] Current runningEntry:', runningEntry?.id);
 
-      // If this entry was running (has same ID as runningEntry), it's an update
-      const isUpdatingRunningEntry = runningEntry && entry.id === runningEntry.id;
-      const existsInState = entries.find(e => e.id === entry.id);
-
       // Clear running entry optimistically only if stopping a timer
       if (isUpdatingRunningEntry && !entry.isRunning) {
         setRunningEntry(null);
       }
 
-      if (isUpdatingRunningEntry || existsInState) {
+      if (action === 'update') {
         // Update existing entry
         console.log('💾 [ENTRY] Updating existing entry');
         const response = await entriesApi.update(entry.id, entry);
@@ -437,13 +474,33 @@ function App() {
         console.log('✅ [ENTRY] Entry created:', response);
         setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
       }
+
+      return true; // Success
     } catch (error) {
       console.error('❌ [ENTRY] Failed to save entry:', error);
+
+      // If network error, save locally for later sync
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        console.log('📴 [ENTRY] Network error - saving entry locally:', entry.id);
+        addPendingEntry(entry, action);
+        setPendingCount(getPendingCount());
+
+        // Still update local state
+        if (action === 'update') {
+          setEntries(prev => prev.map(e => e.id === entry.id ? entry : e));
+        } else {
+          setEntries(prev => [...prev.filter(e => e.id !== entry.id), entry]);
+        }
+
+        return true; // Return success since we saved locally
+      }
+
       // Rollback: restore the running entry if the API call failed
       if (previousRunningEntry && !entry.isRunning) {
         console.log('🔄 [ENTRY] Rolling back running entry due to error');
         setRunningEntry(previousRunningEntry);
       }
+      return false; // Failed
     }
   };
 
@@ -485,6 +542,55 @@ function App() {
       console.error('❌ [ENTRY] Failed to update running entry:', error);
     }
   };
+
+  // Sync pending entries when back online
+  const syncPendingEntries = useCallback(async () => {
+    const pending = getPendingEntries();
+    if (pending.length === 0) return;
+
+    console.log('🔄 [SYNC] Starting sync of', pending.length, 'pending entries');
+    setIsSyncing(true);
+    setSyncError(null);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const { entry, action } of pending) {
+      try {
+        if (action === 'update') {
+          const response = await entriesApi.update(entry.id, entry);
+          setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
+        } else {
+          const response = await entriesApi.create(entry);
+          setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
+        }
+        removePendingEntry(entry.id);
+        successCount++;
+        console.log('✅ [SYNC] Synced entry:', entry.id);
+      } catch (error) {
+        console.error('❌ [SYNC] Failed to sync entry:', entry.id, error);
+        failCount++;
+      }
+    }
+
+    setPendingCount(getPendingCount());
+    setIsSyncing(false);
+
+    if (failCount > 0) {
+      setSyncError(`${failCount} Einträge konnten nicht synchronisiert werden`);
+      setTimeout(() => setSyncError(null), 5000);
+    }
+
+    console.log('🔄 [SYNC] Sync complete:', successCount, 'synced,', failCount, 'failed');
+  }, []);
+
+  // Auto-sync when coming back online
+  useEffect(() => {
+    if (isOnline && wasOffline) {
+      console.log('🌐 [SYNC] Back online, checking for pending entries...');
+      syncPendingEntries();
+    }
+  }, [isOnline, wasOffline, syncPendingEntries]);
 
   const handleDeleteEntry = async (id: string) => {
     try {
@@ -774,6 +880,15 @@ function App() {
   // Authenticated - show main app
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 overflow-x-hidden">
+      {/* Offline Banner */}
+      <OfflineBanner
+        isOnline={isOnline}
+        wasOffline={wasOffline}
+        pendingCount={pendingCount}
+        isSyncing={isSyncing}
+        syncError={syncError}
+      />
+
       {/* Top Navigation Header */}
       <AreaNavigation
         currentArea={currentArea}
@@ -903,6 +1018,12 @@ function App() {
         {currentSubView === 'maintenance' && (
           <MaintenanceView />
         )}
+        {currentSubView === 'inbox' && (
+          <SupportInbox />
+        )}
+        {currentSubView === 'invoices' && (
+          <InvoiceInbox />
+        )}
         {currentSubView === 'billing' && (
           <Finanzen onBack={() => setCurrentSubView('dashboard')} />
         )}
@@ -910,7 +1031,9 @@ function App() {
           <Contracts />
         )}
         {currentSubView === 'social-media' && (
-          <SocialMediaManager />
+          <SocialMediaProvider customers={customers}>
+            <SocialMediaLayout />
+          </SocialMediaProvider>
         )}
         {currentSubView === 'reports' && (
           <div className="p-4 text-center text-gray-500 dark:text-gray-400">
@@ -936,6 +1059,9 @@ function App() {
             onDeleteActivity={handleDeleteActivity}
             onRefreshEntries={refreshEntries}
           />
+        )}
+        {currentSubView === 'admin' && (
+          <AdminPortal />
         )}
       </main>
 

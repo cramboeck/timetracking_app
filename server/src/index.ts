@@ -34,6 +34,7 @@ import aiRoutes from './routes/ai';
 import contractsRoutes from './routes/contracts';
 import importRoutes from './routes/import';
 import socialMediaRoutes from './routes/social-media';
+import microsoft365Routes from './routes/microsoft365';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -110,6 +111,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/contracts', contractsRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/social-media', socialMediaRoutes);
+app.use('/api/microsoft365', microsoft365Routes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
