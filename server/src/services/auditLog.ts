@@ -114,7 +114,9 @@ export type AuditAction =
   | 'security.sessions_invalidated'
   // Admin notification actions
   | 'notification.create'
-  | 'notification.delete';
+  | 'notification.delete'
+  // Email actions
+  | 'email.test';
 
 export interface AuditLogEntry {
   id: string;
