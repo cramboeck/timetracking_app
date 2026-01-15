@@ -561,332 +561,250 @@ class EmailService {
 
   // HTML Email Templates
   private generateWelcomeEmailHTML(data: NotificationData): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Willkommen bei TimeTrack</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <!-- Header -->
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 40px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 32px;">🎉 Willkommen bei TimeTrack!</h1>
-                    </td>
-                  </tr>
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        schön, dass Sie dabei sind! Mit RamboFlow haben Sie ab sofort Ihre Arbeitszeiten im Griff –
+        übersichtlich, einfach und professionell.
+      </p>
 
-                  <!-- Content -->
-                  <tr>
-                    <td style="padding: 40px 30px;">
-                      <h2 style="color: #1f2937; margin-top: 0;">Hallo ${data.userName}!</h2>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        Schön, dass du bei TimeTrack dabei bist! Wir freuen uns, dich bei deiner professionellen Zeiterfassung zu unterstützen.
-                      </p>
+      <div style="background-color: #f5f3ff; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <h3 style="color: #5b21b6; margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">So starten Sie durch:</h3>
+        <table style="width: 100%;">
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #7c3aed;">1.</strong> Legen Sie Ihre Kunden und Projekte an
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #7c3aed;">2.</strong> Erfassen Sie Ihre Arbeitszeiten mit einem Klick
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #7c3aed;">3.</strong> Erstellen Sie professionelle Reports für Ihre Kunden
+            </td>
+          </tr>
+        </table>
+      </div>
 
-                      <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; margin: 30px 0;">
-                        <h3 style="color: #1e40af; margin-top: 0;">Deine nächsten Schritte:</h3>
-                        <ul style="color: #4b5563; line-height: 1.8; margin-bottom: 0;">
-                          <li><strong>Kunden anlegen:</strong> Erstelle deine Kunden in den Einstellungen</li>
-                          <li><strong>Projekte erstellen:</strong> Lege Projekte mit Stundensätzen an</li>
-                          <li><strong>Zeit erfassen:</strong> Starte deine erste Zeiterfassung</li>
-                          <li><strong>Reports generieren:</strong> Erstelle professionelle PDF-Reports</li>
-                        </ul>
-                      </div>
-
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: bold; font-size: 16px;">
-                          Jetzt loslegen →
-                        </a>
-                      </div>
-
-                      <p style="color: #6b7280; font-size: 14px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                        Bei Fragen stehen wir dir gerne zur Verfügung. Viel Erfolg mit TimeTrack!
-                      </p>
-                    </td>
-                  </tr>
-
-                  <!-- Footer -->
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        TimeTrack - Professionelle Zeiterfassung<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; line-height: 1.6;">
+        Bei Fragen sind wir jederzeit für Sie da. Wir wünschen Ihnen viel Erfolg!
+      </p>
     `;
+
+    return this.generateEmailWrapper('Willkommen bei RamboFlow', content, {
+      text: 'Jetzt einloggen',
+      url: process.env.FRONTEND_URL || 'http://localhost:5173'
+    });
   }
 
   private generateWelcomeEmailText(data: NotificationData): string {
     return `
-Willkommen bei TimeTrack!
+Willkommen bei RamboFlow!
 
-Hallo ${data.userName}!
+Hallo ${data.userName},
 
-Schön, dass du bei TimeTrack dabei bist! Wir freuen uns, dich bei deiner professionellen Zeiterfassung zu unterstützen.
+schön, dass Sie dabei sind! Mit RamboFlow haben Sie ab sofort Ihre Arbeitszeiten im Griff – übersichtlich, einfach und professionell.
 
-Deine nächsten Schritte:
-- Kunden anlegen: Erstelle deine Kunden in den Einstellungen
-- Projekte erstellen: Lege Projekte mit Stundensätzen an
-- Zeit erfassen: Starte deine erste Zeiterfassung
-- Reports generieren: Erstelle professionelle PDF-Reports
+So starten Sie durch:
+1. Legen Sie Ihre Kunden und Projekte an
+2. Erfassen Sie Ihre Arbeitszeiten mit einem Klick
+3. Erstellen Sie professionelle Reports für Ihre Kunden
 
-Jetzt loslegen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}
+Jetzt einloggen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}
 
-Bei Fragen stehen wir dir gerne zur Verfügung. Viel Erfolg mit TimeTrack!
+Bei Fragen sind wir jederzeit für Sie da. Wir wünschen Ihnen viel Erfolg!
 
 --
-TimeTrack - Professionelle Zeiterfassung
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateMonthEndReminderHTML(data: NotificationData & { daysRemaining: number }): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Monatsende naht</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">📅 Monatsende naht!</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 18px; margin-top: 0;">Hallo ${data.userName},</p>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        Noch <strong style="color: #d97706;">${data.daysRemaining} Tag(e)</strong> bis zum Monatsende!
-                        Zeit, deine Reports zu erstellen und Zeiten zu prüfen.
-                      </p>
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard" style="display: inline-block; background-color: #f59e0b; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold;">
-                          Zum Dashboard →
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+    const dayText = data.daysRemaining === 1 ? 'Tag' : 'Tage';
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        der Monat neigt sich dem Ende zu – noch <strong style="color: #7c3aed;">${data.daysRemaining} ${dayText}</strong> bis zum Monatsabschluss.
+      </p>
+
+      <div style="background-color: #fef3c7; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="color: #92400e; font-size: 15px; line-height: 1.6; margin: 0;">
+          <strong>Kurze Erinnerung:</strong> Prüfen Sie jetzt Ihre erfassten Zeiten und erstellen Sie bei Bedarf
+          Ihre Monatsreports, damit Sie pünktlich abrechnen können.
+        </p>
+      </div>
     `;
+
+    return this.generateEmailWrapper('Monatsende-Erinnerung', content, {
+      text: 'Zeiten prüfen',
+      url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard`
+    });
   }
 
   private generateMonthEndReminderText(data: NotificationData & { daysRemaining: number }): string {
-    return `Monatsende naht!
+    const dayText = data.daysRemaining === 1 ? 'Tag' : 'Tage';
+    return `
+Monatsende-Erinnerung
 
 Hallo ${data.userName},
 
-Noch ${data.daysRemaining} Tag(e) bis zum Monatsende! Zeit, deine Reports zu erstellen und Zeiten zu prüfen.
+der Monat neigt sich dem Ende zu – noch ${data.daysRemaining} ${dayText} bis zum Monatsabschluss.
 
-Zum Dashboard: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard
-    `;
+Kurze Erinnerung: Prüfen Sie jetzt Ihre erfassten Zeiten und erstellen Sie bei Bedarf Ihre Monatsreports, damit Sie pünktlich abrechnen können.
+
+Zeiten prüfen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateDailyReminderHTML(data: NotificationData): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Zeiterfassung vergessen?</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">⏰ Zeiterfassung vergessen?</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 18px; margin-top: 0;">Hallo ${data.userName},</p>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        Du hast heute noch keine Zeiten erfasst. Vergiss nicht, deine Arbeitsstunden einzutragen!
-                      </p>
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" style="display: inline-block; background-color: #8b5cf6; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold;">
-                          Zeiten eintragen →
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        für heute haben wir noch keine Zeiteinträge von Ihnen gesehen. Damit am Ende des Monats
+        alles stimmt, tragen Sie Ihre Arbeitszeiten am besten gleich ein – es dauert nur einen Moment.
+      </p>
+
+      <div style="background-color: #f5f3ff; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="color: #5b21b6; font-size: 15px; line-height: 1.6; margin: 0;">
+          <strong>Tipp:</strong> Regelmäßiges Erfassen spart Zeit bei der Monatsabrechnung und sorgt für lückenlose Dokumentation.
+        </p>
+      </div>
     `;
+
+    return this.generateEmailWrapper('Zeiterfassung ausstehend', content, {
+      text: 'Zeiten eintragen',
+      url: process.env.FRONTEND_URL || 'http://localhost:5173'
+    });
   }
 
   private generateDailyReminderText(data: NotificationData): string {
-    return `Zeiterfassung vergessen?
+    return `
+Zeiterfassung ausstehend
 
 Hallo ${data.userName},
 
-Du hast heute noch keine Zeiten erfasst. Vergiss nicht, deine Arbeitsstunden einzutragen!
+für heute haben wir noch keine Zeiteinträge von Ihnen gesehen. Damit am Ende des Monats alles stimmt, tragen Sie Ihre Arbeitszeiten am besten gleich ein – es dauert nur einen Moment.
+
+Tipp: Regelmäßiges Erfassen spart Zeit bei der Monatsabrechnung und sorgt für lückenlose Dokumentation.
 
 Zeiten eintragen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}
-    `;
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateQualityCheckHTML(data: NotificationData & { missingCount: number }): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Beschreibungen fehlen</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">✍️ Beschreibungen fehlen</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 18px; margin-top: 0;">Hallo ${data.userName},</p>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        <strong style="color: #dc2626;">${data.missingCount} Zeiteinträge</strong> haben keine Beschreibung.
-                        Vervollständige sie jetzt für bessere Reports!
-                      </p>
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/list" style="display: inline-block; background-color: #ef4444; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold;">
-                          Einträge prüfen →
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+    const eintraegeText = data.missingCount === 1 ? 'Zeiteintrag' : 'Zeiteinträge';
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        bei <strong style="color: #7c3aed;">${data.missingCount} ${eintraegeText}</strong> fehlt noch eine Beschreibung.
+        Für aussagekräftige Reports und eine transparente Abrechnung lohnt es sich, diese kurz zu ergänzen.
+      </p>
+
+      <div style="background-color: #fef3c7; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="color: #92400e; font-size: 15px; line-height: 1.6; margin: 0;">
+          <strong>Warum Beschreibungen wichtig sind:</strong> Sie helfen Ihnen und Ihren Kunden nachzuvollziehen,
+          welche Arbeiten durchgeführt wurden – auch Monate später noch.
+        </p>
+      </div>
     `;
+
+    return this.generateEmailWrapper('Beschreibungen vervollständigen', content, {
+      text: 'Einträge bearbeiten',
+      url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/list`
+    });
   }
 
   private generateQualityCheckText(data: NotificationData & { missingCount: number }): string {
-    return `Beschreibungen fehlen
+    const eintraegeText = data.missingCount === 1 ? 'Zeiteintrag' : 'Zeiteinträge';
+    return `
+Beschreibungen vervollständigen
 
 Hallo ${data.userName},
 
-${data.missingCount} Zeiteinträge haben keine Beschreibung. Vervollständige sie jetzt für bessere Reports!
+bei ${data.missingCount} ${eintraegeText} fehlt noch eine Beschreibung. Für aussagekräftige Reports und eine transparente Abrechnung lohnt es sich, diese kurz zu ergänzen.
 
-Einträge prüfen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/list
-    `;
+Warum Beschreibungen wichtig sind: Sie helfen Ihnen und Ihren Kunden nachzuvollziehen, welche Arbeiten durchgeführt wurden – auch Monate später noch.
+
+Einträge bearbeiten: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/list
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateWeeklyReportHTML(data: NotificationData & { totalHours: number; entries: any[] }): string {
     const entriesHTML = data.entries.slice(0, 10).map(entry => `
       <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">
-          ${new Date(entry.start_time).toLocaleDateString('de-DE')}
+        <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">
+          ${new Date(entry.start_time).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
         </td>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; color: #1f2937; font-size: 14px;">
-          ${entry.project_name || 'Unbekannt'}
+        <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; color: #1f2937; font-size: 14px;">
+          ${entry.project_name || 'Ohne Projekt'}
         </td>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; color: #4b5563; font-size: 14px; text-align: right;">
-          ${(entry.duration / 3600).toFixed(2)}h
+        <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; color: #7c3aed; font-size: 14px; text-align: right; font-weight: 600;">
+          ${(entry.duration / 3600).toFixed(1)}h
         </td>
       </tr>
     `).join('');
 
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Dein Wochenreport</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">📊 Dein Wochenreport</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 18px; margin-top: 0;">Hallo ${data.userName},</p>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        Diese Woche hast du <strong style="color: #059669;">${data.totalHours.toFixed(1)} Stunden</strong> erfasst. Hier ist deine Zusammenfassung:
-                      </p>
+    const moreEntriesNote = data.entries.length > 10
+      ? `<p style="color: #9ca3af; font-size: 13px; margin: 16px 0 0 0; text-align: center;">
+          ... und ${data.entries.length - 10} weitere Einträge
+        </p>`
+      : '';
 
-                      <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
-                        <tr style="background-color: #f9fafb;">
-                          <th style="padding: 12px 8px; text-align: left; color: #6b7280; font-size: 14px; font-weight: 600;">Datum</th>
-                          <th style="padding: 12px 8px; text-align: left; color: #6b7280; font-size: 14px; font-weight: 600;">Projekt</th>
-                          <th style="padding: 12px 8px; text-align: right; color: #6b7280; font-size: 14px; font-weight: 600;">Stunden</th>
-                        </tr>
-                        ${entriesHTML}
-                      </table>
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        hier ist Ihre Wochenübersicht: Sie haben diese Woche <strong style="color: #7c3aed;">${data.totalHours.toFixed(1)} Stunden</strong> erfasst.
+      </p>
 
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold;">
-                          Vollständigen Report ansehen →
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+        <tr style="background-color: #f9fafb;">
+          <th style="padding: 12px 8px; text-align: left; color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Datum</th>
+          <th style="padding: 12px 8px; text-align: left; color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Projekt</th>
+          <th style="padding: 12px 8px; text-align: right; color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Zeit</th>
+        </tr>
+        ${entriesHTML}
+      </table>
+      ${moreEntriesNote}
     `;
+
+    return this.generateEmailWrapper('Ihr Wochenreport', content, {
+      text: 'Zum Dashboard',
+      url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard`
+    });
   }
 
   private generateWeeklyReportText(data: NotificationData & { totalHours: number; entries: any[] }): string {
     const entriesText = data.entries.slice(0, 10).map(entry =>
-      `${new Date(entry.start_time).toLocaleDateString('de-DE')} - ${entry.project_name || 'Unbekannt'}: ${(entry.duration / 3600).toFixed(2)}h`
+      `${new Date(entry.start_time).toLocaleDateString('de-DE')} - ${entry.project_name || 'Ohne Projekt'}: ${(entry.duration / 3600).toFixed(1)}h`
     ).join('\n');
 
-    return `Dein Wochenreport
+    return `
+Ihr Wochenreport
 
 Hallo ${data.userName},
 
-Diese Woche hast du ${data.totalHours.toFixed(1)} Stunden erfasst. Hier ist deine Zusammenfassung:
+hier ist Ihre Wochenübersicht: Sie haben diese Woche ${data.totalHours.toFixed(1)} Stunden erfasst.
 
 ${entriesText}
+${data.entries.length > 10 ? `\n... und ${data.entries.length - 10} weitere Einträge` : ''}
 
-Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard
-    `;
+Zum Dashboard: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   // Helper methods
