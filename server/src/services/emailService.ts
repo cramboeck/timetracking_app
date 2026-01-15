@@ -1176,62 +1176,78 @@ RamboFlow von ramboeck.IT
       high: 'Hoch',
       critical: 'Kritisch',
     };
+    const priorityColors: Record<string, string> = {
+      low: '#10b981',
+      normal: '#7c3aed',
+      high: '#f59e0b',
+      critical: '#ef4444',
+    };
     const priorityLabel = priorityLabels[priority] || priority;
+    const priorityColor = priorityColors[priority] || '#7c3aed';
 
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Neues Ticket erstellt</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">🎫 Neues Ticket von Kunde</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Ein neues Ticket wurde erstellt:</p>
+    const content = `
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        Ein neuer Support-Fall wurde von einem Kunden eingereicht.
+      </p>
 
-                      <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                        <p style="margin: 0 0 10px 0;"><strong>Ticket:</strong> #${ticketNumber}</p>
-                        <p style="margin: 0 0 10px 0;"><strong>Kunde:</strong> ${customerName}</p>
-                        <p style="margin: 0 0 10px 0;"><strong>Erstellt von:</strong> ${contactName}</p>
-                        <p style="margin: 0 0 10px 0;"><strong>Priorität:</strong> ${priorityLabel}</p>
-                        <p style="margin: 0 0 10px 0;"><strong>Betreff:</strong> ${ticketTitle}</p>
-                        ${ticketDescription ? `<p style="margin: 0;"><strong>Beschreibung:</strong><br>${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}</p>` : ''}
-                      </div>
-
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${adminUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold;">
-                          Ticket öffnen
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #6b7280; font-size: 12px; margin: 0;">
-                        Diese E-Mail wurde automatisch generiert.
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      <div style="background-color: #f5f3ff; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 120px;">Ticket:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">#${ticketNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Kunde:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${customerName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Erstellt von:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${contactName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Priorität:</td>
+            <td style="padding: 8px 0;">
+              <span style="display: inline-block; padding: 4px 12px; background-color: ${priorityColor}20; color: ${priorityColor}; border-radius: 4px; font-size: 13px; font-weight: 600;">
+                ${priorityLabel}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; vertical-align: top;">Betreff:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${ticketTitle}</td>
+          </tr>
+        </table>
+        ${ticketDescription ? `
+          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+            <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0;">Beschreibung:</p>
+            <p style="color: #4b5563; font-size: 14px; margin: 0; line-height: 1.6; white-space: pre-wrap;">${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}</p>
+          </div>
+        ` : ''}
+      </div>
     `;
 
-    const text = `Neues Ticket von Kunde\n\nTicket: #${ticketNumber}\nKunde: ${customerName}\nErstellt von: ${contactName}\nPriorität: ${priorityLabel}\nBetreff: ${ticketTitle}\n${ticketDescription ? `\nBeschreibung: ${ticketDescription.substring(0, 500)}` : ''}\n\nTicket öffnen: ${adminUrl}`;
+    const html = this.generateEmailWrapper('Neues Support-Ticket', content, {
+      text: 'Ticket bearbeiten',
+      url: adminUrl
+    });
+
+    const text = `
+Neues Support-Ticket
+
+Ein neuer Support-Fall wurde von einem Kunden eingereicht.
+
+Ticket: #${ticketNumber}
+Kunde: ${customerName}
+Erstellt von: ${contactName}
+Priorität: ${priorityLabel}
+Betreff: ${ticketTitle}
+${ticketDescription ? `\nBeschreibung:\n${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}` : ''}
+
+Ticket bearbeiten: ${adminUrl}
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
 
     return await this.sendEmail({
       to,
@@ -1261,75 +1277,39 @@ RamboFlow von ramboeck.IT
     replierName: string,
     portalUrl: string
   ): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Neue Antwort zu Ihrem Ticket</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">💬 Neue Antwort zu Ihrem Ticket</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Hallo ${customerName},</p>
-                      <p style="color: #4b5563; font-size: 14px; line-height: 1.6;">
-                        es gibt eine neue Antwort zu Ihrem Ticket:
-                      </p>
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${customerName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        Sie haben eine neue Antwort zu Ihrem Ticket erhalten.
+      </p>
 
-                      <div style="background-color: #f3f4f6; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
-                        <p style="color: #6b7280; font-size: 12px; margin: 0 0 5px 0;">
-                          <strong>Ticket #${ticketNumber}</strong>
-                        </p>
-                        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
-                          ${ticketTitle}
-                        </p>
-                      </div>
+      <div style="background-color: #f5f3ff; border-left: 4px solid #7c3aed; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <p style="color: #6b7280; font-size: 13px; margin: 0 0 4px 0;">
+          <strong>Ticket #${ticketNumber}</strong>
+        </p>
+        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
+          ${ticketTitle}
+        </p>
+      </div>
 
-                      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                        <p style="color: #6b7280; font-size: 12px; margin: 0 0 10px 0;">
-                          <strong>${replierName}</strong> schrieb:
-                        </p>
-                        <p style="color: #1f2937; font-size: 14px; line-height: 1.6; margin: 0; white-space: pre-wrap;">
+      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="color: #7c3aed; font-size: 14px; font-weight: 600; margin: 0 0 12px 0;">
+          ${replierName} schrieb:
+        </p>
+        <p style="color: #1f2937; font-size: 15px; line-height: 1.7; margin: 0; white-space: pre-wrap;">
 ${replyContent}
-                        </p>
-                      </div>
+        </p>
+      </div>
 
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${portalUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
-                          Im Portal antworten →
-                        </a>
-                      </div>
-
-                      <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                        Sie können direkt auf diese E-Mail antworten oder das Kundenportal nutzen.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow Support<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; line-height: 1.6;">
+        Sie können direkt auf diese E-Mail antworten oder das Kundenportal nutzen.
+      </p>
     `;
+
+    return this.generateEmailWrapper('Neue Antwort zu Ihrem Ticket', content, {
+      text: 'Im Portal antworten',
+      url: portalUrl
+    });
   }
 
   private generateTicketReplyText(
@@ -1345,7 +1325,7 @@ Neue Antwort zu Ihrem Ticket
 
 Hallo ${customerName},
 
-es gibt eine neue Antwort zu Ihrem Ticket:
+Sie haben eine neue Antwort zu Ihrem Ticket erhalten.
 
 Ticket #${ticketNumber}: ${ticketTitle}
 
@@ -1359,9 +1339,8 @@ Im Portal antworten: ${portalUrl}
 Sie können direkt auf diese E-Mail antworten oder das Kundenportal nutzen.
 
 --
-RamboFlow Support
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateTicketStatusChangeHTML(
@@ -1372,92 +1351,46 @@ RamboFlow Support
     newStatus: string,
     portalUrl: string
   ): string {
-    const statusColors: Record<string, string> = {
-      open: '#3b82f6',
-      in_progress: '#f59e0b',
-      waiting: '#8b5cf6',
-      resolved: '#10b981',
-      closed: '#6b7280',
-      archived: '#9ca3af',
-    };
+    const resolvedNote = newStatus === 'resolved'
+      ? `<div style="background-color: #d1fae5; border-radius: 8px; padding: 16px; margin: 24px 0; text-align: center;">
+          <p style="color: #065f46; font-size: 15px; margin: 0;">
+            Ihr Ticket wurde als gelöst markiert. Falls Sie weitere Fragen haben, können Sie jederzeit antworten.
+          </p>
+        </div>`
+      : '';
 
-    const newStatusColor = statusColors[newStatus] || '#6b7280';
-    const statusIcon = newStatus === 'resolved' ? '✅' : newStatus === 'closed' ? '🔒' : '🔄';
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${customerName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        der Status Ihres Tickets wurde aktualisiert.
+      </p>
 
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Ticket Status aktualisiert</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, ${newStatusColor} 0%, ${newStatusColor}dd 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">${statusIcon} Ticket Status aktualisiert</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Hallo ${customerName},</p>
-                      <p style="color: #4b5563; font-size: 14px; line-height: 1.6;">
-                        der Status Ihres Tickets wurde aktualisiert:
-                      </p>
+      <div style="background-color: #f5f3ff; border-left: 4px solid #7c3aed; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <p style="color: #6b7280; font-size: 13px; margin: 0 0 4px 0;">
+          <strong>Ticket #${ticketNumber}</strong>
+        </p>
+        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
+          ${ticketTitle}
+        </p>
+      </div>
 
-                      <div style="background-color: #f3f4f6; border-left: 4px solid ${newStatusColor}; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
-                        <p style="color: #6b7280; font-size: 12px; margin: 0 0 5px 0;">
-                          <strong>Ticket #${ticketNumber}</strong>
-                        </p>
-                        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
-                          ${ticketTitle}
-                        </p>
-                      </div>
+      <div style="text-align: center; margin: 24px 0;">
+        <span style="display: inline-block; padding: 10px 20px; background-color: #f3f4f6; color: #6b7280; border-radius: 6px; font-size: 14px;">
+          ${this.getStatusLabel(oldStatus)}
+        </span>
+        <span style="display: inline-block; margin: 0 12px; color: #9ca3af; font-size: 18px;">→</span>
+        <span style="display: inline-block; padding: 10px 20px; background-color: #f5f3ff; color: #7c3aed; border-radius: 6px; font-size: 14px; font-weight: 600;">
+          ${this.getStatusLabel(newStatus)}
+        </span>
+      </div>
 
-                      <div style="text-align: center; margin: 25px 0;">
-                        <span style="display: inline-block; padding: 8px 16px; background-color: #f3f4f6; color: #6b7280; border-radius: 6px; font-size: 14px;">
-                          ${this.getStatusLabel(oldStatus)}
-                        </span>
-                        <span style="display: inline-block; margin: 0 15px; color: #9ca3af; font-size: 20px;">→</span>
-                        <span style="display: inline-block; padding: 8px 16px; background-color: ${newStatusColor}20; color: ${newStatusColor}; border-radius: 6px; font-size: 14px; font-weight: 600;">
-                          ${this.getStatusLabel(newStatus)}
-                        </span>
-                      </div>
-
-                      ${newStatus === 'resolved' ? `
-                        <div style="background-color: #d1fae5; border: 1px solid #10b981; border-radius: 8px; padding: 15px; margin: 20px 0; text-align: center;">
-                          <p style="color: #065f46; margin: 0; font-size: 14px;">
-                            ✅ Ihr Ticket wurde als gelöst markiert. Falls Sie weitere Fragen haben, können Sie jederzeit antworten.
-                          </p>
-                        </div>
-                      ` : ''}
-
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${portalUrl}" style="display: inline-block; background-color: ${newStatusColor}; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
-                          Ticket im Portal ansehen →
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow Support<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      ${resolvedNote}
     `;
+
+    return this.generateEmailWrapper('Ticket-Status aktualisiert', content, {
+      text: 'Ticket im Portal ansehen',
+      url: portalUrl
+    });
   }
 
   private generateTicketStatusChangeText(
@@ -1469,11 +1402,11 @@ RamboFlow Support
     portalUrl: string
   ): string {
     return `
-Ticket Status aktualisiert
+Ticket-Status aktualisiert
 
 Hallo ${customerName},
 
-der Status Ihres Tickets wurde aktualisiert:
+der Status Ihres Tickets wurde aktualisiert.
 
 Ticket #${ticketNumber}: ${ticketTitle}
 
@@ -1483,9 +1416,8 @@ ${newStatus === 'resolved' ? 'Ihr Ticket wurde als gelöst markiert. Falls Sie w
 Ticket im Portal ansehen: ${portalUrl}
 
 --
-RamboFlow Support
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateTicketCreatedHTML(
@@ -1495,69 +1427,33 @@ RamboFlow Support
     ticketDescription: string,
     portalUrl: string
   ): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Ticket erstellt</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">🎫 Ticket erfolgreich erstellt</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Hallo ${customerName},</p>
-                      <p style="color: #4b5563; font-size: 14px; line-height: 1.6;">
-                        vielen Dank für Ihre Anfrage. Wir haben Ihr Ticket erhalten und werden uns schnellstmöglich darum kümmern.
-                      </p>
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${customerName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        vielen Dank für Ihre Anfrage. Wir haben Ihr Ticket erhalten und kümmern uns schnellstmöglich darum.
+      </p>
 
-                      <div style="background-color: #f3f4f6; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
-                        <p style="color: #6b7280; font-size: 12px; margin: 0 0 5px 0;">
-                          <strong>Ticket #${ticketNumber}</strong>
-                        </p>
-                        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">
-                          ${ticketTitle}
-                        </p>
-                        <p style="color: #4b5563; font-size: 14px; margin: 0; white-space: pre-wrap; line-height: 1.5;">
+      <div style="background-color: #d1fae5; border-left: 4px solid #10b981; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <p style="color: #065f46; font-size: 13px; margin: 0 0 4px 0;">
+          <strong>Ticket #${ticketNumber}</strong>
+        </p>
+        <p style="color: #065f46; font-size: 16px; font-weight: 600; margin: 0 0 12px 0;">
+          ${ticketTitle}
+        </p>
+        <p style="color: #047857; font-size: 14px; margin: 0; white-space: pre-wrap; line-height: 1.6;">
 ${ticketDescription.substring(0, 300)}${ticketDescription.length > 300 ? '...' : ''}
-                        </p>
-                      </div>
+        </p>
+      </div>
 
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${portalUrl}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
-                          Ticket im Portal verfolgen →
-                        </a>
-                      </div>
-
-                      <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                        Sie erhalten eine Benachrichtigung, sobald wir Ihnen antworten.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow Support<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; line-height: 1.6;">
+        Sie erhalten eine Benachrichtigung, sobald wir Ihnen antworten.
+      </p>
     `;
+
+    return this.generateEmailWrapper('Ticket erfolgreich erstellt', content, {
+      text: 'Ticket im Portal verfolgen',
+      url: portalUrl
+    });
   }
 
   private generateTicketCreatedText(
@@ -1572,7 +1468,7 @@ Ticket erfolgreich erstellt
 
 Hallo ${customerName},
 
-vielen Dank für Ihre Anfrage. Wir haben Ihr Ticket erhalten und werden uns schnellstmöglich darum kümmern.
+vielen Dank für Ihre Anfrage. Wir haben Ihr Ticket erhalten und kümmern uns schnellstmöglich darum.
 
 Ticket #${ticketNumber}: ${ticketTitle}
 
@@ -1583,9 +1479,8 @@ Ticket im Portal verfolgen: ${portalUrl}
 Sie erhalten eine Benachrichtigung, sobald wir Ihnen antworten.
 
 --
-RamboFlow Support
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   // ============================================================================
