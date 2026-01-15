@@ -171,6 +171,82 @@ export const customersApi = {
   }> => {
     return authFetch(`/customers/${id}/emails?maxResults=${maxResults}`);
   },
+
+  // Email Domain methods for automatic ticket assignment
+  getEmailDomains: async (customerId: string): Promise<{
+    success: boolean;
+    data: Array<{
+      id: string;
+      customerId: string;
+      organizationId: string;
+      domain: string;
+      isPrimary: boolean;
+      notes?: string;
+      createdAt: string;
+      createdByName?: string;
+    }>;
+  }> => {
+    return authFetch(`/customers/${customerId}/email-domains`);
+  },
+
+  addEmailDomain: async (customerId: string, data: {
+    domain: string;
+    isPrimary?: boolean;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    data: {
+      id: string;
+      customerId: string;
+      domain: string;
+      isPrimary: boolean;
+      notes?: string;
+    };
+  }> => {
+    return authFetch(`/customers/${customerId}/email-domains`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteEmailDomain: async (customerId: string, domainId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/customers/${customerId}/email-domains/${domainId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getAllEmailDomains: async (): Promise<{
+    success: boolean;
+    data: Array<{
+      id: string;
+      customerId: string;
+      customerName: string;
+      customerNumber?: string;
+      domain: string;
+      isPrimary: boolean;
+      notes?: string;
+      createdAt: string;
+      createdByName?: string;
+    }>;
+  }> => {
+    return authFetch('/customers/email-domains/all');
+  },
+
+  lookupEmailDomain: async (email: string): Promise<{
+    success: boolean;
+    found: boolean;
+    matchType?: string;
+    searchedDomain?: string;
+    data?: {
+      id: string;
+      name: string;
+      customerNumber?: string;
+      domain: string;
+    };
+    message?: string;
+  }> => {
+    return authFetch(`/customers/email-domains/lookup?email=${encodeURIComponent(email)}`);
+  },
 };
 
 // Activities API

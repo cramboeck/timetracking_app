@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CustomerContacts } from './CustomerContacts';
+import { CustomerEmailDomains } from './CustomerEmailDomains';
 import { TicketSettings } from './TicketSettings';
 import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { NinjaRMMSettings } from './NinjaRMMSettings';
@@ -100,6 +101,10 @@ export const Settings = ({
 
   // Customer Contacts Modal
   const [contactsCustomer, setContactsCustomer] = useState<Customer | null>(null);
+
+  // Customer Email Domains Modal
+  const [emailDomainsCustomer, setEmailDomainsCustomer] = useState<Customer | null>(null);
+
   const [customerName, setCustomerName] = useState('');
   const [customerColor, setCustomerColor] = useState(COLORS[0]);
   const [customerNumber, setCustomerNumber] = useState('');
@@ -1682,13 +1687,22 @@ export const Settings = ({
                                 <Server size={18} />
                               </button>
                             {currentUser?.hasTicketAccess && (
-                              <button
-                                onClick={() => setContactsCustomer(customer)}
-                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
-                                title="Kontakte verwalten"
-                              >
-                                <UserCog size={18} />
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => setContactsCustomer(customer)}
+                                  className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                                  title="Kontakte verwalten"
+                                >
+                                  <UserCog size={18} />
+                                </button>
+                                <button
+                                  onClick={() => setEmailDomainsCustomer(customer)}
+                                  className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+                                  title="E-Mail Domains verwalten"
+                                >
+                                  <Globe size={18} />
+                                </button>
+                              </>
                             )}
                             {canEdit && (
                               <button
@@ -3609,6 +3623,15 @@ export const Settings = ({
           isOpen={!!contactsCustomer}
           customer={contactsCustomer}
           onClose={() => setContactsCustomer(null)}
+        />
+      )}
+
+      {/* Customer Email Domains Modal */}
+      {emailDomainsCustomer && (
+        <CustomerEmailDomains
+          isOpen={!!emailDomainsCustomer}
+          customer={emailDomainsCustomer}
+          onClose={() => setEmailDomainsCustomer(null)}
         />
       )}
 

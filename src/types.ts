@@ -445,4 +445,16 @@ export interface CustomerContact {
   createdAt: string;
 }
 
+// Customer Email Domain - For automatic ticket assignment from support inbox
+export interface CustomerEmailDomain {
+  id: string;
+  customerId: string;
+  organizationId: string;
+  domain: string;
+  isPrimary: boolean;
+  notes?: string;
+  createdAt: string;
+  createdByName?: string;
+}
+
 export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'calendar' | 'dashboard' | 'settings' | 'tickets' | 'billing' | 'tasks';
