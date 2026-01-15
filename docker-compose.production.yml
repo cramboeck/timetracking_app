@@ -47,7 +47,8 @@ services:
       FRONTEND_URL: ${FRONTEND_URL}
       BACKEND_URL: ${BACKEND_URL:-https://app.ramboeck.it}
       # Email
-      EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-true}
+      EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-false}
+      EMAIL_TEST_RECIPIENT: ${EMAIL_TEST_RECIPIENT:-}
       EMAIL_HOST: ${EMAIL_HOST}
       EMAIL_PORT: ${EMAIL_PORT}
       EMAIL_SECURE: ${EMAIL_SECURE:-false}
