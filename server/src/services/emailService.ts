@@ -486,7 +486,7 @@ class EmailService {
   private generateEmailWrapper(title: string, content: string, ctaButton?: { text: string; url: string }): string {
     const ctaHtml = ctaButton ? `
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${ctaButton.url}" style="display: inline-block; background-color: #7c3aed; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 15px;">
+        <a href="${ctaButton.url}" style="display: inline-block; background-color: #F27024; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 15px;">
           ${ctaButton.text}
         </a>
       </div>
@@ -507,7 +507,7 @@ class EmailService {
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                   <!-- Header -->
                   <tr>
-                    <td style="background-color: #7c3aed; padding: 32px 40px;">
+                    <td style="background-color: #F27024; padding: 32px 40px;">
                       <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">RamboFlow</h1>
                     </td>
                   </tr>
@@ -532,7 +532,7 @@ class EmailService {
                             </p>
                             <p style="color: #9ca3af; font-size: 12px; margin: 0;">
                               Diese E-Mail wurde automatisch von RamboFlow generiert.<br>
-                              Bei Fragen wenden Sie sich an <a href="mailto:support@ramboeck-it.com" style="color: #7c3aed; text-decoration: none;">support@ramboeck-it.com</a>
+                              Bei Fragen wenden Sie sich an <a href="mailto:support@ramboeck-it.com" style="color: #F27024; text-decoration: none;">support@ramboeck-it.com</a>
                             </p>
                           </td>
                         </tr>
@@ -568,22 +568,22 @@ class EmailService {
         übersichtlich, einfach und professionell.
       </p>
 
-      <div style="background-color: #f5f3ff; border-radius: 8px; padding: 24px; margin: 24px 0;">
-        <h3 style="color: #5b21b6; margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">So starten Sie durch:</h3>
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <h3 style="color: #36313E; margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">So starten Sie durch:</h3>
         <table style="width: 100%;">
           <tr>
             <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
-              <strong style="color: #7c3aed;">1.</strong> Legen Sie Ihre Kunden und Projekte an
+              <strong style="color: #F27024;">1.</strong> Legen Sie Ihre Kunden und Projekte an
             </td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
-              <strong style="color: #7c3aed;">2.</strong> Erfassen Sie Ihre Arbeitszeiten mit einem Klick
+              <strong style="color: #F27024;">2.</strong> Erfassen Sie Ihre Arbeitszeiten mit einem Klick
             </td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
-              <strong style="color: #7c3aed;">3.</strong> Erstellen Sie professionelle Reports für Ihre Kunden
+              <strong style="color: #F27024;">3.</strong> Erstellen Sie professionelle Reports für Ihre Kunden
             </td>
           </tr>
         </table>
@@ -627,7 +627,7 @@ RamboFlow von ramboeck.IT
     const content = `
       <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
       <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
-        der Monat neigt sich dem Ende zu – noch <strong style="color: #7c3aed;">${data.daysRemaining} ${dayText}</strong> bis zum Monatsabschluss.
+        der Monat neigt sich dem Ende zu – noch <strong style="color: #F27024;">${data.daysRemaining} ${dayText}</strong> bis zum Monatsabschluss.
       </p>
 
       <div style="background-color: #fef3c7; border-radius: 8px; padding: 20px; margin: 24px 0;">
@@ -670,8 +670,8 @@ RamboFlow von ramboeck.IT
         alles stimmt, tragen Sie Ihre Arbeitszeiten am besten gleich ein – es dauert nur einen Moment.
       </p>
 
-      <div style="background-color: #f5f3ff; border-radius: 8px; padding: 20px; margin: 24px 0;">
-        <p style="color: #5b21b6; font-size: 15px; line-height: 1.6; margin: 0;">
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="color: #36313E; font-size: 15px; line-height: 1.6; margin: 0;">
           <strong>Tipp:</strong> Regelmäßiges Erfassen spart Zeit bei der Monatsabrechnung und sorgt für lückenlose Dokumentation.
         </p>
       </div>
@@ -705,7 +705,7 @@ RamboFlow von ramboeck.IT
     const content = `
       <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
       <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
-        bei <strong style="color: #7c3aed;">${data.missingCount} ${eintraegeText}</strong> fehlt noch eine Beschreibung.
+        bei <strong style="color: #F27024;">${data.missingCount} ${eintraegeText}</strong> fehlt noch eine Beschreibung.
         Für aussagekräftige Reports und eine transparente Abrechnung lohnt es sich, diese kurz zu ergänzen.
       </p>
 
@@ -750,7 +750,7 @@ RamboFlow von ramboeck.IT
         <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; color: #1f2937; font-size: 14px;">
           ${entry.project_name || 'Ohne Projekt'}
         </td>
-        <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; color: #7c3aed; font-size: 14px; text-align: right; font-weight: 600;">
+        <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; color: #F27024; font-size: 14px; text-align: right; font-weight: 600;">
           ${(entry.duration / 3600).toFixed(1)}h
         </td>
       </tr>
@@ -765,7 +765,7 @@ RamboFlow von ramboeck.IT
     const content = `
       <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
       <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
-        hier ist Ihre Wochenübersicht: Sie haben diese Woche <strong style="color: #7c3aed;">${data.totalHours.toFixed(1)} Stunden</strong> erfasst.
+        hier ist Ihre Wochenübersicht: Sie haben diese Woche <strong style="color: #F27024;">${data.totalHours.toFixed(1)} Stunden</strong> erfasst.
       </p>
 
       <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
@@ -915,8 +915,8 @@ RamboFlow von ramboeck.IT
         <strong>${senderName}</strong> bittet Sie, den folgenden Zeiterfassungs-Report zu prüfen und freizugeben.
       </p>
 
-      <div style="background-color: #f5f3ff; border-radius: 8px; padding: 24px; margin: 24px 0;">
-        <h3 style="color: #5b21b6; margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Report-Details</h3>
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <h3 style="color: #36313E; margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Report-Details</h3>
         <table style="width: 100%; border-collapse: collapse;">
           <tr>
             <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Zeitraum:</td>
@@ -936,12 +936,12 @@ RamboFlow von ramboeck.IT
           ` : ''}
           <tr>
             <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Gesamtstunden:</td>
-            <td style="padding: 8px 0; color: #7c3aed; font-weight: 600; text-align: right;">${totalHours}h</td>
+            <td style="padding: 8px 0; color: #F27024; font-weight: 600; text-align: right;">${totalHours}h</td>
           </tr>
           ${reportData.totalAmount ? `
             <tr>
               <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Gesamtbetrag:</td>
-              <td style="padding: 8px 0; color: #7c3aed; font-weight: 600; text-align: right;">${reportData.totalAmount.toFixed(2)} €</td>
+              <td style="padding: 8px 0; color: #F27024; font-weight: 600; text-align: right;">${reportData.totalAmount.toFixed(2)} €</td>
             </tr>
           ` : ''}
         </table>
@@ -956,7 +956,7 @@ RamboFlow von ramboeck.IT
 
       <p style="color: #9ca3af; font-size: 13px; margin: 24px 0 0 0; text-align: center;">
         Falls der Button nicht funktioniert:<br>
-        <a href="${approvalUrl}" style="color: #7c3aed; word-break: break-all;">${approvalUrl}</a>
+        <a href="${approvalUrl}" style="color: #F27024; word-break: break-all;">${approvalUrl}</a>
       </p>
     `;
 
@@ -1029,8 +1029,8 @@ RamboFlow von ramboeck.IT
         <strong>${recipientName}</strong> hat Ihren Report <strong style="color: ${isApproved ? '#059669' : '#dc2626'}">${statusText}</strong>.
       </p>
 
-      <div style="background-color: #f5f3ff; border-radius: 8px; padding: 24px; margin: 24px 0;">
-        <h3 style="color: #5b21b6; margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Report-Details</h3>
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <h3 style="color: #36313E; margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Report-Details</h3>
         <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">
           <strong>Zeitraum:</strong> ${dateRange}
         </p>
@@ -1042,7 +1042,7 @@ RamboFlow von ramboeck.IT
       </div>
 
       ${comment ? `
-        <div style="background-color: #f9fafb; border-left: 4px solid #7c3aed; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <div style="background-color: #f9fafb; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
           <h4 style="color: #1f2937; margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">Kommentar:</h4>
           <p style="color: #4b5563; margin: 0; font-size: 14px; line-height: 1.6;">
             ${comment}
@@ -1178,19 +1178,19 @@ RamboFlow von ramboeck.IT
     };
     const priorityColors: Record<string, string> = {
       low: '#10b981',
-      normal: '#7c3aed',
+      normal: '#F27024',
       high: '#f59e0b',
       critical: '#ef4444',
     };
     const priorityLabel = priorityLabels[priority] || priority;
-    const priorityColor = priorityColors[priority] || '#7c3aed';
+    const priorityColor = priorityColors[priority] || '#F27024';
 
     const content = `
       <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
         Ein neuer Support-Fall wurde von einem Kunden eingereicht.
       </p>
 
-      <div style="background-color: #f5f3ff; border-radius: 8px; padding: 24px; margin: 24px 0;">
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
         <table style="width: 100%; border-collapse: collapse;">
           <tr>
             <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 120px;">Ticket:</td>
@@ -1283,7 +1283,7 @@ RamboFlow von ramboeck.IT
         Sie haben eine neue Antwort zu Ihrem Ticket erhalten.
       </p>
 
-      <div style="background-color: #f5f3ff; border-left: 4px solid #7c3aed; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+      <div style="background-color: #FEF7F4; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
         <p style="color: #6b7280; font-size: 13px; margin: 0 0 4px 0;">
           <strong>Ticket #${ticketNumber}</strong>
         </p>
@@ -1293,7 +1293,7 @@ RamboFlow von ramboeck.IT
       </div>
 
       <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 24px 0;">
-        <p style="color: #7c3aed; font-size: 14px; font-weight: 600; margin: 0 0 12px 0;">
+        <p style="color: #F27024; font-size: 14px; font-weight: 600; margin: 0 0 12px 0;">
           ${replierName} schrieb:
         </p>
         <p style="color: #1f2937; font-size: 15px; line-height: 1.7; margin: 0; white-space: pre-wrap;">
@@ -1365,7 +1365,7 @@ RamboFlow von ramboeck.IT
         der Status Ihres Tickets wurde aktualisiert.
       </p>
 
-      <div style="background-color: #f5f3ff; border-left: 4px solid #7c3aed; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+      <div style="background-color: #FEF7F4; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
         <p style="color: #6b7280; font-size: 13px; margin: 0 0 4px 0;">
           <strong>Ticket #${ticketNumber}</strong>
         </p>
@@ -1379,7 +1379,7 @@ RamboFlow von ramboeck.IT
           ${this.getStatusLabel(oldStatus)}
         </span>
         <span style="display: inline-block; margin: 0 12px; color: #9ca3af; font-size: 18px;">→</span>
-        <span style="display: inline-block; padding: 10px 20px; background-color: #f5f3ff; color: #7c3aed; border-radius: 6px; font-size: 14px; font-weight: 600;">
+        <span style="display: inline-block; padding: 10px 20px; background-color: #FEF7F4; color: #F27024; border-radius: 6px; font-size: 14px; font-weight: 600;">
           ${this.getStatusLabel(newStatus)}
         </span>
       </div>
@@ -1653,7 +1653,7 @@ RamboFlow von ramboeck.IT
       </div>
 
       ${completionNotes ? `
-        <div style="background-color: #f9fafb; border-left: 4px solid #7c3aed; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <div style="background-color: #f9fafb; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
           <h4 style="color: #1f2937; margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">Anmerkungen:</h4>
           <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin: 0; white-space: pre-wrap;">${completionNotes}</p>
         </div>
@@ -1750,8 +1750,8 @@ RamboFlow von ramboeck.IT
         </p>
       </div>
     ` : `
-      <div style="background-color: #f5f3ff; border-radius: 8px; padding: 16px; margin: 24px 0; text-align: center;">
-        <p style="color: #5b21b6; margin: 0; font-size: 14px;">
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 16px; margin: 24px 0; text-align: center;">
+        <p style="color: #36313E; margin: 0; font-size: 14px;">
           Dies ist eine reine Information. Es ist keine Freigabe erforderlich.
         </p>
       </div>
@@ -1763,8 +1763,8 @@ RamboFlow von ramboeck.IT
         wir möchten Sie über eine geplante Wartung informieren:
       </p>
 
-      <div style="background-color: #f5f3ff; border-left: 4px solid #7c3aed; padding: 24px; margin: 24px 0; border-radius: 0 8px 8px 0;">
-        <h3 style="color: #5b21b6; margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">${announcement.title}</h3>
+      <div style="background-color: #FEF7F4; border-left: 4px solid #F27024; padding: 24px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <h3 style="color: #36313E; margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">${announcement.title}</h3>
         <table style="width: 100%; border-collapse: collapse;">
           <tr>
             <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 140px;"><strong>Typ:</strong></td>
@@ -1772,7 +1772,7 @@ RamboFlow von ramboeck.IT
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #6b7280; font-size: 14px;"><strong>Beginn:</strong></td>
-            <td style="padding: 8px 0; color: #7c3aed; font-size: 14px; font-weight: 600;">${formatDateTime(announcement.scheduledStart)}</td>
+            <td style="padding: 8px 0; color: #F27024; font-size: 14px; font-weight: 600;">${formatDateTime(announcement.scheduledStart)}</td>
           </tr>
           ${announcement.scheduledEnd ? `
             <tr>
@@ -1972,13 +1972,13 @@ RamboFlow von ramboeck.IT
         <strong>${customerName}</strong> hat die folgende Wartung <strong style="color: ${isApproved ? '#059669' : '#dc2626'}">${statusText}</strong>:
       </p>
 
-      <div style="background-color: #f5f3ff; border-radius: 8px; padding: 24px; margin: 24px 0;">
-        <h3 style="color: #5b21b6; margin: 0 0 12px 0; font-size: 18px; font-weight: 600;">${announcementTitle}</h3>
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <h3 style="color: #36313E; margin: 0 0 12px 0; font-size: 18px; font-weight: 600;">${announcementTitle}</h3>
         ${approverName ? `<p style="color: #6b7280; margin: 0; font-size: 14px;">Freigegeben von: ${approverName}</p>` : ''}
       </div>
 
       ${reason ? `
-        <div style="background-color: #f9fafb; border-left: 4px solid #7c3aed; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <div style="background-color: #f9fafb; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
           <h4 style="color: #1f2937; margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">Kommentar:</h4>
           <p style="color: #4b5563; margin: 0; font-size: 14px; line-height: 1.6;">${reason}</p>
         </div>
