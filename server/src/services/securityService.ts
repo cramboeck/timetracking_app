@@ -196,7 +196,7 @@ class SecurityService {
       const targetedUsers = [...new Set(attempts.map(a => a.username))];
       const userAgents = [...new Set(attempts.filter(a => a.userAgent).map(a => a.userAgent))];
 
-      const subject = `🚨 Sicherheitswarnung: Möglicher Brute-Force-Angriff erkannt`;
+      const subject = `Sicherheitswarnung: Möglicher Brute-Force-Angriff erkannt`;
 
       const htmlContent = `
         <!DOCTYPE html>
