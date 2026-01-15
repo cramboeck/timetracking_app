@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, UserPlus, Users, ArrowRight, Globe, Loader2, AlertTriangle, Building2 } from 'lucide-react';
+import { X, UserPlus, Users, ArrowRight, Globe, Loader2, AlertTriangle, Building2, ExternalLink } from 'lucide-react';
 import { Customer } from '../types';
 import { customersApi } from '../services/api';
 
@@ -8,8 +8,8 @@ interface UnknownCustomerDialogProps {
   senderEmail: string;
   senderName: string;
   senderDomain: string | null;
-  onCreateCustomer: (domain: string | null) => void;
-  onSelectCustomer: (customerId: string, saveDomain: boolean) => void;
+  onCustomerSelected: (customerId: string) => void;
+  onNavigateToCreateCustomer: () => void;
   onContinueWithoutCustomer: () => void;
   onCancel: () => void;
 }
@@ -19,25 +19,29 @@ export const UnknownCustomerDialog = ({
   senderEmail,
   senderName,
   senderDomain,
-  onCreateCustomer,
-  onSelectCustomer,
+  onCustomerSelected,
+  onNavigateToCreateCustomer,
   onContinueWithoutCustomer,
   onCancel,
 }: UnknownCustomerDialogProps) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // View state: 'options' | 'select'
+  const [view, setView] = useState<'options' | 'select'>('options');
+
+  // Customer selection
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [saveDomainForCustomer, setSaveDomainForCustomer] = useState(true);
-  const [showCustomerSelect, setShowCustomerSelect] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       loadCustomers();
+      setView('options');
       setSelectedCustomerId('');
-      setShowCustomerSelect(false);
       setSaveDomainForCustomer(true);
     }
-  }, [isOpen]);
+  }, [isOpen, senderDomain, senderName, senderEmail]);
 
   const loadCustomers = async () => {
     try {
@@ -51,10 +55,24 @@ export const UnknownCustomerDialog = ({
     }
   };
 
-  const handleSelectCustomer = () => {
-    if (selectedCustomerId) {
-      onSelectCustomer(selectedCustomerId, saveDomainForCustomer && !!senderDomain);
+  const handleSelectCustomer = async () => {
+    if (!selectedCustomerId) return;
+
+    // If saveDomain is true, add the domain to the customer
+    if (saveDomainForCustomer && senderDomain) {
+      try {
+        await customersApi.addEmailDomain(selectedCustomerId, {
+          domain: senderDomain,
+          isPrimary: false,
+          notes: `Automatisch hinzugefügt von Support-Inbox (${new Date().toLocaleDateString('de-DE')})`
+        });
+      } catch (err) {
+        console.error('Failed to save domain:', err);
+        // Continue anyway - domain save is optional
+      }
     }
+
+    onCustomerSelected(selectedCustomerId);
   };
 
   if (!isOpen) return null;
@@ -120,32 +138,33 @@ export const UnknownCustomerDialog = ({
               </div>
             </div>
 
-            {/* Options */}
-            {!showCustomerSelect ? (
+            {/* Options View */}
+            {view === 'options' && (
               <div className="space-y-3">
-                {/* Option 1: Create new customer */}
+                {/* Option 1: Create new customer - navigates to Settings */}
                 <button
-                  onClick={() => onCreateCustomer(senderDomain)}
-                  className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all group"
+                  onClick={onNavigateToCreateCustomer}
+                  className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all group"
                 >
                   <div className="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center group-hover:bg-green-200 dark:group-hover:bg-green-800/30 transition-colors">
                     <UserPlus className="w-6 h-6 text-green-600 dark:text-green-400" />
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="font-semibold text-gray-900 dark:text-white">
+                    <p className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                       Neuen Kunden anlegen
+                      <ExternalLink className="w-4 h-4 text-gray-400" />
                     </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {senderDomain ? `Mit Domain @${senderDomain} verknüpfen` : 'Kunde ohne Domain erstellen'}
+                      In den Einstellungen anlegen
+                      {senderDomain && `, dann Domain @${senderDomain} zuordnen`}
                     </p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-primary-600" />
                 </button>
 
                 {/* Option 2: Assign to existing customer */}
                 <button
-                  onClick={() => setShowCustomerSelect(true)}
-                  className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all group"
+                  onClick={() => setView('select')}
+                  className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
                 >
                   <div className="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:bg-blue-200 dark:group-hover:bg-blue-800/30 transition-colors">
                     <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -158,7 +177,7 @@ export const UnknownCustomerDialog = ({
                       Kunde auswählen und Domain speichern
                     </p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-primary-600" />
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
                 </button>
 
                 {/* Option 3: Continue without customer */}
@@ -179,11 +198,13 @@ export const UnknownCustomerDialog = ({
                   </div>
                 </button>
               </div>
-            ) : (
-              /* Customer Selection */
+            )}
+
+            {/* Select Customer View */}
+            {view === 'select' && (
               <div className="space-y-4">
                 <button
-                  onClick={() => setShowCustomerSelect(false)}
+                  onClick={() => setView('options')}
                   className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
                 >
                   <ArrowRight className="w-4 h-4 rotate-180" />

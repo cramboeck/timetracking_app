@@ -179,46 +179,29 @@ export const SupportInbox = () => {
     }
   };
 
-  // Handler: Create new customer with domain
-  const handleCreateCustomer = async (domain: string | null) => {
-    // Close dialog and open customer creation (for now, just proceed without customer)
-    // In future: Navigate to customer creation page with pre-filled domain
+  // Handler: Navigate to Settings to create new customer
+  const handleNavigateToCreateCustomer = () => {
+    // Close dialog without creating ticket
     setShowUnknownCustomerDialog(false);
 
-    // For now, show a message that this feature is coming
-    const createNew = window.confirm(
-      `Möchten Sie einen neuen Kunden anlegen?\n\n` +
-      `Diese Funktion öffnet die Kundeneinstellungen.\n` +
-      `Nach dem Anlegen können Sie die Domain "${domain || 'keine'}" dort zuordnen.\n\n` +
-      `Klicken Sie "OK" um fortzufahren, oder "Abbrechen" um das Ticket ohne Kunde zu erstellen.`
-    );
-
-    if (createNew) {
-      // Open settings in new tab (customer creation)
-      window.open('/#settings?tab=customers&action=create', '_blank');
+    // Build params with optional domain
+    const params: Record<string, string> = { tab: 'customers' };
+    if (senderInfo?.domain) {
+      params.domain = senderInfo.domain;
     }
 
-    // Create ticket without customer for now
-    await createTicketWithCustomer(pendingPriority);
+    // Dispatch custom event to navigate to settings
+    window.dispatchEvent(new CustomEvent('navigate-to-view', {
+      detail: {
+        subView: 'settings',
+        params
+      }
+    }));
   };
 
-  // Handler: Select existing customer and optionally save domain
-  const handleSelectCustomer = async (customerId: string, saveDomain: boolean) => {
+  // Handler: Select existing customer
+  const handleSelectCustomer = async (customerId: string) => {
     setShowUnknownCustomerDialog(false);
-
-    // If saveDomain is true, add the domain to the customer
-    if (saveDomain && senderInfo?.domain) {
-      try {
-        await customersApi.addEmailDomain(customerId, {
-          domain: senderInfo.domain,
-          isPrimary: false,
-          notes: `Automatisch hinzugefügt von Support-Inbox (${new Date().toLocaleDateString('de-DE')})`
-        });
-      } catch (err) {
-        console.error('Failed to save domain:', err);
-        // Continue anyway - domain save is optional
-      }
-    }
 
     // Create ticket with selected customer
     await createTicketWithCustomer(pendingPriority, customerId);
@@ -599,8 +582,8 @@ export const SupportInbox = () => {
         senderEmail={senderInfo?.email || ''}
         senderName={senderInfo?.name || ''}
         senderDomain={senderInfo?.domain || null}
-        onCreateCustomer={handleCreateCustomer}
-        onSelectCustomer={handleSelectCustomer}
+        onCustomerSelected={handleSelectCustomer}
+        onNavigateToCreateCustomer={handleNavigateToCreateCustomer}
         onContinueWithoutCustomer={handleContinueWithoutCustomer}
         onCancel={() => setShowUnknownCustomerDialog(false)}
       />

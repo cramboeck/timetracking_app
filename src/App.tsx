@@ -302,6 +302,26 @@ function App() {
     }
   }, [isAuthenticated]);
 
+  // Listen for navigation events from components (e.g., SupportInbox navigating to Settings)
+  useEffect(() => {
+    const handleNavigateToView = (event: Event) => {
+      const customEvent = event as CustomEvent<{ subView: SubView; params?: Record<string, string> }>;
+      const { subView, params } = customEvent.detail;
+      console.log('📬 [NAV] Navigating to view:', subView, params);
+
+      // Navigate to the requested view
+      handleSubViewChange(subView);
+
+      // Store params for the target component if needed
+      if (params) {
+        sessionStorage.setItem('navigation_params', JSON.stringify(params));
+      }
+    };
+
+    window.addEventListener('navigate-to-view', handleNavigateToView);
+    return () => window.removeEventListener('navigate-to-view', handleNavigateToView);
+  }, []);
+
   // Listen for navigation messages from Service Worker (push notification clicks)
   useEffect(() => {
     if (!isAuthenticated || !('serviceWorker' in navigator)) return;

@@ -105,6 +105,36 @@ export const Settings = ({
   // Customer Email Domains Modal
   const [emailDomainsCustomer, setEmailDomainsCustomer] = useState<Customer | null>(null);
 
+  // Pending domain from navigation (shown as hint when creating customer)
+  const [pendingDomain, setPendingDomain] = useState<string | null>(null);
+
+  // Check for navigation params on mount (e.g., from SupportInbox)
+  useEffect(() => {
+    const navParams = sessionStorage.getItem('navigation_params');
+    if (navParams) {
+      try {
+        const params = JSON.parse(navParams);
+        // If we were navigated to customers tab
+        if (params.tab === 'customers') {
+          setActiveTab('customers');
+          // Store the domain for later use
+          if (params.domain) {
+            setPendingDomain(params.domain);
+          }
+          // Open customer creation modal automatically
+          setTimeout(() => {
+            setCustomerModalOpen(true);
+          }, 100);
+        }
+      } catch (e) {
+        console.error('Failed to parse navigation params:', e);
+      } finally {
+        // Clear the params so they don't persist
+        sessionStorage.removeItem('navigation_params');
+      }
+    }
+  }, []);
+
   const [customerName, setCustomerName] = useState('');
   const [customerColor, setCustomerColor] = useState(COLORS[0]);
   const [customerNumber, setCustomerNumber] = useState('');
@@ -2710,11 +2740,31 @@ export const Settings = ({
       {/* Customer Modal */}
       <Modal
         isOpen={customerModalOpen}
-        onClose={() => setCustomerModalOpen(false)}
+        onClose={() => {
+          setCustomerModalOpen(false);
+          setPendingDomain(null); // Clear pending domain when closing
+        }}
         title={editingCustomer ? 'Kunde bearbeiten' : 'Neuer Kunde'}
         maxWidth="3xl"
       >
         <div className="space-y-6">
+          {/* Hint from Support Inbox navigation */}
+          {pendingDomain && !editingCustomer && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+              <div className="flex gap-3">
+                <Globe className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    Domain @{pendingDomain} zuordnen
+                  </p>
+                  <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                    Nach dem Anlegen des Kunden können Sie die Domain über das <Globe className="w-3.5 h-3.5 inline" />-Symbol in der Kundenliste zuordnen.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Two-column grid for desktop */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Left column */}
