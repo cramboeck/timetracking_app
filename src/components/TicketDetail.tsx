@@ -138,6 +138,14 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     checkAiConfig();
   }, [ticketId]);
 
+  // Auto-load and show emails for email-source tickets
+  useEffect(() => {
+    if (ticket?.source === 'email' && ticketEmails.length === 0 && !loadingEmails) {
+      loadTicketEmails();
+      setShowEmails(true);
+    }
+  }, [ticket?.source]);
+
   // Load user role for permission checks
   const loadUserRole = async () => {
     try {
