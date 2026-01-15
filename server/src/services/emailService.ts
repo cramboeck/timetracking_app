@@ -369,7 +369,7 @@ class EmailService {
   async sendWelcomeEmail(data: NotificationData): Promise<boolean> {
     const html = this.generateWelcomeEmailHTML(data);
     const text = this.generateWelcomeEmailText(data);
-    const subject = 'Willkommen bei TimeTrack! 🎉';
+    const subject = 'Willkommen bei RamboFlow';
 
     const success = await this.sendEmail({
       to: data.userEmail,
@@ -393,7 +393,7 @@ class EmailService {
   async sendMonthEndReminderEmail(data: NotificationData & { daysRemaining: number }): Promise<boolean> {
     const html = this.generateMonthEndReminderHTML(data);
     const text = this.generateMonthEndReminderText(data);
-    const subject = `📅 Monatsende naht! Noch ${data.daysRemaining} Tag(e)`;
+    const subject = `Erinnerung: Noch ${data.daysRemaining} Tag(e) bis Monatsende`;
 
     const success = await this.sendEmail({
       to: data.userEmail,
@@ -415,7 +415,7 @@ class EmailService {
   async sendDailyReminderEmail(data: NotificationData): Promise<boolean> {
     const html = this.generateDailyReminderHTML(data);
     const text = this.generateDailyReminderText(data);
-    const subject = '⏰ Zeiterfassung vergessen?';
+    const subject = 'Erinnerung: Zeiterfassung ausstehend';
 
     const success = await this.sendEmail({
       to: data.userEmail,
@@ -437,7 +437,7 @@ class EmailService {
   async sendQualityCheckEmail(data: NotificationData & { missingCount: number }): Promise<boolean> {
     const html = this.generateQualityCheckHTML(data);
     const text = this.generateQualityCheckText(data);
-    const subject = '✍️ Beschreibungen fehlen';
+    const subject = `${data.missingCount} Zeiteinträge ohne Beschreibung`;
 
     const success = await this.sendEmail({
       to: data.userEmail,
@@ -460,7 +460,7 @@ class EmailService {
   async sendWeeklyReportEmail(data: NotificationData & { totalHours: number; entries: any[] }): Promise<boolean> {
     const html = this.generateWeeklyReportHTML(data);
     const text = this.generateWeeklyReportText(data);
-    const subject = '📊 Dein Wochenreport ist da!';
+    const subject = 'Ihr Wochenreport ist verfügbar';
 
     const success = await this.sendEmail({
       to: data.userEmail,
@@ -478,6 +478,85 @@ class EmailService {
 
     await this.logNotification(data.userId, 'weekly_report', success);
     return success;
+  }
+
+  // ===========================================
+  // Base Email Template
+  // ===========================================
+  private generateEmailWrapper(title: string, content: string, ctaButton?: { text: string; url: string }): string {
+    const ctaHtml = ctaButton ? `
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${ctaButton.url}" style="display: inline-block; background-color: #7c3aed; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 15px;">
+          ${ctaButton.text}
+        </a>
+      </div>
+    ` : '';
+
+    return `
+      <!DOCTYPE html>
+      <html lang="de">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${title}</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6; -webkit-font-smoothing: antialiased;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                  <!-- Header -->
+                  <tr>
+                    <td style="background-color: #7c3aed; padding: 32px 40px;">
+                      <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">RamboFlow</h1>
+                    </td>
+                  </tr>
+
+                  <!-- Content -->
+                  <tr>
+                    <td style="padding: 40px;">
+                      ${content}
+                      ${ctaHtml}
+                    </td>
+                  </tr>
+
+                  <!-- Footer -->
+                  <tr>
+                    <td style="background-color: #f9fafb; padding: 24px 40px; border-top: 1px solid #e5e7eb;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td>
+                            <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0; line-height: 1.5;">
+                              <strong>ramboeck.IT</strong><br>
+                              IT-Dienstleistungen & Consulting
+                            </p>
+                            <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                              Diese E-Mail wurde automatisch von RamboFlow generiert.<br>
+                              Bei Fragen wenden Sie sich an <a href="mailto:support@ramboeck-it.com" style="color: #7c3aed; text-decoration: none;">support@ramboeck-it.com</a>
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Legal Footer -->
+                <table width="600" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="padding: 20px 0; text-align: center;">
+                      <p style="color: #9ca3af; font-size: 11px; margin: 0;">
+                        © ${new Date().getFullYear()} ramboeck.IT - Alle Rechte vorbehalten
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `;
   }
 
   // HTML Email Templates
@@ -871,7 +950,7 @@ Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5
 
     return await this.sendEmail({
       to,
-      subject: `📊 Freigabe-Anfrage von ${senderName} - RamboFlow`,
+      subject: `Freigabe-Anfrage: Zeiterfassungs-Report von ${senderName}`,
       html,
       text
     });
@@ -891,8 +970,8 @@ Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5
     const text = this.generateReportApprovalNotificationText(senderName, recipientName, status, comment, reportData);
 
     const subject = status === 'approved'
-      ? `✅ Report freigegeben von ${recipientName} - RamboFlow`
-      : `❌ Report abgelehnt von ${recipientName} - RamboFlow`;
+      ? `Report freigegeben von ${recipientName}`
+      : `Report abgelehnt von ${recipientName}`;
 
     return await this.sendEmail({
       to,
@@ -1187,7 +1266,7 @@ RamboFlow - Professionelle Zeiterfassung
 
     return await this.sendEmail({
       to,
-      subject: `💬 Neue Antwort zu Ticket #${ticketNumber}: ${ticketTitle}`,
+      subject: `Neue Antwort zu Ticket #${ticketNumber}: ${ticketTitle}`,
       html,
       text
     });
@@ -1207,11 +1286,9 @@ RamboFlow - Professionelle Zeiterfassung
     const html = this.generateTicketStatusChangeHTML(customerName, ticketNumber, ticketTitle, oldStatus, newStatus, portalUrl);
     const text = this.generateTicketStatusChangeText(customerName, ticketNumber, ticketTitle, oldStatus, newStatus, portalUrl);
 
-    const statusEmoji = newStatus === 'resolved' ? '✅' : newStatus === 'closed' ? '🔒' : '🔄';
-
     return await this.sendEmail({
       to,
-      subject: `${statusEmoji} Ticket #${ticketNumber} Status: ${this.getStatusLabel(newStatus)}`,
+      subject: `Ticket #${ticketNumber} Status: ${this.getStatusLabel(newStatus)}`,
       html,
       text
     });
@@ -1232,7 +1309,7 @@ RamboFlow - Professionelle Zeiterfassung
 
     return await this.sendEmail({
       to,
-      subject: `🎫 Ticket #${ticketNumber} erstellt: ${ticketTitle}`,
+      subject: `Ticket #${ticketNumber} erstellt: ${ticketTitle}`,
       html,
       text
     });
@@ -1316,7 +1393,7 @@ RamboFlow - Professionelle Zeiterfassung
 
     return await this.sendEmail({
       to,
-      subject: `🎫 Neues Ticket #${ticketNumber} von ${customerName}: ${ticketTitle}`,
+      subject: `Neues Ticket #${ticketNumber} von ${customerName}: ${ticketTitle}`,
       html,
       text
     });
