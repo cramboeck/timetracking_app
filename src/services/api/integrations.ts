@@ -1190,6 +1190,25 @@ export const microsoft365Api = {
     return authFetch(`/microsoft365/support/emails${query ? `?${query}` : ''}`);
   },
 
+  // Check if customer exists for an email before creating ticket
+  lookupCustomerForEmail: async (messageId: string): Promise<{
+    success: boolean;
+    found: boolean;
+    customer?: {
+      id: string;
+      name: string;
+      matchType: string;
+    };
+    sender: {
+      email: string;
+      name: string;
+      domain: string | null;
+    };
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/support/emails/${messageId}/customer-lookup`);
+  },
+
   createTicketFromEmail: async (
     messageId: string,
     options?: { priority?: string; customerId?: string }

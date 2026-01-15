@@ -4,7 +4,8 @@ import {
   CheckCircle, Link2, Paperclip, Clock, X, ExternalLink,
   ChevronDown, ChevronUp, AlertCircle
 } from 'lucide-react';
-import { microsoft365Api, SupportEmail } from '../services/api';
+import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
+import { UnknownCustomerDialog } from './UnknownCustomerDialog';
 
 interface TicketInfo {
   linked: boolean;
@@ -34,6 +35,15 @@ export const SupportInbox = () => {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
+
+  // Unknown customer dialog state
+  const [showUnknownCustomerDialog, setShowUnknownCustomerDialog] = useState(false);
+  const [pendingPriority, setPendingPriority] = useState<string>('normal');
+  const [senderInfo, setSenderInfo] = useState<{
+    email: string;
+    name: string;
+    domain: string | null;
+  } | null>(null);
 
   const loadConfig = async () => {
     try {
@@ -117,13 +127,43 @@ export const SupportInbox = () => {
 
     setCreating(true);
     try {
-      const response = await microsoft365Api.createTicketFromEmail(selectedEmail.id, { priority });
+      // First, check if customer exists for this email
+      const lookupResponse = await microsoft365Api.lookupCustomerForEmail(selectedEmail.id);
+
+      if (lookupResponse.success && !lookupResponse.found) {
+        // No customer found - show dialog
+        setPendingPriority(priority);
+        setSenderInfo(lookupResponse.sender);
+        setShowUnknownCustomerDialog(true);
+        setCreating(false);
+        return;
+      }
+
+      // Customer found or lookup failed - proceed with ticket creation
+      await createTicketWithCustomer(priority);
+    } catch (err: any) {
+      console.error('Customer lookup error:', err);
+      // On error, proceed with ticket creation anyway
+      await createTicketWithCustomer(priority);
+    }
+  };
+
+  const createTicketWithCustomer = async (priority: string, customerId?: string) => {
+    if (!selectedEmail) return;
+
+    setCreating(true);
+    try {
+      const response = await microsoft365Api.createTicketFromEmail(selectedEmail.id, {
+        priority,
+        customerId
+      });
       if (response.success && response.data) {
-        const { ticketNumber, linkedToExisting } = response.data;
+        const { ticketNumber, linkedToExisting, customerName } = response.data;
+        const customerInfo = customerName ? ` (Kunde: ${customerName})` : '';
         alert(
           linkedToExisting
-            ? `E-Mail wurde zu bestehendem Ticket ${ticketNumber} hinzugefügt`
-            : `Ticket ${ticketNumber} wurde erstellt`
+            ? `E-Mail wurde zu bestehendem Ticket ${ticketNumber} hinzugefügt${customerInfo}`
+            : `Ticket ${ticketNumber} wurde erstellt${customerInfo}`
         );
         // Reload emails and ticket info
         await loadEmails();
@@ -135,7 +175,59 @@ export const SupportInbox = () => {
       alert(err.message || 'Fehler beim Erstellen des Tickets');
     } finally {
       setCreating(false);
+      setShowUnknownCustomerDialog(false);
     }
+  };
+
+  // Handler: Create new customer with domain
+  const handleCreateCustomer = async (domain: string | null) => {
+    // Close dialog and open customer creation (for now, just proceed without customer)
+    // In future: Navigate to customer creation page with pre-filled domain
+    setShowUnknownCustomerDialog(false);
+
+    // For now, show a message that this feature is coming
+    const createNew = window.confirm(
+      `Möchten Sie einen neuen Kunden anlegen?\n\n` +
+      `Diese Funktion öffnet die Kundeneinstellungen.\n` +
+      `Nach dem Anlegen können Sie die Domain "${domain || 'keine'}" dort zuordnen.\n\n` +
+      `Klicken Sie "OK" um fortzufahren, oder "Abbrechen" um das Ticket ohne Kunde zu erstellen.`
+    );
+
+    if (createNew) {
+      // Open settings in new tab (customer creation)
+      window.open('/#settings?tab=customers&action=create', '_blank');
+    }
+
+    // Create ticket without customer for now
+    await createTicketWithCustomer(pendingPriority);
+  };
+
+  // Handler: Select existing customer and optionally save domain
+  const handleSelectCustomer = async (customerId: string, saveDomain: boolean) => {
+    setShowUnknownCustomerDialog(false);
+
+    // If saveDomain is true, add the domain to the customer
+    if (saveDomain && senderInfo?.domain) {
+      try {
+        await customersApi.addEmailDomain(customerId, {
+          domain: senderInfo.domain,
+          isPrimary: false,
+          notes: `Automatisch hinzugefügt von Support-Inbox (${new Date().toLocaleDateString('de-DE')})`
+        });
+      } catch (err) {
+        console.error('Failed to save domain:', err);
+        // Continue anyway - domain save is optional
+      }
+    }
+
+    // Create ticket with selected customer
+    await createTicketWithCustomer(pendingPriority, customerId);
+  };
+
+  // Handler: Continue without customer
+  const handleContinueWithoutCustomer = async () => {
+    setShowUnknownCustomerDialog(false);
+    await createTicketWithCustomer(pendingPriority);
   };
 
   const handleLinkToTicket = async () => {
@@ -500,6 +592,18 @@ export const SupportInbox = () => {
           </p>
         </div>
       </div>
+
+      {/* Unknown Customer Dialog */}
+      <UnknownCustomerDialog
+        isOpen={showUnknownCustomerDialog}
+        senderEmail={senderInfo?.email || ''}
+        senderName={senderInfo?.name || ''}
+        senderDomain={senderInfo?.domain || null}
+        onCreateCustomer={handleCreateCustomer}
+        onSelectCustomer={handleSelectCustomer}
+        onContinueWithoutCustomer={handleContinueWithoutCustomer}
+        onCancel={() => setShowUnknownCustomerDialog(false)}
+      />
     </div>
   );
 };

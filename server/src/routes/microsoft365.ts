@@ -521,6 +521,70 @@ async function findTicketByConversationId(
   return null;
 }
 
+// GET /api/microsoft365/support/emails/:id/customer-lookup - Check if customer exists for email
+router.get('/support/emails/:id/customer-lookup', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const messageId = req.params.id;
+
+    // Get the email
+    const emailResult = await mailboxMonitorService.getEmailById(organizationId, messageId, 'support');
+
+    if (!emailResult.success || !emailResult.email) {
+      return res.status(404).json({
+        success: false,
+        error: 'E-Mail nicht gefunden',
+      });
+    }
+
+    const email = emailResult.email;
+    const senderEmail = email.from.email;
+
+    // Extract domain from email
+    const domainMatch = senderEmail.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/);
+    const senderDomain = domainMatch ? domainMatch[1].toLowerCase() : null;
+
+    // Try to find customer by email
+    const customer = await findCustomerByEmail(organizationId, senderEmail);
+
+    if (customer) {
+      return res.json({
+        success: true,
+        found: true,
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          matchType: customer.matchType,
+        },
+        sender: {
+          email: senderEmail,
+          name: email.from.name,
+          domain: senderDomain,
+        },
+      });
+    }
+
+    // No customer found - return info for dialog
+    return res.json({
+      success: true,
+      found: false,
+      customer: null,
+      sender: {
+        email: senderEmail,
+        name: email.from.name,
+        domain: senderDomain,
+      },
+    });
+  } catch (error) {
+    console.error('Customer lookup error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Interner Serverfehler',
+    });
+  }
+});
+
 // POST /api/microsoft365/support/emails/:id/create-ticket - Create ticket from email
 router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
   try {
