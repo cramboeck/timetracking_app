@@ -390,28 +390,64 @@ async function generateTicketNumber(organizationId: string): Promise<string> {
   return `TKT-${String(nextNumber).padStart(6, '0')}`;
 }
 
+// Helper function to extract domain from email address
+function extractDomainFromEmail(email: string): string | null {
+  const match = email.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/);
+  return match ? match[1].toLowerCase() : null;
+}
+
 // Helper function to find customer by email
-async function findCustomerByEmail(organizationId: string, email: string): Promise<{ id: string; name: string } | null> {
-  // First check customer contacts
+async function findCustomerByEmail(organizationId: string, email: string): Promise<{ id: string; name: string; matchType: string } | null> {
+  // 1. First check customer contacts (exact email match)
   const contactResult = await query(`
-    SELECT c.id, c.company_name as name FROM customers c
+    SELECT c.id, c.name FROM customers c
     JOIN customer_contacts cc ON c.id = cc.customer_id
     WHERE c.organization_id = $1 AND LOWER(cc.email) = LOWER($2)
     LIMIT 1
   `, [organizationId, email]);
 
   if (contactResult.rows.length > 0) {
-    return contactResult.rows[0];
+    return { ...contactResult.rows[0], matchType: 'contact_email' };
   }
 
-  // Then check customer email field
+  // 2. Then check customer email field (exact email match)
   const customerResult = await query(`
-    SELECT id, company_name as name FROM customers
+    SELECT id, name FROM customers
     WHERE organization_id = $1 AND LOWER(email) = LOWER($2)
     LIMIT 1
   `, [organizationId, email]);
 
-  return customerResult.rows.length > 0 ? customerResult.rows[0] : null;
+  if (customerResult.rows.length > 0) {
+    return { ...customerResult.rows[0], matchType: 'customer_email' };
+  }
+
+  // 3. Extract domain and check customer_email_domains table
+  const domain = extractDomainFromEmail(email);
+  if (domain) {
+    const domainResult = await query(`
+      SELECT c.id, c.name, ced.domain FROM customers c
+      JOIN customer_email_domains ced ON c.id = ced.customer_id
+      WHERE ced.organization_id = $1 AND LOWER(ced.domain) = $2
+      LIMIT 1
+    `, [organizationId, domain]);
+
+    if (domainResult.rows.length > 0) {
+      return { ...domainResult.rows[0], matchType: 'domain_mapping' };
+    }
+
+    // 4. Finally check vendor_domain field (legacy support)
+    const vendorResult = await query(`
+      SELECT id, name FROM customers
+      WHERE organization_id = $1 AND LOWER(vendor_domain) = $2
+      LIMIT 1
+    `, [organizationId, domain]);
+
+    if (vendorResult.rows.length > 0) {
+      return { ...vendorResult.rows[0], matchType: 'vendor_domain' };
+    }
+  }
+
+  return null;
 }
 
 // Helper to save email to ticket_emails table

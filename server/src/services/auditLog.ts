@@ -116,7 +116,10 @@ export type AuditAction =
   | 'notification.create'
   | 'notification.delete'
   // Email actions
-  | 'email.test';
+  | 'email.test'
+  // Customer domain mapping actions
+  | 'customer_domain.add'
+  | 'customer_domain.remove';
 
 export interface AuditLogEntry {
   id: string;

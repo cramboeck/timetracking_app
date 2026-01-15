@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { attachOrganization, OrganizationRequest, getUserOrganizationId, requireOrgRole } from '../middleware/organization';
@@ -957,6 +958,254 @@ router.get('/:id/emails', authenticateToken, attachOrganization, async (req: Aut
     });
   } catch (error) {
     console.error('Get vendor emails error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
+// Customer Email Domains Management
+// ============================================
+
+// Validation schema for email domain
+const emailDomainSchema = z.object({
+  domain: z.string().min(3).max(100).regex(/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 'Ungültiges Domain-Format'),
+  isPrimary: z.boolean().optional(),
+  notes: z.string().max(500).optional()
+});
+
+// GET /api/customers/:customerId/email-domains - List all email domains for a customer
+router.get('/:customerId/email-domains', authenticateToken, attachOrganization, async (req, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { customerId } = req.params;
+
+    // Verify customer belongs to organization
+    const customerResult = await pool.query(
+      'SELECT id, name FROM customers WHERE id = $1 AND organization_id = $2',
+      [customerId, organizationId]
+    );
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Kunde nicht gefunden' });
+    }
+
+    const domainsResult = await pool.query(`
+      SELECT ced.*, u.username as created_by_name
+      FROM customer_email_domains ced
+      LEFT JOIN users u ON ced.created_by = u.id
+      WHERE ced.customer_id = $1 AND ced.organization_id = $2
+      ORDER BY ced.is_primary DESC, ced.domain ASC
+    `, [customerId, organizationId]);
+
+    res.json({
+      success: true,
+      data: transformRows(domainsResult.rows)
+    });
+  } catch (error) {
+    console.error('Get email domains error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/customers/:customerId/email-domains - Add email domain to customer
+router.post('/:customerId/email-domains', authenticateToken, attachOrganization, validate(emailDomainSchema), async (req, res) => {
+  try {
+    const authReq = req as AuthRequest;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { customerId } = req.params;
+    const { domain, isPrimary, notes } = req.body;
+
+    // Verify customer belongs to organization
+    const customerResult = await pool.query(
+      'SELECT id, name FROM customers WHERE id = $1 AND organization_id = $2',
+      [customerId, organizationId]
+    );
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Kunde nicht gefunden' });
+    }
+
+    // Check if domain already exists for any customer in this organization
+    const existingDomain = await pool.query(
+      'SELECT ced.*, c.name as customer_name FROM customer_email_domains ced JOIN customers c ON ced.customer_id = c.id WHERE ced.organization_id = $1 AND LOWER(ced.domain) = LOWER($2)',
+      [organizationId, domain]
+    );
+    if (existingDomain.rows.length > 0) {
+      const existing = existingDomain.rows[0];
+      return res.status(409).json({
+        error: `Domain "${domain}" ist bereits dem Kunden "${existing.customer_name}" zugeordnet`
+      });
+    }
+
+    const domainId = crypto.randomUUID();
+
+    // If this is set as primary, unset other primary domains for this customer
+    if (isPrimary) {
+      await pool.query(
+        'UPDATE customer_email_domains SET is_primary = false WHERE customer_id = $1',
+        [customerId]
+      );
+    }
+
+    await pool.query(`
+      INSERT INTO customer_email_domains (id, customer_id, organization_id, domain, is_primary, notes, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [domainId, customerId, organizationId, domain.toLowerCase(), isPrimary || false, notes || null, authReq.user!.id]);
+
+    auditLog.log({
+      action: 'customer_domain.add',
+      userId: authReq.user!.id,
+      details: JSON.stringify({ domain, isPrimary, customerId, organizationId }),
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: domainId,
+        customerId,
+        domain: domain.toLowerCase(),
+        isPrimary: isPrimary || false,
+        notes
+      }
+    });
+  } catch (error) {
+    console.error('Add email domain error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/customers/:customerId/email-domains/:domainId - Remove email domain
+router.delete('/:customerId/email-domains/:domainId', authenticateToken, attachOrganization, async (req, res) => {
+  try {
+    const authReq = req as AuthRequest;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { customerId, domainId } = req.params;
+
+    // Verify customer belongs to organization
+    const customerResult = await pool.query(
+      'SELECT id FROM customers WHERE id = $1 AND organization_id = $2',
+      [customerId, organizationId]
+    );
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Kunde nicht gefunden' });
+    }
+
+    // Get domain info before deleting
+    const domainResult = await pool.query(
+      'SELECT domain FROM customer_email_domains WHERE id = $1 AND customer_id = $2',
+      [domainId, customerId]
+    );
+    if (domainResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Domain nicht gefunden' });
+    }
+
+    const deletedDomain = domainResult.rows[0].domain;
+
+    await pool.query(
+      'DELETE FROM customer_email_domains WHERE id = $1 AND customer_id = $2',
+      [domainId, customerId]
+    );
+
+    auditLog.log({
+      action: 'customer_domain.remove',
+      userId: authReq.user!.id,
+      details: JSON.stringify({ domain: deletedDomain, customerId, organizationId }),
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete email domain error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/customers/email-domains/lookup - Find customer by email domain
+router.get('/email-domains/lookup', authenticateToken, attachOrganization, async (req, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const email = req.query.email as string;
+
+    if (!email) {
+      return res.status(400).json({ error: 'E-Mail-Adresse erforderlich' });
+    }
+
+    // Extract domain from email
+    const domainMatch = email.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/);
+    if (!domainMatch) {
+      return res.status(400).json({ error: 'Ungültiges E-Mail-Format' });
+    }
+    const domain = domainMatch[1].toLowerCase();
+
+    // Look up in customer_email_domains
+    const result = await pool.query(`
+      SELECT c.id, c.name, c.customer_number, ced.domain, ced.is_primary
+      FROM customers c
+      JOIN customer_email_domains ced ON c.id = ced.customer_id
+      WHERE ced.organization_id = $1 AND LOWER(ced.domain) = $2
+      LIMIT 1
+    `, [organizationId, domain]);
+
+    if (result.rows.length > 0) {
+      return res.json({
+        success: true,
+        found: true,
+        matchType: 'domain_mapping',
+        data: transformRow(result.rows[0])
+      });
+    }
+
+    // Fallback to vendor_domain
+    const vendorResult = await pool.query(`
+      SELECT id, name, customer_number, vendor_domain as domain
+      FROM customers
+      WHERE organization_id = $1 AND LOWER(vendor_domain) = $2
+      LIMIT 1
+    `, [organizationId, domain]);
+
+    if (vendorResult.rows.length > 0) {
+      return res.json({
+        success: true,
+        found: true,
+        matchType: 'vendor_domain',
+        data: transformRow(vendorResult.rows[0])
+      });
+    }
+
+    res.json({
+      success: true,
+      found: false,
+      searchedDomain: domain,
+      message: 'Kein Kunde für diese Domain gefunden'
+    });
+  } catch (error) {
+    console.error('Domain lookup error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/customers/email-domains/all - List all domain mappings (admin view)
+router.get('/email-domains/all', authenticateToken, attachOrganization, async (req, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await pool.query(`
+      SELECT ced.*, c.name as customer_name, c.customer_number, u.username as created_by_name
+      FROM customer_email_domains ced
+      JOIN customers c ON ced.customer_id = c.id
+      LEFT JOIN users u ON ced.created_by = u.id
+      WHERE ced.organization_id = $1
+      ORDER BY c.name ASC, ced.domain ASC
+    `, [organizationId]);
+
+    res.json({
+      success: true,
+      data: transformRows(result.rows)
+    });
+  } catch (error) {
+    console.error('Get all domains error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -3383,6 +3383,32 @@ export async function initializeDatabase() {
 
     console.log('✅ Email logs tables created');
 
+    // ============================================
+    // Customer Email Domains Table
+    // ============================================
+
+    // Table for mapping email domains to customers (for automatic ticket assignment)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_email_domains (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        domain TEXT NOT NULL,
+        is_primary BOOLEAN DEFAULT false,
+        notes TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        UNIQUE(organization_id, domain)
+      )
+    `);
+
+    // Create indexes for customer_email_domains
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_email_domains_customer ON customer_email_domains(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_email_domains_org ON customer_email_domains(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_email_domains_domain ON customer_email_domains(domain)');
+
+    console.log('✅ Customer email domains table created');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {
