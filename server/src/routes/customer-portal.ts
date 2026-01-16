@@ -595,6 +595,68 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
       `Neuer Kundenkommentar von ${comment.contact_name}`
     ).catch(err => console.error('Failed to send push notification:', err));
 
+    // Send notification to assignee if different from owner (async, non-blocking)
+    (async () => {
+      try {
+        // Get ticket with assignee info and organization
+        const ticketWithAssignee = await pool.query(`
+          SELECT t.assigned_to_user_id, t.organization_id, c.name as customer_name,
+                 u.email as assignee_email, u.username as assignee_name
+          FROM tickets t
+          LEFT JOIN customers c ON t.customer_id = c.id
+          LEFT JOIN users u ON t.assigned_to_user_id = u.id
+          WHERE t.id = $1
+        `, [id]);
+
+        if (ticketWithAssignee.rows.length === 0) return;
+        const ticket = ticketWithAssignee.rows[0];
+
+        // Only notify if there's an assignee and it's not the ticket owner
+        if (!ticket.assigned_to_user_id || ticket.assigned_to_user_id === comment.ticket_owner_id) return;
+
+        // Check notification preferences for assignee
+        const prefsResult = await pool.query(
+          'SELECT * FROM notification_preferences WHERE user_id = $1 AND organization_id = $2',
+          [ticket.assigned_to_user_id, ticket.organization_id]
+        );
+        const prefs = prefsResult.rows[0] || {
+          push_enabled: true,
+          push_on_ticket_comment: true,
+          email_enabled: true,
+          email_on_ticket_comment: true
+        };
+
+        // Send push notification
+        if (prefs.push_enabled !== false && prefs.push_on_ticket_comment !== false) {
+          sendTicketNotification(
+            ticket.assigned_to_user_id,
+            { id, ticketNumber: comment.ticket_number, title: comment.ticket_title },
+            'push_on_ticket_comment',
+            `Kundenkommentar von ${comment.contact_name}: ${content.substring(0, 80)}${content.length > 80 ? '...' : ''}`
+          ).catch(err => console.error('Push notification error (customer comment to assignee):', err));
+        }
+
+        // Send email notification
+        if (prefs.email_enabled !== false && prefs.email_on_ticket_comment !== false && ticket.assignee_email) {
+          const PORTAL_URL = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
+          const ticketUrl = `${PORTAL_URL}/?ticket=${id}`;
+          emailService.sendTicketCommentNotificationToAssignee({
+            to: ticket.assignee_email,
+            assigneeName: ticket.assignee_name,
+            commenterName: comment.contact_name,
+            ticketNumber: comment.ticket_number,
+            ticketTitle: comment.ticket_title,
+            commentContent: content,
+            customerName: ticket.customer_name || 'Unbekannt',
+            isFromCustomer: true,
+            ticketUrl
+          }).catch(err => console.error('Email notification error (customer comment to assignee):', err));
+        }
+      } catch (err) {
+        console.error('Error sending customer comment notification to assignee:', err);
+      }
+    })();
+
     res.status(201).json({
       id: comment.id,
       content: comment.content,

@@ -1257,6 +1257,194 @@ RamboFlow von ramboeck.IT
     });
   }
 
+  // ============================================================================
+  // ASSIGNEE (BEARBEITER) NOTIFICATION EMAILS
+  // ============================================================================
+
+  /**
+   * Send notification to user when they are assigned to a ticket
+   */
+  async sendTicketAssignedNotification(data: {
+    to: string;
+    assigneeName: string;
+    assignedByName: string;
+    ticketNumber: string;
+    ticketTitle: string;
+    ticketDescription: string;
+    customerName: string;
+    priority: string;
+    ticketUrl: string;
+  }): Promise<boolean> {
+    const { to, assigneeName, assignedByName, ticketNumber, ticketTitle, ticketDescription, customerName, priority, ticketUrl } = data;
+
+    const priorityLabels: Record<string, string> = {
+      low: 'Niedrig',
+      normal: 'Normal',
+      high: 'Hoch',
+      critical: 'Kritisch',
+    };
+    const priorityColors: Record<string, string> = {
+      low: '#10b981',
+      normal: '#F27024',
+      high: '#f59e0b',
+      critical: '#ef4444',
+    };
+    const priorityLabel = priorityLabels[priority] || priority;
+    const priorityColor = priorityColors[priority] || '#F27024';
+
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${assigneeName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        <strong>${assignedByName}</strong> hat Ihnen ein Ticket zugewiesen.
+      </p>
+
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 120px;">Ticket:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">#${ticketNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Kunde:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${customerName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Priorität:</td>
+            <td style="padding: 8px 0;">
+              <span style="display: inline-block; padding: 4px 12px; background-color: ${priorityColor}20; color: ${priorityColor}; border-radius: 4px; font-size: 13px; font-weight: 600;">
+                ${priorityLabel}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; vertical-align: top;">Betreff:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${ticketTitle}</td>
+          </tr>
+        </table>
+        ${ticketDescription ? `
+          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+            <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0;">Beschreibung:</p>
+            <p style="color: #4b5563; font-size: 14px; margin: 0; line-height: 1.6; white-space: pre-wrap;">${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}</p>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    const html = this.generateEmailWrapper('Ticket zugewiesen', content, {
+      text: 'Ticket öffnen',
+      url: ticketUrl
+    });
+
+    const text = `
+Ticket zugewiesen
+
+Hallo ${assigneeName},
+
+${assignedByName} hat Ihnen ein Ticket zugewiesen.
+
+Ticket: #${ticketNumber}
+Kunde: ${customerName}
+Priorität: ${priorityLabel}
+Betreff: ${ticketTitle}
+${ticketDescription ? `\nBeschreibung:\n${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}` : ''}
+
+Ticket öffnen: ${ticketUrl}
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
+
+    return await this.sendEmail({
+      to,
+      subject: `Ticket #${ticketNumber} zugewiesen: ${ticketTitle}`,
+      html,
+      text
+    });
+  }
+
+  /**
+   * Send notification to assignee when a new comment is added to their ticket
+   */
+  async sendTicketCommentNotificationToAssignee(data: {
+    to: string;
+    assigneeName: string;
+    commenterName: string;
+    ticketNumber: string;
+    ticketTitle: string;
+    commentContent: string;
+    customerName: string;
+    isFromCustomer: boolean;
+    ticketUrl: string;
+  }): Promise<boolean> {
+    const { to, assigneeName, commenterName, ticketNumber, ticketTitle, commentContent, customerName, isFromCustomer, ticketUrl } = data;
+
+    const sourceLabel = isFromCustomer ? 'Kundenkommentar' : 'Interner Kommentar';
+    const sourceColor = isFromCustomer ? '#F27024' : '#6366f1';
+
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${assigneeName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        Es gibt einen neuen Kommentar zu Ihrem zugewiesenen Ticket.
+      </p>
+
+      <div style="background-color: #FEF7F4; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <p style="color: #6b7280; font-size: 13px; margin: 0 0 4px 0;">
+          <strong>Ticket #${ticketNumber}</strong> • ${customerName}
+        </p>
+        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
+          ${ticketTitle}
+        </p>
+      </div>
+
+      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <div style="display: flex; align-items: center; margin-bottom: 12px;">
+          <span style="display: inline-block; padding: 4px 10px; background-color: ${sourceColor}20; color: ${sourceColor}; border-radius: 4px; font-size: 12px; font-weight: 600; margin-right: 8px;">
+            ${sourceLabel}
+          </span>
+          <span style="color: #F27024; font-size: 14px; font-weight: 600;">
+            ${commenterName}
+          </span>
+        </div>
+        <p style="color: #1f2937; font-size: 15px; line-height: 1.7; margin: 0; white-space: pre-wrap;">
+${commentContent.substring(0, 1000)}${commentContent.length > 1000 ? '...' : ''}
+        </p>
+      </div>
+    `;
+
+    const html = this.generateEmailWrapper('Neuer Kommentar zu Ihrem Ticket', content, {
+      text: 'Ticket öffnen',
+      url: ticketUrl
+    });
+
+    const text = `
+Neuer Kommentar zu Ihrem Ticket
+
+Hallo ${assigneeName},
+
+Es gibt einen neuen Kommentar zu Ihrem zugewiesenen Ticket.
+
+Ticket #${ticketNumber}: ${ticketTitle}
+Kunde: ${customerName}
+
+${sourceLabel} von ${commenterName}:
+---
+${commentContent.substring(0, 1000)}${commentContent.length > 1000 ? '...' : ''}
+---
+
+Ticket öffnen: ${ticketUrl}
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
+
+    return await this.sendEmail({
+      to,
+      subject: `${isFromCustomer ? 'Kundenkommentar' : 'Kommentar'} zu Ticket #${ticketNumber}: ${ticketTitle}`,
+      html,
+      text
+    });
+  }
+
   private getStatusLabel(status: string): string {
     const labels: Record<string, string> = {
       open: 'Offen',

@@ -1515,15 +1515,6 @@ export const Settings = ({
                   <PushNotificationSettings />
                 </div>
 
-                {/* Email Notifications (Coming Soon) */}
-                <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
-                  <h3 className="font-medium text-gray-900 dark:text-white">E-Mail-Benachrichtigungen</h3>
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <p className="text-sm text-blue-900 dark:text-blue-200">
-                      📧 E-Mail-Benachrichtigungen werden in Kürze verfügbar sein!
-                    </p>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

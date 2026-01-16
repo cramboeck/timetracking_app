@@ -153,17 +153,33 @@ router.get('/preferences', authenticateToken, async (req: AuthRequest, res: Resp
     const userId = req.user!.id;
     const preferences = await getNotificationPreferences(userId);
 
+    // Default preferences if none exist
+    const defaultPreferences = {
+      // Push notification settings
+      push_enabled: true,
+      push_on_new_ticket: true,
+      push_on_ticket_assigned: true,
+      push_on_ticket_comment: true,
+      push_on_status_change: true,
+      push_on_sla_warning: true,
+      push_on_mention: true,
+      // Email notification settings
+      email_enabled: true,
+      email_on_ticket_assigned: true,
+      email_on_ticket_comment: true,
+      email_on_status_change: false,
+      email_on_sla_warning: true,
+      email_on_mention: true,
+      email_daily_digest: false,
+      // Quiet hours
+      quiet_hours_enabled: false,
+      quiet_hours_start: '22:00',
+      quiet_hours_end: '07:00',
+    };
+
     res.json({
       success: true,
-      data: preferences || {
-        push_enabled: true,
-        push_on_new_ticket: true,
-        push_on_ticket_comment: true,
-        push_on_ticket_assigned: true,
-        push_on_status_change: true,
-        push_on_sla_warning: true,
-        email_enabled: true,
-      },
+      data: preferences || defaultPreferences,
     });
   } catch (error: any) {
     console.error('Get preferences error:', error);

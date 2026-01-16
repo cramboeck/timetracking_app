@@ -206,52 +206,97 @@ export const PushNotificationSettings = () => {
       </div>
 
       {/* Notification Preferences */}
-      {preferences && isSubscribed && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 dark:text-white mb-4">
-            Benachrichtigungseinstellungen
-          </h4>
-          <div className="space-y-3">
-            <PreferenceToggle
-              label="Push-Benachrichtigungen aktiviert"
-              description="Alle Push-Benachrichtigungen aktivieren/deaktivieren"
-              checked={preferences.push_enabled}
-              onChange={(v) => handlePreferenceChange('push_enabled', v)}
-            />
-            <div className={preferences.push_enabled ? '' : 'opacity-50 pointer-events-none'}>
+      {preferences && (
+        <>
+          {/* Push Notification Settings */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <h4 className="font-medium text-gray-900 dark:text-white mb-4">
+              Push-Benachrichtigungen
+            </h4>
+            <div className="space-y-3">
               <PreferenceToggle
-                label="Neues Ticket erstellt"
-                description="Benachrichtigung bei neuen Tickets"
-                checked={preferences.push_on_new_ticket}
-                onChange={(v) => handlePreferenceChange('push_on_new_ticket', v)}
+                label="Push-Benachrichtigungen aktiviert"
+                description="Alle Push-Benachrichtigungen aktivieren/deaktivieren"
+                checked={preferences.push_enabled}
+                onChange={(v) => handlePreferenceChange('push_enabled', v)}
+                disabled={!isSubscribed}
               />
-              <PreferenceToggle
-                label="Neuer Kommentar"
-                description="Benachrichtigung bei neuen Kommentaren"
-                checked={preferences.push_on_ticket_comment}
-                onChange={(v) => handlePreferenceChange('push_on_ticket_comment', v)}
-              />
-              <PreferenceToggle
-                label="Ticket zugewiesen"
-                description="Benachrichtigung wenn Ihnen ein Ticket zugewiesen wird"
-                checked={preferences.push_on_ticket_assigned}
-                onChange={(v) => handlePreferenceChange('push_on_ticket_assigned', v)}
-              />
-              <PreferenceToggle
-                label="Status geändert"
-                description="Benachrichtigung bei Statusänderungen"
-                checked={preferences.push_on_status_change}
-                onChange={(v) => handlePreferenceChange('push_on_status_change', v)}
-              />
-              <PreferenceToggle
-                label="SLA-Warnung"
-                description="Benachrichtigung bei SLA-Verletzungen"
-                checked={preferences.push_on_sla_warning}
-                onChange={(v) => handlePreferenceChange('push_on_sla_warning', v)}
-              />
+              <div className={preferences.push_enabled && isSubscribed ? '' : 'opacity-50 pointer-events-none'}>
+                <PreferenceToggle
+                  label="Neues Ticket erstellt"
+                  description="Benachrichtigung bei neuen Tickets"
+                  checked={preferences.push_on_new_ticket}
+                  onChange={(v) => handlePreferenceChange('push_on_new_ticket', v)}
+                />
+                <PreferenceToggle
+                  label="Neuer Kommentar"
+                  description="Benachrichtigung bei Kommentaren zu Ihren Tickets"
+                  checked={preferences.push_on_ticket_comment}
+                  onChange={(v) => handlePreferenceChange('push_on_ticket_comment', v)}
+                />
+                <PreferenceToggle
+                  label="Ticket zugewiesen"
+                  description="Benachrichtigung wenn Ihnen ein Ticket zugewiesen wird"
+                  checked={preferences.push_on_ticket_assigned}
+                  onChange={(v) => handlePreferenceChange('push_on_ticket_assigned', v)}
+                />
+                <PreferenceToggle
+                  label="Status geändert"
+                  description="Benachrichtigung bei Statusänderungen"
+                  checked={preferences.push_on_status_change}
+                  onChange={(v) => handlePreferenceChange('push_on_status_change', v)}
+                />
+                <PreferenceToggle
+                  label="SLA-Warnung"
+                  description="Benachrichtigung bei SLA-Verletzungen"
+                  checked={preferences.push_on_sla_warning}
+                  onChange={(v) => handlePreferenceChange('push_on_sla_warning', v)}
+                />
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* Email Notification Settings */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <h4 className="font-medium text-gray-900 dark:text-white mb-4">
+              E-Mail-Benachrichtigungen
+            </h4>
+            <div className="space-y-3">
+              <PreferenceToggle
+                label="E-Mail-Benachrichtigungen aktiviert"
+                description="Alle E-Mail-Benachrichtigungen aktivieren/deaktivieren"
+                checked={preferences.email_enabled}
+                onChange={(v) => handlePreferenceChange('email_enabled', v)}
+              />
+              <div className={preferences.email_enabled ? '' : 'opacity-50 pointer-events-none'}>
+                <PreferenceToggle
+                  label="Ticket zugewiesen"
+                  description="E-Mail wenn Ihnen ein Ticket zugewiesen wird"
+                  checked={preferences.email_on_ticket_assigned}
+                  onChange={(v) => handlePreferenceChange('email_on_ticket_assigned', v)}
+                />
+                <PreferenceToggle
+                  label="Neuer Kommentar"
+                  description="E-Mail bei Kommentaren zu Ihren zugewiesenen Tickets"
+                  checked={preferences.email_on_ticket_comment}
+                  onChange={(v) => handlePreferenceChange('email_on_ticket_comment', v)}
+                />
+                <PreferenceToggle
+                  label="Status geändert"
+                  description="E-Mail bei Statusänderungen Ihrer Tickets"
+                  checked={preferences.email_on_status_change}
+                  onChange={(v) => handlePreferenceChange('email_on_status_change', v)}
+                />
+                <PreferenceToggle
+                  label="SLA-Warnung"
+                  description="E-Mail bei SLA-Verletzungen"
+                  checked={preferences.email_on_sla_warning}
+                  onChange={(v) => handlePreferenceChange('email_on_sla_warning', v)}
+                />
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Registered Devices */}
@@ -314,19 +359,21 @@ interface PreferenceToggleProps {
   description: string;
   checked: boolean;
   onChange: (value: boolean) => void;
+  disabled?: boolean;
 }
 
-const PreferenceToggle = ({ label, description, checked, onChange }: PreferenceToggleProps) => (
-  <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+const PreferenceToggle = ({ label, description, checked, onChange, disabled }: PreferenceToggleProps) => (
+  <div className={`flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${disabled ? 'opacity-50' : ''}`}>
     <div>
       <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
       <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
     </div>
     <button
-      onClick={() => onChange(!checked)}
+      onClick={() => !disabled && onChange(!checked)}
+      disabled={disabled}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
         checked ? 'bg-accent-primary' : 'bg-gray-300 dark:bg-gray-600'
-      }`}
+      } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <span
         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${

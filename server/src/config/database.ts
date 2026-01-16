@@ -1680,6 +1680,67 @@ export async function initializeDatabase() {
     console.log('✅ Portal push subscriptions table created');
 
     // ============================================
+    // Internal User Push Subscriptions & Notification Preferences
+    // ============================================
+
+    // Push subscriptions for internal users (employees/team members)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        device_name TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_used_at TIMESTAMP
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subs_org ON push_subscriptions(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subs_endpoint ON push_subscriptions(endpoint)');
+
+    // Notification preferences for internal users
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notification_preferences (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        -- Push notification settings
+        push_enabled BOOLEAN DEFAULT true,
+        push_on_new_ticket BOOLEAN DEFAULT true,
+        push_on_ticket_assigned BOOLEAN DEFAULT true,
+        push_on_ticket_comment BOOLEAN DEFAULT true,
+        push_on_status_change BOOLEAN DEFAULT true,
+        push_on_sla_warning BOOLEAN DEFAULT true,
+        push_on_mention BOOLEAN DEFAULT true,
+        -- Email notification settings
+        email_enabled BOOLEAN DEFAULT true,
+        email_on_ticket_assigned BOOLEAN DEFAULT true,
+        email_on_ticket_comment BOOLEAN DEFAULT true,
+        email_on_status_change BOOLEAN DEFAULT false,
+        email_on_sla_warning BOOLEAN DEFAULT true,
+        email_on_mention BOOLEAN DEFAULT true,
+        email_daily_digest BOOLEAN DEFAULT false,
+        -- Quiet hours (e.g., "22:00" to "07:00")
+        quiet_hours_enabled BOOLEAN DEFAULT false,
+        quiet_hours_start TEXT DEFAULT '22:00',
+        quiet_hours_end TEXT DEFAULT '07:00',
+        -- Timestamps
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, organization_id)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_notif_prefs_user ON notification_preferences(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_notif_prefs_org ON notification_preferences(organization_id)');
+
+    console.log('✅ Internal user push subscriptions and notification preferences tables created');
+
+    // ============================================
     // Security Alerts Table
     // ============================================
 

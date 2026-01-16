@@ -699,6 +699,77 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (assignedToUserId !== undefined && assignedToUserId !== oldValues.assigned_to_user_id) {
       if (assignedToUserId) {
         await logTicketActivity(id, userId, null, 'assigned', oldValues.assigned_to_user_id, assignedToUserId);
+
+        // Send notification to the newly assigned user (async, don't block response)
+        (async () => {
+          try {
+            // Get assignee info
+            const assigneeResult = await query(
+              'SELECT id, username, email FROM users WHERE id = $1',
+              [assignedToUserId]
+            );
+            if (assigneeResult.rows.length === 0) return;
+            const assignee = assigneeResult.rows[0];
+
+            // Get assigner (current user) info
+            const assignerResult = await query(
+              'SELECT username FROM users WHERE id = $1',
+              [userId]
+            );
+            const assignerName = assignerResult.rows[0]?.username || 'Ein Teammitglied';
+
+            // Get ticket details with customer name
+            const ticketDetails = await query(`
+              SELECT t.ticket_number, t.title, t.description, t.priority, c.name as customer_name
+              FROM tickets t
+              LEFT JOIN customers c ON t.customer_id = c.id
+              WHERE t.id = $1
+            `, [id]);
+            if (ticketDetails.rows.length === 0) return;
+            const ticket = ticketDetails.rows[0];
+
+            // Check notification preferences for assignee
+            const prefsResult = await query(
+              'SELECT * FROM notification_preferences WHERE user_id = $1 AND organization_id = $2',
+              [assignedToUserId, organizationId]
+            );
+            // Default preferences if not set
+            const prefs = prefsResult.rows[0] || {
+              push_enabled: true,
+              push_on_ticket_assigned: true,
+              email_enabled: true,
+              email_on_ticket_assigned: true
+            };
+
+            // Send push notification
+            if (prefs.push_enabled !== false && prefs.push_on_ticket_assigned !== false) {
+              sendTicketNotification(
+                assignedToUserId,
+                { id, ticketNumber: ticket.ticket_number, title: ticket.title },
+                'push_on_ticket_assigned',
+                `${assignerName} hat Ihnen Ticket #${ticket.ticket_number} zugewiesen`
+              ).catch(err => console.error('Push notification error (assigned):', err));
+            }
+
+            // Send email notification
+            if (prefs.email_enabled !== false && prefs.email_on_ticket_assigned !== false && assignee.email) {
+              const ticketUrl = `${PORTAL_URL}/?ticket=${id}`;
+              emailService.sendTicketAssignedNotification({
+                to: assignee.email,
+                assigneeName: assignee.username,
+                assignedByName: assignerName,
+                ticketNumber: ticket.ticket_number,
+                ticketTitle: ticket.title,
+                ticketDescription: ticket.description || '',
+                customerName: ticket.customer_name || 'Unbekannt',
+                priority: ticket.priority,
+                ticketUrl
+              }).catch(err => console.error('Email notification error (assigned):', err));
+            }
+          } catch (err) {
+            console.error('Error sending assignment notifications:', err);
+          }
+        })();
       } else {
         await logTicketActivity(id, userId, null, 'unassigned', oldValues.assigned_to_user_id, null);
       }
@@ -1075,6 +1146,74 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
     } else {
       await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
     }
+
+    // Send notification to assignee (if not the commenter) - async, non-blocking
+    (async () => {
+      try {
+        // Get ticket with assignee info
+        const ticketWithAssignee = await query(`
+          SELECT t.ticket_number, t.title, t.assigned_to_user_id, t.customer_id,
+                 c.name as customer_name, u.email as assignee_email, u.username as assignee_name
+          FROM tickets t
+          LEFT JOIN customers c ON t.customer_id = c.id
+          LEFT JOIN users u ON t.assigned_to_user_id = u.id
+          WHERE t.id = $1
+        `, [ticketId]);
+
+        if (ticketWithAssignee.rows.length === 0) return;
+        const ticket = ticketWithAssignee.rows[0];
+
+        // Only notify if there's an assignee and it's not the commenter
+        if (!ticket.assigned_to_user_id || ticket.assigned_to_user_id === userId) return;
+
+        // Get commenter name
+        const commenterResult = await query(
+          "SELECT COALESCE(display_name, username) as name FROM users WHERE id = $1",
+          [userId]
+        );
+        const commenterName = commenterResult.rows[0]?.name || 'Ein Teammitglied';
+
+        // Check notification preferences for assignee
+        const prefsResult = await query(
+          'SELECT * FROM notification_preferences WHERE user_id = $1 AND organization_id = $2',
+          [ticket.assigned_to_user_id, organizationId]
+        );
+        const prefs = prefsResult.rows[0] || {
+          push_enabled: true,
+          push_on_ticket_comment: true,
+          email_enabled: true,
+          email_on_ticket_comment: true
+        };
+
+        // Send push notification
+        if (prefs.push_enabled !== false && prefs.push_on_ticket_comment !== false) {
+          sendTicketNotification(
+            ticket.assigned_to_user_id,
+            { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
+            'push_on_ticket_comment',
+            `${commenterName}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+          ).catch(err => console.error('Push notification error (comment to assignee):', err));
+        }
+
+        // Send email notification
+        if (prefs.email_enabled !== false && prefs.email_on_ticket_comment !== false && ticket.assignee_email) {
+          const ticketUrl = `${PORTAL_URL}/?ticket=${ticketId}`;
+          emailService.sendTicketCommentNotificationToAssignee({
+            to: ticket.assignee_email,
+            assigneeName: ticket.assignee_name,
+            commenterName,
+            ticketNumber: ticket.ticket_number,
+            ticketTitle: ticket.title,
+            commentContent: content,
+            customerName: ticket.customer_name || 'Unbekannt',
+            isFromCustomer: false, // Internal comment
+            ticketUrl
+          }).catch(err => console.error('Email notification error (comment to assignee):', err));
+        }
+      } catch (err) {
+        console.error('Error sending comment notification to assignee:', err);
+      }
+    })();
 
     // Log activity
     await logTicketActivity(
