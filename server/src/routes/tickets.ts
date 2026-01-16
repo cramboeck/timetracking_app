@@ -730,8 +730,8 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
             // Check notification preferences for assignee
             const prefsResult = await query(
-              'SELECT * FROM notification_preferences WHERE user_id = $1 AND organization_id = $2',
-              [assignedToUserId, organizationId]
+              'SELECT * FROM notification_preferences WHERE user_id = $1',
+              [assignedToUserId]
             );
             // Default preferences if not set
             const prefs = prefsResult.rows[0] || {
@@ -1175,8 +1175,8 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
 
         // Check notification preferences for assignee
         const prefsResult = await query(
-          'SELECT * FROM notification_preferences WHERE user_id = $1 AND organization_id = $2',
-          [ticket.assigned_to_user_id, organizationId]
+          'SELECT * FROM notification_preferences WHERE user_id = $1',
+          [ticket.assigned_to_user_id]
         );
         const prefs = prefsResult.rows[0] || {
           push_enabled: true,

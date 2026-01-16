@@ -616,8 +616,8 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
 
         // Check notification preferences for assignee
         const prefsResult = await pool.query(
-          'SELECT * FROM notification_preferences WHERE user_id = $1 AND organization_id = $2',
-          [ticket.assigned_to_user_id, ticket.organization_id]
+          'SELECT * FROM notification_preferences WHERE user_id = $1',
+          [ticket.assigned_to_user_id]
         );
         const prefs = prefsResult.rows[0] || {
           push_enabled: true,

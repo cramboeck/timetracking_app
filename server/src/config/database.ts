@@ -1731,12 +1731,11 @@ export async function initializeDatabase() {
         -- Timestamps
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        UNIQUE(user_id, organization_id)
+        UNIQUE(user_id)
       )
     `);
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_notif_prefs_user ON notification_preferences(user_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_notif_prefs_org ON notification_preferences(organization_id)');
 
     console.log('✅ Internal user push subscriptions and notification preferences tables created');
 
