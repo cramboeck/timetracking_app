@@ -677,6 +677,64 @@ router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), async
     // Mark email as read
     await mailboxMonitorService.markAsRead(organizationId, messageId, 'support');
 
+    // Send notifications to team members (async, non-blocking)
+    (async () => {
+      try {
+        const { sendTicketNotification, getNotificationPreferences } = await import('../services/pushNotifications');
+        const { emailService } = await import('../services/emailService');
+
+        // Get all organization members with notification preferences
+        const membersResult = await query(`
+          SELECT u.id, u.email, u.username, COALESCE(u.display_name, u.username) as display_name
+          FROM users u
+          JOIN organization_members om ON u.id = om.user_id
+          WHERE om.organization_id = $1
+        `, [organizationId]);
+
+        const ticketUrl = `${process.env.FRONTEND_URL || 'https://app.ramboeck.it'}/?ticket=${ticketId}`;
+        const senderName = email.from.name || email.from.email.split('@')[0];
+
+        for (const member of membersResult.rows) {
+          // Skip the user who created the ticket (they already know)
+          if (member.id === userId) continue;
+
+          // Get notification preferences (with defaults)
+          const prefs = await getNotificationPreferences(member.id) || {
+            push_enabled: true,
+            push_on_new_ticket: true,
+            email_enabled: true,
+            email_on_new_ticket: true
+          };
+
+          // Send push notification if enabled
+          if (prefs.push_enabled && prefs.push_on_new_ticket) {
+            sendTicketNotification(
+              member.id,
+              { id: ticketId, ticketNumber, title: email.subject || '(Kein Betreff)' },
+              'push_on_new_ticket',
+              `Neues Ticket von ${senderName}${customerName ? ` (${customerName})` : ''}`
+            ).catch(err => console.error('Push notification error (new ticket):', err));
+          }
+
+          // Send email notification if enabled
+          if (prefs.email_enabled && (prefs as any).email_on_new_ticket !== false && member.email) {
+            emailService.sendNewTicketAdminNotification({
+              to: member.email,
+              customerName: customerName || 'Unbekannt',
+              contactName: senderName,
+              ticketNumber,
+              ticketTitle: email.subject || '(Kein Betreff)',
+              ticketDescription: description.substring(0, 500),
+              priority,
+              adminUrl: ticketUrl,
+            }).catch(err => console.error('Email notification error (new ticket):', err));
+          }
+        }
+      } catch (notifyErr) {
+        console.error('Error sending new ticket notifications:', notifyErr);
+      }
+    })();
+
     res.json({
       success: true,
       data: {

@@ -149,10 +149,23 @@ export const ticketsApi = {
     return authFetch(`/tickets/${id}`, { method: 'DELETE' });
   },
 
-  addComment: async (ticketId: string, content: string, isInternal?: boolean): Promise<{ success: boolean; data: TicketComment }> => {
+  addComment: async (
+    ticketId: string,
+    content: string,
+    options?: {
+      isInternal?: boolean;
+      notifyCustomer?: boolean;  // Send email notification to customer
+      replyViaEmail?: boolean;   // Reply in original email thread (for email-sourced tickets)
+    }
+  ): Promise<{ success: boolean; data: TicketComment }> => {
     return authFetch(`/tickets/${ticketId}/comments`, {
       method: 'POST',
-      body: JSON.stringify({ content, isInternal }),
+      body: JSON.stringify({
+        content,
+        isInternal: options?.isInternal,
+        notifyCustomer: options?.notifyCustomer,
+        replyViaEmail: options?.replyViaEmail,
+      }),
     });
   },
 

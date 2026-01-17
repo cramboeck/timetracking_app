@@ -5,10 +5,12 @@
  * Uses Microsoft Graph API with application permissions.
  */
 
+import crypto from 'crypto';
 import { ClientSecretCredential } from '@azure/identity';
 import { Client } from '@microsoft/microsoft-graph-client';
 import { TokenCredentialAuthenticationProvider } from '@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials';
 import { getConfig, Microsoft365Config } from './microsoft365ConfigService';
+import { query } from '../config/database';
 
 export interface EmailMessage {
   id: string;
@@ -485,6 +487,60 @@ class MailboxMonitorService {
       return true;
     } catch (error: any) {
       console.error('Failed to reply to email:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Reply to a ticket's email thread
+   * Looks up the last inbound email for the ticket and replies to it
+   */
+  async replyToTicketEmail(
+    organizationId: string,
+    ticketId: string,
+    replyContent: string,
+    senderName: string = 'Support'
+  ): Promise<boolean> {
+    try {
+      // Get the last inbound email for this ticket
+      const result = await query(`
+        SELECT message_id, subject
+        FROM ticket_emails
+        WHERE ticket_id = $1 AND organization_id = $2 AND direction = 'inbound'
+        ORDER BY received_at DESC
+        LIMIT 1
+      `, [ticketId, organizationId]);
+
+      if (result.rows.length === 0) {
+        console.error(`No inbound email found for ticket ${ticketId}`);
+        return false;
+      }
+
+      const lastEmail = result.rows[0];
+
+      // Format the reply content as HTML with proper signature
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+          ${replyContent.replace(/\n/g, '<br>')}
+          <br><br>
+          <p style="color: #666; font-size: 12px;">
+            Mit freundlichen Grüßen,<br>
+            <strong>${senderName}</strong>
+          </p>
+        </div>
+      `;
+
+      // Save the outbound email to ticket_emails
+      const emailId = crypto.randomUUID();
+      await query(`
+        INSERT INTO ticket_emails (id, ticket_id, organization_id, message_id, direction, subject, body_preview, sender_email, sender_name, received_at)
+        VALUES ($1, $2, $3, $4, 'outbound', $5, $6, $7, $8, NOW())
+      `, [emailId, ticketId, organizationId, `reply-${emailId}`, lastEmail.subject, replyContent.substring(0, 250), 'support', senderName]);
+
+      // Send the reply via Graph API
+      return await this.replyToEmail(organizationId, lastEmail.message_id, htmlContent, false, 'support');
+    } catch (error: any) {
+      console.error('Failed to reply to ticket email:', error.message);
       return false;
     }
   }

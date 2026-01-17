@@ -76,6 +76,11 @@ function transformTicket(row: any) {
     firstResponseAt: row.first_response_at?.toISOString(),
     slaFirstResponseBreached: row.sla_first_response_breached,
     slaResolutionBreached: row.sla_resolution_breached,
+    // Source & Email tracking
+    source: row.source,
+    emailConversationId: row.email_conversation_id,
+    emailFrom: row.email_from,
+    contactId: row.contact_id,
     // Include related data if joined
     customerName: row.customer_name,
     projectName: row.project_name,
@@ -1073,7 +1078,12 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { id: ticketId } = req.params;
-    const { content, isInternal = false } = req.body;
+    const {
+      content,
+      isInternal = false,
+      notifyCustomer = true,  // Default: send email notification
+      replyViaEmail = false   // If true, reply in original email thread
+    } = req.body;
 
     if (!content) {
       return res.status(400).json({ success: false, error: 'Content is required' });
@@ -1105,43 +1115,62 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
         WHERE id = $1
       `, [ticketId]);
 
-      // Send email notification to customer (async, non-blocking)
-      try {
-        const ticketInfo = await query(`
-          SELECT t.title, t.ticket_number, t.contact_id, cc.email as contact_email, cc.name as contact_name,
-                 cc.notify_ticket_reply, COALESCE(u.display_name, u.username) as replier_name
-          FROM tickets t
-          LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
-          LEFT JOIN users u ON u.id = $2
-          WHERE t.id = $1
-        `, [ticketId, userId]);
+      // Only send email notification if notifyCustomer is true
+      if (notifyCustomer) {
+        try {
+          const ticketInfo = await query(`
+            SELECT t.title, t.ticket_number, t.contact_id, t.email_conversation_id, t.email_from, t.source,
+                   cc.email as contact_email, cc.name as contact_name,
+                   cc.notify_ticket_reply, COALESCE(u.display_name, u.username) as replier_name
+            FROM tickets t
+            LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+            LEFT JOIN users u ON u.id = $2
+            WHERE t.id = $1
+          `, [ticketId, userId]);
 
-        if (ticketInfo.rows.length > 0 && ticketInfo.rows[0].contact_email && ticketInfo.rows[0].notify_ticket_reply !== false) {
-          const ticket = ticketInfo.rows[0];
-          const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${ticketId}`;
-          emailService.sendTicketReplyNotification({
-            to: ticket.contact_email,
-            customerName: ticket.contact_name || 'Kunde',
-            ticketNumber: ticket.ticket_number,
-            ticketTitle: ticket.title,
-            replyContent: content,
-            replierName: ticket.replier_name || 'Support',
-            portalUrl: portalTicketUrl,
-          }).catch(err => console.error('Failed to send ticket reply notification:', err));
+          if (ticketInfo.rows.length > 0) {
+            const ticket = ticketInfo.rows[0];
+            const recipientEmail = ticket.contact_email || ticket.email_from;
+            const recipientName = ticket.contact_name || (ticket.email_from ? ticket.email_from.split('@')[0] : 'Kunde');
 
-          // Send push notification to customer (async, non-blocking)
-          if (ticketInfo.rows[0].contact_id) {
-            sendPortalTicketNotification(
-              ticketInfo.rows[0].contact_id,
-              { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
-              'push_on_ticket_reply',
-              `Neue Antwort von ${ticket.replier_name || 'Support'}`
-            ).catch(err => console.error('Failed to send portal push notification:', err));
+            // Only send if we have an email and customer hasn't disabled notifications
+            if (recipientEmail && ticket.notify_ticket_reply !== false) {
+
+              // If replyViaEmail is true and ticket has email conversation, reply via Graph API
+              if (replyViaEmail && ticket.source === 'email' && ticket.email_conversation_id) {
+                // Reply via email thread (Graph API) - handled by mailboxMonitorService
+                const { mailboxMonitorService } = await import('../services/mailboxMonitorService');
+                mailboxMonitorService.replyToTicketEmail(organizationId, ticketId, content, ticket.replier_name || 'Support')
+                  .catch(err => console.error('Failed to send email reply via Graph API:', err));
+              } else {
+                // Send standard notification email via SMTP
+                const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${ticketId}`;
+                emailService.sendTicketReplyNotification({
+                  to: recipientEmail,
+                  customerName: recipientName,
+                  ticketNumber: ticket.ticket_number,
+                  ticketTitle: ticket.title,
+                  replyContent: content,
+                  replierName: ticket.replier_name || 'Support',
+                  portalUrl: portalTicketUrl,
+                }).catch(err => console.error('Failed to send ticket reply notification:', err));
+              }
+
+              // Send push notification to customer (async, non-blocking)
+              if (ticket.contact_id) {
+                sendPortalTicketNotification(
+                  ticket.contact_id,
+                  { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
+                  'push_on_ticket_reply',
+                  `Neue Antwort von ${ticket.replier_name || 'Support'}`
+                ).catch(err => console.error('Failed to send portal push notification:', err));
+              }
+            }
           }
+        } catch (emailErr) {
+          console.error('Error preparing ticket notification email:', emailErr);
+          // Don't fail the comment creation if email fails
         }
-      } catch (emailErr) {
-        console.error('Error preparing ticket notification email:', emailErr);
-        // Don't fail the comment creation if email fails
       }
     } else {
       await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);

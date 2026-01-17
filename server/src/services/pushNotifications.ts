@@ -32,6 +32,11 @@ interface NotificationPreferences {
   push_on_status_change: boolean;
   push_on_sla_warning: boolean;
   email_enabled: boolean;
+  email_on_new_ticket: boolean;
+  email_on_ticket_assigned: boolean;
+  email_on_ticket_comment: boolean;
+  email_on_status_change: boolean;
+  email_on_sla_warning: boolean;
 }
 
 // Initialize VAPID keys

@@ -179,6 +179,8 @@ export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'cl
 export type TicketPriority = 'low' | 'normal' | 'high' | 'critical';
 export type TicketResolutionType = 'solved' | 'not_reproducible' | 'duplicate' | 'wont_fix' | 'resolved_itself' | 'workaround';
 
+export type TicketSource = 'manual' | 'portal' | 'email' | 'ninja_alert';
+
 export interface Ticket {
   id: string;
   ticketNumber: string; // e.g., TKT-000001
@@ -205,6 +207,11 @@ export interface Ticket {
   firstResponseAt?: string;
   slaFirstResponseBreached?: boolean;
   slaResolutionBreached?: boolean;
+  // Source & Email tracking
+  source?: TicketSource;
+  emailConversationId?: string;
+  emailFrom?: string;
+  contactId?: string; // Customer contact linked to ticket
 }
 
 export interface TicketTask {

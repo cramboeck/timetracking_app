@@ -270,6 +270,12 @@ export const PushNotificationSettings = () => {
               />
               <div className={preferences.email_enabled ? '' : 'opacity-50 pointer-events-none'}>
                 <PreferenceToggle
+                  label="Neues Ticket"
+                  description="E-Mail wenn ein neues Ticket erstellt wird"
+                  checked={preferences.email_on_new_ticket}
+                  onChange={(v) => handlePreferenceChange('email_on_new_ticket', v)}
+                />
+                <PreferenceToggle
                   label="Ticket zugewiesen"
                   description="E-Mail wenn Ihnen ein Ticket zugewiesen wird"
                   checked={preferences.email_on_ticket_assigned}

@@ -165,6 +165,7 @@ router.get('/preferences', authenticateToken, async (req: AuthRequest, res: Resp
       push_on_mention: true,
       // Email notification settings
       email_enabled: true,
+      email_on_new_ticket: true,
       email_on_ticket_assigned: true,
       email_on_ticket_comment: true,
       email_on_status_change: false,

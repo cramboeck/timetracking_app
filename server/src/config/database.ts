@@ -1718,6 +1718,7 @@ export async function initializeDatabase() {
         push_on_mention BOOLEAN DEFAULT true,
         -- Email notification settings
         email_enabled BOOLEAN DEFAULT true,
+        email_on_new_ticket BOOLEAN DEFAULT true,
         email_on_ticket_assigned BOOLEAN DEFAULT true,
         email_on_ticket_comment BOOLEAN DEFAULT true,
         email_on_status_change BOOLEAN DEFAULT false,

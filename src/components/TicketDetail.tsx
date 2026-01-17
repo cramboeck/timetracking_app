@@ -60,6 +60,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   // Comment
   const [newComment, setNewComment] = useState('');
   const [isInternal, setIsInternal] = useState(false);
+  const [notifyCustomer, setNotifyCustomer] = useState(true); // Default: send email to customer
+  const [replyViaEmail, setReplyViaEmail] = useState(false); // Reply in original email thread
   const [submittingComment, setSubmittingComment] = useState(false);
 
   // Delete
@@ -769,10 +771,16 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     try {
       setSubmittingComment(true);
       const wasInternal = isInternal;
-      const response = await ticketsApi.addComment(ticket.id, newComment, isInternal);
+      const response = await ticketsApi.addComment(ticket.id, newComment, {
+        isInternal,
+        notifyCustomer: !isInternal && notifyCustomer, // Only notify if not internal
+        replyViaEmail: !isInternal && notifyCustomer && replyViaEmail, // Only if also notifying
+      });
       setComments(prev => [...prev, response.data]);
       setNewComment('');
       setIsInternal(false);
+      setNotifyCustomer(true); // Reset to default
+      setReplyViaEmail(false);
 
       // Reload ticket to get updated first_response_at for SLA tracking (only for non-internal comments)
       if (!wasInternal) {
@@ -1731,8 +1739,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                 placeholder="Kommentar hinzufügen..."
                 rows={3}
               />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-3 flex-wrap">
                   <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                     <input
                       type="checkbox"
@@ -1742,6 +1750,33 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                     />
                     Interne Notiz
                   </label>
+                  {/* Email notification options - only show when not internal and ticket has customer contact */}
+                  {!isInternal && ticket.contactId && (
+                    <>
+                      <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <input
+                          type="checkbox"
+                          checked={notifyCustomer}
+                          onChange={(e) => setNotifyCustomer(e.target.checked)}
+                          className="rounded accent-[#F27024]"
+                        />
+                        <Mail size={14} />
+                        Email an Kunden
+                      </label>
+                      {/* Reply via Email option - only for email-sourced tickets */}
+                      {notifyCustomer && ticket.source === 'email' && ticket.emailConversationId && (
+                        <label className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+                          <input
+                            type="checkbox"
+                            checked={replyViaEmail}
+                            onChange={(e) => setReplyViaEmail(e.target.checked)}
+                            className="rounded accent-blue-600"
+                          />
+                          Im Email-Thread antworten
+                        </label>
+                      )}
+                    </>
+                  )}
                   {/* Canned Responses Dropdown */}
                   {cannedResponses.length > 0 && (
                     <div className="relative" ref={cannedDropdownRef}>
