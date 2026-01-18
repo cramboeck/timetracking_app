@@ -212,6 +212,11 @@ export interface Ticket {
   emailConversationId?: string;
   emailFrom?: string;
   contactId?: string; // Customer contact linked to ticket
+  // Related names (from joins)
+  customerName?: string;
+  projectName?: string;
+  creatorName?: string;
+  assigneeName?: string;
 }
 
 export interface TicketTask {

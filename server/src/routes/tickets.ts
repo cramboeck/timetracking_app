@@ -84,6 +84,8 @@ function transformTicket(row: any) {
     // Include related data if joined
     customerName: row.customer_name,
     projectName: row.project_name,
+    creatorName: row.creator_name,
+    assigneeName: row.assignee_name,
   };
 }
 
@@ -381,10 +383,14 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
 
     // Get ticket
     const ticketResult = await query(`
-      SELECT t.*, c.name as customer_name, p.name as project_name
+      SELECT t.*, c.name as customer_name, p.name as project_name,
+             COALESCE(creator.display_name, creator.username) as creator_name,
+             COALESCE(assignee.display_name, assignee.username) as assignee_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN users creator ON t.user_id = creator.id
+      LEFT JOIN users assignee ON t.assigned_to_user_id = assignee.id
       WHERE t.id = $1 AND t.organization_id = $2
     `, [id, organizationId]);
 

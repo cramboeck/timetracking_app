@@ -1832,6 +1832,10 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
 
         {/* Meta Info */}
         <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+          <div className="flex items-center gap-1">
+            <User size={12} />
+            <span>Erstellt von: <span className="text-gray-700 dark:text-gray-300">{ticket.creatorName || 'Unbekannt'}</span></span>
+          </div>
           <div>Erstellt: {formatDate(ticket.createdAt)}</div>
           <div>Aktualisiert: {formatDate(ticket.updatedAt)}</div>
           {ticket.resolvedAt && <div>Gelöst: {formatDate(ticket.resolvedAt)}</div>}
