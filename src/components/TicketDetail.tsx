@@ -1750,8 +1750,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                     />
                     Interne Notiz
                   </label>
-                  {/* Email notification options - only show when not internal and ticket has customer contact */}
-                  {!isInternal && ticket.contactId && (
+                  {/* Email notification options - show when ticket has contact, email address, or customer */}
+                  {!isInternal && (ticket.contactId || ticket.emailFrom || ticket.customerId) && (
                     <>
                       <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <input

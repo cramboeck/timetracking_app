@@ -1124,12 +1124,17 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
       // Only send email notification if notifyCustomer is true
       if (notifyCustomer) {
         try {
+          // Get ticket info with contact - try direct contact first, then fallback to customer's primary contact
           const ticketInfo = await query(`
-            SELECT t.title, t.ticket_number, t.contact_id, t.email_conversation_id, t.email_from, t.source,
-                   cc.email as contact_email, cc.name as contact_name,
-                   cc.notify_ticket_reply, COALESCE(u.display_name, u.username) as replier_name
+            SELECT t.title, t.ticket_number, t.contact_id, t.customer_id, t.email_conversation_id, t.email_from, t.source,
+                   COALESCE(cc.email, primary_contact.email) as contact_email,
+                   COALESCE(cc.name, primary_contact.name) as contact_name,
+                   COALESCE(cc.notify_ticket_reply, primary_contact.notify_ticket_reply, true) as notify_ticket_reply,
+                   COALESCE(cc.id, primary_contact.id) as resolved_contact_id,
+                   COALESCE(u.display_name, u.username) as replier_name
             FROM tickets t
             LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+            LEFT JOIN customer_contacts primary_contact ON t.customer_id = primary_contact.customer_id AND primary_contact.is_primary = true
             LEFT JOIN users u ON u.id = $2
             WHERE t.id = $1
           `, [ticketId, userId]);
@@ -1163,9 +1168,10 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
               }
 
               // Send push notification to customer (async, non-blocking)
-              if (ticket.contact_id) {
+              const contactIdForPush = ticket.resolved_contact_id || ticket.contact_id;
+              if (contactIdForPush) {
                 sendPortalTicketNotification(
-                  ticket.contact_id,
+                  contactIdForPush,
                   { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
                   'push_on_ticket_reply',
                   `Neue Antwort von ${ticket.replier_name || 'Support'}`
