@@ -166,7 +166,7 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
 };
 
 // ==================== Billing Tab ====================
-type BillingPeriodType = 'monthly' | 'quarterly' | 'yearly';
+type BillingPeriodType = 'monthly' | 'quarterly' | 'yearly' | 'custom';
 
 const BillingTab = () => {
   const [loading, setLoading] = useState(true);
@@ -179,7 +179,7 @@ const BillingTab = () => {
   const [processing, setProcessing] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
 
-  // Billing period type (monthly or quarterly)
+  // Billing period type (monthly, quarterly, yearly, or custom)
   const [billingPeriodType, setBillingPeriodType] = useState<BillingPeriodType>('monthly');
 
   // For monthly billing
@@ -195,12 +195,21 @@ const BillingTab = () => {
   });
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
 
+  // For custom date range
+  const [customStartDate, setCustomStartDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  });
+  const [customEndDate, setCustomEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+
   // Invoice creation dialog
   const [invoiceDialogCustomer, setInvoiceDialogCustomer] = useState<BillingSummaryItem | null>(null);
 
   useEffect(() => {
     loadData();
-  }, [selectedMonth, billingPeriodType, selectedQuarter, selectedYear]);
+  }, [selectedMonth, billingPeriodType, selectedQuarter, selectedYear, customStartDate, customEndDate]);
 
   // Helper to format date as YYYY-MM-DD in local timezone (not UTC)
   // Using toISOString() would convert to UTC first, causing off-by-one errors in CET/CEST
@@ -222,6 +231,11 @@ const BillingTab = () => {
       const startMonth = (selectedQuarter - 1) * 3;
       const startDate = new Date(selectedYear, startMonth, 1);
       const endDate = new Date(selectedYear, startMonth + 3, 0);
+      return { startDate, endDate };
+    } else if (billingPeriodType === 'custom') {
+      // Custom date range
+      const startDate = new Date(customStartDate);
+      const endDate = new Date(customEndDate);
       return { startDate, endDate };
     } else {
       // Yearly: full year
@@ -328,6 +342,10 @@ const BillingTab = () => {
       return selectedMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
     } else if (billingPeriodType === 'quarterly') {
       return `Q${selectedQuarter} ${selectedYear}`;
+    } else if (billingPeriodType === 'custom') {
+      const start = new Date(customStartDate).toLocaleDateString('de-DE');
+      const end = new Date(customEndDate).toLocaleDateString('de-DE');
+      return `${start} - ${end}`;
     } else {
       return `Jahr ${selectedYear}`;
     }
@@ -515,10 +533,42 @@ const BillingTab = () => {
           >
             Jährlich
           </button>
+          <button
+            onClick={() => setBillingPeriodType('custom')}
+            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+              billingPeriodType === 'custom'
+                ? 'bg-accent-primary text-white'
+                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+          >
+            Frei
+          </button>
         </div>
       </div>
 
-      {/* Period Selector */}
+      {/* Period Selector - show date inputs for custom, otherwise navigation */}
+      {billingPeriodType === 'custom' ? (
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-500 dark:text-gray-400">Von:</label>
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-500 dark:text-gray-400">Bis:</label>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+            />
+          </div>
+        </div>
+      ) : (
       <div className="flex items-center justify-center gap-4">
         <button
           onClick={
@@ -549,6 +599,7 @@ const BillingTab = () => {
           <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
         </button>
       </div>
+      )}
 
       {/* Unbilled Items */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
