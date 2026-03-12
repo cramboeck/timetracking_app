@@ -2246,6 +2246,25 @@ export async function initializeDatabase() {
     // CRM - Customer Contacts & Interactions
     // ============================================
 
+    // Migration: Handle pre-existing customer_contacts table that may lack organization_id
+    // (from earlier portal-only version). Drop and recreate with full CRM schema.
+    await client.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_name = 'customer_contacts'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'organization_id'
+        ) THEN
+          -- Remove dependent objects first
+          DROP TABLE IF EXISTS customer_contact_push_subscriptions CASCADE;
+          DROP TABLE IF EXISTS customer_contact_notification_log CASCADE;
+          DROP TABLE customer_contacts CASCADE;
+        END IF;
+      END $$
+    `);
+
     // Customer Contacts - Real CRM contacts (not just portal users)
     await client.query(`
       CREATE TABLE IF NOT EXISTS customer_contacts (
