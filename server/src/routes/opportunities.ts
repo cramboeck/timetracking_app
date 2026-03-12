@@ -531,22 +531,25 @@ router.post('/', async (req: Request, res: Response) => {
 
     const id = uuidv4();
 
+    // Calculate weighted value
+    const weightedValue = value && probability ? (parseFloat(value) * parseInt(probability)) / 100 : null;
+
     const result = await query(`
       INSERT INTO opportunities (
         id, organization_id, customer_id, lead_id, contact_id,
-        name, description, stage_id, value, currency, probability,
+        name, description, stage_id, value, currency, probability, weighted_value,
         expected_close_date, assigned_to, created_by, source, campaign,
         next_step, next_step_date, notes, tags
       ) VALUES (
         $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10, $11,
-        $12, $13, $14, $15, $16,
-        $17, $18, $19, $20
+        $6, $7, $8, $9, $10, $11, $12,
+        $13, $14, $15, $16, $17,
+        $18, $19, $20, $21
       )
       RETURNING *
     `, [
       id, organizationId, customer_id, lead_id, contact_id,
-      name, description, actualStageId, value, currency, probability,
+      name, description, actualStageId, value, currency, probability, weightedValue,
       expected_close_date, assigned_to || userId, userId, source, campaign,
       next_step, next_step_date, notes, tags
     ]);
@@ -615,6 +618,7 @@ router.put('/:id', async (req: Request, res: Response) => {
         stage_id = COALESCE($7, stage_id),
         value = COALESCE($8, value),
         probability = COALESCE($9, probability),
+        weighted_value = COALESCE($8, value) * COALESCE($9, probability) / 100,
         expected_close_date = COALESCE($10, expected_close_date),
         actual_close_date = COALESCE($11, actual_close_date),
         assigned_to = COALESCE($12, assigned_to),

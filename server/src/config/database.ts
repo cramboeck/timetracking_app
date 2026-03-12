@@ -2316,7 +2316,7 @@ export async function initializeDatabase() {
         -- Links to other entities
         ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
         lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
-        contract_id TEXT REFERENCES contracts(id) ON DELETE SET NULL,
+        contract_id TEXT, -- FK to contracts added later (contracts table created after this)
 
         -- Timing
         duration_minutes INTEGER,
@@ -2479,7 +2479,7 @@ export async function initializeDatabase() {
     `);
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_pipeline_stages_org ON pipeline_stages(organization_id)');
-    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_stages_order ON pipeline_stages(organization_id, sort_order)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pipeline_stages_order ON pipeline_stages(organization_id, sort_order)');
     console.log('✅ Pipeline stages table created');
 
     // Opportunities - Sales deals
@@ -2502,7 +2502,7 @@ export async function initializeDatabase() {
         value DECIMAL(12,2),
         currency TEXT DEFAULT 'EUR',
         probability INTEGER CHECK(probability >= 0 AND probability <= 100),
-        weighted_value DECIMAL(12,2) GENERATED ALWAYS AS (value * probability / 100) STORED,
+        weighted_value DECIMAL(12,2), -- calculated: value * probability / 100
 
         -- Dates
         expected_close_date DATE,
@@ -2901,6 +2901,21 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_contract ON time_entries(contract_id)');
 
     console.log('✅ Contract Management tables created');
+
+    // Add FK from customer_interactions to contracts (contracts created after interactions)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name = 'fk_customer_interactions_contract'
+        ) THEN
+          ALTER TABLE customer_interactions
+            ADD CONSTRAINT fk_customer_interactions_contract
+            FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
 
     // ============================================
     // sevDesk Integration
