@@ -36,18 +36,25 @@ export const DashboardOverview = ({
     today.setHours(0, 0, 0, 0);
 
     const todayEntries = entries.filter(e => {
-      const entryDate = new Date(e.date);
+      // Handle both ISO timestamp and date string formats
+      const entryDate = new Date(e.startTime || e.date);
       entryDate.setHours(0, 0, 0, 0);
       return entryDate.getTime() === today.getTime();
     });
 
     const totalSeconds = todayEntries.reduce((sum, e) => {
-      if (e.startTime && e.endTime) {
-        const start = new Date(`1970-01-01T${e.startTime}`);
-        const end = new Date(`1970-01-01T${e.endTime}`);
-        return sum + (end.getTime() - start.getTime()) / 1000;
+      // Prefer stored duration, otherwise calculate from timestamps
+      if (e.duration && e.duration > 0) {
+        return sum + e.duration;
       }
-      return sum + (e.duration || 0);
+      if (e.startTime && e.endTime) {
+        const start = new Date(e.startTime);
+        const end = new Date(e.endTime);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+          return sum + (end.getTime() - start.getTime()) / 1000;
+        }
+      }
+      return sum;
     }, 0);
 
     const hours = Math.floor(totalSeconds / 3600);
@@ -69,17 +76,22 @@ export const DashboardOverview = ({
     monday.setHours(0, 0, 0, 0);
 
     const weekEntries = entries.filter(e => {
-      const entryDate = new Date(e.date);
+      const entryDate = new Date(e.startTime || e.date);
       return entryDate >= monday && entryDate <= today;
     });
 
     const totalSeconds = weekEntries.reduce((sum, e) => {
-      if (e.startTime && e.endTime) {
-        const start = new Date(`1970-01-01T${e.startTime}`);
-        const end = new Date(`1970-01-01T${e.endTime}`);
-        return sum + (end.getTime() - start.getTime()) / 1000;
+      if (e.duration && e.duration > 0) {
+        return sum + e.duration;
       }
-      return sum + (e.duration || 0);
+      if (e.startTime && e.endTime) {
+        const start = new Date(e.startTime);
+        const end = new Date(e.endTime);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+          return sum + (end.getTime() - start.getTime()) / 1000;
+        }
+      }
+      return sum;
     }, 0);
 
     const hours = Math.floor(totalSeconds / 3600);
@@ -108,12 +120,17 @@ export const DashboardOverview = ({
   const unbilledStats = useMemo(() => {
     const unbilled = entries.filter(e => !e.billed);
     const totalSeconds = unbilled.reduce((sum, e) => {
-      if (e.startTime && e.endTime) {
-        const start = new Date(`1970-01-01T${e.startTime}`);
-        const end = new Date(`1970-01-01T${e.endTime}`);
-        return sum + (end.getTime() - start.getTime()) / 1000;
+      if (e.duration && e.duration > 0) {
+        return sum + e.duration;
       }
-      return sum + (e.duration || 0);
+      if (e.startTime && e.endTime) {
+        const start = new Date(e.startTime);
+        const end = new Date(e.endTime);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+          return sum + (end.getTime() - start.getTime()) / 1000;
+        }
+      }
+      return sum;
     }, 0);
 
     const hours = Math.floor(totalSeconds / 3600);
@@ -127,33 +144,47 @@ export const DashboardOverview = ({
   // Recent activity (last 5 entries)
   const recentEntries = useMemo(() => {
     return [...entries]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .sort((a, b) => new Date(b.startTime || b.date).getTime() - new Date(a.startTime || a.date).getTime())
       .slice(0, 5)
       .map(entry => {
         const project = projects.find(p => p.id === entry.projectId);
         const customer = customers.find(c => c.id === project?.customerId);
+        const entryDate = new Date(entry.startTime || entry.date);
         return {
           ...entry,
           projectName: project?.name || 'Unbekannt',
           customerName: customer?.name || 'Unbekannt',
           customerColor: customer?.color || '#6366f1',
+          formattedDate: !isNaN(entryDate.getTime())
+            ? entryDate.toLocaleDateString('de-DE')
+            : 'Unbekannt',
+          formattedStartTime: entry.startTime
+            ? new Date(entry.startTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+            : '',
+          formattedEndTime: entry.endTime
+            ? new Date(entry.endTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+            : '',
         };
       });
   }, [entries, projects, customers]);
 
   const formatDuration = (entry: TimeEntry) => {
-    if (entry.startTime && entry.endTime) {
-      const start = new Date(`1970-01-01T${entry.startTime}`);
-      const end = new Date(`1970-01-01T${entry.endTime}`);
-      const seconds = (end.getTime() - start.getTime()) / 1000;
-      const hours = Math.floor(seconds / 3600);
-      const minutes = Math.floor((seconds % 3600) / 60);
-      return `${hours}:${String(minutes).padStart(2, '0')}`;
-    }
-    if (entry.duration) {
+    // First try to use stored duration
+    if (entry.duration && entry.duration > 0) {
       const hours = Math.floor(entry.duration / 3600);
       const minutes = Math.floor((entry.duration % 3600) / 60);
       return `${hours}:${String(minutes).padStart(2, '0')}`;
+    }
+    // Otherwise calculate from timestamps
+    if (entry.startTime && entry.endTime) {
+      const start = new Date(entry.startTime);
+      const end = new Date(entry.endTime);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        const seconds = (end.getTime() - start.getTime()) / 1000;
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        return `${hours}:${String(minutes).padStart(2, '0')}`;
+      }
     }
     return '0:00';
   };
@@ -295,7 +326,7 @@ export const DashboardOverview = ({
                         {entry.description || entry.projectName}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {entry.customerName} • {new Date(entry.date).toLocaleDateString('de-DE')}
+                        {entry.customerName} • {entry.formattedDate}
                       </p>
                     </div>
                     <div className="text-right">
@@ -303,7 +334,7 @@ export const DashboardOverview = ({
                         {formatDuration(entry)}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {entry.startTime} - {entry.endTime}
+                        {entry.formattedStartTime} - {entry.formattedEndTime}
                       </p>
                     </div>
                   </div>

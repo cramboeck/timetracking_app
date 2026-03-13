@@ -49,22 +49,32 @@ export const CustomerView = ({
     const customerTickets = tickets.filter(t => t.customerId === customerId);
 
     const totalSeconds = customerEntries.reduce((sum, e) => {
-      if (e.startTime && e.endTime) {
-        const start = new Date(`1970-01-01T${e.startTime}`);
-        const end = new Date(`1970-01-01T${e.endTime}`);
-        return sum + (end.getTime() - start.getTime()) / 1000;
+      if (e.duration && e.duration > 0) {
+        return sum + e.duration;
       }
-      return sum + (e.duration || 0);
+      if (e.startTime && e.endTime) {
+        const start = new Date(e.startTime);
+        const end = new Date(e.endTime);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+          return sum + (end.getTime() - start.getTime()) / 1000;
+        }
+      }
+      return sum;
     }, 0);
 
     const unbilledEntries = customerEntries.filter(e => !e.billed);
     const unbilledSeconds = unbilledEntries.reduce((sum, e) => {
-      if (e.startTime && e.endTime) {
-        const start = new Date(`1970-01-01T${e.startTime}`);
-        const end = new Date(`1970-01-01T${e.endTime}`);
-        return sum + (end.getTime() - start.getTime()) / 1000;
+      if (e.duration && e.duration > 0) {
+        return sum + e.duration;
       }
-      return sum + (e.duration || 0);
+      if (e.startTime && e.endTime) {
+        const start = new Date(e.startTime);
+        const end = new Date(e.endTime);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+          return sum + (end.getTime() - start.getTime()) / 1000;
+        }
+      }
+      return sum;
     }, 0);
 
     return {
@@ -111,13 +121,20 @@ export const CustomerView = ({
   }, [selectedCustomerId, tickets]);
 
   const formatDuration = (entry: TimeEntry) => {
-    if (entry.startTime && entry.endTime) {
-      const start = new Date(`1970-01-01T${entry.startTime}`);
-      const end = new Date(`1970-01-01T${entry.endTime}`);
-      const seconds = (end.getTime() - start.getTime()) / 1000;
-      const hours = Math.floor(seconds / 3600);
-      const minutes = Math.floor((seconds % 3600) / 60);
+    if (entry.duration && entry.duration > 0) {
+      const hours = Math.floor(entry.duration / 3600);
+      const minutes = Math.floor((entry.duration % 3600) / 60);
       return `${hours}:${String(minutes).padStart(2, '0')}`;
+    }
+    if (entry.startTime && entry.endTime) {
+      const start = new Date(entry.startTime);
+      const end = new Date(entry.endTime);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        const seconds = (end.getTime() - start.getTime()) / 1000;
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        return `${hours}:${String(minutes).padStart(2, '0')}`;
+      }
     }
     return '0:00';
   };
