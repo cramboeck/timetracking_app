@@ -3,7 +3,7 @@ import {
   Ticket, Monitor, Bell, Wrench, Mail,
   BarChart3, Wallet, FileText, FileSignature, Share2, FileInput,
   Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo, Shield,
-  Target
+  Target, Users
 } from 'lucide-react';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { DesktopSidebar } from './DesktopSidebar';
@@ -16,7 +16,7 @@ export type SubView =
   // Support
   | 'tickets' | 'devices' | 'alerts' | 'maintenance' | 'inbox'
   // Business
-  | 'dashboard' | 'pipeline' | 'billing' | 'reports' | 'contracts' | 'social-media' | 'invoices'
+  | 'dashboard' | 'leads' | 'pipeline' | 'billing' | 'reports' | 'contracts' | 'social-media' | 'invoices'
   // Settings & Admin (special)
   | 'settings' | 'admin';
 
@@ -54,6 +54,7 @@ const areaConfig = {
     label: 'Business',
     subViews: [
       { view: 'dashboard' as SubView, icon: BarChart3, label: 'Dashboard' },
+      { view: 'leads' as SubView, icon: Users, label: 'Leads' },
       { view: 'pipeline' as SubView, icon: Target, label: 'Pipeline' },
       { view: 'invoices' as SubView, icon: FileInput, label: 'Rechnungen' },
       { view: 'contracts' as SubView, icon: FileSignature, label: 'Verträge' },
@@ -182,7 +183,7 @@ export const AreaNavigation = ({
 export const getAreaFromSubView = (subView: SubView): Area => {
   if (['stopwatch', 'list', 'calendar', 'manual', 'tasks'].includes(subView)) return 'arbeiten';
   if (['tickets', 'devices', 'alerts', 'maintenance', 'inbox'].includes(subView)) return 'support';
-  if (['dashboard', 'pipeline', 'billing', 'reports', 'contracts', 'social-media', 'invoices'].includes(subView)) return 'business';
+  if (['dashboard', 'leads', 'pipeline', 'billing', 'reports', 'contracts', 'social-media', 'invoices'].includes(subView)) return 'business';
   return 'arbeiten'; // Default
 };
 

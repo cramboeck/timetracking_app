@@ -11,6 +11,7 @@ import { ticketsApi } from './tickets';
 import { customerPortalApi } from './portal';
 import { contractsApi, importApi, socialMediaApi } from './business';
 import { interactionsApi, opportunitiesApi } from './crm';
+import { leadsApi } from './leads';
 
 // Base utilities
 export { API_BASE_URL, getApiBaseUrl, getAuthToken, handleResponse, authFetch, authFetchMultipart } from './base';
@@ -105,6 +106,21 @@ export {
 
 // CRM API (interactions, opportunities, pipeline)
 export { interactionsApi, pipelineStagesApi, opportunitiesApi } from './crm';
+
+// Leads API
+export { leadsApi } from './leads';
+export type {
+  LeadStatus,
+  LeadSource,
+  LeadPriority,
+  LeadActivityType,
+  Lead,
+  LeadActivity,
+  LeadPipelineStats,
+  CreateLeadInput,
+  UpdateLeadInput,
+  CreateLeadActivityInput,
+} from './leads';
 export type {
   InteractionType,
   InteractionDirection,
@@ -178,6 +194,7 @@ const api = {
   socialMedia: socialMediaApi,
   interactions: interactionsApi,
   opportunities: opportunitiesApi,
+  leads: leadsApi,
 };
 
 export default api;
