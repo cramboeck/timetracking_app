@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Tag, MessageSquare, Save, X, Clock, Download, Info } from 'lucide-react';
-import { Button, IconButton } from './ui/Button';
+import { Button, IconButton } from './ui';
 import { ticketsApi, CannedResponse, TicketTag } from '../services/api';
 import { SlaPolicy } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
