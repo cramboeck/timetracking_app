@@ -3,7 +3,6 @@ import {
   Download,
   Link2,
   Check,
-  X,
   Loader2,
   AlertTriangle,
   RefreshCw,
@@ -15,6 +14,7 @@ import {
 } from 'lucide-react';
 import { sevdeskApi } from '../services/api';
 import { Modal } from './Modal';
+import { Button, IconButton } from './ui';
 
 interface ImportCustomer {
   sevdeskId: string;
@@ -381,30 +381,31 @@ export const SevdeskCustomerImport = ({
                   <strong>{counts.linked}</strong> verknüpft
                 </span>
               </div>
-              <button
+              <IconButton
                 onClick={() => loadPreview()}
-                className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                title="Neu laden"
-              >
-                <RefreshCw size={16} />
-              </button>
+                icon={<RefreshCw size={16} />}
+                size="sm"
+                tooltip="Neu laden"
+              />
             </div>
 
             {/* Selection controls */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   onClick={selectAll}
-                  className="px-3 py-1.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                  variant="primary"
+                  size="sm"
                 >
                   Alle auswählen
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={deselectAll}
-                  className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  variant="secondary"
+                  size="sm"
                 >
                   Alle abwählen
-                </button>
+                </Button>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <span className="flex items-center gap-1">
@@ -461,25 +462,22 @@ export const SevdeskCustomerImport = ({
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-2 border-t border-gray-200 dark:border-gray-700">
-          <button
+          <Button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            variant="secondary"
           >
             {result ? 'Schließen' : 'Abbrechen'}
-          </button>
+          </Button>
           {!result && (
-            <button
+            <Button
               onClick={handleExecuteImport}
               disabled={importing || loading || (toImport === 0 && toLink === 0)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              variant="primary"
+              loading={importing}
+              icon={!importing ? <Download size={18} /> : undefined}
             >
-              {importing ? (
-                <Loader2 className="animate-spin" size={18} />
-              ) : (
-                <Download size={18} />
-              )}
               Import starten
-            </button>
+            </Button>
           )}
         </div>
       </div>
