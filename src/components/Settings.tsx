@@ -1185,9 +1185,12 @@ export const Settings = ({
                 </div>
 
                 <div className="space-y-3">
-                  <button
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    fullWidth
                     onClick={() => {
-                      
+
                       if (!currentUser) return;
                       const json = gdprService.exportUserDataAsJSON(currentUser.id);
                       gdprService.downloadDataAsFile(
@@ -1196,21 +1199,22 @@ export const Settings = ({
                         'application/json'
                       );
                     }}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg transition-colors group"
+                    className="flex items-center justify-between"
+                    icon={<span className="text-2xl">📄</span>}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="text-2xl">📄</div>
-                      <div className="text-left">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">Daten exportieren (JSON)</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400">Alle deine Daten herunterladen</div>
-                      </div>
+                    <div className="flex-1 text-left">
+                      <div className="text-sm font-medium">Daten exportieren (JSON)</div>
+                      <div className="text-xs opacity-80">Alle deine Daten herunterladen</div>
                     </div>
-                    <ChevronRight size={18} className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
-                  </button>
+                    <ChevronRight size={18} />
+                  </Button>
 
-                  <button
+                  <Button
+                    variant="success"
+                    size="lg"
+                    fullWidth
                     onClick={() => {
-                      
+
                       if (!currentUser) return;
                       const csv = gdprService.exportUserDataAsCSV(currentUser.id);
                       gdprService.downloadDataAsFile(
@@ -1219,19 +1223,20 @@ export const Settings = ({
                         'text/csv'
                       );
                     }}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg transition-colors group"
+                    className="flex items-center justify-between"
+                    icon={<span className="text-2xl">📊</span>}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="text-2xl">📊</div>
-                      <div className="text-left">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">Daten exportieren (CSV)</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400">Excel-kompatibles Format</div>
-                      </div>
+                    <div className="flex-1 text-left">
+                      <div className="text-sm font-medium">Daten exportieren (CSV)</div>
+                      <div className="text-xs opacity-80">Excel-kompatibles Format</div>
                     </div>
-                    <ChevronRight size={18} className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
-                  </button>
+                    <ChevronRight size={18} />
+                  </Button>
 
-                  <button
+                  <Button
+                    variant="danger"
+                    size="lg"
+                    fullWidth
                     onClick={() => {
                       if (!currentUser) return;
                       const confirmed = window.confirm(
@@ -1250,7 +1255,7 @@ export const Settings = ({
                         );
 
                         if (doubleConfirm) {
-                          
+
                           const success = gdprService.deleteUserData(currentUser.id);
 
                           if (success) {
@@ -1262,17 +1267,15 @@ export const Settings = ({
                         }
                       }
                     }}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg transition-colors group"
+                    className="flex items-center justify-between"
+                    icon={<span className="text-2xl">🗑️</span>}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="text-2xl">🗑️</div>
-                      <div className="text-left">
-                        <div className="text-sm font-medium text-red-600 dark:text-red-400">Account löschen</div>
-                        <div className="text-xs text-red-500 dark:text-red-400">Recht auf Vergessen (DSGVO Art. 17)</div>
-                      </div>
+                    <div className="flex-1 text-left">
+                      <div className="text-sm font-medium">Account löschen</div>
+                      <div className="text-xs opacity-80">Recht auf Vergessen (DSGVO Art. 17)</div>
                     </div>
-                    <ChevronRight size={18} className="text-red-400 group-hover:text-red-600" />
-                  </button>
+                    <ChevronRight size={18} />
+                  </Button>
                 </div>
 
                 <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
