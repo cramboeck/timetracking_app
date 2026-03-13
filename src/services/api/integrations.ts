@@ -1266,6 +1266,28 @@ export const microsoft365Api = {
     return authFetch(`/microsoft365/support/emails/${messageId}/ticket-info`);
   },
 
+  // Save email as CRM interaction for customer
+  saveEmailAsInteraction: async (
+    messageId: string,
+    customerId?: string
+  ): Promise<{
+    success: boolean;
+    alreadyExists?: boolean;
+    data?: {
+      interactionId: string;
+      customerId: string;
+      customerName: string;
+      subject: string;
+    };
+    requiresCustomer?: boolean;
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/support/emails/${messageId}/save-as-interaction`, {
+      method: 'POST',
+      body: JSON.stringify({ customerId }),
+    });
+  },
+
   getTicketEmails: async (ticketId: string): Promise<{
     success: boolean;
     data: TicketEmail[];

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Mail, Loader2, AlertTriangle, RefreshCw, Ticket, Eye,
   CheckCircle, Link2, Paperclip, Clock, X, ExternalLink,
-  ChevronDown, ChevronUp, AlertCircle
+  ChevronDown, ChevronUp, AlertCircle, Users, MessageSquare
 } from 'lucide-react';
 import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
 import { UnknownCustomerDialog } from './UnknownCustomerDialog';
@@ -45,6 +45,9 @@ export const SupportInbox = () => {
     name: string;
     domain: string | null;
   } | null>(null);
+
+  // Save as interaction state
+  const [savingInteraction, setSavingInteraction] = useState(false);
 
   const loadConfig = async () => {
     try {
@@ -204,14 +207,38 @@ export const SupportInbox = () => {
   const handleSelectCustomer = async (customerId: string) => {
     setShowUnknownCustomerDialog(false);
 
-    // Create ticket with selected customer
-    await createTicketWithCustomer(pendingPriority, customerId);
+    // Check if this is for interaction or ticket
+    if (pendingPriority === 'interaction') {
+      // Save as interaction with selected customer
+      if (selectedEmail) {
+        setSavingInteraction(true);
+        try {
+          const response = await microsoft365Api.saveEmailAsInteraction(selectedEmail.id, customerId);
+          if (response.success && response.data) {
+            alert(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`);
+            await loadEmails();
+          } else {
+            alert(response.error || 'Fehler beim Speichern der Interaktion');
+          }
+        } catch (err: any) {
+          alert(err.message || 'Fehler beim Speichern');
+        } finally {
+          setSavingInteraction(false);
+        }
+      }
+    } else {
+      // Create ticket with selected customer
+      await createTicketWithCustomer(pendingPriority, customerId);
+    }
   };
 
   // Handler: Continue without customer
   const handleContinueWithoutCustomer = async () => {
     setShowUnknownCustomerDialog(false);
-    await createTicketWithCustomer(pendingPriority);
+    // Only for ticket creation - interactions require a customer
+    if (pendingPriority !== 'interaction') {
+      await createTicketWithCustomer(pendingPriority);
+    }
   };
 
   const handleLinkToTicket = async () => {
@@ -234,6 +261,40 @@ export const SupportInbox = () => {
       alert(err.message || 'Fehler beim Verknüpfen');
     } finally {
       setCreating(false);
+    }
+  };
+
+  // Save email as CRM interaction
+  const handleSaveAsInteraction = async () => {
+    if (!selectedEmail) return;
+
+    setSavingInteraction(true);
+    try {
+      const response = await microsoft365Api.saveEmailAsInteraction(selectedEmail.id);
+
+      if (response.success) {
+        if (response.alreadyExists) {
+          alert('Diese E-Mail wurde bereits als Interaktion gespeichert.');
+        } else if (response.data) {
+          alert(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`);
+          await loadEmails();
+        }
+      } else if (response.requiresCustomer) {
+        // Need to select customer first - open dialog
+        const lookupResponse = await microsoft365Api.lookupCustomerForEmail(selectedEmail.id);
+        if (lookupResponse.success) {
+          setSenderInfo(lookupResponse.sender);
+          setShowUnknownCustomerDialog(true);
+          // Store action type for when customer is selected
+          setPendingPriority('interaction');
+        }
+      } else {
+        alert(response.error || 'Fehler beim Speichern der Interaktion');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Fehler beim Speichern der Interaktion');
+    } finally {
+      setSavingInteraction(false);
     }
   };
 
@@ -511,33 +572,55 @@ export const SupportInbox = () => {
 
               {/* Actions */}
               {(!selectedTicketInfo?.linked) && (
-                <div className="p-4 border-t border-gray-200 dark:border-dark-300 space-y-2">
-                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">Ticket erstellen:</p>
-                  <div className="grid grid-cols-3 gap-2">
+                <div className="p-4 border-t border-gray-200 dark:border-dark-300 space-y-4">
+                  {/* Ticket Creation */}
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">Ticket erstellen:</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        onClick={() => handleCreateTicket('normal')}
+                        disabled={creating || savingInteraction}
+                        loading={creating}
+                        size="sm"
+                      >
+                        Normal
+                      </Button>
+                      <Button
+                        onClick={() => handleCreateTicket('high')}
+                        disabled={creating || savingInteraction}
+                        variant="warning"
+                        size="sm"
+                      >
+                        Hoch
+                      </Button>
+                      <Button
+                        onClick={() => handleCreateTicket('urgent')}
+                        disabled={creating || savingInteraction}
+                        variant="danger"
+                        size="sm"
+                      >
+                        Dringend
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Save as Interaction */}
+                  <div className="pt-2 border-t border-gray-100 dark:border-dark-200">
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">Als Kunden-Interaktion speichern:</p>
                     <Button
-                      onClick={() => handleCreateTicket('normal')}
-                      disabled={creating}
-                      loading={creating}
+                      onClick={handleSaveAsInteraction}
+                      disabled={creating || savingInteraction}
+                      loading={savingInteraction}
+                      variant="ghost"
                       size="sm"
+                      className="w-full"
+                      icon={<MessageSquare size={16} />}
                     >
-                      Normal
+                      Im Kunden-CRM speichern
                     </Button>
-                    <Button
-                      onClick={() => handleCreateTicket('high')}
-                      disabled={creating}
-                      variant="warning"
-                      size="sm"
-                    >
-                      Hoch
-                    </Button>
-                    <Button
-                      onClick={() => handleCreateTicket('urgent')}
-                      disabled={creating}
-                      variant="danger"
-                      size="sm"
-                    >
-                      Dringend
-                    </Button>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Die E-Mail wird automatisch dem Kunden zugeordnet und in der Timeline angezeigt.
+                    </p>
                   </div>
                 </div>
               )}

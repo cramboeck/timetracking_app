@@ -1287,4 +1287,133 @@ router.delete('/invoices/:id', requireOrgRole('admin'), async (req: AuthRequest,
   }
 });
 
+// POST /api/microsoft365/support/emails/:id/save-as-interaction - Save email as customer interaction
+router.post('/support/emails/:id/save-as-interaction', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const messageId = req.params.id;
+    const { customerId: providedCustomerId } = req.body;
+
+    // Get the email
+    const emailResult = await mailboxMonitorService.getEmailById(organizationId, messageId, 'support');
+
+    if (!emailResult.success || !emailResult.email) {
+      return res.status(404).json({
+        success: false,
+        error: 'E-Mail nicht gefunden',
+      });
+    }
+
+    const email = emailResult.email;
+    const senderEmail = email.from.email;
+
+    // Find customer by email if not provided
+    let customerId = providedCustomerId;
+    let customerName = '';
+
+    if (!customerId) {
+      const customer = await findCustomerByEmail(organizationId, senderEmail);
+      if (customer) {
+        customerId = customer.id;
+        customerName = customer.name;
+      }
+    } else {
+      // Get customer name
+      const customerResult = await query(
+        'SELECT name FROM customers WHERE id = $1 AND organization_id = $2',
+        [customerId, organizationId]
+      );
+      if (customerResult.rows.length > 0) {
+        customerName = customerResult.rows[0].name;
+      }
+    }
+
+    if (!customerId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Kein Kunde gefunden. Bitte Kunden manuell zuweisen.',
+        requiresCustomer: true,
+      });
+    }
+
+    // Check if interaction already exists for this email
+    const existingInteraction = await query(
+      `SELECT id FROM crm_interactions
+       WHERE organization_id = $1
+       AND external_id = $2
+       AND external_source = 'microsoft365'`,
+      [organizationId, messageId]
+    );
+
+    if (existingInteraction.rows.length > 0) {
+      return res.json({
+        success: true,
+        alreadyExists: true,
+        interactionId: existingInteraction.rows[0].id,
+        message: 'Diese E-Mail wurde bereits als Interaktion gespeichert.',
+      });
+    }
+
+    // Extract plain text from HTML body if needed
+    let content = email.body?.content || email.bodyPreview || '';
+    if (email.body?.contentType === 'html') {
+      // Simple HTML to text conversion
+      content = content
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 5000); // Limit content length
+    }
+
+    // Create interaction
+    const interactionResult = await query(
+      `INSERT INTO crm_interactions (
+        id, organization_id, customer_id, user_id, type, direction,
+        subject, content, summary, occurred_at, external_id, external_source,
+        created_at, updated_at
+      ) VALUES (
+        gen_random_uuid(), $1, $2, $3, 'email', 'inbound',
+        $4, $5, $6, $7, $8, 'microsoft365',
+        NOW(), NOW()
+      ) RETURNING id`,
+      [
+        organizationId,
+        customerId,
+        userId,
+        email.subject || 'Keine Betreffzeile',
+        content,
+        email.bodyPreview?.substring(0, 500) || '',
+        email.receivedDateTime || new Date().toISOString(),
+        messageId,
+      ]
+    );
+
+    const interactionId = interactionResult.rows[0].id;
+
+    // Mark email as read
+    await mailboxMonitorService.markAsRead(organizationId, messageId, 'support');
+
+    res.json({
+      success: true,
+      data: {
+        interactionId,
+        customerId,
+        customerName,
+        subject: email.subject,
+      },
+    });
+
+  } catch (error: any) {
+    console.error('Save email as interaction error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Fehler beim Speichern der Interaktion',
+    });
+  }
+});
+
 export default router;
