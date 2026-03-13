@@ -26,7 +26,7 @@ import { TeamProvider } from '../contexts/TeamContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
-import { authApi, userApi, sevdeskApi, organizationsApi, Organization } from '../services/api';
+import { authApi, userApi, sevdeskApi, organizationsApi, customersApi, Organization } from '../services/api';
 import Papa from 'papaparse';
 import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 import { generateUUID } from '../utils/uuid';
@@ -156,6 +156,17 @@ export const Settings = ({
   // CSV Import
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+
+  // Contact Migration
+  const [migrating, setMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<{
+    contactsFromEmail: number;
+    contactsFromTickets: number;
+    domainsFromWebsite: number;
+    domainsFromEmail: number;
+    skippedExisting: number;
+    errors: string[];
+  } | null>(null);
   const [csvPreviewData, setCsvPreviewData] = useState<{ headers: string[]; rows: any[]; allData: any[] } | null>(null);
   const [columnMappings, setColumnMappings] = useState<Record<string, string>>({});
   const [mappingModalOpen, setMappingModalOpen] = useState(false);
@@ -413,6 +424,28 @@ export const Settings = ({
   // CSV Import Handler
   const handleImportClick = () => {
     fileInputRef.current?.click();
+  };
+
+  // Contact Migration Handler
+  const handleMigrateContacts = async () => {
+    if (!confirm('Kontakte und E-Mail-Domains automatisch erstellen?\n\n- Kontakte aus Kunden-E-Mails\n- Kontakte aus Support-Tickets\n- Domains aus Websites\n- Domains aus E-Mail-Adressen\n\nBereits existierende Einträge werden übersprungen.')) {
+      return;
+    }
+
+    setMigrating(true);
+    setMigrationResult(null);
+    try {
+      const response = await customersApi.migrateContacts();
+      if (response.success) {
+        setMigrationResult(response.stats);
+      } else {
+        alert('Fehler bei der Migration');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Fehler bei der Migration');
+    } finally {
+      setMigrating(false);
+    }
   };
 
   const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1319,6 +1352,15 @@ export const Settings = ({
                   {canEdit && (
                     <div className="flex gap-2">
                       <Button
+                        variant="outline"
+                        onClick={handleMigrateContacts}
+                        disabled={migrating}
+                        icon={migrating ? <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Database size={20} />}
+                        title="Kontakte und Domains automatisch aus Kundendaten erstellen"
+                      >
+                        {migrating ? 'Migriere...' : 'Kontakte migrieren'}
+                      </Button>
+                      <Button
                         variant="secondary"
                         onClick={handleImportClick}
                         icon={<FileDown size={20} />}
@@ -1344,6 +1386,47 @@ export const Settings = ({
                   onChange={handleFileImport}
                   className="hidden"
                 />
+
+                {/* Migration result notification */}
+                {migrationResult && (
+                  <div className="mb-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-semibold text-blue-800 dark:text-blue-200">
+                          Migration abgeschlossen
+                        </p>
+                        <div className="text-sm mt-2 text-gray-700 dark:text-gray-300 space-y-1">
+                          <p>Kontakte aus Kunden-E-Mails: <strong>{migrationResult.contactsFromEmail}</strong></p>
+                          <p>Kontakte aus Support-Tickets: <strong>{migrationResult.contactsFromTickets}</strong></p>
+                          <p>Domains aus Websites: <strong>{migrationResult.domainsFromWebsite}</strong></p>
+                          <p>Domains aus E-Mail-Adressen: <strong>{migrationResult.domainsFromEmail}</strong></p>
+                          {migrationResult.skippedExisting > 0 && (
+                            <p className="text-gray-500">Übersprungen (existiert bereits): {migrationResult.skippedExisting}</p>
+                          )}
+                        </div>
+                      </div>
+                      <IconButton
+                        icon={<X size={18} />}
+                        onClick={() => setMigrationResult(null)}
+                        tooltip="Schließen"
+                        size="sm"
+                      />
+                    </div>
+                    {migrationResult.errors.length > 0 && (
+                      <div className="mt-2 text-sm text-red-600 dark:text-red-400">
+                        <p className="font-medium mb-1">Fehler:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          {migrationResult.errors.slice(0, 5).map((error, idx) => (
+                            <li key={idx}>{error}</li>
+                          ))}
+                          {migrationResult.errors.length > 5 && (
+                            <li>... und {migrationResult.errors.length - 5} weitere</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Import result notification */}
                 {importResult && (

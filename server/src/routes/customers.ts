@@ -1210,4 +1210,214 @@ router.get('/email-domains/all', authenticateToken, attachOrganization, async (r
   }
 });
 
+// POST /api/customers/migrate-contacts - Auto-create contacts and domain mappings
+router.post('/migrate-contacts', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const stats = {
+      contactsFromEmail: 0,
+      contactsFromTickets: 0,
+      domainsFromWebsite: 0,
+      domainsFromEmail: 0,
+      skippedExisting: 0,
+      errors: [] as string[]
+    };
+
+    // 1. Create contacts from customer email addresses
+    const customersWithEmail = await pool.query(`
+      SELECT c.id, c.name, c.email, c.contact_person
+      FROM customers c
+      WHERE c.organization_id = $1
+        AND c.email IS NOT NULL
+        AND c.email != ''
+        AND NOT EXISTS (
+          SELECT 1 FROM customer_contacts cc
+          WHERE cc.customer_id = c.id AND LOWER(cc.email) = LOWER(c.email)
+        )
+    `, [organizationId]);
+
+    for (const customer of customersWithEmail.rows) {
+      try {
+        const contactId = crypto.randomUUID();
+        const contactName = customer.contact_person || customer.name;
+
+        await pool.query(`
+          INSERT INTO customer_contacts (
+            id, organization_id, customer_id, name, email, is_primary,
+            can_create_tickets, can_view_all_tickets, created_at
+          ) VALUES ($1, $2, $3, $4, $5, true, true, false, NOW())
+        `, [contactId, organizationId, customer.id, contactName, customer.email]);
+
+        stats.contactsFromEmail++;
+      } catch (err: any) {
+        if (err.code !== '23505') { // Not a duplicate key error
+          stats.errors.push(`Contact for ${customer.name}: ${err.message}`);
+        } else {
+          stats.skippedExisting++;
+        }
+      }
+    }
+
+    // 2. Extract domains from customer websites
+    const customersWithWebsite = await pool.query(`
+      SELECT c.id, c.name, c.website
+      FROM customers c
+      WHERE c.organization_id = $1
+        AND c.website IS NOT NULL
+        AND c.website != ''
+    `, [organizationId]);
+
+    for (const customer of customersWithWebsite.rows) {
+      try {
+        // Extract domain from website URL
+        let domain = customer.website
+          .replace(/^https?:\/\//, '')
+          .replace(/^www\./, '')
+          .split('/')[0]
+          .toLowerCase();
+
+        if (domain && domain.includes('.')) {
+          // Check if domain already exists
+          const existing = await pool.query(`
+            SELECT 1 FROM customer_email_domains
+            WHERE organization_id = $1 AND LOWER(domain) = $2
+          `, [organizationId, domain]);
+
+          if (existing.rows.length === 0) {
+            const domainId = crypto.randomUUID();
+            await pool.query(`
+              INSERT INTO customer_email_domains (
+                id, customer_id, organization_id, domain, is_primary, created_at, created_by
+              ) VALUES ($1, $2, $3, $4, true, NOW(), $5)
+            `, [domainId, customer.id, organizationId, domain, userId]);
+
+            stats.domainsFromWebsite++;
+          } else {
+            stats.skippedExisting++;
+          }
+        }
+      } catch (err: any) {
+        if (err.code !== '23505') {
+          stats.errors.push(`Domain for ${customer.name}: ${err.message}`);
+        } else {
+          stats.skippedExisting++;
+        }
+      }
+    }
+
+    // 3. Extract domains from customer email addresses
+    const customersWithEmailNoDomain = await pool.query(`
+      SELECT c.id, c.name, c.email
+      FROM customers c
+      WHERE c.organization_id = $1
+        AND c.email IS NOT NULL
+        AND c.email != ''
+        AND c.email LIKE '%@%'
+    `, [organizationId]);
+
+    for (const customer of customersWithEmailNoDomain.rows) {
+      try {
+        const domainMatch = customer.email.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/);
+        if (domainMatch) {
+          const domain = domainMatch[1].toLowerCase();
+
+          // Skip common free email providers
+          const freeProviders = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'gmx.de', 'gmx.at', 'web.de', 'aon.at', 't-online.de', 'icloud.com', 'me.com'];
+          if (freeProviders.includes(domain)) {
+            continue;
+          }
+
+          // Check if domain already exists
+          const existing = await pool.query(`
+            SELECT 1 FROM customer_email_domains
+            WHERE organization_id = $1 AND LOWER(domain) = $2
+          `, [organizationId, domain]);
+
+          if (existing.rows.length === 0) {
+            const domainId = crypto.randomUUID();
+            await pool.query(`
+              INSERT INTO customer_email_domains (
+                id, customer_id, organization_id, domain, is_primary, notes, created_at, created_by
+              ) VALUES ($1, $2, $3, $4, false, 'Auto-extracted from customer email', NOW(), $5)
+            `, [domainId, customer.id, organizationId, domain, userId]);
+
+            stats.domainsFromEmail++;
+          } else {
+            stats.skippedExisting++;
+          }
+        }
+      } catch (err: any) {
+        if (err.code !== '23505') {
+          stats.errors.push(`Email domain for ${customer.name}: ${err.message}`);
+        } else {
+          stats.skippedExisting++;
+        }
+      }
+    }
+
+    // 4. Create contacts from ticket emails (if tickets exist)
+    try {
+      const ticketEmails = await pool.query(`
+        SELECT DISTINCT te.from_email, te.from_name, t.customer_id, c.name as customer_name
+        FROM ticket_emails te
+        JOIN tickets t ON te.ticket_id = t.id
+        JOIN customers c ON t.customer_id = c.id
+        WHERE t.organization_id = $1
+          AND te.from_email IS NOT NULL
+          AND te.from_email != ''
+          AND te.direction = 'inbound'
+          AND NOT EXISTS (
+            SELECT 1 FROM customer_contacts cc
+            WHERE cc.customer_id = t.customer_id AND LOWER(cc.email) = LOWER(te.from_email)
+          )
+      `, [organizationId]);
+
+      for (const email of ticketEmails.rows) {
+        try {
+          const contactId = crypto.randomUUID();
+          const contactName = email.from_name || email.from_email.split('@')[0];
+
+          await pool.query(`
+            INSERT INTO customer_contacts (
+              id, organization_id, customer_id, name, email, is_primary,
+              can_create_tickets, can_view_all_tickets, created_at
+            ) VALUES ($1, $2, $3, $4, $5, false, true, false, NOW())
+          `, [contactId, organizationId, email.customer_id, contactName, email.from_email]);
+
+          stats.contactsFromTickets++;
+        } catch (err: any) {
+          if (err.code !== '23505') {
+            stats.errors.push(`Ticket contact ${email.from_email}: ${err.message}`);
+          } else {
+            stats.skippedExisting++;
+          }
+        }
+      }
+    } catch (err: any) {
+      // Ticket tables might not exist - ignore
+      console.log('Note: Ticket contacts migration skipped (table may not exist)');
+    }
+
+    auditLog.log({
+      userId,
+      action: 'customers.migrate_contacts',
+      details: JSON.stringify(stats),
+      ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      message: 'Migration abgeschlossen',
+      stats
+    });
+  } catch (error) {
+    console.error('Migrate contacts error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

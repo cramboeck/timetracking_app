@@ -247,6 +247,24 @@ export const customersApi = {
   }> => {
     return authFetch(`/customers/email-domains/lookup?email=${encodeURIComponent(email)}`);
   },
+
+  // Migration: auto-create contacts and domain mappings
+  migrateContacts: async (): Promise<{
+    success: boolean;
+    message: string;
+    stats: {
+      contactsFromEmail: number;
+      contactsFromTickets: number;
+      domainsFromWebsite: number;
+      domainsFromEmail: number;
+      skippedExisting: number;
+      errors: string[];
+    };
+  }> => {
+    return authFetch('/customers/migrate-contacts', {
+      method: 'POST',
+    });
+  },
 };
 
 // Activities API
