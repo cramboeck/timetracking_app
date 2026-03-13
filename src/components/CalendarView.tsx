@@ -12,6 +12,7 @@ import { Modal } from './Modal';
 import { TimePicker } from './TimePicker';
 import { maintenanceApi, MaintenanceAnnouncement } from '../services/api';
 import { Wrench, Clock, AlertCircle } from 'lucide-react';
+import { Button } from './ui';
 
 const locales = {
   'de': de,
@@ -661,18 +662,18 @@ export const CalendarView = ({
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => setEditingEntry(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
               >
                 Abbrechen
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 onClick={handleSaveEdit}
-                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
               >
                 Speichern
-              </button>
+              </Button>
             </div>
           </div>
         </Modal>
@@ -795,22 +796,22 @@ export const CalendarView = ({
 
             {/* Buttons */}
             <div className="flex justify-end gap-2 pt-4">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => {
                   setIsCreateModalOpen(false);
                   setCreateSlotInfo(null);
                 }}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
               >
                 Abbrechen
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 onClick={handleCreateEntry}
                 disabled={!createProjectId || createDuration <= 0}
-                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Speichern
-              </button>
+              </Button>
             </div>
           </div>
         </Modal>
