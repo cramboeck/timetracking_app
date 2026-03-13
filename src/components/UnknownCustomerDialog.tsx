@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, UserPlus, Users, ArrowRight, Globe, Loader2, AlertTriangle, Building2, ExternalLink } from 'lucide-react';
 import { Customer } from '../types';
 import { customersApi } from '../services/api';
+import { Button, IconButton } from './ui';
 
 interface UnknownCustomerDialogProps {
   isOpen: boolean;
@@ -103,12 +104,11 @@ export const UnknownCustomerDialog = ({
                 </p>
               </div>
             </div>
-            <button
+            <IconButton
               onClick={onCancel}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
+              icon={<X className="w-5 h-5" />}
+              size="md"
+            />
           </div>
 
           {/* Content */}
@@ -203,13 +203,14 @@ export const UnknownCustomerDialog = ({
             {/* Select Customer View */}
             {view === 'select' && (
               <div className="space-y-4">
-                <button
+                <Button
                   onClick={() => setView('options')}
-                  className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                  variant="ghost"
+                  size="sm"
+                  icon={<ArrowRight className="w-4 h-4 rotate-180" />}
                 >
-                  <ArrowRight className="w-4 h-4 rotate-180" />
                   Zurück
-                </button>
+                </Button>
 
                 {loading ? (
                   <div className="flex items-center justify-center py-8">
@@ -254,14 +255,17 @@ export const UnknownCustomerDialog = ({
                       </label>
                     )}
 
-                    <button
+                    <Button
                       onClick={handleSelectCustomer}
                       disabled={!selectedCustomerId}
-                      className="w-full px-4 py-3 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      variant="primary"
+                      size="lg"
+                      fullWidth
+                      icon={<ArrowRight className="w-4 h-4" />}
+                      iconPosition="right"
                     >
                       Kunde zuordnen
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
