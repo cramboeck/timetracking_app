@@ -8,20 +8,20 @@ import { CustomerEmailDomains } from './CustomerEmailDomains';
 import { TicketSettings } from './TicketSettings';
 import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { NinjaRMMSettings } from './NinjaRMMSettings';
-import { PushNotificationSettings } from './PushNotificationSettings';
 import { AISettings } from './AISettings';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 import { CustomerNinjaRMMLink } from './CustomerNinjaRMMLink';
 import { CustomerDetailModal } from './CustomerDetailModal';
-import { IOSSwitch } from './IOSSwitch';
 import { MFASettings } from './MFASettings';
 import { ClockodoImport } from './ClockodoImport';
 import { Microsoft365Settings } from './Microsoft365Settings';
 import { Link2 } from 'lucide-react';
+import { AccountSettings } from './settings/AccountSettings';
+import { AppearanceSettings } from './settings/AppearanceSettings';
+import { NotificationSettings } from './settings/NotificationSettings';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
-import { notificationService } from '../utils/notifications';
 import { authApi, userApi, sevdeskApi, organizationsApi, Organization, OrganizationMember, OrganizationInvitation } from '../services/api';
 import Papa from 'papaparse';
 import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
@@ -76,12 +76,6 @@ export const Settings = ({
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
   const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Notification Settings State (synced with localStorage)
-  const [notifMonthEnd, setNotifMonthEnd] = useState(() => localStorage.getItem('notification_month_end') !== 'false');
-  const [notifMissingEntries, setNotifMissingEntries] = useState(() => localStorage.getItem('notification_missing_entries') !== 'false');
-  const [notifQualityCheck, setNotifQualityCheck] = useState(() => localStorage.getItem('notification_quality_check') !== 'false');
-  const [notifWeeklyReport, setNotifWeeklyReport] = useState(() => localStorage.getItem('notification_weekly_report') !== 'false');
 
   // Company Info State
   const [companyName, setCompanyName] = useState('');
@@ -1411,117 +1405,7 @@ export const Settings = ({
 
         {/* Notifications Tab */}
         {activeTab === 'notifications' && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 shadow-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <Bell size={24} className="text-accent-primary" />
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Benachrichtigungen</h2>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">Verwalte deine Benachrichtigungseinstellungen</p>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                {/* Browser Permission */}
-                {!notificationService.hasPermission() && notificationService.isSupported() && (
-                  <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-medium text-yellow-900 dark:text-yellow-200 mb-1">
-                          Browser-Benachrichtigungen aktivieren
-                        </p>
-                        <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                          Erlaube Browser-Benachrichtigungen, um wichtige Erinnerungen zu erhalten.
-                        </p>
-                      </div>
-                      <button
-                        onClick={async () => {
-                          const granted = await notificationService.requestPermission();
-                          if (granted) {
-                            window.location.reload(); // Reload to update UI
-                          }
-                        }}
-                        className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
-                      >
-                        Aktivieren
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Notification Settings */}
-                <div className="space-y-4">
-                  <h3 className="font-medium text-gray-900 dark:text-white">Browser-Benachrichtigungen</h3>
-
-                  <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
-                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                      <div className="px-4">
-                        <IOSSwitch
-                          label="Monatserinnerung"
-                          description="Benachrichtigung 3 Tage vor Monatsende"
-                          checked={notifMonthEnd}
-                          onChange={(checked) => {
-                            setNotifMonthEnd(checked);
-                            localStorage.setItem('notification_month_end', checked ? 'true' : 'false');
-                          }}
-                          disabled={!notificationService.hasPermission()}
-                        />
-                      </div>
-
-                      <div className="px-4">
-                        <IOSSwitch
-                          label="Fehlende Einträge"
-                          description="Tägliche Erinnerung um 18:00 Uhr"
-                          checked={notifMissingEntries}
-                          onChange={(checked) => {
-                            setNotifMissingEntries(checked);
-                            localStorage.setItem('notification_missing_entries', checked ? 'true' : 'false');
-                          }}
-                          disabled={!notificationService.hasPermission()}
-                        />
-                      </div>
-
-                      <div className="px-4">
-                        <IOSSwitch
-                          label="Qualitätsprüfung"
-                          description="Warnung bei Einträgen ohne Beschreibung"
-                          checked={notifQualityCheck}
-                          onChange={(checked) => {
-                            setNotifQualityCheck(checked);
-                            localStorage.setItem('notification_quality_check', checked ? 'true' : 'false');
-                          }}
-                          disabled={!notificationService.hasPermission()}
-                        />
-                      </div>
-
-                      <div className="px-4">
-                        <IOSSwitch
-                          label="Wochenreport"
-                          description="Freitag 16:00 Uhr Zusammenfassung"
-                          checked={notifWeeklyReport}
-                          onChange={(checked) => {
-                            setNotifWeeklyReport(checked);
-                            localStorage.setItem('notification_weekly_report', checked ? 'true' : 'false');
-                          }}
-                          disabled={!notificationService.hasPermission()}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Push Notifications for Tickets */}
-                <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
-                  <h3 className="font-medium text-gray-900 dark:text-white">Push-Benachrichtigungen (Tickets)</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Erhalte sofortige Benachrichtigungen auf deinem Gerät, wenn Kunden Tickets erstellen oder kommentieren.
-                  </p>
-                  <PushNotificationSettings />
-                </div>
-
-              </div>
-            </div>
-          </div>
+          <NotificationSettings />
         )}
 
         {/* Customers Tab */}
@@ -2567,174 +2451,10 @@ export const Settings = ({
         {/* Billing tab removed - now in Finanzen section */}
 
         {activeTab === 'appearance' && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            {/* Time Format Settings */}
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Zeitformat</h2>
-              <div className="space-y-3">
-                <button
-                  onClick={() => updateTimeFormat('24h')}
-                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                    (currentUser?.timeFormat || '24h') === '24h'
-                      ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 shadow-sm'
-                      : 'border-gray-200 dark:border-dark-200 hover:border-gray-300 dark:hover:border-dark-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900 dark:text-white">24-Stunden-Format</h3>
-                      <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
-                        Beispiel: 14:30, 23:45
-                      </p>
-                    </div>
-                    {(currentUser?.timeFormat || '24h') === '24h' && (
-                      <div className="w-6 h-6 rounded-full bg-accent-primary flex items-center justify-center flex-shrink-0 ml-3">
-                        <span className="text-white text-sm font-bold">✓</span>
-                      </div>
-                    )}
-                  </div>
-                </button>
-                <button
-                  onClick={() => updateTimeFormat('12h')}
-                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                    currentUser?.timeFormat === '12h'
-                      ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 shadow-sm'
-                      : 'border-gray-200 dark:border-dark-200 hover:border-gray-300 dark:hover:border-dark-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900 dark:text-white">12-Stunden-Format (AM/PM)</h3>
-                      <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
-                        Beispiel: 2:30 PM, 11:45 PM
-                      </p>
-                    </div>
-                    {currentUser?.timeFormat === '12h' && (
-                      <div className="w-6 h-6 rounded-full bg-accent-primary flex items-center justify-center flex-shrink-0 ml-3">
-                        <span className="text-white text-sm font-bold">✓</span>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* Appearance Settings */}
-            <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Design & Aussehen</h2>
-
-              <div className="space-y-6">
-                {/* Dark Mode Toggle */}
-                <IOSSwitch
-                  label="Dark Mode"
-                  description="Dunkles Farbschema mit tiefen Grautönen"
-                  checked={darkMode}
-                  onChange={onToggleDarkMode}
-                />
-
-                {/* Accent Color Selection */}
-                <div className="pt-3 border-t border-gray-200 dark:border-dark-200">
-                  <h3 className="font-medium text-gray-900 dark:text-white mb-2">Akzentfarbe</h3>
-                  <p className="text-sm text-gray-500 dark:text-dark-400 mb-4">
-                    Wähle deine bevorzugte Akzentfarbe für Buttons und Highlights
-                  </p>
-                  <div className="grid grid-cols-6 gap-3">
-                    {[
-                      { name: 'blue', label: 'Blau', class: 'bg-accent-blue-600' },
-                      { name: 'green', label: 'Grün', class: 'bg-accent-green-600' },
-                      { name: 'orange', label: 'Orange', class: 'bg-accent-orange-600' },
-                      { name: 'purple', label: 'Lila', class: 'bg-accent-purple-600' },
-                      { name: 'red', label: 'Rot', class: 'bg-accent-red-600' },
-                      { name: 'pink', label: 'Pink', class: 'bg-accent-pink-600' },
-                    ].map((color) => (
-                      <button
-                        key={color.name}
-                        onClick={() => updateAccentColor(color.name as any)}
-                        className={`relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover:scale-105 ${
-                          currentUser?.accentColor === color.name
-                            ? `border-accent-${color.name}-600 bg-accent-${color.name}-50 dark:bg-accent-${color.name}-900/20`
-                            : 'border-gray-300 dark:border-dark-200 hover:border-gray-400'
-                        }`}
-                        title={color.label}
-                      >
-                        <div className={`w-8 h-8 rounded-full ${color.class}`} />
-                        <span className={`text-xs font-medium ${
-                          currentUser?.accentColor === color.name
-                            ? `text-accent-${color.name}-600`
-                            : 'text-gray-600 dark:text-dark-400'
-                        }`}>
-                          {color.label}
-                        </span>
-                        {currentUser?.accentColor === color.name && (
-                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-white dark:bg-dark-100 rounded-full flex items-center justify-center">
-                            <div className={`w-3 h-3 bg-accent-${color.name}-600 rounded-full`} />
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Gray Tone Selection */}
-                <div className="pt-3 border-t border-gray-200 dark:border-dark-200">
-                  <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                    <Contrast size={18} />
-                    Grauton-Intensität
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-dark-400 mb-4">
-                    Wähle die Dunkelheit des Dark Modes (nur im Dark Mode sichtbar)
-                  </p>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { name: 'light' as GrayTone, label: 'Hell', desc: 'Weiche Grautöne' },
-                      { name: 'medium' as GrayTone, label: 'Mittel', desc: 'Ausgewogen' },
-                      { name: 'dark' as GrayTone, label: 'Dunkel', desc: 'Tiefe Schwarztöne' },
-                    ].map((tone) => (
-                      <button
-                        key={tone.name}
-                        onClick={() => updateGrayTone(tone.name)}
-                        className={`relative flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover:scale-105 ${
-                          currentUser?.grayTone === tone.name
-                            ? `border-accent-${currentUser?.accentColor || 'blue'}-600 bg-accent-${currentUser?.accentColor || 'blue'}-50 dark:bg-accent-${currentUser?.accentColor || 'blue'}-900/20`
-                            : 'border-gray-300 dark:border-dark-200 hover:border-gray-400'
-                        }`}
-                        title={tone.desc}
-                      >
-                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                          tone.name === 'light' ? 'bg-gray-700' :
-                          tone.name === 'medium' ? 'bg-gray-800' :
-                          'bg-gray-950'
-                        }`}>
-                          <div className={`w-6 h-6 rounded ${
-                            tone.name === 'light' ? 'bg-gray-500' :
-                            tone.name === 'medium' ? 'bg-gray-600' :
-                            'bg-gray-800'
-                          }`} />
-                        </div>
-                        <div className="text-center">
-                          <span className={`text-sm font-medium block ${
-                            currentUser?.grayTone === tone.name
-                              ? `text-accent-${currentUser?.accentColor || 'blue'}-600`
-                              : 'text-gray-900 dark:text-white'
-                          }`}>
-                            {tone.label}
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-dark-400">
-                            {tone.desc}
-                          </span>
-                        </div>
-                        {currentUser?.grayTone === tone.name && (
-                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-white dark:bg-dark-100 rounded-full flex items-center justify-center">
-                            <div className={`w-3 h-3 bg-accent-${currentUser?.accentColor || 'blue'}-600 rounded-full`} />
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <AppearanceSettings
+            darkMode={darkMode}
+            onToggleDarkMode={onToggleDarkMode}
+          />
         )}
         </div>
       </div>
