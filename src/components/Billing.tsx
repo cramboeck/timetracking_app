@@ -301,12 +301,12 @@ export const Billing = ({ onBack }: BillingProps) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           {onBack && (
-            <button
+            <IconButton
               onClick={onBack}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-            >
-              <ChevronLeft size={24} className="text-gray-600 dark:text-gray-300" />
-            </button>
+              icon={<ChevronLeft size={24} />}
+              variant="default"
+              tooltip="Zurück"
+            />
           )}
           <div className="flex items-center gap-3">
             <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
