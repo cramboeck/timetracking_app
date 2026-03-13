@@ -302,7 +302,7 @@ export default function MaintenanceApproval() {
                     variant="success"
                     size="lg"
                     onClick={handleApprove}
-                    isDisabled={submitting}
+                    disabled={submitting}
                     loading={submitting}
                     icon={!submitting ? <CheckCircle className="w-5 h-5" /> : undefined}
                     fullWidth
@@ -314,7 +314,7 @@ export default function MaintenanceApproval() {
                     variant="outline"
                     size="lg"
                     onClick={() => setShowRejectForm(true)}
-                    isDisabled={submitting}
+                    disabled={submitting}
                     icon={<XCircle className="w-5 h-5" />}
                     fullWidth
                     className="rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50"
@@ -341,7 +341,7 @@ export default function MaintenanceApproval() {
                       variant="outline"
                       size="lg"
                       onClick={() => setShowRejectForm(false)}
-                      isDisabled={submitting}
+                      disabled={submitting}
                       fullWidth
                       className="rounded-xl"
                     >
@@ -351,7 +351,7 @@ export default function MaintenanceApproval() {
                       variant="danger"
                       size="lg"
                       onClick={handleReject}
-                      isDisabled={submitting}
+                      disabled={submitting}
                       loading={submitting}
                       icon={!submitting ? <XCircle className="w-5 h-5" /> : undefined}
                       fullWidth

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Clock, ChevronUp, ChevronDown } from 'lucide-react';
+import { Button, IconButton } from './ui';
 
 interface ModernTimePickerProps {
   value: string; // Format: "HH:MM" (24h)
@@ -91,46 +92,38 @@ export const ModernTimePicker = ({
           <div className="flex justify-center items-center gap-4 mb-4">
             {/* Hours */}
             <div className="flex flex-col items-center">
-              <button
-                type="button"
+              <IconButton
+                icon={<ChevronUp size={24} />}
+                size="lg"
                 onClick={incrementHour}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <ChevronUp size={24} className="text-gray-600 dark:text-gray-400" />
-              </button>
+              />
               <div className="text-4xl font-bold text-gray-900 dark:text-white tabular-nums py-2 px-4 bg-gray-50 dark:bg-gray-700 rounded-lg min-w-[80px] text-center">
                 {String(hours).padStart(2, '0')}
               </div>
-              <button
-                type="button"
+              <IconButton
+                icon={<ChevronDown size={24} />}
+                size="lg"
                 onClick={decrementHour}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <ChevronDown size={24} className="text-gray-600 dark:text-gray-400" />
-              </button>
+              />
             </div>
 
             <span className="text-4xl font-bold text-gray-400 dark:text-gray-500">:</span>
 
             {/* Minutes */}
             <div className="flex flex-col items-center">
-              <button
-                type="button"
+              <IconButton
+                icon={<ChevronUp size={24} />}
+                size="lg"
                 onClick={incrementMinute}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <ChevronUp size={24} className="text-gray-600 dark:text-gray-400" />
-              </button>
+              />
               <div className="text-4xl font-bold text-gray-900 dark:text-white tabular-nums py-2 px-4 bg-gray-50 dark:bg-gray-700 rounded-lg min-w-[80px] text-center">
                 {String(minutes).padStart(2, '0')}
               </div>
-              <button
-                type="button"
+              <IconButton
+                icon={<ChevronDown size={24} />}
+                size="lg"
                 onClick={decrementMinute}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <ChevronDown size={24} className="text-gray-600 dark:text-gray-400" />
-              </button>
+              />
             </div>
           </div>
 
@@ -161,13 +154,14 @@ export const ModernTimePicker = ({
           </div>
 
           {/* Done Button */}
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            fullWidth
+            className="mt-4"
             onClick={() => setIsOpen(false)}
-            className="w-full mt-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
           >
             Fertig
-          </button>
+          </Button>
         </div>
       )}
     </div>

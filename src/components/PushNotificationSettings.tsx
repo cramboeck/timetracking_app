@@ -153,24 +153,16 @@ export const PushNotificationSettings = () => {
                 Test
               </Button>
             )}
-            <button
+            <Button
               onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
-              disabled={loading || permission === 'denied' || actionLoading !== null}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium disabled:opacity-50 ${
-                isSubscribed
-                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  : 'btn-accent'
-              }`}
+              isDisabled={loading || permission === 'denied' || actionLoading !== null}
+              isLoading={actionLoading === 'subscribe' || actionLoading === 'unsubscribe'}
+              variant={isSubscribed ? 'secondary' : 'primary'}
+              size="md"
+              icon={isSubscribed ? <BellOff size={18} /> : <Bell size={18} />}
             >
-              {actionLoading === 'subscribe' || actionLoading === 'unsubscribe' ? (
-                <Loader2 className="animate-spin" size={18} />
-              ) : isSubscribed ? (
-                <BellOff size={18} />
-              ) : (
-                <Bell size={18} />
-              )}
               {isSubscribed ? 'Deaktivieren' : 'Aktivieren'}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -329,18 +321,14 @@ export const PushNotificationSettings = () => {
                     </p>
                   </div>
                 </div>
-                <button
+                <IconButton
                   onClick={() => handleDeleteSubscription(sub.id)}
                   disabled={actionLoading === `delete-${sub.id}`}
-                  className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg disabled:opacity-50"
-                  title="Gerät entfernen"
-                >
-                  {actionLoading === `delete-${sub.id}` ? (
-                    <Loader2 className="animate-spin" size={16} />
-                  ) : (
-                    <Trash2 size={16} />
-                  )}
-                </button>
+                  variant="danger"
+                  size="md"
+                  tooltip="Gerät entfernen"
+                  icon={<Trash2 size={16} />}
+                />
               </div>
             ))}
           </div>
