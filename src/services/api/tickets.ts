@@ -94,6 +94,12 @@ export const ticketsApi = {
     return authFetch(`/tickets${query}`);
   },
 
+  // Get tickets for a specific customer
+  getByCustomer: async (customerId: string): Promise<{ tickets: Ticket[]; total: number }> => {
+    const result = await authFetch(`/tickets?customerId=${customerId}`);
+    return { tickets: result.data || [], total: (result.data || []).length };
+  },
+
   getStats: async (): Promise<{ success: boolean; data: {
     open_count: number;
     in_progress_count: number;

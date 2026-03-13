@@ -6,7 +6,7 @@ import { ManualEntryModern } from './components/ManualEntryModern';
 import { TimeEntriesList } from './components/TimeEntriesList';
 import { CalendarView } from './components/CalendarView';
 import { DashboardOverview } from './components/DashboardOverview';
-import { CustomerView } from './components/CustomerView';
+import { CustomerHub } from './components/CustomerHub';
 import { Settings } from './components/Settings';
 import { Tickets } from './components/Tickets';
 import { Finanzen } from './components/Finanzen';
@@ -1018,10 +1018,31 @@ function App() {
           />
         )}
         {currentSubView === 'customers' && (
-          <CustomerView
+          <CustomerHub
             customers={customers}
             projects={projects}
             entries={entries}
+            onNavigateToTicket={(ticketId) => {
+              // Navigate to tickets view - the ticket will be opened from there
+              setCurrentArea('support');
+              setCurrentSubView('tickets');
+            }}
+            onNavigateToTask={(taskId) => {
+              // Navigate to tasks view
+              setCurrentArea('arbeiten');
+              setCurrentSubView('tasks');
+            }}
+            onStartTimer={(customerId, projectId, description) => {
+              // Set prefilled entry and switch to stopwatch
+              if (projectId) {
+                setPrefilledEntry({
+                  projectId,
+                  description: description || '',
+                });
+              }
+              setCurrentArea('arbeiten');
+              setCurrentSubView('stopwatch');
+            }}
           />
         )}
         {currentSubView === 'tickets' && (
