@@ -1295,4 +1295,78 @@ export const microsoft365Api = {
   }> => {
     return authFetch(`/microsoft365/tickets/${ticketId}/emails`);
   },
+
+  // ============================================
+  // PERSONAL INBOX
+  // ============================================
+
+  // Get emails from user's personal mailbox
+  getPersonalEmails: async (params?: {
+    includeRead?: boolean;
+    limit?: number;
+  }): Promise<{
+    success: boolean;
+    data: (SupportEmail & {
+      matchedCustomer?: {
+        id: string;
+        name: string;
+        matchType: string;
+      } | null;
+    })[];
+    userEmail?: string;
+    error?: string;
+  }> => {
+    const searchParams = new URLSearchParams();
+    if (params?.includeRead) searchParams.set('includeRead', 'true');
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+    const query = searchParams.toString();
+    return authFetch(`/microsoft365/personal/emails${query ? `?${query}` : ''}`);
+  },
+
+  // Save personal email as CRM interaction
+  savePersonalEmailAsInteraction: async (
+    messageId: string,
+    customerId?: string
+  ): Promise<{
+    success: boolean;
+    alreadyExists?: boolean;
+    data?: {
+      interactionId: string;
+      customerId: string;
+      customerName: string;
+      subject: string;
+      direction: 'inbound' | 'outbound';
+    };
+    requiresCustomer?: boolean;
+    sender?: {
+      email: string;
+      name: string;
+      domain: string | null;
+    };
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/personal/emails/${messageId}/save-as-interaction`, {
+      method: 'POST',
+      body: JSON.stringify({ customerId }),
+    });
+  },
+
+  // Lookup customer for personal email
+  lookupCustomerForPersonalEmail: async (messageId: string): Promise<{
+    success: boolean;
+    found: boolean;
+    customer?: {
+      id: string;
+      name: string;
+      matchType: string;
+    };
+    sender: {
+      email: string;
+      name: string;
+      domain: string | null;
+    };
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/personal/emails/${messageId}/customer-lookup`);
+  },
 };

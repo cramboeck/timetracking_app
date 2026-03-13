@@ -1416,4 +1416,307 @@ router.post('/support/emails/:id/save-as-interaction', requireOrgRole('member'),
   }
 });
 
+// ============================================
+// PERSONAL INBOX ROUTES
+// Access emails from the logged-in user's personal mailbox
+// ============================================
+
+// GET /api/microsoft365/personal/emails - Get user's personal inbox emails
+router.get('/personal/emails', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const includeRead = req.query.includeRead === 'true';
+    const maxResults = parseInt(req.query.limit as string) || 30;
+
+    // Get user's email address
+    const userResult = await query('SELECT email FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Benutzer nicht gefunden',
+      });
+    }
+
+    const userEmail = userResult.rows[0].email;
+
+    // Fetch emails from user's personal mailbox
+    const result = await mailboxMonitorService.getEmailsFromMailbox(
+      organizationId,
+      userEmail,
+      {
+        includeRead,
+        maxResults,
+      }
+    );
+
+    if (result.success) {
+      // Enrich emails with customer matching
+      const enrichedEmails = await Promise.all(
+        (result.emails || []).map(async (email) => {
+          const customer = await findCustomerByEmail(organizationId, email.from.email);
+          return {
+            ...email,
+            matchedCustomer: customer ? {
+              id: customer.id,
+              name: customer.name,
+              matchType: customer.matchType,
+            } : null,
+          };
+        })
+      );
+
+      res.json({
+        success: true,
+        data: enrichedEmails,
+        userEmail,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error: any) {
+    console.error('Get personal emails error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Fehler beim Abrufen der E-Mails',
+    });
+  }
+});
+
+// POST /api/microsoft365/personal/emails/:id/save-as-interaction - Save personal email as interaction
+router.post('/personal/emails/:id/save-as-interaction', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const messageId = req.params.id;
+    const { customerId: providedCustomerId } = req.body;
+
+    // Get user's email address
+    const userResult = await query('SELECT email FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Benutzer nicht gefunden',
+      });
+    }
+
+    const userEmail = userResult.rows[0].email;
+
+    // Get the email from personal mailbox
+    const email = await mailboxMonitorService.getEmailFromMailbox(
+      organizationId,
+      userEmail,
+      messageId
+    );
+
+    if (!email) {
+      return res.status(404).json({
+        success: false,
+        error: 'E-Mail nicht gefunden',
+      });
+    }
+
+    // Find customer by sender email if not provided
+    let customerId = providedCustomerId;
+    let customerName = '';
+
+    if (!customerId) {
+      const customer = await findCustomerByEmail(organizationId, email.from.email);
+      if (customer) {
+        customerId = customer.id;
+        customerName = customer.name;
+      }
+    } else {
+      // Get customer name
+      const customerResult = await query(
+        'SELECT name FROM customers WHERE id = $1 AND organization_id = $2',
+        [customerId, organizationId]
+      );
+      if (customerResult.rows.length > 0) {
+        customerName = customerResult.rows[0].name;
+      }
+    }
+
+    if (!customerId) {
+      // Return sender info so UI can show customer selection
+      const domainMatch = email.from.email.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/);
+      const senderDomain = domainMatch ? domainMatch[1].toLowerCase() : null;
+
+      return res.status(400).json({
+        success: false,
+        error: 'Kein Kunde gefunden. Bitte Kunden manuell zuweisen.',
+        requiresCustomer: true,
+        sender: {
+          email: email.from.email,
+          name: email.from.name,
+          domain: senderDomain,
+        },
+      });
+    }
+
+    // Check if interaction already exists for this email
+    const existingInteraction = await query(
+      `SELECT id FROM crm_interactions
+       WHERE organization_id = $1
+       AND external_id = $2
+       AND external_source = 'microsoft365_personal'`,
+      [organizationId, messageId]
+    );
+
+    if (existingInteraction.rows.length > 0) {
+      return res.json({
+        success: true,
+        alreadyExists: true,
+        interactionId: existingInteraction.rows[0].id,
+        message: 'Diese E-Mail wurde bereits als Interaktion gespeichert.',
+      });
+    }
+
+    // Extract plain text from HTML body if needed
+    let content = email.body?.content || email.bodyPreview || '';
+    if (email.body?.contentType === 'html') {
+      content = content
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 5000);
+    }
+
+    // Determine direction: inbound if from external, outbound if to external
+    const isInbound = email.from.email.toLowerCase() !== userEmail.toLowerCase();
+
+    // Create interaction
+    const interactionResult = await query(
+      `INSERT INTO crm_interactions (
+        id, organization_id, customer_id, user_id, type, direction,
+        subject, content, summary, occurred_at, external_id, external_source,
+        created_at, updated_at
+      ) VALUES (
+        gen_random_uuid(), $1, $2, $3, 'email', $4,
+        $5, $6, $7, $8, $9, 'microsoft365_personal',
+        NOW(), NOW()
+      ) RETURNING id`,
+      [
+        organizationId,
+        customerId,
+        userId,
+        isInbound ? 'inbound' : 'outbound',
+        email.subject || 'Keine Betreffzeile',
+        content,
+        email.bodyPreview?.substring(0, 500) || '',
+        email.receivedDateTime || new Date().toISOString(),
+        messageId,
+      ]
+    );
+
+    const interactionId = interactionResult.rows[0].id;
+
+    // Mark email as read
+    await mailboxMonitorService.markAsReadInMailbox(organizationId, userEmail, messageId);
+
+    res.json({
+      success: true,
+      data: {
+        interactionId,
+        customerId,
+        customerName,
+        subject: email.subject,
+        direction: isInbound ? 'inbound' : 'outbound',
+      },
+    });
+
+  } catch (error: any) {
+    console.error('Save personal email as interaction error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Fehler beim Speichern der Interaktion',
+    });
+  }
+});
+
+// GET /api/microsoft365/personal/emails/:id/customer-lookup - Lookup customer for personal email
+router.get('/personal/emails/:id/customer-lookup', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const userId = req.user!.id;
+    const messageId = req.params.id;
+
+    // Get user's email address
+    const userResult = await query('SELECT email FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Benutzer nicht gefunden',
+      });
+    }
+
+    const userEmail = userResult.rows[0].email;
+
+    // Get the email from personal mailbox
+    const email = await mailboxMonitorService.getEmailFromMailbox(
+      organizationId,
+      userEmail,
+      messageId
+    );
+
+    if (!email) {
+      return res.status(404).json({
+        success: false,
+        error: 'E-Mail nicht gefunden',
+      });
+    }
+
+    const senderEmail = email.from.email;
+    const domainMatch = senderEmail.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/);
+    const senderDomain = domainMatch ? domainMatch[1].toLowerCase() : null;
+
+    // Try to find customer by email
+    const customer = await findCustomerByEmail(organizationId, senderEmail);
+
+    if (customer) {
+      return res.json({
+        success: true,
+        found: true,
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          matchType: customer.matchType,
+        },
+        sender: {
+          email: senderEmail,
+          name: email.from.name,
+          domain: senderDomain,
+        },
+      });
+    }
+
+    // No customer found
+    return res.json({
+      success: true,
+      found: false,
+      customer: null,
+      sender: {
+        email: senderEmail,
+        name: email.from.name,
+        domain: senderDomain,
+      },
+    });
+
+  } catch (error: any) {
+    console.error('Personal email customer lookup error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Fehler bei der Kundensuche',
+    });
+  }
+});
+
 export default router;

@@ -53,6 +53,8 @@ import {
   AlertTriangle,
   Award,
   Zap,
+  Inbox,
+  X,
 } from 'lucide-react';
 import { Customer, Project, TimeEntry, Ticket as TicketType, Task } from '../types';
 import {
@@ -67,6 +69,7 @@ import {
 } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 import { StatWidget } from './ui/StatWidget';
+import { PersonalInbox } from './PersonalInbox';
 import { InteractionsTimeline } from './InteractionsTimeline';
 import { Modal } from './Modal';
 import { CustomerContacts } from './CustomerContacts';
@@ -1238,6 +1241,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
   const [showContactsModal, setShowContactsModal] = useState(false);
   const [showTicketDialog, setShowTicketDialog] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showPersonalInbox, setShowPersonalInbox] = useState(false);
 
   // Filter customers
   const filteredCustomers = useMemo(() => {
@@ -1469,15 +1473,21 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
             <span className="text-sm text-gray-500 dark:text-gray-400">
               ({filteredCustomers.length})
             </span>
-            {onCreateCustomer && (
+            <div className="flex items-center gap-2 ml-auto">
               <IconButton
-                onClick={onCreateCustomer}
-                icon={<Plus size={18} />}
-                variant="primary"
-                tooltip="Kunde erstellen"
-                className="ml-auto"
+                onClick={() => setShowPersonalInbox(true)}
+                icon={<Inbox size={18} />}
+                tooltip="Mein Posteingang"
               />
-            )}
+              {onCreateCustomer && (
+                <IconButton
+                  onClick={onCreateCustomer}
+                  icon={<Plus size={18} />}
+                  variant="primary"
+                  tooltip="Kunde erstellen"
+                />
+              )}
+            </div>
           </div>
 
           {/* Search Input */}
@@ -1759,6 +1769,47 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
           }}
           defaultCustomerId={selectedCustomerId || undefined}
         />
+      )}
+
+      {/* Personal Inbox Drawer */}
+      {showPersonalInbox && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={() => setShowPersonalInbox(false)}
+          />
+          {/* Drawer */}
+          <div className="fixed right-0 top-0 h-full w-full max-w-2xl bg-white dark:bg-dark-100 shadow-xl overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-300">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Inbox className="text-accent-primary" size={20} />
+                Mein Posteingang
+              </h2>
+              <IconButton
+                icon={<X size={20} />}
+                onClick={() => setShowPersonalInbox(false)}
+                tooltip="Schließen"
+              />
+            </div>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <PersonalInbox
+                onEmailSaved={(interactionId, customerId) => {
+                  // Refresh customer data if viewing that customer
+                  if (customerId === selectedCustomerId) {
+                    loadCustomerData(customerId);
+                  }
+                  // Optionally navigate to the customer
+                  if (customerId && onSelectCustomer) {
+                    onSelectCustomer(customerId);
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

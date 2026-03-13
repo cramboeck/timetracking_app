@@ -184,6 +184,164 @@ class MailboxMonitorService {
   }
 
   /**
+   * Get emails from a specific mailbox (e.g., user's personal mailbox)
+   * @param organizationId - Organization ID
+   * @param mailboxEmail - The email address of the mailbox to query
+   * @param options - Options for fetching emails
+   */
+  async getEmailsFromMailbox(
+    organizationId: string,
+    mailboxEmail: string,
+    options: {
+      maxResults?: number;
+      folder?: string;
+      includeRead?: boolean;
+    } = {}
+  ): Promise<MailboxMonitorResult> {
+    const clientData = await this.createClient(organizationId);
+
+    if (!clientData) {
+      return { success: false, emails: [], error: 'Microsoft 365 nicht konfiguriert' };
+    }
+
+    const { client } = clientData;
+    const { maxResults = 50, folder = 'inbox', includeRead = false } = options;
+
+    try {
+      let apiRequest = client
+        .api(`/users/${mailboxEmail}/mailFolders/${folder}/messages`)
+        .top(maxResults)
+        .orderby('receivedDateTime desc')
+        .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance');
+
+      // Only filter by unread if not including read emails
+      if (!includeRead) {
+        apiRequest = apiRequest.filter('isRead eq false');
+      }
+
+      const response = await apiRequest.get();
+
+      const emails: EmailMessage[] = (response.value || []).map((msg: any) => ({
+        id: msg.id,
+        conversationId: msg.conversationId,
+        subject: msg.subject || '(Kein Betreff)',
+        bodyPreview: msg.bodyPreview || '',
+        body: {
+          contentType: msg.body?.contentType?.toLowerCase() || 'text',
+          content: msg.body?.content || '',
+        },
+        from: {
+          name: msg.from?.emailAddress?.name || '',
+          email: msg.from?.emailAddress?.address || '',
+        },
+        toRecipients: (msg.toRecipients || []).map((r: any) => ({
+          name: r.emailAddress?.name || '',
+          email: r.emailAddress?.address || '',
+        })),
+        ccRecipients: (msg.ccRecipients || []).map((r: any) => ({
+          name: r.emailAddress?.name || '',
+          email: r.emailAddress?.address || '',
+        })),
+        receivedDateTime: msg.receivedDateTime,
+        hasAttachments: msg.hasAttachments || false,
+        isRead: msg.isRead || false,
+        importance: msg.importance || 'normal',
+      }));
+
+      return { success: true, emails };
+    } catch (error: any) {
+      console.error('Failed to get emails from mailbox:', error.message);
+      return {
+        success: false,
+        emails: [],
+        error: `Fehler beim Abrufen der E-Mails: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Get a specific email by ID from a mailbox
+   */
+  async getEmailFromMailbox(
+    organizationId: string,
+    mailboxEmail: string,
+    messageId: string
+  ): Promise<EmailMessage | null> {
+    const clientData = await this.createClient(organizationId);
+
+    if (!clientData) {
+      return null;
+    }
+
+    const { client } = clientData;
+
+    try {
+      const msg = await client
+        .api(`/users/${mailboxEmail}/messages/${messageId}`)
+        .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance')
+        .get();
+
+      return {
+        id: msg.id,
+        conversationId: msg.conversationId,
+        subject: msg.subject || '(Kein Betreff)',
+        bodyPreview: msg.bodyPreview || '',
+        body: {
+          contentType: msg.body?.contentType?.toLowerCase() || 'text',
+          content: msg.body?.content || '',
+        },
+        from: {
+          name: msg.from?.emailAddress?.name || '',
+          email: msg.from?.emailAddress?.address || '',
+        },
+        toRecipients: (msg.toRecipients || []).map((r: any) => ({
+          name: r.emailAddress?.name || '',
+          email: r.emailAddress?.address || '',
+        })),
+        ccRecipients: (msg.ccRecipients || []).map((r: any) => ({
+          name: r.emailAddress?.name || '',
+          email: r.emailAddress?.address || '',
+        })),
+        receivedDateTime: msg.receivedDateTime,
+        hasAttachments: msg.hasAttachments || false,
+        isRead: msg.isRead || false,
+        importance: msg.importance || 'normal',
+      };
+    } catch (error: any) {
+      console.error('Failed to get email from mailbox:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Mark email as read in a specific mailbox
+   */
+  async markAsReadInMailbox(
+    organizationId: string,
+    mailboxEmail: string,
+    messageId: string
+  ): Promise<boolean> {
+    const clientData = await this.createClient(organizationId);
+
+    if (!clientData) {
+      return false;
+    }
+
+    const { client } = clientData;
+
+    try {
+      await client
+        .api(`/users/${mailboxEmail}/messages/${messageId}`)
+        .patch({ isRead: true });
+
+      return true;
+    } catch (error: any) {
+      console.error('Failed to mark email as read:', error.message);
+      return false;
+    }
+  }
+
+  /**
    * Get a specific email by ID
    */
   async getEmail(
