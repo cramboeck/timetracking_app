@@ -5,7 +5,7 @@
 
 import { ReactNode, ButtonHTMLAttributes } from 'react';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'warning' | 'success' | 'ghost' | 'outline';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -20,11 +20,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary: `
-    bg-blue-600 hover:bg-blue-700 active:bg-blue-800
+    bg-accent-primary hover:bg-accent-primary/90 active:bg-accent-primary/80
     text-white font-medium
-    disabled:bg-blue-400 disabled:cursor-not-allowed
-    dark:bg-blue-600 dark:hover:bg-blue-700 dark:active:bg-blue-800
-    dark:disabled:bg-blue-500/50
+    disabled:bg-accent-primary/50 disabled:cursor-not-allowed
   `,
   secondary: `
     bg-gray-100 hover:bg-gray-200 active:bg-gray-300
@@ -39,6 +37,20 @@ const variantClasses: Record<ButtonVariant, string> = {
     disabled:bg-red-400 disabled:cursor-not-allowed
     dark:bg-red-600 dark:hover:bg-red-700 dark:active:bg-red-800
     dark:disabled:bg-red-500/50
+  `,
+  warning: `
+    bg-orange-500 hover:bg-orange-600 active:bg-orange-700
+    text-white font-medium
+    disabled:bg-orange-400 disabled:cursor-not-allowed
+    dark:bg-orange-500 dark:hover:bg-orange-600 dark:active:bg-orange-700
+    dark:disabled:bg-orange-400/50
+  `,
+  success: `
+    bg-green-600 hover:bg-green-700 active:bg-green-800
+    text-white font-medium
+    disabled:bg-green-400 disabled:cursor-not-allowed
+    dark:bg-green-600 dark:hover:bg-green-700 dark:active:bg-green-800
+    dark:disabled:bg-green-500/50
   `,
   ghost: `
     bg-transparent hover:bg-gray-100 active:bg-gray-200
@@ -83,7 +95,7 @@ export const Button = ({
       className={`
         inline-flex items-center justify-center
         transition-colors duration-150
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+        focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2
         dark:focus:ring-offset-gray-800
         ${variantClasses[variant]}
         ${sizeClasses[size]}
@@ -123,10 +135,12 @@ export const Button = ({
 };
 
 // Icon button variant for toolbar actions
+export type IconButtonVariant = 'default' | 'danger' | 'success' | 'warning' | 'primary';
+
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon: ReactNode;
-  variant?: 'default' | 'danger';
-  size?: 'sm' | 'md';
+  variant?: IconButtonVariant;
+  size?: 'sm' | 'md' | 'lg';
   tooltip?: string;
 }
 
@@ -138,27 +152,40 @@ export const IconButton = ({
   className = '',
   ...props
 }: IconButtonProps) => {
-  const variantStyles = {
+  const variantStyles: Record<IconButtonVariant, string> = {
     default: `
       text-gray-500 hover:text-gray-700 hover:bg-gray-100
       dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700
     `,
+    primary: `
+      text-accent-primary hover:bg-accent-primary/10
+      dark:text-accent-primary dark:hover:bg-accent-primary/20
+    `,
     danger: `
       text-gray-500 hover:text-red-600 hover:bg-red-50
       dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-900/30
+    `,
+    success: `
+      text-gray-500 hover:text-green-600 hover:bg-green-50
+      dark:text-gray-400 dark:hover:text-green-400 dark:hover:bg-green-900/30
+    `,
+    warning: `
+      text-gray-500 hover:text-orange-600 hover:bg-orange-50
+      dark:text-gray-400 dark:hover:text-orange-400 dark:hover:bg-orange-900/30
     `,
   };
 
   const sizeStyles = {
     sm: 'p-1 rounded',
     md: 'p-1.5 rounded-md',
+    lg: 'p-2 rounded-lg',
   };
 
   return (
     <button
       className={`
         transition-colors duration-150
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
+        focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-1
         dark:focus:ring-offset-gray-800
         disabled:opacity-50 disabled:cursor-not-allowed
         ${variantStyles[variant]}

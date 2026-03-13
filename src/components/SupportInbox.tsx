@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
 import { UnknownCustomerDialog } from './UnknownCustomerDialog';
+import { Button, IconButton } from './ui/Button';
 
 interface TicketInfo {
   linked: boolean;
@@ -309,14 +310,13 @@ export const SupportInbox = () => {
             />
             Gelesene anzeigen
           </label>
-          <button
+          <Button
             onClick={() => loadEmails()}
             disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+            icon={<RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />}
           >
-            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
             Aktualisieren
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -417,12 +417,12 @@ export const SupportInbox = () => {
                   <h3 className="font-semibold text-gray-900 dark:text-white line-clamp-2">
                     {selectedEmail.subject}
                   </h3>
-                  <button
+                  <IconButton
                     onClick={() => setSelectedEmail(null)}
-                    className="p-1 text-gray-400 hover:text-gray-600"
-                  >
-                    <X size={18} />
-                  </button>
+                    icon={<X size={18} />}
+                    size="sm"
+                    tooltip="Schliessen"
+                  />
                 </div>
                 <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                   <p>
@@ -457,13 +457,16 @@ export const SupportInbox = () => {
                       <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
                         {selectedTicketInfo.suggestedTicket.ticket_number}: {selectedTicketInfo.suggestedTicket.title}
                       </p>
-                      <button
+                      <Button
                         onClick={handleLinkToTicket}
                         disabled={creating}
-                        className="mt-2 w-full py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        loading={creating}
+                        fullWidth
+                        size="sm"
+                        className="mt-2"
                       >
-                        {creating ? 'Verknüpfe...' : 'Mit Ticket verknüpfen'}
-                      </button>
+                        Mit Ticket verknüpfen
+                      </Button>
                     </div>
                   ) : (
                     <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3">
@@ -477,14 +480,16 @@ export const SupportInbox = () => {
 
               {/* Email Body */}
               <div className="flex-1 p-4 overflow-y-auto max-h-[300px]">
-                <button
+                <Button
                   onClick={() => setExpandedEmail(expandedEmail === selectedEmail.id ? null : selectedEmail.id)}
-                  className="flex items-center gap-2 text-sm text-accent-primary mb-2"
+                  variant="ghost"
+                  size="sm"
+                  icon={<Eye size={14} />}
+                  className="mb-2 text-accent-primary"
                 >
-                  <Eye size={14} />
                   {expandedEmail === selectedEmail.id ? 'Vorschau' : 'Vollständige E-Mail anzeigen'}
                   {expandedEmail === selectedEmail.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </button>
+                </Button>
 
                 {expandedEmail === selectedEmail.id ? (
                   selectedEmail.body.contentType === 'html' ? (
@@ -509,27 +514,30 @@ export const SupportInbox = () => {
                 <div className="p-4 border-t border-gray-200 dark:border-dark-300 space-y-2">
                   <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">Ticket erstellen:</p>
                   <div className="grid grid-cols-3 gap-2">
-                    <button
+                    <Button
                       onClick={() => handleCreateTicket('normal')}
                       disabled={creating}
-                      className="py-2 px-3 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50"
+                      loading={creating}
+                      size="sm"
                     >
-                      {creating ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Normal'}
-                    </button>
-                    <button
+                      Normal
+                    </Button>
+                    <Button
                       onClick={() => handleCreateTicket('high')}
                       disabled={creating}
-                      className="py-2 px-3 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+                      variant="warning"
+                      size="sm"
                     >
                       Hoch
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={() => handleCreateTicket('urgent')}
                       disabled={creating}
-                      className="py-2 px-3 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
+                      variant="danger"
+                      size="sm"
                     >
                       Dringend
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
