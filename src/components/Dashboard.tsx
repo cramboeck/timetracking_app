@@ -1602,31 +1602,31 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                 {/* Navigation for multiple reports */}
                 {savedReportPreview.totalCount > 1 && (
                   <div className="flex items-center gap-1 mr-4">
-                    <button
+                    <IconButton
                       onClick={() => navigateSavedReportPreview('prev')}
                       disabled={savedReportPreview.currentIndex === 0 || isGeneratingSavedPreview}
-                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
-                    </button>
+                      icon={<ChevronLeft size={20} />}
+                      variant="default"
+                      tooltip="Vorherige"
+                    />
                     <span className="text-sm text-gray-600 dark:text-gray-300 min-w-[60px] text-center">
                       {savedReportPreview.currentIndex + 1} / {savedReportPreview.totalCount}
                     </span>
-                    <button
+                    <IconButton
                       onClick={() => navigateSavedReportPreview('next')}
                       disabled={savedReportPreview.currentIndex === savedReportPreview.totalCount - 1 || isGeneratingSavedPreview}
-                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
-                    </button>
+                      icon={<ChevronRight size={20} />}
+                      variant="default"
+                      tooltip="Nächste"
+                    />
                   </div>
                 )}
-                <button
+                <IconButton
                   onClick={closeSavedReportPreview}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                >
-                  <X size={20} className="text-gray-500" />
-                </button>
+                  icon={<X size={20} />}
+                  variant="default"
+                  tooltip="Schließen"
+                />
               </div>
             </div>
 

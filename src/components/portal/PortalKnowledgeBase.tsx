@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { publicKbApi, KbCategory, KbArticle } from '../../services/api';
 import { MarkdownRenderer } from '../MarkdownRenderer';
+import { Button, IconButton } from '../ui/Button';
 
 interface PortalKnowledgeBaseProps {
   userId: string;
@@ -121,12 +122,11 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
         {/* Header */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
-            <button
+            <IconButton
+              icon={<ArrowLeft size={24} />}
               onClick={selectedCategory ? handleBackToCategory : handleBackToHome}
-              className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
-            >
-              <ArrowLeft size={24} />
-            </button>
+              tooltip="Zurück"
+            />
             <div className="flex-1">
               {selectedArticle.categoryName && (
                 <p className="text-sm text-blue-600 dark:text-blue-400 mb-1">
