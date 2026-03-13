@@ -32,8 +32,10 @@ import {
   Zap,
   Mail,
   Send,
-  XCircle
+  XCircle,
+  X
 } from 'lucide-react';
+import { Button, IconButton } from './ui/Button';
 import { adminApi } from '../services/adminApi';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -713,12 +715,14 @@ export default function AdminPortal() {
         <div className="bg-red-100 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800 px-4 py-3 flex items-center gap-2">
           <AlertCircle size={18} className="text-red-600 dark:text-red-400" />
           <span className="text-red-700 dark:text-red-300 text-sm">{error}</span>
-          <button
+          <IconButton
+            icon={<X size={18} />}
             onClick={() => setError(null)}
-            className="ml-auto text-red-600 hover:text-red-800 dark:text-red-400"
-          >
-            ×
-          </button>
+            variant="danger"
+            size="sm"
+            tooltip="Fehler schließen"
+            className="ml-auto"
+          />
         </div>
       )}
 
@@ -983,14 +987,13 @@ export default function AdminPortal() {
                             {formatDate(user.createdAt)}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <button
+                            <IconButton
+                              icon={<Trash2 size={18} />}
                               onClick={() => handleDeleteUser(user.id, user.username)}
                               disabled={user.id === currentUser?.id}
-                              className="p-1 text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Benutzer löschen"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                              variant="danger"
+                              tooltip="Benutzer löschen"
+                            />
                           </td>
                         </tr>
                       ))}
@@ -1002,25 +1005,28 @@ export default function AdminPortal() {
               {/* Pagination */}
               {usersTotalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setUsersPage(p => Math.max(1, p - 1))}
                     disabled={usersPage === 1}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronLeft size={16} />}
                   >
-                    <ChevronLeft size={16} />
                     Zurück
-                  </button>
+                  </Button>
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Seite {usersPage} von {usersTotalPages}
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setUsersPage(p => Math.min(usersTotalPages, p + 1))}
                     disabled={usersPage === usersTotalPages}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronRight size={16} />}
+                    iconPosition="right"
                   >
                     Weiter
-                    <ChevronRight size={16} />
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -1105,21 +1111,12 @@ export default function AdminPortal() {
                           </td>
                           {packageDefinitions.map(pkg => (
                             <td key={pkg.name} className="px-4 py-3 text-center">
-                              <button
+                              <IconButton
+                                icon={hasPackage(user, pkg.name) ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
                                 onClick={() => handleFeatureToggle(user.id, pkg.name, hasPackage(user, pkg.name))}
-                                className={`p-1 rounded transition-colors ${
-                                  hasPackage(user, pkg.name)
-                                    ? 'text-green-600 hover:text-green-800 dark:text-green-400'
-                                    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500'
-                                }`}
-                                title={hasPackage(user, pkg.name) ? 'Deaktivieren' : 'Aktivieren'}
-                              >
-                                {hasPackage(user, pkg.name) ? (
-                                  <ToggleRight size={24} />
-                                ) : (
-                                  <ToggleLeft size={24} />
-                                )}
-                              </button>
+                                variant={hasPackage(user, pkg.name) ? 'success' : 'default'}
+                                tooltip={hasPackage(user, pkg.name) ? 'Deaktivieren' : 'Aktivieren'}
+                              />
                             </td>
                           ))}
                         </tr>
@@ -1132,25 +1129,28 @@ export default function AdminPortal() {
               {/* Pagination */}
               {featuresTotalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setFeaturesPage(p => Math.max(1, p - 1))}
                     disabled={featuresPage === 1}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronLeft size={16} />}
                   >
-                    <ChevronLeft size={16} />
                     Zurück
-                  </button>
+                  </Button>
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Seite {featuresPage} von {featuresTotalPages}
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setFeaturesPage(p => Math.min(featuresTotalPages, p + 1))}
                     disabled={featuresPage === featuresTotalPages}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronRight size={16} />}
+                    iconPosition="right"
                   >
                     Weiter
-                    <ChevronRight size={16} />
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -1207,25 +1207,28 @@ export default function AdminPortal() {
               {/* Pagination */}
               {auditTotalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setAuditPage(p => Math.max(1, p - 1))}
                     disabled={auditPage === 1}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronLeft size={16} />}
                   >
-                    <ChevronLeft size={16} />
                     Zurück
-                  </button>
+                  </Button>
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Seite {auditPage} von {auditTotalPages}
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setAuditPage(p => Math.min(auditTotalPages, p + 1))}
                     disabled={auditPage === auditTotalPages}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronRight size={16} />}
+                    iconPosition="right"
                   >
                     Weiter
-                    <ChevronRight size={16} />
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -1244,26 +1247,26 @@ export default function AdminPortal() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={loadBackups}
                   disabled={backupsLoading}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                  loading={backupsLoading}
+                  icon={<RefreshCw size={16} />}
                 >
-                  <RefreshCw size={16} className={backupsLoading ? 'animate-spin' : ''} />
                   Aktualisieren
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={handleCreateBackup}
                   disabled={backupCreating}
-                  className="flex items-center gap-2 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  loading={backupCreating}
+                  icon={<Archive size={16} />}
                 >
-                  {backupCreating ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Archive size={16} />
-                  )}
                   {backupCreating ? 'Erstelle...' : 'Neues Backup'}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -1324,40 +1327,37 @@ export default function AdminPortal() {
                               {restoreConfirmOpen === backup.filename ? (
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs text-red-600 dark:text-red-400">Wirklich wiederherstellen?</span>
-                                  <button
+                                  <Button
+                                    variant="danger"
+                                    size="sm"
                                     onClick={() => handleRestoreBackup(backup.filename)}
                                     disabled={backupRestoring === backup.filename}
-                                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                                    loading={backupRestoring === backup.filename}
                                   >
-                                    {backupRestoring === backup.filename ? (
-                                      <Loader2 size={12} className="animate-spin" />
-                                    ) : (
-                                      'Ja'
-                                    )}
-                                  </button>
-                                  <button
+                                    Ja
+                                  </Button>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
                                     onClick={() => setRestoreConfirmOpen(null)}
-                                    className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white rounded hover:bg-gray-300"
                                   >
                                     Nein
-                                  </button>
+                                  </Button>
                                 </div>
                               ) : (
                                 <>
-                                  <button
+                                  <IconButton
+                                    icon={<Upload size={18} />}
                                     onClick={() => setRestoreConfirmOpen(backup.filename)}
-                                    className="p-1.5 text-orange-600 hover:text-orange-800 dark:text-orange-400 dark:hover:text-orange-300"
-                                    title="Backup wiederherstellen"
-                                  >
-                                    <Upload size={18} />
-                                  </button>
-                                  <button
+                                    variant="warning"
+                                    tooltip="Backup wiederherstellen"
+                                  />
+                                  <IconButton
+                                    icon={<Trash2 size={18} />}
                                     onClick={() => handleDeleteBackup(backup.filename)}
-                                    className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                                    title="Backup löschen"
-                                  >
-                                    <Trash2 size={18} />
-                                  </button>
+                                    variant="danger"
+                                    tooltip="Backup löschen"
+                                  />
                                 </>
                               )}
                             </div>
@@ -1391,14 +1391,16 @@ export default function AdminPortal() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold dark:text-white">System-Status</h2>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={loadSystemStatus}
                 disabled={systemStatusLoading}
-                className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                loading={systemStatusLoading}
+                icon={<RefreshCw size={16} />}
               >
-                <RefreshCw size={16} className={systemStatusLoading ? 'animate-spin' : ''} />
                 Aktualisieren
-              </button>
+              </Button>
             </div>
 
             {systemStatusLoading ? (
@@ -1523,22 +1525,26 @@ export default function AdminPortal() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold dark:text-white">Datenbank-Statistiken</h2>
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={loadDatabaseStats}
                   disabled={databaseStatsLoading}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                  loading={databaseStatsLoading}
+                  icon={<RefreshCw size={16} />}
                 >
-                  <RefreshCw size={16} className={databaseStatsLoading ? 'animate-spin' : ''} />
                   Aktualisieren
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={handleVacuum}
                   disabled={vacuumRunning}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  loading={vacuumRunning}
+                  icon={<Zap size={16} />}
                 >
-                  {vacuumRunning ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
                   VACUUM
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -1604,14 +1610,16 @@ export default function AdminPortal() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold dark:text-white">Sicherheit & Sessions</h2>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={loadSecurityData}
                 disabled={securityLoading}
-                className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                loading={securityLoading}
+                icon={<RefreshCw size={16} />}
               >
-                <RefreshCw size={16} className={securityLoading ? 'animate-spin' : ''} />
                 Aktualisieren
-              </button>
+              </Button>
             </div>
 
             {securityLoading ? (
@@ -1710,13 +1718,12 @@ export default function AdminPortal() {
                               </td>
                               <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{formatDate(session.created_at)}</td>
                               <td className="px-4 py-2 text-right">
-                                <button
+                                <IconButton
+                                  icon={<UserX size={18} />}
                                   onClick={() => handleInvalidateSessions(session.user_id, session.username)}
-                                  className="p-1 text-red-600 hover:text-red-800 dark:text-red-400"
-                                  title="Sessions invalidieren"
-                                >
-                                  <UserX size={18} />
-                                </button>
+                                  variant="danger"
+                                  tooltip="Sessions invalidieren"
+                                />
                               </td>
                             </tr>
                           ))}
@@ -1747,14 +1754,16 @@ export default function AdminPortal() {
                   <option value="error">Error</option>
                   <option value="access">Access</option>
                 </select>
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={loadLogs}
                   disabled={logsLoading}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                  loading={logsLoading}
+                  icon={<RefreshCw size={16} />}
                 >
-                  <RefreshCw size={16} className={logsLoading ? 'animate-spin' : ''} />
                   Aktualisieren
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -1785,13 +1794,14 @@ export default function AdminPortal() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold dark:text-white">System-Benachrichtigungen</h2>
-              <button
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => setShowNotificationForm(!showNotificationForm)}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                icon={<Plus size={16} />}
               >
-                <Plus size={16} />
                 Neue Meldung
-              </button>
+              </Button>
             </div>
 
             {/* Create Form */}
@@ -1822,18 +1832,18 @@ export default function AdminPortal() {
                     <option value="error">Fehler</option>
                     <option value="success">Erfolg</option>
                   </select>
-                  <button
+                  <Button
+                    variant="primary"
                     onClick={handleCreateNotification}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                   >
                     Erstellen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={() => setShowNotificationForm(false)}
-                    className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white rounded-lg hover:bg-gray-300"
                   >
                     Abbrechen
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -1870,20 +1880,18 @@ export default function AdminPortal() {
                           <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">{formatDate(notification.created_at)}</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
+                          <IconButton
+                            icon={notification.is_active ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
                             onClick={() => handleToggleNotification(notification.id)}
-                            className={`p-1.5 rounded ${notification.is_active ? 'text-green-600 hover:text-green-800' : 'text-gray-400 hover:text-gray-600'}`}
-                            title={notification.is_active ? 'Deaktivieren' : 'Aktivieren'}
-                          >
-                            {notification.is_active ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
-                          </button>
-                          <button
+                            variant={notification.is_active ? 'success' : 'default'}
+                            tooltip={notification.is_active ? 'Deaktivieren' : 'Aktivieren'}
+                          />
+                          <IconButton
+                            icon={<Trash2 size={18} />}
                             onClick={() => handleDeleteNotification(notification.id)}
-                            className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400"
-                            title="Löschen"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                            variant="danger"
+                            tooltip="Löschen"
+                          />
                         </div>
                       </div>
                     </div>

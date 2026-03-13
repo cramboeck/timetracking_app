@@ -7,6 +7,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { TimePicker } from './TimePicker';
 import { useAuth } from '../contexts/AuthContext';
 import { aiApi } from '../services/api';
+import { Button, IconButton } from './ui/Button';
 
 interface TimeEntriesListProps {
   entries: TimeEntry[];
@@ -475,44 +476,38 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           </div>
           <div className="flex gap-1.5 sm:gap-2">
             {/* View Toggle */}
-            <button
+            <IconButton
               onClick={() => setCompactView(!compactView)}
-              className="flex items-center gap-2 p-2 sm:px-3 sm:py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-              title={compactView ? 'Normale Ansicht' : 'Kompakte Ansicht'}
-            >
-              {compactView ? <LayoutGrid size={18} /> : <List size={18} />}
-            </button>
-            <button
+              icon={compactView ? <LayoutGrid size={18} /> : <List size={18} />}
+              tooltip={compactView ? 'Normale Ansicht' : 'Kompakte Ansicht'}
+              size="md"
+            />
+            <Button
               onClick={toggleSelectionMode}
-              className={`flex items-center gap-2 p-2 sm:px-3 sm:py-2 rounded-lg transition-colors ${
-                selectionMode
-                  ? 'bg-accent-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              variant={selectionMode ? 'primary' : 'secondary'}
+              size="md"
+              icon={<CheckSquare size={18} />}
               title={selectionMode ? 'Auswahl beenden' : 'Mehrfachauswahl'}
             >
-              <CheckSquare size={18} />
               <span className="hidden sm:inline">{selectionMode ? 'Auswahl aktiv' : 'Auswählen'}</span>
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 p-2 sm:px-3 sm:py-2 rounded-lg transition-colors ${
-                showFilters || hasActiveFilters
-                  ? 'bg-accent-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              variant={showFilters || hasActiveFilters ? 'primary' : 'secondary'}
+              size="md"
+              icon={<Filter size={18} />}
             >
-              <Filter size={18} />
               <span className="hidden sm:inline">Filter</span>
               {hasActiveFilters && <span className="w-2 h-2 bg-white rounded-full" />}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={exportToCSV}
-              className="flex items-center gap-2 p-2 sm:px-3 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              variant="success"
+              size="md"
+              icon={<Download size={18} />}
             >
-              <Download size={18} />
               <span className="hidden sm:inline">CSV Export</span>
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -522,13 +517,14 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium text-gray-700 dark:text-gray-300">Filter</h3>
               {hasActiveFilters && (
-                <button
+                <Button
                   onClick={clearFilters}
-                  className="text-sm text-accent-primary hover:underline flex items-center gap-1"
+                  variant="ghost"
+                  size="sm"
+                  icon={<X size={14} />}
                 >
-                  <X size={14} />
                   Filter zurücksetzen
-                </button>
+                </Button>
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
@@ -691,29 +687,32 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               <span className="text-sm font-medium text-accent-primary">
                 {selectedEntries.size} ausgewählt
               </span>
-              <button
+              <Button
                 onClick={selectAllVisible}
-                className="text-sm text-accent-primary hover:underline"
+                variant="ghost"
+                size="sm"
               >
                 Alle auswählen ({filteredEntries.length})
-              </button>
+              </Button>
               {selectedEntries.size > 0 && (
-                <button
+                <Button
                   onClick={deselectAll}
-                  className="text-sm text-gray-500 hover:underline"
+                  variant="ghost"
+                  size="sm"
                 >
                   Auswahl aufheben
-                </button>
+                </Button>
               )}
             </div>
             {selectedEntries.size > 0 && onBulkUpdate && (
-              <button
+              <Button
                 onClick={openBulkEditModal}
-                className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 text-sm font-medium"
+                variant="primary"
+                size="md"
+                icon={<Edit2 size={16} />}
               >
-                <Edit2 size={16} />
                 Massenbearbeitung
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -725,12 +724,14 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <Filter size={48} className="mx-auto mb-4 opacity-50" />
             <p>Keine Einträge für die gewählten Filter gefunden</p>
-            <button
+            <Button
               onClick={clearFilters}
-              className="mt-2 text-accent-primary hover:underline"
+              variant="ghost"
+              size="sm"
+              className="mt-2"
             >
               Filter zurücksetzen
-            </button>
+            </Button>
           </div>
         ) : (
           Object.entries(groupedEntries).map(([date, dateEntries]) => (
@@ -756,16 +757,16 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                         <div className="flex sm:hidden flex-col gap-1">
                           <div className="flex items-center gap-2">
                             {selectionMode && (
-                              <button
+                              <IconButton
                                 onClick={() => toggleEntrySelection(entry.id)}
-                                className="text-gray-400 hover:text-accent-primary transition-colors flex-shrink-0"
-                              >
-                                {selectedEntries.has(entry.id) ? (
+                                icon={selectedEntries.has(entry.id) ? (
                                   <CheckSquare size={16} className="text-accent-primary" />
                                 ) : (
                                   <Square size={16} />
                                 )}
-                              </button>
+                                variant={selectedEntries.has(entry.id) ? 'primary' : 'default'}
+                                size="sm"
+                              />
                             )}
                             {customer && (
                               <div
@@ -779,28 +780,28 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                             {!selectionMode && (
                               <div className="flex gap-0.5 flex-shrink-0">
                                 {onRepeatEntry && !entry.isRunning && (
-                                  <button
+                                  <IconButton
                                     onClick={() => setRepeatConfirm({ isOpen: true, entry })}
-                                    className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                    title="Wiederholen"
-                                  >
-                                    <RotateCcw size={14} />
-                                  </button>
+                                    icon={<RotateCcw size={14} />}
+                                    variant="primary"
+                                    size="sm"
+                                    tooltip="Wiederholen"
+                                  />
                                 )}
-                                <button
+                                <IconButton
                                   onClick={() => openEditModal(entry)}
-                                  className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                                  title="Bearbeiten"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                                <button
+                                  icon={<Edit2 size={14} />}
+                                  variant="default"
+                                  size="sm"
+                                  tooltip="Bearbeiten"
+                                />
+                                <IconButton
                                   onClick={() => handleDeleteClick(entry)}
-                                  className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                  title="Löschen"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                                  icon={<Trash2 size={14} />}
+                                  variant="danger"
+                                  size="sm"
+                                  tooltip="Löschen"
+                                />
                               </div>
                             )}
                           </div>
@@ -822,16 +823,16 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                         {/* Desktop: Single row layout */}
                         <div className="hidden sm:flex items-center gap-2">
                           {selectionMode && (
-                            <button
+                            <IconButton
                               onClick={() => toggleEntrySelection(entry.id)}
-                              className="text-gray-400 hover:text-accent-primary transition-colors flex-shrink-0"
-                            >
-                              {selectedEntries.has(entry.id) ? (
+                              icon={selectedEntries.has(entry.id) ? (
                                 <CheckSquare size={16} className="text-accent-primary" />
                               ) : (
                                 <Square size={16} />
                               )}
-                            </button>
+                              variant={selectedEntries.has(entry.id) ? 'primary' : 'default'}
+                              size="sm"
+                            />
                           )}
                           {customer && (
                             <div
@@ -856,28 +857,28 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                           {!selectionMode && (
                             <div className="flex gap-0.5 flex-shrink-0">
                               {onRepeatEntry && !entry.isRunning && (
-                                <button
+                                <IconButton
                                   onClick={() => setRepeatConfirm({ isOpen: true, entry })}
-                                  className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                  title="Wiederholen"
-                                >
-                                  <RotateCcw size={14} />
-                                </button>
+                                  icon={<RotateCcw size={14} />}
+                                  variant="primary"
+                                  size="sm"
+                                  tooltip="Wiederholen"
+                                />
                               )}
-                              <button
+                              <IconButton
                                 onClick={() => openEditModal(entry)}
-                                className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                                title="Bearbeiten"
-                              >
-                                <Edit2 size={14} />
-                              </button>
-                              <button
+                                icon={<Edit2 size={14} />}
+                                variant="default"
+                                size="sm"
+                                tooltip="Bearbeiten"
+                              />
+                              <IconButton
                                 onClick={() => handleDeleteClick(entry)}
-                                className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                title="Löschen"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                                icon={<Trash2 size={14} />}
+                                variant="danger"
+                                size="sm"
+                                tooltip="Löschen"
+                              />
                             </div>
                           )}
                         </div>
@@ -898,16 +899,17 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-start gap-3 flex-1">
                           {selectionMode && (
-                            <button
+                            <IconButton
                               onClick={() => toggleEntrySelection(entry.id)}
-                              className="mt-1 text-gray-400 hover:text-accent-primary transition-colors"
-                            >
-                              {selectedEntries.has(entry.id) ? (
+                              icon={selectedEntries.has(entry.id) ? (
                                 <CheckSquare size={20} className="text-accent-primary" />
                               ) : (
                                 <Square size={20} />
                               )}
-                            </button>
+                              variant={selectedEntries.has(entry.id) ? 'primary' : 'default'}
+                              size="md"
+                              className="mt-1"
+                            />
                           )}
                           {customer && (
                             <div
@@ -925,29 +927,31 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                         {!selectionMode && (
                           <div className="flex gap-2">
                             {onRepeatEntry && !entry.isRunning && (
-                              <button
+                              <IconButton
                                 onClick={() => setRepeatConfirm({ isOpen: true, entry })}
-                                className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors touch-manipulation"
+                                icon={<RotateCcw size={18} />}
+                                variant="primary"
+                                size="lg"
+                                tooltip="Eintrag wiederholen"
                                 aria-label="Wiederholen"
-                                title="Eintrag wiederholen"
-                              >
-                                <RotateCcw size={18} />
-                              </button>
+                              />
                             )}
-                            <button
+                            <IconButton
                               onClick={() => openEditModal(entry)}
-                              className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors touch-manipulation"
+                              icon={<Edit2 size={18} />}
+                              variant="default"
+                              size="lg"
+                              tooltip="Bearbeiten"
                               aria-label="Bearbeiten"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button
+                            />
+                            <IconButton
                               onClick={() => handleDeleteClick(entry)}
-                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors touch-manipulation"
+                              icon={<Trash2 size={18} />}
+                              variant="danger"
+                              size="lg"
+                              tooltip="Löschen"
                               aria-label="Löschen"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            />
                           </div>
                         )}
                       </div>
@@ -976,19 +980,21 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
         title="Eintrag bearbeiten"
         footer={
           <div className="flex gap-3">
-            <button
+            <Button
               onClick={() => setEditingEntry(null)}
-              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors"
+              variant="secondary"
+              fullWidth
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSaveEdit}
               disabled={!editProjectId || !editDate || !editStartTime || !editEndTime}
-              className="flex-1 px-4 py-2 btn-accent"
+              variant="primary"
+              fullWidth
             >
               Speichern
-            </button>
+            </Button>
           </div>
         }
       >
@@ -1055,19 +1061,18 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                 Beschreibung
               </label>
               {aiConfigured && editProjectId && (
-                <button
+                <Button
                   onClick={generateEditAiDescription}
                   disabled={generatingDescription}
-                  className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                  loading={generatingDescription}
+                  variant="ghost"
+                  size="sm"
+                  icon={!generatingDescription ? <Sparkles size={12} /> : undefined}
                   title="KI-Vorschlag generieren"
+                  className="text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30"
                 >
-                  {generatingDescription ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Sparkles size={12} />
-                  )}
                   KI-Vorschlag
-                </button>
+                </Button>
               )}
             </div>
             <textarea
@@ -1082,19 +1087,22 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Abrechenbar
             </label>
-            <button
+            <IconButton
               type="button"
               onClick={() => setEditIsBillable(!editIsBillable)}
+              icon={
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    editIsBillable ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              }
+              variant={editIsBillable ? 'success' : 'default'}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                 editIsBillable ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
               }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  editIsBillable ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+              tooltip={editIsBillable ? 'Als nicht abrechenbar markieren' : 'Als abrechenbar markieren'}
+            />
           </div>
         </div>
       </Modal>
@@ -1106,20 +1114,22 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
         title={`Massenbearbeitung (${selectedEntries.size} Einträge)`}
         footer={
           <div className="flex gap-3">
-            <button
+            <Button
               onClick={() => setBulkEditModal(false)}
-              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors"
+              variant="secondary"
+              fullWidth
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleBulkEdit}
               disabled={bulkProcessing || (!bulkProjectId && bulkDescriptionMode === 'keep')}
-              className="flex-1 px-4 py-2 btn-accent flex items-center justify-center gap-2"
+              loading={bulkProcessing}
+              variant="primary"
+              fullWidth
             >
-              {bulkProcessing && <Loader2 size={16} className="animate-spin" />}
               {selectedEntries.size} Einträge aktualisieren
-            </button>
+            </Button>
           </div>
         }
       >

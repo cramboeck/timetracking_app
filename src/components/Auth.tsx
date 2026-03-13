@@ -5,6 +5,7 @@ import { AccountType } from '../types';
 import { ForgotPassword } from './ForgotPassword';
 import { ResetPassword } from './ResetPassword';
 import { organizationsApi } from '../services/api';
+import { Button } from './ui/Button';
 
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'join-organization';
 
@@ -272,16 +273,15 @@ export const Auth = () => {
                 <p className="text-gray-600 dark:text-gray-400 mb-6">
                   {invitationError}
                 </p>
-                <button
+                <Button
                   onClick={() => {
                     window.history.replaceState({}, '', '/');
                     setAuthView('login');
                     setInvitationCode(null);
                   }}
-                  className="px-6 py-2 btn-accent"
                 >
                   Zur Anmeldung
-                </button>
+                </Button>
               </div>
             )}
 
@@ -331,18 +331,18 @@ export const Auth = () => {
                     Melde dich an oder erstelle einen Account, um der Organisation beizutreten.
                   </p>
                   <div className="grid grid-cols-2 gap-3">
-                    <button
+                    <Button
                       onClick={() => {
                         // Store invitation code for after login
                         localStorage.setItem('pending_invitation', invitationCode);
                         window.history.replaceState({}, '', '/');
                         setAuthView('login');
                       }}
-                      className="py-3 px-4 bg-accent-primary text-white rounded-lg font-medium hover:bg-accent-darker transition-colors"
+                      size="lg"
                     >
                       Anmelden
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={() => {
                         // Store invitation code and set registration via invitation mode
                         localStorage.setItem('pending_invitation', invitationCode);
@@ -351,10 +351,11 @@ export const Auth = () => {
                         window.history.replaceState({}, '', '/');
                         setAuthView('register');
                       }}
-                      className="py-3 px-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      variant="outline"
+                      size="lg"
                     >
                       Registrieren
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -501,20 +502,24 @@ export const Auth = () => {
                   </label>
 
                   <div className="flex gap-3">
-                    <button
+                    <Button
                       type="button"
                       onClick={handleCancelMfa}
-                      className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+                      variant="secondary"
+                      size="lg"
+                      fullWidth
                     >
                       Abbrechen
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="submit"
-                      disabled={isLoading || loginMfaCode.length < 6 || (mfaLockedUntil !== undefined && mfaLockedUntil > new Date())}
-                      className="flex-1 py-3 btn-accent disabled:opacity-50"
+                      disabled={loginMfaCode.length < 6 || (mfaLockedUntil !== undefined && mfaLockedUntil > new Date())}
+                      loading={isLoading}
+                      size="lg"
+                      fullWidth
                     >
                       {isLoading ? 'Überprüfen...' : 'Bestätigen'}
-                    </button>
+                    </Button>
                   </div>
                 </form>
               ) : (
@@ -564,13 +569,14 @@ export const Auth = () => {
                     </div>
                   </div>
 
-                  <button
+                  <Button
                     type="submit"
-                    disabled={isLoading}
-                    className="w-full py-3 btn-accent"
+                    loading={isLoading}
+                    size="lg"
+                    fullWidth
                   >
                     {isLoading ? 'Anmelden...' : 'Anmelden'}
-                  </button>
+                  </Button>
                 </form>
               )
             ) : (
@@ -757,13 +763,14 @@ export const Auth = () => {
                   </div>
                 )}
 
-                <button
+                <Button
                   type="submit"
-                  disabled={isLoading}
-                  className="w-full py-3 btn-accent"
+                  loading={isLoading}
+                  size="lg"
+                  fullWidth
                 >
                   {isLoading ? 'Registrieren...' : 'Registrieren'}
-                </button>
+                </Button>
 
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
                   Mit der Registrierung akzeptierst du unsere Datenschutzbestimmungen

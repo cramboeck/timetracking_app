@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Customer, Project, TimeEntry, Ticket as TicketType } from '../types';
 import { StatWidget } from './ui/StatWidget';
+import { Button, IconButton } from './ui/Button';
 
 interface CustomerViewProps {
   customers: Customer[];
@@ -158,12 +159,13 @@ export const CustomerView = ({
               ({filteredCustomers.length})
             </span>
             {onCreateCustomer && (
-              <button
+              <IconButton
                 onClick={onCreateCustomer}
-                className="ml-auto p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-              >
-                <Plus size={18} />
-              </button>
+                icon={<Plus size={18} />}
+                variant="primary"
+                tooltip="Kunde erstellen"
+                className="ml-auto bg-accent-primary text-white hover:bg-accent-primary/90"
+              />
             )}
           </div>
 
@@ -184,17 +186,14 @@ export const CustomerView = ({
           {/* Filter Tabs */}
           <div className="flex gap-1 mt-3">
             {(['all', 'active', 'inactive'] as const).map(status => (
-              <button
+              <Button
                 key={status}
                 onClick={() => setFilterStatus(status)}
-                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                  filterStatus === status
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-medium'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
+                variant={filterStatus === status ? 'primary' : 'ghost'}
+                size="sm"
               >
                 {status === 'all' ? 'Alle' : status === 'active' ? 'Aktiv' : 'Inaktiv'}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -259,13 +258,14 @@ export const CustomerView = ({
       {selectedCustomer && selectedStats ? (
         <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
           {/* Back Button (Mobile) */}
-          <button
+          <Button
             onClick={() => setSelectedCustomerId(null)}
-            className="lg:hidden flex items-center gap-2 p-4 text-blue-600 dark:text-blue-400"
+            variant="ghost"
+            icon={<ChevronRight size={18} className="rotate-180" />}
+            className="lg:hidden m-4 text-blue-600 dark:text-blue-400"
           >
-            <ChevronRight size={18} className="rotate-180" />
             Zurück
-          </button>
+          </Button>
 
           {/* Customer Header */}
           <div className="bg-white dark:bg-gray-800 p-6 border-b border-gray-200 dark:border-gray-700">
@@ -301,9 +301,10 @@ export const CustomerView = ({
                   )}
                 </div>
               </div>
-              <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                <MoreHorizontal size={20} className="text-gray-500" />
-              </button>
+              <IconButton
+                icon={<MoreHorizontal size={20} />}
+                tooltip="Optionen"
+              />
             </div>
           </div>
 
@@ -435,9 +436,13 @@ export const CustomerView = ({
                     <Target size={18} className="text-indigo-600 dark:text-indigo-400" />
                     Projekte
                   </h3>
-                  <button className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-blue-600 dark:text-blue-400"
+                  >
                     Alle anzeigen
-                  </button>
+                  </Button>
                 </div>
                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
                   {projects.filter(p => p.customerId === selectedCustomerId).length === 0 ? (

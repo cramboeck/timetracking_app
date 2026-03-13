@@ -32,6 +32,7 @@ import {
 import { Customer } from '../types';
 import { customersApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Button, IconButton } from './ui/Button';
 
 // ============================================
 // Helper Functions
@@ -107,57 +108,61 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({
           {opportunity.name}
         </h4>
         <div className="relative">
-          <button
+          <IconButton
             onClick={() => setShowMenu(!showMenu)}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-          >
-            <MoreVertical size={14} />
-          </button>
+            icon={<MoreVertical size={14} />}
+            size="sm"
+            tooltip="Menü"
+            className="opacity-0 group-hover:opacity-100 transition-opacity"
+          />
           {showMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
               <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]">
-                <button
+                <Button
                   onClick={() => {
                     setShowMenu(false);
                     onEdit(opportunity);
                   }}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  variant="ghost"
+                  size="sm"
+                  icon={<Edit2 size={14} />}
+                  className="w-full justify-start rounded-none"
                 >
-                  <Edit2 size={14} />
                   Bearbeiten
-                </button>
+                </Button>
                 <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                 <div className="px-3 py-1 text-xs text-gray-500 uppercase">Verschieben zu</div>
                 {stages
                   .filter((s) => s.id !== opportunity.stage_id)
                   .map((stage) => (
-                    <button
+                    <Button
                       key={stage.id}
                       onClick={() => {
                         setShowMenu(false);
                         onMove(opportunity, stage.id);
                       }}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                      variant="ghost"
+                      size="sm"
+                      icon={<div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />}
+                      className="w-full justify-start rounded-none"
                     >
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: stage.color }}
-                      />
                       {stage.name}
-                    </button>
+                    </Button>
                   ))}
                 <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
-                <button
+                <Button
                   onClick={() => {
                     setShowMenu(false);
                     onDelete(opportunity);
                   }}
-                  className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                  variant="ghost"
+                  size="sm"
+                  icon={<Trash2 size={14} />}
+                  className="w-full justify-start rounded-none text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                 >
-                  <Trash2 size={14} />
                   Loschen
-                </button>
+                </Button>
               </div>
             </>
           )}
@@ -297,12 +302,12 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
               {opportunities.length}
             </span>
           </div>
-          <button
+          <IconButton
             onClick={() => onAddOpportunity(stage.id)}
-            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"
-          >
-            <Plus size={16} />
-          </button>
+            icon={<Plus size={16} />}
+            size="sm"
+            tooltip="Opportunity hinzufügen"
+          />
         </div>
         <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
           <span>{formatCurrency(totalValue)}</span>
@@ -537,20 +542,21 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-4">
-        <button
+        <Button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg"
+          variant="secondary"
         >
           Abbrechen
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
-          disabled={saving || !name.trim()}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium"
+          disabled={!name.trim()}
+          loading={saving}
+          variant="primary"
         >
-          {saving ? 'Speichern...' : opportunity ? 'Aktualisieren' : 'Erstellen'}
-        </button>
+          {opportunity ? 'Aktualisieren' : 'Erstellen'}
+        </Button>
       </div>
     </form>
   );
@@ -764,12 +770,13 @@ const SalesPipeline: React.FC = () => {
       <div className="h-full flex flex-col items-center justify-center text-gray-500">
         <AlertCircle size={48} className="mb-4 text-red-500" />
         <p>{error}</p>
-        <button
+        <Button
           onClick={loadData}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          variant="primary"
+          className="mt-4"
         >
           Erneut versuchen
-        </button>
+        </Button>
       </div>
     );
   }
@@ -797,13 +804,13 @@ const SalesPipeline: React.FC = () => {
               className="pl-9 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-48 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-          <button
+          <Button
             onClick={() => handleAddOpportunity(stages[0]?.id || '')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+            variant="primary"
+            icon={<Plus size={18} />}
           >
-            <Plus size={18} />
             Neue Opportunity
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -838,12 +845,11 @@ const SalesPipeline: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingOpportunity ? 'Opportunity bearbeiten' : 'Neue Opportunity'}
               </h3>
-              <button
+              <IconButton
                 onClick={() => setShowForm(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-              >
-                <X size={20} />
-              </button>
+                icon={<X size={20} />}
+                tooltip="Schließen"
+              />
             </div>
             <div className="p-4">
               <OpportunityForm
