@@ -19,6 +19,7 @@ import {
   Timer,
 } from 'lucide-react';
 import { ticketsApi, TicketDashboardData } from '../services/api';
+import { Button } from './ui';
 
 interface TicketDashboardProps {
   onTicketSelect: (ticketId: string) => void;
@@ -131,12 +132,13 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
         <div className="text-center">
           <AlertCircle className="mx-auto mb-4 text-red-500" size={48} />
           <p className="text-red-500 mb-4">{error}</p>
-          <button
+          <Button
             onClick={loadDashboard}
-            className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:opacity-90"
+            variant="primary"
+            size="md"
           >
             Erneut versuchen
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -164,14 +166,15 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
             Zuletzt aktualisiert: {lastRefresh.toLocaleTimeString('de-DE')}
           </p>
         </div>
-        <button
+        <Button
           onClick={loadDashboard}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+          variant="secondary"
+          size="md"
+          icon={<RefreshCw size={18} className={loading ? 'animate-spin' : ''} />}
         >
-          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           <span className="hidden sm:inline">Aktualisieren</span>
-        </button>
+        </Button>
       </div>
 
       {/* Status Overview */}
@@ -444,12 +447,14 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
                 );
               })}
               {data.urgentTickets.length > 5 && (
-                <button
+                <Button
                   onClick={onViewAll}
-                  className="w-full text-center py-2 text-accent-primary hover:underline text-sm"
+                  variant="ghost"
+                  size="sm"
+                  fullWidth
                 >
                   Alle {data.urgentTickets.length} anzeigen
-                </button>
+                </Button>
               )}
             </div>
           ) : (
