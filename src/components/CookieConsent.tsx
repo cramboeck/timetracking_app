@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Settings, Shield, Check } from 'lucide-react';
+import { Button, IconButton } from './ui';
 
 interface CookiePreferences {
   necessary: boolean;
@@ -83,25 +84,28 @@ export function CookieConsent() {
                   Sie können Ihre Einstellungen jederzeit in den Datenschutzeinstellungen ändern.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <button
+                  <Button
                     onClick={handleAcceptAll}
-                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                    variant="primary"
+                    size="lg"
                   >
                     Alle akzeptieren
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={handleAcceptNecessary}
-                    className="px-6 py-2.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-colors"
+                    variant="secondary"
+                    size="lg"
                   >
                     Nur notwendige
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setShowSettings(true)}
-                    className="px-6 py-2.5 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+                    variant="outline"
+                    size="lg"
+                    icon={<Settings className="w-4 h-4" />}
                   >
-                    <Settings className="w-4 h-4" />
                     Einstellungen
-                  </button>
+                  </Button>
                 </div>
                 <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
                   Weitere Informationen finden Sie in unserer{' '}
@@ -111,13 +115,12 @@ export function CookieConsent() {
                   .
                 </p>
               </div>
-              <button
+              <IconButton
                 onClick={handleAcceptNecessary}
-                className="flex-shrink-0 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                icon={<X className="w-5 h-5" />}
+                size="md"
                 aria-label="Schließen"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
+              />
             </div>
           </div>
         ) : (
@@ -127,12 +130,11 @@ export function CookieConsent() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Cookie-Einstellungen anpassen
               </h3>
-              <button
+              <IconButton
                 onClick={() => setShowSettings(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
+                icon={<X className="w-5 h-5" />}
+                size="md"
+              />
             </div>
 
             <div className="space-y-4 mb-6">
@@ -227,19 +229,21 @@ export function CookieConsent() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button
+              <Button
                 onClick={handleSaveCustom}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+                variant="primary"
+                size="lg"
+                icon={<Check className="w-4 h-4" />}
               >
-                <Check className="w-4 h-4" />
                 Auswahl speichern
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleAcceptAll}
-                className="px-6 py-2.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-colors"
+                variant="secondary"
+                size="lg"
               >
                 Alle akzeptieren
-              </button>
+              </Button>
             </div>
           </div>
         )}
