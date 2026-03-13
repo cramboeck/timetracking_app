@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView } from './components/AreaNavigation';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 import { Stopwatch } from './components/Stopwatch';
-import { ManualEntry } from './components/ManualEntry';
+import { ManualEntryModern } from './components/ManualEntryModern';
 import { TimeEntriesList } from './components/TimeEntriesList';
 import { CalendarView } from './components/CalendarView';
 import { Dashboard } from './components/Dashboard';
@@ -948,7 +948,7 @@ function App() {
           />
         )}
         {currentSubView === 'manual' && (
-          <ManualEntry
+          <ManualEntryModern
             onSave={handleSaveEntry}
             projects={projects}
             customers={customers}
