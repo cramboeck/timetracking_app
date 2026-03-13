@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Upload, FileText, AlertCircle, CheckCircle, Loader2, X, ArrowRight, HelpCircle, ChevronDown, ChevronUp, Cloud, Key, Calendar } from 'lucide-react';
 import { importApi } from '../services/api';
+import { Button, IconButton } from './ui/Button';
 
 interface ClockodoImportProps {
   onImportComplete?: () => void;
@@ -303,41 +304,35 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
     <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold dark:text-white">Clockodo Import</h3>
-        <button
+        <Button
           onClick={() => setShowHelp(!showHelp)}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-accent-primary dark:text-gray-400 dark:hover:text-accent-primary transition-colors"
+          variant="ghost"
+          size="sm"
+          icon={<HelpCircle size={18} />}
+          iconPosition="left"
         >
-          <HelpCircle size={18} />
-          <span>Hilfe</span>
+          Hilfe
           {showHelp ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </button>
+        </Button>
       </div>
 
       {/* Import Mode Tabs */}
       {step === 'upload' && (
         <div className="flex gap-2 mb-4">
-          <button
+          <Button
             onClick={() => setImportMode('api')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              importMode === 'api'
-                ? 'bg-accent-primary text-white'
-                : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-300'
-            }`}
+            variant={importMode === 'api' ? 'primary' : 'secondary'}
+            icon={<Cloud size={18} />}
           >
-            <Cloud size={18} />
             API Import
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => setImportMode('csv')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              importMode === 'csv'
-                ? 'bg-accent-primary text-white'
-                : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-300'
-            }`}
+            variant={importMode === 'csv' ? 'primary' : 'secondary'}
+            icon={<FileText size={18} />}
           >
-            <FileText size={18} />
             CSV Import
-          </button>
+          </Button>
         </div>
       )}
 
@@ -359,23 +354,15 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                 </p>
               )}
             </div>
-            <button
+            <Button
               onClick={handleCreateDefaultProjects}
               disabled={creatingDefaultProjects}
-              className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-medium rounded-lg transition-colors"
+              variant="warning"
+              loading={creatingDefaultProjects}
+              icon={!creatingDefaultProjects ? <ArrowRight size={16} /> : undefined}
             >
-              {creatingDefaultProjects ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Erstelle...
-                </>
-              ) : (
-                <>
-                  <ArrowRight size={16} />
-                  Jetzt erstellen
-                </>
-              )}
-            </button>
+              {creatingDefaultProjects ? 'Erstelle...' : 'Jetzt erstellen'}
+            </Button>
           </div>
         </div>
       )}
@@ -483,18 +470,15 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
 
               {/* Test Connection Button */}
               <div className="flex flex-wrap items-center gap-3">
-                <button
+                <Button
                   onClick={testApiConnection}
                   disabled={loading || !apiEmail || !apiKey}
-                  className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50"
+                  variant="primary"
+                  loading={loading}
+                  icon={!loading ? <Cloud size={18} /> : undefined}
                 >
-                  {loading ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    <Cloud size={18} />
-                  )}
                   Verbindung testen & speichern
-                </button>
+                </Button>
                 {connectionTested && connectionInfo && (
                   <span className="flex items-center gap-2 text-green-600 dark:text-green-400">
                     <CheckCircle size={18} />
@@ -534,23 +518,17 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                     </div>
                   </div>
 
-                  <button
+                  <Button
                     onClick={previewApiImport}
                     disabled={loading || !timeSince || !timeUntil}
-                    className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 btn-accent disabled:opacity-50"
+                    variant="primary"
+                    fullWidth
+                    loading={loading}
+                    icon={!loading ? <ArrowRight size={18} /> : undefined}
+                    className="mt-4 py-3"
                   >
-                    {loading ? (
-                      <>
-                        <Loader2 size={18} className="animate-spin" />
-                        Lade Daten...
-                      </>
-                    ) : (
-                      <>
-                        <ArrowRight size={18} />
-                        Daten laden und Vorschau anzeigen
-                      </>
-                    )}
-                  </button>
+                    {loading ? 'Lade Daten...' : 'Daten laden und Vorschau anzeigen'}
+                  </Button>
                 </div>
               )}
             </div>
@@ -609,9 +587,13 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                 </span>
               </>
             )}
-            <button onClick={resetImport} className="ml-auto text-gray-400 hover:text-gray-600">
-              <X size={18} />
-            </button>
+            <IconButton
+              onClick={resetImport}
+              icon={<X size={18} />}
+              variant="default"
+              className="ml-auto"
+              tooltip="Zurücksetzen"
+            />
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
@@ -706,19 +688,21 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
           </div>
 
           <div className="flex gap-3">
-            <button
+            <Button
               onClick={resetImport}
-              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
+              variant="secondary"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleStartMapping}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 btn-accent"
+              variant="primary"
+              icon={<ArrowRight size={18} />}
+              iconPosition="right"
+              className="flex-1"
             >
               Weiter zur Zuordnung
-              <ArrowRight size={18} />
-            </button>
+            </Button>
           </div>
         </div>
       )}

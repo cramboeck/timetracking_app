@@ -2766,20 +2766,21 @@ export const Settings = ({
           )}
 
           <div className="flex gap-3 pt-4">
-            <button
+            <Button
+              variant="primary"
               onClick={handleChangePassword}
               disabled={!!passwordSuccess}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-darker disabled:bg-gray-400 text-white rounded-lg transition-colors"
+              icon={<Key size={18} />}
+              fullWidth
             >
-              <Key size={18} />
               Passwort ändern
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setChangePasswordOpen(false)}
-              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg transition-colors"
             >
               Abbrechen
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

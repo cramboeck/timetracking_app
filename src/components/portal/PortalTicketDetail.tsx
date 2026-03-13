@@ -240,9 +240,9 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
       <div className="text-center text-gray-500 dark:text-gray-400 py-12">
         <AlertCircle className="mx-auto mb-3" size={48} />
         <p className="text-lg font-medium mb-2">{error || 'Ticket nicht gefunden'}</p>
-        <button onClick={onBack} className="text-blue-600 hover:underline">
+        <Button onClick={onBack} variant="ghost" className="text-blue-600">
           Zurück zur Liste
-        </button>
+        </Button>
       </div>
     );
   }
@@ -259,12 +259,11 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
         <div className="flex items-start gap-4">
-          <button
+          <IconButton
+            icon={<ArrowLeft size={24} />}
             onClick={onBack}
-            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </button>
+            tooltip="Zurück"
+          />
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="text-sm font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
@@ -290,24 +289,25 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
           {canClose && (
-            <button
+            <Button
               onClick={handleCloseTicket}
-              disabled={actionLoading}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+              variant="secondary"
+              loading={actionLoading}
+              icon={<XCircle size={16} />}
             >
-              <XCircle size={16} />
               Ticket schließen
-            </button>
+            </Button>
           )}
           {canReopen && (
-            <button
+            <Button
               onClick={handleReopenTicket}
-              disabled={actionLoading}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors disabled:opacity-50"
+              variant="primary"
+              loading={actionLoading}
+              icon={<RotateCcw size={16} />}
+              className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
             >
-              <RotateCcw size={16} />
               Wiedereröffnen
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -324,17 +324,14 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
 
           <div className="flex items-center gap-2 mb-4">
             {[1, 2, 3, 4, 5].map((star) => (
-              <button
+              <IconButton
                 key={star}
+                icon={<Star size={32} fill={star <= rating ? 'currentColor' : 'none'} />}
                 onClick={() => setRating(star)}
-                className={`p-1 transition-colors ${
-                  star <= rating
-                    ? 'text-yellow-400'
-                    : 'text-gray-300 dark:text-gray-600 hover:text-yellow-300'
-                }`}
-              >
-                <Star size={32} fill={star <= rating ? 'currentColor' : 'none'} />
-              </button>
+                variant={star <= rating ? 'warning' : 'default'}
+                tooltip={['', 'Sehr schlecht', 'Schlecht', 'OK', 'Gut', 'Sehr gut'][star]}
+                className={star <= rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600 hover:text-yellow-300'}
+              />
             ))}
             <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
               {rating > 0 && ['', 'Sehr schlecht', 'Schlecht', 'OK', 'Gut', 'Sehr gut'][rating]}
@@ -350,19 +347,20 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
           />
 
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={handleSubmitRating}
-              disabled={rating === 0 || submittingRating}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
+              variant="primary"
+              loading={submittingRating}
+              disabled={rating === 0}
             >
               {submittingRating ? 'Wird gesendet...' : 'Bewertung abgeben'}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setShowRating(false)}
-              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              variant="ghost"
             >
               Später
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -437,13 +435,13 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                         >
                           <Download size={16} />
                         </a>
-                        <button
+                        <IconButton
+                          icon={<Trash2 size={16} />}
                           onClick={() => handleDeleteAttachment(attachment.id)}
-                          className="p-2 bg-white/20 hover:bg-red-500/50 rounded-full text-white transition-colors"
-                          title="Löschen"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                          variant="danger"
+                          tooltip="Löschen"
+                          className="p-2 bg-white/20 hover:bg-red-500/50 rounded-full text-white"
+                        />
                       </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
                         {attachment.filename}
@@ -487,13 +485,13 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                           >
                             <Download size={16} />
                           </a>
-                          <button
+                          <IconButton
+                            icon={<Trash2 size={16} />}
                             onClick={() => handleDeleteAttachment(attachment.id)}
-                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
-                            title="Löschen"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                            variant="danger"
+                            tooltip="Löschen"
+                            size="sm"
+                          />
                         </div>
                       </div>
                     );
@@ -559,15 +557,16 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Markdown unterstützt • Strg+Enter zum Senden
               </p>
-              <button
+              <Button
                 onClick={handleAddComment}
-                disabled={!newComment.trim() || submittingComment}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl transition-colors"
-                title="Senden (Cmd+Enter)"
+                variant="primary"
+                loading={submittingComment}
+                disabled={!newComment.trim()}
+                icon={<Send size={16} />}
+                className="rounded-xl"
               >
-                <Send size={16} />
                 Senden
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
