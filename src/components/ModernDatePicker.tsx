@@ -22,8 +22,6 @@ export const ModernDatePicker = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const selectedDate = value ? new Date(value) : null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
   // Close on outside click
   useEffect(() => {
@@ -36,26 +34,37 @@ export const ModernDatePicker = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Quick dates
-  const quickDates = useMemo(() => {
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
+  // Get today's date (recalculated on each render to stay current)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-    const dayBeforeYesterday = new Date(today);
-    dayBeforeYesterday.setDate(today.getDate() - 2);
+  // Quick dates - calculate fresh each time
+  const quickDates = [
+    {
+      label: 'Heute',
+      date: new Date(today),
+      shortLabel: 'Heute'
+    },
+    {
+      label: 'Gestern',
+      date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1),
+      shortLabel: 'Gestern'
+    },
+    {
+      label: 'Vorgestern',
+      date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2),
+      shortLabel: 'Vorgestern'
+    },
+  ];
 
-    return [
-      { label: 'Heute', date: today, shortLabel: 'Heute' },
-      { label: 'Gestern', date: yesterday, shortLabel: 'Gestern' },
-      { label: 'Vorgestern', date: dayBeforeYesterday, shortLabel: 'Vorgestern' },
-    ];
-  }, []);
-
-  // Week days starting from Monday
-  const weekDays = useMemo(() => {
+  // Week days starting from Monday - calculate fresh
+  const weekDays = (() => {
     const days = [];
     const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay() + 1); // Monday
+    // Get Monday of current week (handles Sunday correctly)
+    const dayOfWeek = today.getDay();
+    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Sunday = go back 6 days
+    startOfWeek.setDate(today.getDate() + diff);
 
     for (let i = -7; i <= 7; i++) {
       const d = new Date(startOfWeek);
@@ -63,7 +72,7 @@ export const ModernDatePicker = ({
       days.push(d);
     }
     return days;
-  }, []);
+  })();
 
   // Calendar grid
   const calendarDays = useMemo(() => {
