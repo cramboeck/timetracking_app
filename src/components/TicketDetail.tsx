@@ -7,6 +7,7 @@ import { SlaStatus } from './SlaStatus';
 import { TicketMergeDialog } from './TicketMergeDialog';
 import { MarkdownEditor } from './MarkdownEditor';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { Button, IconButton } from './ui/Button';
 
 // Resolution type labels
 const resolutionTypeConfig: Record<TicketResolutionType, { label: string; description: string }> = {
@@ -899,63 +900,60 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       {/* Header */}
       <div className="flex-shrink-0 p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-4 mb-4">
-          <button
+          <IconButton
             onClick={onBack}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            <ArrowLeft size={24} />
-          </button>
+            icon={<ArrowLeft size={24} />}
+            size="lg"
+            tooltip="Zuruck"
+          />
           <div className="flex-1">
             <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
               {ticket.ticketNumber}
             </span>
           </div>
           {ticket.status !== 'archived' && (
-            <button
+            <IconButton
               onClick={() => setIsEditing(!isEditing)}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
-              title="Bearbeiten"
-            >
-              <Edit2 size={20} />
-            </button>
+              icon={<Edit2 size={20} />}
+              size="lg"
+              tooltip="Bearbeiten"
+            />
           )}
           {ticket.status === 'archived' ? (
-            <button
+            <IconButton
               onClick={handleRestore}
               disabled={archiving}
-              className="p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 disabled:opacity-50"
-              title="Wiederherstellen"
-            >
-              <RotateCcw size={20} />
-            </button>
+              icon={<RotateCcw size={20} />}
+              variant="success"
+              size="lg"
+              tooltip="Wiederherstellen"
+            />
           ) : (
             <>
               {/* Merge button - only for admins/owners */}
               {(userRole === 'admin' || userRole === 'owner') && (
-                <button
+                <IconButton
                   onClick={() => setShowMergeDialog(true)}
-                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                  title="Tickets zusammenführen"
-                >
-                  <Merge size={20} />
-                </button>
+                  icon={<Merge size={20} />}
+                  size="lg"
+                  tooltip="Tickets zusammenfuhren"
+                />
               )}
-              <button
+              <IconButton
                 onClick={() => setShowArchiveConfirm(true)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                title="Archivieren"
-              >
-                <Archive size={20} />
-              </button>
+                icon={<Archive size={20} />}
+                size="lg"
+                tooltip="Archivieren"
+              />
             </>
           )}
-          <button
+          <IconButton
             onClick={() => setShowDeleteConfirm(true)}
-            className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
-            title="Löschen"
-          >
-            <Trash2 size={20} />
-          </button>
+            icon={<Trash2 size={20} />}
+            variant="danger"
+            size="lg"
+            tooltip="Loschen"
+          />
         </div>
 
         {isEditing ? (
@@ -993,13 +991,11 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
               </div>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={handleSaveEdit}
-                className="px-4 py-2 btn-accent rounded-lg"
-              >
+              <Button onClick={handleSaveEdit}>
                 Speichern
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => {
                   setIsEditing(false);
                   setEditTitle(ticket.title);
@@ -1007,10 +1003,9 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                   setEditStatus(ticket.status);
                   setEditPriority(ticket.priority);
                 }}
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
               >
                 Abbrechen
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -1142,13 +1137,15 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
         />
 
         {/* Start Timer Button */}
-        <button
+        <Button
           onClick={() => onStartTimer(ticket)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
+          variant="success"
+          size="lg"
+          fullWidth
+          icon={<Play size={20} />}
         >
-          <Play size={20} />
-          Timer für dieses Ticket starten
-        </button>
+          Timer fur dieses Ticket starten
+        </Button>
 
         {/* AI Assistant Button */}
         {aiConfigured && (
@@ -1817,14 +1814,14 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                     </div>
                   )}
                 </div>
-                <button
+                <Button
                   onClick={handleAddComment}
                   disabled={!newComment.trim() || submittingComment}
-                  className="flex items-center gap-2 px-4 py-2 btn-accent rounded-lg disabled:opacity-50"
+                  loading={submittingComment}
+                  icon={<Send size={16} />}
                 >
-                  <Send size={16} />
                   Senden
-                </button>
+                </Button>
               </div>
             </div>
           </div>
