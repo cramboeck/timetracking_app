@@ -5,6 +5,7 @@ import {
   Mail, AlertTriangle, X, Edit2
 } from 'lucide-react';
 import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData } from '../services/api';
+import { Button, IconButton } from './ui/Button';
 
 // Format file size helper
 const formatFileSize = (bytes: number): string => {
@@ -323,30 +324,24 @@ export const InvoiceInbox = () => {
         </div>
 
         <div className="flex gap-2">
-          <button
+          <Button
+            variant="primary"
             onClick={() => handleProcessInvoices(false)}
             disabled={processingInvoices}
-            className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50 transition-colors"
+            loading={processingInvoices}
+            icon={<RefreshCw size={16} />}
           >
-            {processingInvoices ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <RefreshCw size={16} />
-            )}
             Neue E-Mails
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
             onClick={() => handleProcessInvoices(true)}
             disabled={processingInvoices}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50 transition-colors"
+            loading={processingInvoices}
+            icon={<RefreshCw size={16} />}
           >
-            {processingInvoices ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <RefreshCw size={16} />
-            )}
             Alle erneut
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -447,22 +442,20 @@ export const InvoiceInbox = () => {
                   {/* Anhänge */}
                   {invoice.attachmentCount > 0 && (
                     <div>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleToggleDocuments(invoice.id)}
-                        className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400"
+                        className="text-blue-600 dark:text-blue-400"
+                        icon={loadingDocuments === invoice.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                       >
-                        {loadingDocuments === invoice.id ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Download size={14} />
-                        )}
                         {invoice.attachmentCount} Anhang{invoice.attachmentCount !== 1 ? 'e' : ''}
                         {expandedInvoiceId === invoice.id ? (
                           <ChevronUp size={14} />
                         ) : (
                           <ChevronDown size={14} />
                         )}
-                      </button>
+                      </Button>
 
                       {/* Expanded Documents */}
                       {expandedInvoiceId === invoice.id && (
@@ -488,20 +481,18 @@ export const InvoiceInbox = () => {
                                   </div>
                                 </div>
                                 <div className="flex gap-1">
-                                  <button
+                                  <IconButton
+                                    icon={<Eye size={16} />}
                                     onClick={() => handleDownloadDocument(doc.id, true)}
-                                    className="p-1.5 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded"
-                                    title="Ansehen"
-                                  >
-                                    <Eye size={16} />
-                                  </button>
-                                  <button
+                                    variant="primary"
+                                    tooltip="Ansehen"
+                                  />
+                                  <IconButton
+                                    icon={<Download size={16} />}
                                     onClick={() => handleDownloadDocument(doc.id)}
-                                    className="p-1.5 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded"
-                                    title="Download"
-                                  >
-                                    <Download size={16} />
-                                  </button>
+                                    variant="success"
+                                    tooltip="Download"
+                                  />
                                 </div>
                               </div>
                             ))
@@ -518,30 +509,39 @@ export const InvoiceInbox = () => {
                     <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-dark-300">
                       {invoice.status === 'draft' && (
                         <>
-                          <button
+                          <Button
+                            variant="success"
+                            size="sm"
                             onClick={() => handleApproveDraft(invoice.id)}
-                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                            icon={<Check size={16} />}
+                            fullWidth
+                            className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
                           >
-                            <Check size={16} />
                             Bestätigen
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
                             onClick={() => handleDeleteDraft(invoice.id)}
-                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                            icon={<Trash2 size={16} />}
+                            fullWidth
+                            className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
                           >
-                            <Trash2 size={16} />
                             Löschen
-                          </button>
+                          </Button>
                         </>
                       )}
                       {invoice.status === 'processed' && (
-                        <button
+                        <Button
+                          variant="warning"
+                          size="sm"
                           onClick={() => handleRevertToDraft(invoice.id)}
-                          className="flex-1 flex items-center justify-center gap-2 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                          icon={<Undo2 size={16} />}
+                          fullWidth
+                          className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30"
                         >
-                          <Undo2 size={16} />
                           Zurücksetzen
-                        </button>
+                        </Button>
                       )}
                     </div>
                   )}
@@ -590,23 +590,20 @@ export const InvoiceInbox = () => {
                         </td>
                         <td className="py-3 px-4 text-center">
                           {invoice.attachmentCount > 0 ? (
-                            <button
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleToggleDocuments(invoice.id)}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                              title="Dokumente anzeigen"
+                              className="text-blue-600 dark:text-blue-400"
+                              icon={loadingDocuments === invoice.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                             >
-                              {loadingDocuments === invoice.id ? (
-                                <Loader2 size={14} className="animate-spin" />
-                              ) : (
-                                <Download size={14} />
-                              )}
                               {invoice.attachmentCount}
                               {expandedInvoiceId === invoice.id ? (
                                 <ChevronUp size={14} />
                               ) : (
                                 <ChevronDown size={14} />
                               )}
-                            </button>
+                            </Button>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-gray-400">
                               <Download size={14} />
@@ -644,30 +641,27 @@ export const InvoiceInbox = () => {
                           <div className="flex gap-1 justify-end">
                             {invoice.status === 'draft' && (
                               <>
-                                <button
+                                <IconButton
+                                  icon={<Check size={16} />}
                                   onClick={() => handleApproveDraft(invoice.id)}
-                                  className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
-                                  title="Bestätigen"
-                                >
-                                  <Check size={16} />
-                                </button>
-                                <button
+                                  variant="success"
+                                  tooltip="Bestätigen"
+                                />
+                                <IconButton
+                                  icon={<Trash2 size={16} />}
                                   onClick={() => handleDeleteDraft(invoice.id)}
-                                  className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                  title="Löschen"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                                  variant="danger"
+                                  tooltip="Löschen"
+                                />
                               </>
                             )}
                             {invoice.status === 'processed' && (
-                              <button
+                              <IconButton
+                                icon={<Undo2 size={16} />}
                                 onClick={() => handleRevertToDraft(invoice.id)}
-                                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition-colors"
-                                title="Zurück zu Entwurf"
-                              >
-                                <Undo2 size={16} />
-                              </button>
+                                variant="warning"
+                                tooltip="Zurück zu Entwurf"
+                              />
                             )}
                           </div>
                         </td>
@@ -702,20 +696,18 @@ export const InvoiceInbox = () => {
                                         </div>
                                       </div>
                                       <div className="flex gap-1">
-                                        <button
+                                        <IconButton
+                                          icon={<Eye size={16} />}
                                           onClick={() => handleDownloadDocument(doc.id, true)}
-                                          className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                          title="Ansehen"
-                                        >
-                                          <Eye size={16} />
-                                        </button>
-                                        <button
+                                          variant="primary"
+                                          tooltip="Ansehen"
+                                        />
+                                        <IconButton
+                                          icon={<Download size={16} />}
                                           onClick={() => handleDownloadDocument(doc.id)}
-                                          className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
-                                          title="Herunterladen"
-                                        >
-                                          <Download size={16} />
-                                        </button>
+                                          variant="success"
+                                          tooltip="Herunterladen"
+                                        />
                                       </div>
                                     </div>
                                   ))}
@@ -761,12 +753,11 @@ export const InvoiceInbox = () => {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Rechnungsdaten prüfen
                 </h3>
-                <button
+                <IconButton
+                  icon={<X size={20} />}
                   onClick={handleCancelApproval}
-                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
-                >
-                  <X size={20} />
-                </button>
+                  tooltip="Schließen"
+                />
               </div>
 
               {/* Content */}
@@ -962,30 +953,22 @@ export const InvoiceInbox = () => {
 
               {/* Footer */}
               <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-300 bg-gray-50 dark:bg-dark-200">
-                <button
+                <Button
+                  variant="secondary"
                   onClick={handleCancelApproval}
                   disabled={approving}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-100 border border-gray-300 dark:border-dark-300 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-200 disabled:opacity-50 transition-colors"
                 >
                   Abbrechen
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="success"
                   onClick={handleConfirmApproval}
                   disabled={extractingData || approving || !extractedData}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  loading={approving}
+                  icon={<Check size={16} />}
                 >
-                  {approving ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Bestätige...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={16} />
-                      Bestätigen & sevDesk-Beleg erstellen
-                    </>
-                  )}
-                </button>
+                  Bestätigen & sevDesk-Beleg erstellen
+                </Button>
               </div>
             </div>
           </div>

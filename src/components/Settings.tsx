@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TimeEntry } from '../types';
 import { Modal } from './Modal';
+import { Button, IconButton } from './ui/Button';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CustomerContacts } from './CustomerContacts';
 import { CustomerEmailDomains } from './CustomerEmailDomains';
@@ -1149,20 +1150,20 @@ export const Settings = ({
                 {/* Action Buttons */}
                 <div className="pt-5 border-t border-gray-200 dark:border-dark-200">
                   <div className="flex flex-wrap gap-3">
-                    <button
+                    <Button
+                      variant="primary"
                       onClick={handleOpenEditProfile}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-accent-primary hover:bg-accent-darker text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
+                      icon={<Edit2 size={18} />}
                     >
-                      <Edit2 size={18} />
                       Profil bearbeiten
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="secondary"
                       onClick={handleOpenChangePassword}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
+                      icon={<Key size={18} />}
                     >
-                      <Key size={18} />
                       Passwort ändern
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -1283,13 +1284,15 @@ export const Settings = ({
 
             {/* Logout Button */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-red-200 dark:border-red-800 p-6 shadow-md">
-              <button
+              <Button
+                variant="danger"
                 onClick={logout}
-                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 border-2 border-red-200 dark:border-red-800 rounded-xl transition-all text-red-600 dark:text-red-400 font-bold shadow-sm hover:shadow-md"
+                icon={<LogOut size={20} />}
+                fullWidth
+                size="lg"
               >
-                <LogOut size={20} />
                 Abmelden
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -1312,21 +1315,20 @@ export const Settings = ({
                   </div>
                   {canEdit && (
                     <div className="flex gap-2">
-                      <button
+                      <Button
+                        variant="secondary"
                         onClick={handleImportClick}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                        title="CSV importieren"
+                        icon={<FileDown size={20} />}
                       >
-                        <FileDown size={20} />
                         Importieren
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="primary"
                         onClick={() => openCustomerModal()}
-                        className="flex items-center gap-2 px-4 py-2 btn-accent"
+                        icon={<Plus size={20} />}
                       >
-                        <Plus size={20} />
                         Kunde hinzufügen
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1360,12 +1362,12 @@ export const Settings = ({
                           {importResult.success} erfolgreich, {importResult.failed} fehlgeschlagen
                         </p>
                       </div>
-                      <button
+                      <IconButton
+                        icon={<X size={18} />}
                         onClick={() => setImportResult(null)}
-                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                      >
-                        <X size={18} />
-                      </button>
+                        tooltip="Schließen"
+                        size="sm"
+                      />
                     </div>
                     {importResult.errors.length > 0 && (
                       <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">

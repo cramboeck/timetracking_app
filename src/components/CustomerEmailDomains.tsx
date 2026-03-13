@@ -3,6 +3,7 @@ import { X, Plus, Globe, Trash2, Star, Info, Loader2 } from 'lucide-react';
 import { Customer, CustomerEmailDomain } from '../types';
 import { customersApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Button, IconButton } from './ui/Button';
 
 interface CustomerEmailDomainsProps {
   isOpen: boolean;
@@ -153,12 +154,11 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
                 </p>
               </div>
             </div>
-            <button
+            <IconButton
+              icon={<X className="w-5 h-5" />}
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
+              tooltip="Schließen"
+            />
           </div>
 
           {/* Content */}
@@ -212,13 +212,12 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
                             )}
                           </div>
                         </div>
-                        <button
+                        <IconButton
+                          icon={<Trash2 className="w-4 h-4" />}
                           onClick={() => setDeleteDomain(domain)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Domain entfernen"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          variant="danger"
+                          tooltip="Domain entfernen"
+                        />
                       </div>
                     ))}
                   </div>
@@ -287,31 +286,33 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
                     </div>
 
                     <div className="flex justify-end gap-2 mt-4">
-                      <button
+                      <Button
                         type="button"
+                        variant="secondary"
                         onClick={closeForm}
-                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                       >
                         Abbrechen
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="submit"
+                        variant="primary"
                         disabled={saving}
-                        className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                        loading={saving}
                       >
-                        {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                         Hinzufügen
-                      </button>
+                      </Button>
                     </div>
                   </form>
                 ) : (
-                  <button
+                  <Button
+                    variant="outline"
                     onClick={openForm}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                    icon={<Plus className="w-5 h-5" />}
+                    fullWidth
+                    className="border-2 border-dashed"
                   >
-                    <Plus className="w-5 h-5" />
                     Domain hinzufügen
-                  </button>
+                  </Button>
                 )}
               </>
             )}

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2, Send, Copy, Link, CheckCircle, XCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { Button, IconButton } from './ui/Button';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import { useAuth } from '../contexts/AuthContext';
@@ -1431,12 +1432,11 @@ ${companyInfo?.phone || ''}`;
               </p>
             </div>
           </div>
-          <button
+          <IconButton
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-          >
-            <X size={20} className="text-gray-500" />
-          </button>
+            icon={<X size={20} />}
+            tooltip="Schließen"
+          />
         </div>
 
         {/* Options */}
@@ -1602,18 +1602,20 @@ ${companyInfo?.phone || ''}`;
                   {selectedCustomers.size} von {reportData.length} Kunde(n) ausgewählt
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     onClick={selectAll}
-                    className="text-sm px-3 py-1 text-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/10 rounded-lg transition-colors"
+                    variant="ghost"
+                    size="sm"
                   >
                     Alle auswählen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={deselectAll}
-                    className="text-sm px-3 py-1 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                    variant="ghost"
+                    size="sm"
                   >
                     Abwählen
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -1670,12 +1672,14 @@ ${companyInfo?.phone || ''}`;
                       <Mail size={18} />
                       E-Mail Vorlage
                     </h3>
-                    <button
+                    <Button
                       onClick={copyToClipboard}
-                      className="text-sm px-3 py-1 btn-accent"
+                      variant="primary"
+                      size="sm"
+                      icon={<Copy size={14} />}
                     >
                       Kopieren
-                    </button>
+                    </Button>
                   </div>
                   <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono bg-white dark:bg-dark-100 p-3 rounded border border-gray-200 dark:border-dark-200">
                     {emailTemplate}
@@ -1707,31 +1711,28 @@ ${companyInfo?.phone || ''}`;
                   {/* Navigation for multiple reports */}
                   {pdfPreview.totalCount > 1 && (
                     <div className="flex items-center gap-1 mr-4">
-                      <button
+                      <IconButton
                         onClick={() => navigatePreview('prev')}
                         disabled={pdfPreview.currentIndex === 0 || isGeneratingPreview}
-                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
-                      </button>
+                        icon={<ChevronLeft size={20} />}
+                        tooltip="Vorheriger"
+                      />
                       <span className="text-sm text-gray-600 dark:text-gray-300 min-w-[60px] text-center">
                         {pdfPreview.currentIndex + 1} / {pdfPreview.totalCount}
                       </span>
-                      <button
+                      <IconButton
                         onClick={() => navigatePreview('next')}
                         disabled={pdfPreview.currentIndex === pdfPreview.totalCount - 1 || isGeneratingPreview}
-                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
-                      </button>
+                        icon={<ChevronRight size={20} />}
+                        tooltip="Nächster"
+                      />
                     </div>
                   )}
-                  <button
+                  <IconButton
                     onClick={closePreview}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-                  >
-                    <X size={20} className="text-gray-500" />
-                  </button>
+                    icon={<X size={20} />}
+                    tooltip="Schließen"
+                  />
                 </div>
               </div>
 
@@ -1810,19 +1811,20 @@ ${companyInfo?.phone || ''}`;
                   ))}
                 </ul>
                 <div className="flex gap-3">
-                  <button
+                  <Button
                     onClick={cancelDuplicateOverwrite}
-                    className="px-4 py-2 text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-lg font-medium transition-colors"
+                    variant="secondary"
                   >
                     Abbrechen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => saveReports(true)}
                     disabled={isSaving}
-                    className="px-4 py-2 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 transition-colors disabled:opacity-50"
+                    variant="warning"
+                    loading={isSaving}
                   >
                     {isSaving ? 'Überschreibe...' : 'Überschreiben'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1844,67 +1846,61 @@ ${companyInfo?.phone || ''}`;
             )}
             {/* Mobile: Icon-only compact buttons, Desktop: Full buttons with text */}
             <div className="flex gap-1.5 sm:gap-3 sm:flex-wrap justify-center sm:justify-start">
-              <button
+              <Button
                 onClick={onClose}
-                title="Schließen"
-                className="p-2.5 sm:px-4 sm:py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 rounded-lg font-medium transition-colors"
+                variant="secondary"
+                size="sm"
+                icon={<X size={18} className="sm:hidden" />}
               >
-                <X size={18} className="sm:hidden" />
                 <span className="hidden sm:inline">Schließen</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={openSavedReports}
-                title="Gespeicherte Reports"
-                className="p-2.5 sm:px-4 sm:py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+                variant="secondary"
+                size="sm"
+                icon={<Archive size={18} />}
               >
-                <Archive size={18} />
                 <span className="hidden sm:inline">Gespeicherte Reports</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => openPreview()}
-                disabled={selectedCustomers.size === 0 || isGeneratingPreview}
-                title="Vorschau"
-                className="p-2.5 sm:px-4 sm:py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                disabled={selectedCustomers.size === 0}
+                loading={isGeneratingPreview}
+                variant="secondary"
+                size="sm"
+                icon={<Eye size={18} />}
               >
-                {isGeneratingPreview ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <Eye size={18} />
-                )}
                 <span className="hidden sm:inline">Vorschau</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => saveReports()}
-                disabled={selectedCustomers.size === 0 || isSaving}
-                title="Als Nachweis speichern"
-                className="p-2.5 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                disabled={selectedCustomers.size === 0}
+                loading={isSaving}
+                variant="primary"
+                size="sm"
+                icon={<Save size={18} />}
               >
-                {isSaving ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <Save size={18} />
-                )}
                 <span className="hidden sm:inline">Als Nachweis Speichern</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={generateEmailTemplate}
                 disabled={selectedCustomers.size === 0}
-                title="E-Mail Vorlage"
-                className="p-2.5 sm:px-4 sm:py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                variant="secondary"
+                size="sm"
+                icon={<Mail size={18} />}
               >
-                <Mail size={18} />
                 <span className="hidden sm:inline">E-Mail</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={exportSelected}
                 disabled={selectedCustomers.size === 0}
-                title={`PDF exportieren (${selectedCustomers.size})`}
-                className="p-2.5 sm:px-4 sm:py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                variant="primary"
+                size="sm"
+                icon={<Download size={18} />}
               >
-                <Download size={18} />
                 <span className="hidden sm:inline">PDF ({selectedCustomers.size})</span>
                 <span className="sm:hidden text-xs font-bold">{selectedCustomers.size}</span>
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -1938,12 +1934,11 @@ ${companyInfo?.phone || ''}`;
                     <option value="approved">Genehmigt</option>
                     <option value="rejected">Abgelehnt</option>
                   </select>
-                  <button
+                  <IconButton
                     onClick={() => setShowSavedReports(false)}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-                  >
-                    <X size={20} className="text-gray-500" />
-                  </button>
+                    icon={<X size={20} />}
+                    tooltip="Schließen"
+                  />
                 </div>
               </div>
 
@@ -2018,23 +2013,20 @@ ${companyInfo?.phone || ''}`;
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {/* Send for approval (only for saved reports) */}
                               {report.status === 'saved' && (
-                                <button
+                                <IconButton
                                   onClick={() => openSendApprovalDialog(report)}
-                                  className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                                  title="Zur Genehmigung senden"
-                                >
-                                  <Send size={18} />
-                                </button>
+                                  icon={<Send size={18} />}
+                                  variant="primary"
+                                  tooltip="Zur Genehmigung senden"
+                                />
                               )}
                               {/* Copy approval link (for pending reports) */}
                               {report.status === 'pending' && report.token && (
-                                <button
+                                <IconButton
                                   onClick={() => copyApprovalLink(report)}
-                                  className="p-2 text-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
-                                  title="Freigabe-Link kopieren"
-                                >
-                                  <Link size={18} />
-                                </button>
+                                  icon={<Link size={18} />}
+                                  tooltip="Freigabe-Link kopieren"
+                                />
                               )}
                               {/* Open approval page (for pending reports) */}
                               {report.status === 'pending' && report.token && (
@@ -2050,13 +2042,12 @@ ${companyInfo?.phone || ''}`;
                               )}
                               {/* Delete (only for saved or rejected) */}
                               {(report.status === 'saved' || report.status === 'rejected') && (
-                                <button
+                                <IconButton
                                   onClick={() => deleteSavedReport(report.id)}
-                                  className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                                  title="Report löschen"
-                                >
-                                  <Trash2 size={18} />
-                                </button>
+                                  icon={<Trash2 size={18} />}
+                                  variant="danger"
+                                  tooltip="Report löschen"
+                                />
                               )}
                             </div>
                           </div>

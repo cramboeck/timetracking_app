@@ -1939,13 +1939,12 @@ export default function AdminPortal() {
                           </p>
                         </div>
                       </div>
-                      <button
+                      <IconButton
+                        icon={<RefreshCw size={18} />}
                         onClick={loadEmailData}
-                        className="p-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-                        title="Aktualisieren"
-                      >
-                        <RefreshCw size={18} />
-                      </button>
+                        variant="default"
+                        tooltip="Aktualisieren"
+                      />
                     </div>
                     {emailConfig.error && (
                       <p className="mt-2 text-sm text-red-600 dark:text-red-400">{emailConfig.error}</p>
@@ -1964,18 +1963,15 @@ export default function AdminPortal() {
                       placeholder="Email-Adresse (leer = eigene Email)"
                       className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500"
                     />
-                    <button
+                    <Button
+                      variant="primary"
                       onClick={handleSendTestEmail}
                       disabled={testEmailSending}
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                      loading={testEmailSending}
+                      icon={<Send size={18} />}
                     >
-                      {testEmailSending ? (
-                        <Loader2 className="animate-spin" size={18} />
-                      ) : (
-                        <Send size={18} />
-                      )}
                       Senden
-                    </button>
+                    </Button>
                   </div>
                   {testEmailResult && (
                     <div className={`mt-3 p-3 rounded-lg ${
@@ -2186,25 +2182,28 @@ export default function AdminPortal() {
                   {/* Pagination */}
                   {emailLogsTotalPages > 1 && (
                     <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setEmailLogsPage(p => Math.max(1, p - 1))}
                         disabled={emailLogsPage === 1}
-                        className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-50"
+                        icon={<ChevronLeft size={16} />}
                       >
-                        <ChevronLeft size={16} />
                         Zurück
-                      </button>
+                      </Button>
                       <span className="text-sm text-gray-600 dark:text-gray-400">
                         Seite {emailLogsPage} von {emailLogsTotalPages}
                       </span>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setEmailLogsPage(p => Math.min(emailLogsTotalPages, p + 1))}
                         disabled={emailLogsPage === emailLogsTotalPages}
-                        className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-50"
+                        icon={<ChevronRight size={16} />}
+                        iconPosition="right"
                       >
                         Weiter
-                        <ChevronRight size={16} />
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>

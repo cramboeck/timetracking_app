@@ -3,6 +3,7 @@ import { X, Plus, Mail, Send, Trash2, Edit2, Check, UserCheck, UserX, Users, Bel
 import { Customer, CustomerContact } from '../types';
 import { ticketsApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Button, IconButton } from './ui/Button';
 
 interface CustomerContactsProps {
   isOpen: boolean;
@@ -227,12 +228,11 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
               </p>
             </div>
           </div>
-          <button
+          <IconButton
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500"
-          >
-            <X size={20} />
-          </button>
+            icon={<X size={20} />}
+            tooltip="Schließen"
+          />
         </div>
 
         {/* Content */}
@@ -244,9 +244,14 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
           ) : error ? (
             <div className="text-center text-red-500 py-8">
               <p>{error}</p>
-              <button onClick={loadContacts} className="mt-2 text-blue-600 hover:underline">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={loadContacts}
+                className="mt-2"
+              >
                 Erneut versuchen
-              </button>
+              </Button>
             </div>
           ) : showForm ? (
             /* Add/Edit Form */
@@ -437,20 +442,21 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4">
-                <button
+                <Button
                   type="button"
                   onClick={closeForm}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg"
+                  variant="secondary"
                 >
                   Abbrechen
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  disabled={saving || !formName.trim() || !formEmail.trim()}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg"
+                  disabled={!formName.trim() || !formEmail.trim()}
+                  loading={saving}
+                  variant="primary"
                 >
-                  {saving ? 'Speichern...' : editingContact ? 'Aktualisieren' : 'Erstellen'}
-                </button>
+                  {editingContact ? 'Aktualisieren' : 'Erstellen'}
+                </Button>
               </div>
             </form>
           ) : (
@@ -528,47 +534,40 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                       <div className="flex items-center gap-1">
                         {!contact.isActivated && (
                           <>
-                            <button
+                            <IconButton
                               onClick={() => handleSendInvite(contact)}
                               disabled={sendingInvite === contact.id}
-                              className={`p-2 rounded-lg transition-colors ${
-                                inviteSuccess === contact.id
-                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
-                                  : 'hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400'
-                              }`}
-                              title="Einladung senden"
-                            >
-                              {sendingInvite === contact.id ? (
-                                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                              ) : inviteSuccess === contact.id ? (
-                                <Check size={18} />
-                              ) : (
-                                <Send size={18} />
-                              )}
-                            </button>
-                            <button
+                              icon={
+                                sendingInvite === contact.id ? (
+                                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                ) : inviteSuccess === contact.id ? (
+                                  <Check size={18} />
+                                ) : (
+                                  <Send size={18} />
+                                )
+                              }
+                              variant={inviteSuccess === contact.id ? 'success' : 'default'}
+                              tooltip="Einladung senden"
+                            />
+                            <IconButton
                               onClick={() => setPasswordContact(contact)}
-                              className="p-2 hover:bg-orange-100 dark:hover:bg-orange-900/30 rounded-lg text-orange-600 dark:text-orange-400"
-                              title="Passwort setzen"
-                            >
-                              <Key size={18} />
-                            </button>
+                              icon={<Key size={18} />}
+                              variant="warning"
+                              tooltip="Passwort setzen"
+                            />
                           </>
                         )}
-                        <button
+                        <IconButton
                           onClick={() => openForm(contact)}
-                          className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-gray-600 dark:text-gray-400"
-                          title="Bearbeiten"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button
+                          icon={<Edit2 size={18} />}
+                          tooltip="Bearbeiten"
+                        />
+                        <IconButton
                           onClick={() => setDeleteContact(contact)}
-                          className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-600"
-                          title="Löschen"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                          icon={<Trash2 size={18} />}
+                          variant="danger"
+                          tooltip="Löschen"
+                        />
                       </div>
                     </div>
                   </div>
@@ -581,13 +580,14 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
         {/* Footer */}
         {!showForm && !loading && !error && (
           <div className="p-6 border-t border-gray-200 dark:border-gray-700">
-            <button
+            <Button
               onClick={() => openForm()}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+              variant="primary"
+              icon={<Plus size={20} />}
+              fullWidth
             >
-              <Plus size={20} />
               Kontakt hinzufügen
-            </button>
+            </Button>
           </div>
         )}
 
@@ -638,13 +638,13 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                       required
                       minLength={8}
                     />
-                    <button
+                    <IconButton
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
+                      icon={showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      tooltip={showPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2"
+                    />
                   </div>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Das Passwort muss mindestens 8 Zeichen lang sein.
@@ -652,20 +652,23 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                  <button
+                  <Button
                     type="button"
                     onClick={() => { setPasswordContact(null); setNewPassword(''); setShowPassword(false); }}
-                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                    variant="outline"
+                    className="flex-1"
                   >
                     Abbrechen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="submit"
-                    disabled={settingPassword || newPassword.length < 8}
-                    className="flex-1 px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white rounded-lg font-medium"
+                    disabled={newPassword.length < 8}
+                    loading={settingPassword}
+                    variant="warning"
+                    className="flex-1"
                   >
-                    {settingPassword ? 'Speichern...' : 'Passwort setzen'}
-                  </button>
+                    Passwort setzen
+                  </Button>
                 </div>
               </form>
             </div>

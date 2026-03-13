@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { ReactNode, useEffect } from 'react';
+import { IconButton } from './ui/Button';
 
 interface ModalProps {
   isOpen: boolean;
@@ -58,21 +59,20 @@ export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'md
         {title && (
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h2>
-            <button
+            <IconButton
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <X size={20} />
-            </button>
+              icon={<X size={20} />}
+              tooltip="Schließen"
+            />
           </div>
         )}
         {!title && (
-          <button
+          <IconButton
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors z-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <X size={20} />
-          </button>
+            icon={<X size={20} />}
+            tooltip="Schließen"
+            className="absolute top-4 right-4 z-10"
+          />
         )}
 
         {/* Content */}
