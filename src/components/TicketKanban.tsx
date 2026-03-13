@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Clock, Building2, AlertCircle, Tag, RefreshCw, Filter, User, Users, Layers, X, Calendar } from 'lucide-react';
 import { Ticket, TicketStatus, TicketPriority, Customer } from '../types';
 import { ticketsApi, TicketTag, organizationsApi, OrganizationMember } from '../services/api';
+import { Button, IconButton } from './ui';
 
 interface TicketKanbanProps {
   customers: Customer[];
@@ -311,13 +312,14 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0 }: Tick
               {filteredTickets.length} Tickets
             </span>
             {hasActiveFilters && (
-              <button
+              <Button
                 onClick={clearFilters}
-                className="flex items-center gap-1 px-2 py-0.5 text-xs text-accent-primary hover:bg-accent-primary/10 rounded transition-colors"
+                variant="ghost"
+                size="sm"
+                icon={<X size={12} />}
               >
-                <X size={12} />
                 Filter löschen
-              </button>
+              </Button>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -343,13 +345,12 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0 }: Tick
             >
               <Filter size={18} />
             </button>
-            <button
+            <IconButton
               onClick={loadTickets}
-              className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              title="Aktualisieren"
-            >
-              <RefreshCw size={18} />
-            </button>
+              icon={<RefreshCw size={18} />}
+              size="lg"
+              tooltip="Aktualisieren"
+            />
           </div>
         </div>
 
