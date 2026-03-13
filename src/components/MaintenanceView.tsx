@@ -14,6 +14,7 @@ import {
   customersApi,
   Customer
 } from '../services/api';
+import { Button, IconButton } from './ui/Button';
 
 const MAINTENANCE_TYPE_LABELS: Record<MaintenanceType, string> = {
   patch: 'Patch/Update',
@@ -426,21 +427,19 @@ function AnnouncementDialog({
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <button
+            <Button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              variant="secondary"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              loading={saving}
             >
-              {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
               {announcement ? 'Speichern' : 'Erstellen'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -540,22 +539,23 @@ function DeleteConfirmationDialog({
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <button
+            <Button
               type="button"
               onClick={onClose}
               disabled={deleting}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50"
+              variant="secondary"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              disabled={deleting || password.length === 0}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+              disabled={password.length === 0}
+              loading={deleting}
+              variant="danger"
+              icon={!deleting ? <Trash2 className="w-4 h-4" /> : undefined}
             >
-              {deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
               Endgültig löschen
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -680,9 +680,11 @@ function AnnouncementDetail({
               {announcement.affected_systems && ` • ${announcement.affected_systems}`}
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <XCircle className="w-6 h-6" />
-          </button>
+          <IconButton
+            onClick={onClose}
+            icon={<XCircle className="w-6 h-6" />}
+            tooltip="Schließen"
+          />
         </div>
 
         {/* Content */}
@@ -744,24 +746,25 @@ function AnnouncementDetail({
               </h3>
               <div className="flex gap-2">
                 {awaitingApproval > 0 && (
-                  <button
+                  <Button
                     onClick={handleSendReminders}
                     disabled={sending}
-                    className="px-3 py-1.5 text-sm bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 flex items-center gap-1"
+                    variant="warning"
+                    size="sm"
+                    icon={<Bell className="w-4 h-4" />}
                   >
-                    <Bell className="w-4 h-4" />
                     Erinnerung senden ({awaitingApproval})
-                  </button>
+                  </Button>
                 )}
                 {pendingCount > 0 && (
-                  <button
+                  <Button
                     onClick={handleSendNotifications}
-                    disabled={sending}
-                    className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"
+                    loading={sending}
+                    size="sm"
+                    icon={!sending ? <Send className="w-4 h-4" /> : undefined}
                   >
-                    {sending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     Benachrichtigen ({pendingCount})
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -853,53 +856,52 @@ function AnnouncementDetail({
           <div className="flex gap-2">
             {/* Edit button - only for draft, scheduled, or sent status */}
             {['draft', 'scheduled', 'sent'].includes(announcement.status) && (
-              <button
+              <Button
                 onClick={() => onEdit(announcement, customers.map(c => c.customer_id))}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
+                variant="secondary"
+                icon={<Edit className="w-4 h-4" />}
               >
-                <Edit className="w-4 h-4" />
                 Bearbeiten
-              </button>
+              </Button>
             )}
             {announcement.status === 'draft' && (
-              <button
+              <Button
                 onClick={() => handleUpdateStatus('scheduled')}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Als geplant markieren
-              </button>
+              </Button>
             )}
             {(announcement.status === 'scheduled' || announcement.status === 'sent') && (
-              <button
+              <Button
                 onClick={() => handleUpdateStatus('in_progress')}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
               >
                 Starten
-              </button>
+              </Button>
             )}
             {announcement.status === 'in_progress' && (
-              <button
+              <Button
                 onClick={() => handleUpdateStatus('completed')}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                variant="success"
               >
                 Abschließen
-              </button>
+              </Button>
             )}
             {!['completed', 'cancelled'].includes(announcement.status) && (
-              <button
+              <Button
                 onClick={() => handleUpdateStatus('cancelled')}
-                className="px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
+                variant="ghost"
+                className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
               >
                 Abbrechen
-              </button>
+              </Button>
             )}
           </div>
-          <button
+          <Button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            variant="secondary"
           >
             Schließen
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -992,13 +994,12 @@ export default function MaintenanceView() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Wartungsankündigungen</h1>
           <p className="text-gray-500">Planen und verwalten Sie Wartungsfenster für Ihre Kunden</p>
         </div>
-        <button
+        <Button
           onClick={() => setShowCreateDialog(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          icon={<Plus className="w-5 h-5" />}
         >
-          <Plus className="w-5 h-5" />
           Neue Ankündigung
-        </button>
+        </Button>
       </div>
 
       {error && (
@@ -1080,12 +1081,11 @@ export default function MaintenanceView() {
             ))}
           </select>
         </div>
-        <button
+        <IconButton
           onClick={loadData}
-          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-        >
-          <RefreshCw className="w-5 h-5" />
-        </button>
+          icon={<RefreshCw className="w-5 h-5" />}
+          tooltip="Aktualisieren"
+        />
       </div>
 
       {/* Announcements List */}
@@ -1099,12 +1099,11 @@ export default function MaintenanceView() {
             <p className="text-gray-500 mb-4">
               Erstellen Sie Ihre erste Wartungsankündigung
             </p>
-            <button
+            <Button
               onClick={() => setShowCreateDialog(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               Ankündigung erstellen
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-gray-700">

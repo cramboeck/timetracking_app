@@ -4,6 +4,7 @@ import {
   X, Cpu, HardDrive, Globe, Building, AlertTriangle, Package, ChevronDown, ChevronUp, Shield
 } from 'lucide-react';
 import { ninjaApi, NinjaDevice, NinjaRMMConfig, NinjaDeviceSoftware, NinjaDeviceOSPatch } from '../services/api';
+import { Button, IconButton } from './ui/Button';
 
 export const DevicesView = () => {
   const [devices, setDevices] = useState<NinjaDevice[]>([]);
@@ -333,14 +334,13 @@ export const DevicesView = () => {
             {devices.length} Geräte synchronisiert
           </p>
         </div>
-        <button
+        <Button
           onClick={handleSync}
-          disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+          loading={syncing}
+          icon={!syncing ? <RefreshCw size={16} /> : undefined}
         >
-          <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
           {syncing ? 'Sync...' : 'Sync'}
-        </button>
+        </Button>
       </div>
 
       {error && (
@@ -460,12 +460,11 @@ export const DevicesView = () => {
                   </p>
                 </div>
               </div>
-              <button
+              <IconButton
                 onClick={() => setSelectedDevice(null)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-gray-500" />
-              </button>
+                icon={<X size={20} />}
+                tooltip="Schließen"
+              />
             </div>
 
             {/* Modal Content */}
@@ -622,14 +621,15 @@ export const DevicesView = () => {
                             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
                           />
                         </div>
-                        <button
+                        <Button
                           onClick={() => selectedDevice && refreshSoftware(selectedDevice.id)}
-                          disabled={softwareLoading}
-                          className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-200 disabled:opacity-50 transition-colors"
+                          loading={softwareLoading}
+                          variant="secondary"
+                          size="sm"
+                          icon={!softwareLoading ? <RefreshCw size={14} /> : undefined}
                         >
-                          <RefreshCw size={14} className={softwareLoading ? 'animate-spin' : ''} />
-                          <span className="sm:inline">Aktualisieren</span>
-                        </button>
+                          Aktualisieren
+                        </Button>
                       </div>
 
                       {/* Sort Toggle */}
@@ -764,14 +764,15 @@ export const DevicesView = () => {
                             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
                           />
                         </div>
-                        <button
+                        <Button
                           onClick={() => selectedDevice && refreshPatches(selectedDevice.id)}
-                          disabled={patchesLoading}
-                          className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-100 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-200 disabled:opacity-50 transition-colors"
+                          loading={patchesLoading}
+                          variant="secondary"
+                          size="sm"
+                          icon={!patchesLoading ? <RefreshCw size={14} /> : undefined}
                         >
-                          <RefreshCw size={14} className={patchesLoading ? 'animate-spin' : ''} />
-                          <span className="sm:inline">Aktualisieren</span>
-                        </button>
+                          Aktualisieren
+                        </Button>
                       </div>
 
                       {/* Tab Toggle */}
@@ -899,14 +900,13 @@ export const DevicesView = () => {
             {/* Modal Footer */}
             <div className="flex justify-between gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
               <div className="flex gap-2">
-                <button
+                <Button
                   onClick={() => handleRefreshDevice(selectedDevice.id)}
-                  disabled={refreshingDevice}
-                  className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors"
+                  loading={refreshingDevice}
+                  icon={!refreshingDevice ? <RefreshCw size={16} /> : undefined}
                 >
-                  <RefreshCw size={16} className={refreshingDevice ? 'animate-spin' : ''} />
                   {refreshingDevice ? 'Lade...' : 'Details laden'}
-                </button>
+                </Button>
                 <a
                   href={`${config?.instanceUrl || 'https://eu.ninjarmm.com'}/#/deviceDashboard/${selectedDevice.ninjaId}/overview`}
                   target="_blank"
@@ -917,12 +917,12 @@ export const DevicesView = () => {
                   In NinjaRMM öffnen
                 </a>
               </div>
-              <button
+              <Button
                 onClick={() => setSelectedDevice(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                variant="secondary"
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>
