@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { passwordResetApi } from '../services/api';
+import { Button } from './ui';
 
 interface ResetPasswordProps {
   token: string;
@@ -106,12 +107,13 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
                 </p>
               )}
             </div>
-            <button
+            <Button
               onClick={onBack}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+              variant="primary"
+              fullWidth
             >
               Zurück zum Login
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -122,13 +124,14 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
-          <button
+          <Button
             onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-6 transition-colors"
+            variant="ghost"
+            icon={<ArrowLeft size={20} />}
+            className="mb-6"
           >
-            <ArrowLeft size={20} />
-            <span>Zurück zum Login</span>
-          </button>
+            Zurück zum Login
+          </Button>
 
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -199,13 +202,14 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
               </div>
             </div>
 
-            <button
+            <Button
               type="submit"
-              disabled={isLoading}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+              variant="primary"
+              fullWidth
+              loading={isLoading}
             >
               {isLoading ? 'Wird gespeichert...' : 'Passwort zurücksetzen'}
-            </button>
+            </Button>
           </form>
         </div>
       </div>
