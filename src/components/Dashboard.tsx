@@ -997,13 +997,14 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                 </p>
               </div>
             </div>
-            <button
+            <Button
               onClick={() => setReportAssistantOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors text-sm"
+              variant="warning"
+              size="sm"
+              icon={<FileText size={16} />}
             >
-              <FileText size={16} />
               Report-Assistent öffnen
-            </button>
+            </Button>
           </div>
         </div>
       )}

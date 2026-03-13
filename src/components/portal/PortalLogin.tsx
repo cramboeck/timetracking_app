@@ -308,20 +308,22 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
             Probleme beim Anmelden? Kontaktieren Sie Ihren Dienstleister.
           </p>
           <div className="flex items-center justify-center gap-4 text-sm">
-            <button
+            <Button
               type="button"
               onClick={() => setShowPrivacy(true)}
-              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              variant="ghost"
+              size="sm"
             >
               Datenschutz
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => setShowLegal(true)}
-              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              variant="ghost"
+              size="sm"
             >
               Impressum
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -337,12 +339,11 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                   Datenschutzerklärung
                 </h2>
               </div>
-              <button
+              <IconButton
+                icon={<X size={20} />}
                 onClick={() => setShowPrivacy(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X size={20} />
-              </button>
+                tooltip="Schließen"
+              />
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-6">
               <div className="prose prose-sm dark:prose-invert max-w-none">
