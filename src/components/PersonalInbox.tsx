@@ -229,7 +229,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Email List */}
         <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-300 overflow-hidden">
-          <div className="max-h-[500px] overflow-y-auto divide-y divide-gray-100 dark:divide-dark-200">
+          <div className="max-h-[50vh] md:max-h-[500px] overflow-y-auto divide-y divide-gray-100 dark:divide-dark-200 scroll-touch touch-manipulation">
             {filteredEmails.length === 0 ? (
               <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                 <Mail size={48} className="mx-auto mb-3 opacity-30" />
@@ -305,7 +305,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
               </div>
 
               {/* Email Body */}
-              <div className="flex-1 p-4 overflow-y-auto max-h-[250px]">
+              <div className="flex-1 p-4 overflow-y-auto max-h-[35vh] md:max-h-[250px] scroll-touch touch-manipulation">
                 {expandedEmail === selectedEmail.id ? (
                   <div
                     className="prose dark:prose-invert max-w-none text-sm"

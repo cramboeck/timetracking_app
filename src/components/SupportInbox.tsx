@@ -411,7 +411,7 @@ export const SupportInbox = () => {
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-dark-300 max-h-[600px] overflow-y-auto">
+            <div className="divide-y divide-gray-100 dark:divide-dark-300 max-h-[50vh] md:max-h-[600px] overflow-y-auto scroll-touch touch-manipulation">
               {emails.map((email) => (
                 <div
                   key={email.id}
@@ -540,7 +540,7 @@ export const SupportInbox = () => {
               )}
 
               {/* Email Body */}
-              <div className="flex-1 p-4 overflow-y-auto max-h-[300px]">
+              <div className="flex-1 p-4 overflow-y-auto max-h-[40vh] md:max-h-[300px] scroll-touch touch-manipulation">
                 <Button
                   onClick={() => setExpandedEmail(expandedEmail === selectedEmail.id ? null : selectedEmail.id)}
                   variant="ghost"

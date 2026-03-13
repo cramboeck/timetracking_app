@@ -383,7 +383,7 @@ export const InvoiceInbox = () => {
         {processedInvoices.length > 0 ? (
           <>
             {/* Mobile Card View */}
-            <div className="md:hidden divide-y divide-gray-100 dark:divide-dark-300">
+            <div className="md:hidden divide-y divide-gray-100 dark:divide-dark-300 max-h-[60vh] overflow-y-auto scroll-touch touch-manipulation">
               {processedInvoices.map((invoice) => (
                 <div key={invoice.id} className="p-4 space-y-3">
                   {/* Header mit Datum und Status */}
@@ -747,7 +747,7 @@ export const InvoiceInbox = () => {
             />
 
             {/* Modal */}
-            <div className="relative bg-white dark:bg-dark-100 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-white dark:bg-dark-100 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto scroll-touch touch-manipulation">
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-300">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -899,7 +899,7 @@ export const InvoiceInbox = () => {
                         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
                           Rechnungspositionen ({extractedData.lineItems.length})
                         </h4>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                        <div className="space-y-2 max-h-60 overflow-y-auto scroll-touch touch-manipulation">
                           {extractedData.lineItems.map((item, index) => (
                             <div
                               key={index}
