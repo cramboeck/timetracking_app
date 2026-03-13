@@ -10,6 +10,7 @@ import { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi } from '
 import { ticketsApi } from './tickets';
 import { customerPortalApi } from './portal';
 import { contractsApi, importApi, socialMediaApi } from './business';
+import { interactionsApi, opportunitiesApi } from './crm';
 
 // Base utilities
 export { API_BASE_URL, getApiBaseUrl, getAuthToken, handleResponse, authFetch, authFetchMultipart } from './base';
@@ -101,6 +102,26 @@ export {
   socialMediaApi,
   DEFAULT_SYSTEM_PROMPTS,
 } from './business';
+
+// CRM API (interactions, opportunities, pipeline)
+export { interactionsApi, pipelineStagesApi, opportunitiesApi } from './crm';
+export type {
+  InteractionType,
+  InteractionDirection,
+  InteractionOutcome,
+  Interaction,
+  InteractionFilters,
+  FollowUpGrouped,
+  InteractionStats,
+  TimelineItem,
+  OpportunityStatus,
+  PipelineStage,
+  Opportunity,
+  OpportunityActivity,
+  PipelineView,
+  OpportunityForecast,
+  OpportunityStats,
+} from './crm';
 export type {
   MaintenanceType,
   MaintenanceStatus,
@@ -155,6 +176,8 @@ const api = {
   contracts: contractsApi,
   import: importApi,
   socialMedia: socialMediaApi,
+  interactions: interactionsApi,
+  opportunities: opportunitiesApi,
 };
 
 export default api;

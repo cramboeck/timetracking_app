@@ -14,6 +14,7 @@ import { AlertsView } from './components/AlertsView';
 import MaintenanceView from './components/MaintenanceView';
 import TaskHub from './components/TaskHub';
 import Contracts from './components/Contracts';
+import SalesPipeline from './components/SalesPipeline';
 import { InvoiceInbox } from './components/InvoiceInbox';
 import { SupportInbox } from './components/SupportInbox';
 import { SocialMediaProvider } from './features/social-media/context';
@@ -808,7 +809,7 @@ function App() {
   const subViewConfig: Record<Area, SubView[]> = {
     arbeiten: ['stopwatch', 'tasks', 'list', 'calendar'],
     support: ['tickets', 'devices', 'alerts', 'maintenance'],
-    business: ['dashboard', 'contracts', 'billing', 'social-media', 'reports'],
+    business: ['dashboard', 'pipeline', 'contracts', 'billing', 'social-media', 'reports'],
   };
 
   // Swipe between areas (Bottom zone - bottom 30%)
@@ -1046,6 +1047,9 @@ function App() {
         )}
         {currentSubView === 'billing' && (
           <Finanzen onBack={() => setCurrentSubView('dashboard')} />
+        )}
+        {currentSubView === 'pipeline' && (
+          <SalesPipeline />
         )}
         {currentSubView === 'contracts' && (
           <Contracts />
