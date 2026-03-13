@@ -4,6 +4,7 @@ import {
   Star, Save, Palette, Globe, Image, ChevronDown, ChevronUp, Search, X,
   Sparkles, Ticket, Loader2
 } from 'lucide-react';
+import { Button, IconButton } from './ui/Button';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { knowledgeBaseApi, portalSettingsApi, aiApi, ticketsApi, KbCategory, KbArticle, PortalSettings } from '../services/api';
@@ -382,13 +383,13 @@ export const KnowledgeBaseSettings = () => {
             <p className="text-sm text-gray-500 dark:text-dark-400">
               Kategorien organisieren deine Wissensdatenbank-Artikel
             </p>
-            <button
+            <Button
               onClick={() => handleOpenCategoryModal()}
-              className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors"
+              variant="primary"
+              icon={<Plus size={18} />}
             >
-              <Plus size={18} />
               Neue Kategorie
-            </button>
+            </Button>
           </div>
 
           {categories.length === 0 ? (
@@ -426,18 +427,17 @@ export const KnowledgeBaseSettings = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
+                    <IconButton
                       onClick={() => handleOpenCategoryModal(category)}
-                      className="p-2 text-gray-500 hover:text-accent-primary hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button
+                      icon={<Edit2 size={16} />}
+                      tooltip="Bearbeiten"
+                    />
+                    <IconButton
                       onClick={() => setDeleteConfirm({ type: 'category', id: category.id, name: category.name })}
-                      className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                      icon={<Trash2 size={16} />}
+                      variant="danger"
+                      tooltip="Löschen"
+                    />
                   </div>
                 </div>
               ))}
@@ -471,13 +471,13 @@ export const KnowledgeBaseSettings = () => {
                 <option value="draft">Entwurf ({articles.filter(a => !a.isPublished).length})</option>
               </select>
             </div>
-            <button
+            <Button
               onClick={() => handleOpenArticleModal()}
-              className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors"
+              variant="primary"
+              icon={<Plus size={18} />}
             >
-              <Plus size={18} />
               Neuer Artikel
-            </button>
+            </Button>
           </div>
 
           {filteredArticles.length === 0 ? (
@@ -522,40 +522,29 @@ export const KnowledgeBaseSettings = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 ml-4">
-                    <button
+                    <IconButton
                       onClick={() => handleToggleArticleFeatured(article)}
-                      className={`p-2 rounded-lg transition-colors ${
-                        article.isFeatured
-                          ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
-                          : 'text-gray-400 hover:text-yellow-500 hover:bg-gray-100 dark:hover:bg-dark-100'
-                      }`}
-                      title={article.isFeatured ? 'Nicht mehr hervorheben' : 'Hervorheben'}
-                    >
-                      <Star size={16} className={article.isFeatured ? 'fill-current' : ''} />
-                    </button>
-                    <button
+                      icon={<Star size={16} className={article.isFeatured ? 'fill-current' : ''} />}
+                      variant={article.isFeatured ? 'warning' : 'default'}
+                      tooltip={article.isFeatured ? 'Nicht mehr hervorheben' : 'Hervorheben'}
+                    />
+                    <IconButton
                       onClick={() => handleToggleArticlePublished(article)}
-                      className={`p-2 rounded-lg transition-colors ${
-                        article.isPublished
-                          ? 'text-green-600 bg-green-50 dark:bg-green-900/20'
-                          : 'text-gray-400 hover:text-green-600 hover:bg-gray-100 dark:hover:bg-dark-100'
-                      }`}
-                      title={article.isPublished ? 'Veröffentlichung aufheben' : 'Veröffentlichen'}
-                    >
-                      {article.isPublished ? <Eye size={16} /> : <EyeOff size={16} />}
-                    </button>
-                    <button
+                      icon={article.isPublished ? <Eye size={16} /> : <EyeOff size={16} />}
+                      variant={article.isPublished ? 'success' : 'default'}
+                      tooltip={article.isPublished ? 'Veröffentlichung aufheben' : 'Veröffentlichen'}
+                    />
+                    <IconButton
                       onClick={() => handleOpenArticleModal(article)}
-                      className="p-2 text-gray-500 hover:text-accent-primary hover:bg-gray-100 dark:hover:bg-dark-100 rounded-lg transition-colors"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button
+                      icon={<Edit2 size={16} />}
+                      tooltip="Bearbeiten"
+                    />
+                    <IconButton
                       onClick={() => setDeleteConfirm({ type: 'article', id: article.id, name: article.title })}
-                      className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                      icon={<Trash2 size={16} />}
+                      variant="danger"
+                      tooltip="Löschen"
+                    />
                   </div>
                 </div>
               ))}
@@ -696,14 +685,14 @@ export const KnowledgeBaseSettings = () => {
 
             {/* Save Button */}
             <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-dark-200">
-              <button
+              <Button
                 onClick={handleSavePortalSettings}
-                disabled={saving}
-                className="flex items-center gap-2 px-6 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+                loading={saving}
+                variant="primary"
+                icon={<Save size={18} />}
               >
-                <Save size={18} />
                 {saving ? 'Speichere...' : 'Einstellungen speichern'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

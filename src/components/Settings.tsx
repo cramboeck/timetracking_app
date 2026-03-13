@@ -1464,72 +1464,54 @@ export const Settings = ({
                             </div>
                           </div>
                           <div className="flex gap-2 ml-2">
-                            <button
+                            <IconButton
+                              icon={<Building size={18} />}
                               onClick={() => setDetailCustomer(customer)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                              title="Kundendetails anzeigen"
-                            >
-                              <Building size={18} />
-                            </button>
+                              variant="primary"
+                              tooltip="Kundendetails anzeigen"
+                            />
                             {billingEnabled && (
-                              <button
+                              <IconButton
+                                icon={<Link2 size={18} />}
                                 onClick={() => setSevdeskLinkCustomer(customer)}
-                                className={`p-2 rounded-lg transition-colors ${
-                                  customer.sevdeskCustomerId
-                                    ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
-                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
-                                }`}
-                                title={customer.sevdeskCustomerId ? 'sevDesk verknüpft' : 'Mit sevDesk verknüpfen'}
-                              >
-                                <Link2 size={18} />
-                              </button>
+                                variant={customer.sevdeskCustomerId ? 'success' : 'default'}
+                                tooltip={customer.sevdeskCustomerId ? 'sevDesk verknüpft' : 'Mit sevDesk verknüpfen'}
+                              />
                             )}
-                            <button
-                                onClick={() => setNinjaRMMLinkCustomer(customer)}
-                                className={`p-2 rounded-lg transition-colors ${
-                                  customer.ninjarmmOrganizationId
-                                    ? 'text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'
-                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
-                                }`}
-                                title={customer.ninjarmmOrganizationId ? 'NinjaRMM verknüpft' : 'Mit NinjaRMM verknüpfen'}
-                              >
-                                <Server size={18} />
-                              </button>
+                            <IconButton
+                              icon={<Server size={18} />}
+                              onClick={() => setNinjaRMMLinkCustomer(customer)}
+                              variant={customer.ninjarmmOrganizationId ? 'success' : 'default'}
+                              tooltip={customer.ninjarmmOrganizationId ? 'NinjaRMM verknüpft' : 'Mit NinjaRMM verknüpfen'}
+                            />
                             {currentUser?.hasTicketAccess && (
                               <>
-                                <button
+                                <IconButton
+                                  icon={<UserCog size={18} />}
                                   onClick={() => setContactsCustomer(customer)}
-                                  className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
-                                  title="Kontakte verwalten"
-                                >
-                                  <UserCog size={18} />
-                                </button>
-                                <button
+                                  tooltip="Kontakte verwalten"
+                                />
+                                <IconButton
+                                  icon={<Globe size={18} />}
                                   onClick={() => setEmailDomainsCustomer(customer)}
-                                  className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
-                                  title="E-Mail Domains verwalten"
-                                >
-                                  <Globe size={18} />
-                                </button>
+                                  tooltip="E-Mail Domains verwalten"
+                                />
                               </>
                             )}
                             {canEdit && (
-                              <button
+                              <IconButton
+                                icon={<Edit2 size={18} />}
                                 onClick={() => openCustomerModal(customer)}
-                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
-                                title="Bearbeiten"
-                              >
-                                <Edit2 size={18} />
-                              </button>
+                                tooltip="Bearbeiten"
+                              />
                             )}
                             {canDelete && (
-                              <button
+                              <IconButton
+                                icon={<Trash2 size={18} />}
                                 onClick={() => handleDeleteCustomer(customer)}
-                                className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                title="Löschen"
-                              >
-                                <Trash2 size={18} />
-                              </button>
+                                variant="danger"
+                                tooltip="Löschen"
+                              />
                             )}
                           </div>
                         </div>
@@ -1553,14 +1535,14 @@ export const Settings = ({
                     )}
                   </div>
                   {canEdit && (
-                    <button
+                    <Button
+                      variant="primary"
                       onClick={() => openProjectModal()}
                       disabled={customers.length === 0}
-                      className="flex items-center gap-2 px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                      icon={<Plus size={20} />}
                     >
-                      <Plus size={20} />
                       Projekt hinzufügen
-                    </button>
+                    </Button>
                   )}
                 </div>
 
@@ -1602,20 +1584,19 @@ export const Settings = ({
                         </div>
                         <div className="flex gap-2">
                           {canEdit && (
-                            <button
+                            <IconButton
+                              icon={<Edit2 size={18} />}
                               onClick={() => openProjectModal(project)}
-                              className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
-                            >
-                              <Edit2 size={18} />
-                            </button>
+                              tooltip="Bearbeiten"
+                            />
                           )}
                           {canDelete && (
-                            <button
+                            <IconButton
+                              icon={<Trash2 size={18} />}
                               onClick={() => handleDeleteProject(project)}
-                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                              variant="danger"
+                              tooltip="Löschen"
+                            />
                           )}
                         </div>
                       </div>
@@ -1641,21 +1622,20 @@ export const Settings = ({
                   </div>
                   {canEdit && (
                     <div className="flex gap-2">
-                      <button
+                      <Button
+                        variant="secondary"
                         onClick={() => setTemplateModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                        title="Aus Vorlage wählen"
+                        icon={<ListChecks size={20} />}
                       >
-                        <ListChecks size={20} />
                         Aus Vorlage
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="primary"
                         onClick={() => openActivityModal()}
-                        className="flex items-center gap-2 px-4 py-2 btn-accent"
+                        icon={<Plus size={20} />}
                       >
-                        <Plus size={20} />
                         Neu erstellen
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1682,22 +1662,19 @@ export const Settings = ({
                           </div>
                           <div className="flex gap-2">
                             {canEdit && (
-                              <button
+                              <IconButton
+                                icon={<Edit2 size={18} />}
                                 onClick={() => openActivityModal(activity)}
-                                className="p-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                title="Bearbeiten"
-                              >
-                                <Edit2 size={18} />
-                              </button>
+                                tooltip="Bearbeiten"
+                              />
                             )}
                             {canDelete && (
-                              <button
+                              <IconButton
+                                icon={<Trash2 size={18} />}
                                 onClick={() => handleDeleteActivity(activity)}
-                                className="p-2 text-gray-600 dark:text-gray-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                title="Löschen"
-                              >
-                                <Trash2 size={18} />
-                              </button>
+                                variant="danger"
+                                tooltip="Löschen"
+                              />
                             )}
                           </div>
                         </div>
@@ -2213,19 +2190,21 @@ export const Settings = ({
 
           {/* Buttons - full width */}
           <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <button
+            <Button
+              variant="secondary"
               onClick={() => setCustomerModalOpen(false)}
-              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors"
+              fullWidth
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSaveCustomer}
               disabled={!customerName.trim()}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              fullWidth
             >
               Speichern
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

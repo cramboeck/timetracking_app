@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { aiApi } from '../services/api';
 import { SearchableSelect } from './SearchableSelect';
+import { Button } from './ui/Button';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => Promise<boolean> | void;
@@ -336,14 +337,12 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
         <div className="flex items-center justify-between">
           <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Zeiterfassung</h1>
           {onOpenManualEntry && (
-            <button
+            <Button
               onClick={onOpenManualEntry}
-              className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-darker text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
-              title="Manuelle Erfassung"
+              icon={<Plus size={20} />}
             >
-              <Plus size={20} />
               <span className="hidden sm:inline">Manuell</span>
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -446,24 +445,21 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                   )}
                 </label>
                 {aiConfigured && (projectId || activityId) && (
-                  <button
+                  <Button
                     type="button"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       generateAiDescription();
                     }}
-                    disabled={generatingDescription}
-                    className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
-                    title="KI-Vorschlag generieren"
+                    loading={generatingDescription}
+                    size="sm"
+                    variant="ghost"
+                    icon={!generatingDescription ? <Sparkles size={12} /> : undefined}
+                    className="text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50"
                   >
-                    {generatingDescription ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Sparkles size={12} />
-                    )}
                     KI-Vorschlag
-                  </button>
+                  </Button>
                 )}
               </div>
               <textarea

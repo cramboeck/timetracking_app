@@ -1912,14 +1912,14 @@ export const NinjaRMMSettings = () => {
             {/* Modal Footer */}
             <div className="flex justify-between gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
               <div className="flex gap-2">
-                <button
+                <Button
                   onClick={() => handleRefreshDeviceDetails(selectedDevice.id)}
-                  disabled={refreshingDevice}
-                  className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors"
+                  loading={refreshingDevice}
+                  variant="primary"
+                  icon={<RefreshCw size={16} className={refreshingDevice ? 'animate-spin' : ''} />}
                 >
-                  <RefreshCw size={16} className={refreshingDevice ? 'animate-spin' : ''} />
                   {refreshingDevice ? 'Lade...' : 'Details laden'}
-                </button>
+                </Button>
                 <a
                   href={`${config?.instanceUrl || 'https://eu.ninjarmm.com'}/#/deviceDashboard/${selectedDevice.ninjaId}/overview`}
                   target="_blank"
@@ -1930,12 +1930,12 @@ export const NinjaRMMSettings = () => {
                   In NinjaRMM öffnen
                 </a>
               </div>
-              <button
+              <Button
                 onClick={() => setSelectedDevice(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                variant="secondary"
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1977,12 +1977,11 @@ export const NinjaRMMSettings = () => {
                   </p>
                 </div>
               </div>
-              <button
+              <IconButton
                 onClick={() => setSelectedAlert(null)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-gray-500" />
-              </button>
+                icon={<X size={20} />}
+                tooltip="Schließen"
+              />
             </div>
 
             {/* Modal Content */}
@@ -2081,32 +2080,32 @@ export const NinjaRMMSettings = () => {
             <div className="flex justify-between gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
               <div className="flex gap-2">
                 {!selectedAlert.ticketId && (
-                  <button
+                  <Button
                     onClick={() => handleCreateTicketFromAlert(selectedAlert.id)}
-                    disabled={creatingTicket}
-                    className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+                    loading={creatingTicket}
+                    variant="primary"
+                    icon={<Ticket size={16} />}
                   >
-                    <Ticket size={16} />
                     {creatingTicket ? 'Erstelle...' : 'Ticket erstellen'}
-                  </button>
+                  </Button>
                 )}
                 {!selectedAlert.resolved && (
-                  <button
+                  <Button
                     onClick={() => handleResolveAlert(selectedAlert.id)}
-                    disabled={resolvingAlert}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    loading={resolvingAlert}
+                    variant="success"
+                    icon={<CheckCircle size={16} />}
                   >
-                    <CheckCircle size={16} />
                     {resolvingAlert ? 'Markiere...' : 'Als gelöst markieren'}
-                  </button>
+                  </Button>
                 )}
               </div>
-              <button
+              <Button
                 onClick={() => setSelectedAlert(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                variant="secondary"
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -2125,12 +2124,11 @@ export const NinjaRMMSettings = () => {
                   Event: {selectedPayload.eventType} - {new Date(selectedPayload.createdAt).toLocaleString('de-DE')}
                 </p>
               </div>
-              <button
+              <IconButton
                 onClick={() => setSelectedPayload(null)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg text-gray-500"
-              >
-                <X size={20} />
-              </button>
+                icon={<X size={20} />}
+                tooltip="Schließen"
+              />
             </div>
             <div className="p-4 overflow-y-auto max-h-[60vh]">
               <pre className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
@@ -2138,12 +2136,12 @@ export const NinjaRMMSettings = () => {
               </pre>
             </div>
             <div className="p-4 border-t border-gray-200 dark:border-dark-200 flex justify-end">
-              <button
+              <Button
                 onClick={() => setSelectedPayload(null)}
-                className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+                variant="secondary"
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { ReactNode, useMemo, useState } from 'react';
 import { Ticket, LogOut, User, Settings, Book, Monitor, FileText, Shield, Info, X, HelpCircle } from 'lucide-react';
 import { PortalContact, customerPortalApi, PortalSettings } from '../../services/api';
+import { Button, IconButton } from '../ui/Button';
 
 interface PortalLayoutProps {
   contact: PortalContact;
@@ -66,52 +67,44 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
 
           <div className="flex items-center gap-2">
             {onShowKnowledgeBase && (
-              <button
+              <Button
                 onClick={onShowKnowledgeBase}
-                className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
-                  currentView === 'kb'
-                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-                title="Wissensdatenbank"
+                variant={currentView === 'kb' ? 'primary' : 'ghost'}
+                size="sm"
+                icon={<Book size={18} />}
+                className={currentView === 'kb' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''}
               >
-                <Book size={18} />
                 <span className="hidden sm:inline">Hilfe</span>
-              </button>
+              </Button>
             )}
             {onShowProfile && (
-              <button
+              <Button
                 onClick={onShowProfile}
-                className={`hidden sm:flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
-                  currentView === 'profile'
-                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
+                variant={currentView === 'profile' ? 'primary' : 'ghost'}
+                size="sm"
+                icon={<User size={18} />}
+                className={`hidden sm:flex ${currentView === 'profile' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''}`}
               >
-                <User size={18} />
                 <span>{contact.name}</span>
-              </button>
+              </Button>
             )}
             {onShowProfile && (
-              <button
+              <IconButton
+                icon={<Settings size={18} />}
                 onClick={onShowProfile}
-                className={`sm:hidden flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                  currentView === 'profile'
-                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-                title="Profil"
-              >
-                <Settings size={18} />
-              </button>
+                variant={currentView === 'profile' ? 'primary' : 'default'}
+                tooltip="Profil"
+                className={`sm:hidden ${currentView === 'profile' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''}`}
+              />
             )}
-            <button
+            <Button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              variant="ghost"
+              size="sm"
+              icon={<LogOut size={18} />}
             >
-              <LogOut size={18} />
               <span className="hidden sm:inline">Abmelden</span>
-            </button>
+            </Button>
           </div>
         </div>
       </header>
@@ -122,43 +115,49 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
           <div className="max-w-5xl mx-auto px-4">
             <nav className="flex gap-1 overflow-x-auto">
               {onShowTickets && (
-                <button
+                <Button
                   onClick={onShowTickets}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  variant="ghost"
+                  size="sm"
+                  icon={<Ticket size={18} />}
+                  className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
                     currentView === 'tickets' || currentView === 'ticket-detail'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
                 >
-                  <Ticket size={18} />
                   Tickets
-                </button>
+                </Button>
               )}
               {onShowDevices && (
-                <button
+                <Button
                   onClick={onShowDevices}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  variant="ghost"
+                  size="sm"
+                  icon={<Monitor size={18} />}
+                  className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
                     currentView === 'devices'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
                 >
-                  <Monitor size={18} />
                   Geräte
-                </button>
+                </Button>
               )}
               {onShowInvoices && (
-                <button
+                <Button
                   onClick={onShowInvoices}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  variant="ghost"
+                  size="sm"
+                  icon={<FileText size={18} />}
+                  className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
                     currentView === 'invoices'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
                 >
-                  <FileText size={18} />
                   Finanzen
-                </button>
+                </Button>
               )}
             </nav>
           </div>
@@ -179,26 +178,30 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
             </div>
             <div className="flex items-center gap-4 text-sm">
               {onShowHelp && (
-                <button
+                <Button
                   onClick={onShowHelp}
-                  className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                  variant="ghost"
+                  size="sm"
+                  icon={<HelpCircle size={16} />}
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                 >
-                  <HelpCircle size={16} />
                   Einführung
-                </button>
+                </Button>
               )}
-              <button
+              <Button
                 onClick={() => setShowPrivacy(true)}
-                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                variant="ghost"
+                size="sm"
               >
                 Datenschutz
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => setShowLegal(true)}
-                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                variant="ghost"
+                size="sm"
               >
                 Impressum
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -215,12 +218,11 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   Datenschutzerklärung
                 </h2>
               </div>
-              <button
+              <IconButton
+                icon={<X size={20} />}
                 onClick={() => setShowPrivacy(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X size={20} />
-              </button>
+                tooltip="Schließen"
+              />
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-6">
               <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -294,12 +296,13 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-              <button
+              <Button
                 onClick={() => setShowPrivacy(false)}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                variant="primary"
+                fullWidth
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -316,12 +319,11 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   Impressum
                 </h2>
               </div>
-              <button
+              <IconButton
+                icon={<X size={20} />}
                 onClick={() => setShowLegal(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X size={20} />
-              </button>
+                tooltip="Schließen"
+              />
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-6">
               <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -367,12 +369,13 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-              <button
+              <Button
                 onClick={() => setShowLegal(false)}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                variant="primary"
+                fullWidth
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>

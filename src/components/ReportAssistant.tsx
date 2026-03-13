@@ -2063,12 +2063,12 @@ ${companyInfo?.phone || ''}`;
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   {savedReports.length} Report(s)
                 </span>
-                <button
+                <Button
                   onClick={() => setShowSavedReports(false)}
-                  className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
+                  variant="secondary"
                 >
                   Schließen
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -2091,12 +2091,11 @@ ${companyInfo?.phone || ''}`;
                     </p>
                   </div>
                 </div>
-                <button
+                <IconButton
                   onClick={() => setPdfConfigModal({ show: false, customerId: null, customerName: '' })}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-                >
-                  <X size={20} className="text-gray-500" />
-                </button>
+                  icon={<X size={20} />}
+                  tooltip="Schließen"
+                />
               </div>
 
               {/* Content */}
@@ -2187,20 +2186,20 @@ ${companyInfo?.phone || ''}`;
 
               {/* Footer */}
               <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-200 flex justify-end gap-3">
-                <button
+                <Button
                   onClick={() => setPdfConfigModal({ show: false, customerId: null, customerName: '' })}
-                  className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
+                  variant="secondary"
                 >
                   Abbrechen
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={exportWithConfig}
                   disabled={!pdfConfig.includeCoverPage && !pdfConfig.includeTimeEntries}
-                  className="px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  variant="primary"
+                  icon={<Download size={18} />}
                 >
-                  <Download size={18} />
                   PDF erstellen
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -2281,30 +2280,24 @@ ${companyInfo?.phone || ''}`;
               </div>
 
               <div className="flex gap-3 mt-6">
-                <button
+                <Button
                   onClick={() => setSendApprovalDialog({ show: false, report: null, email: '', name: '', isSending: false, testMode: true })}
                   disabled={sendApprovalDialog.isSending}
-                  className="flex-1 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors disabled:opacity-50"
+                  variant="secondary"
+                  fullWidth
                 >
                   Abbrechen
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={sendForApproval}
-                  disabled={!sendApprovalDialog.email || sendApprovalDialog.isSending}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled={!sendApprovalDialog.email}
+                  loading={sendApprovalDialog.isSending}
+                  variant="primary"
+                  icon={<Send size={18} />}
+                  fullWidth
                 >
-                  {sendApprovalDialog.isSending ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Wird gesendet...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={18} />
-                      {sendApprovalDialog.testMode ? 'Link erstellen' : 'Senden'}
-                    </>
-                  )}
-                </button>
+                  {sendApprovalDialog.isSending ? 'Wird gesendet...' : (sendApprovalDialog.testMode ? 'Link erstellen' : 'Senden')}
+                </Button>
               </div>
             </div>
           </div>
