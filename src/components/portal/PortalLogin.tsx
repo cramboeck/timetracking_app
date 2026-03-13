@@ -420,12 +420,11 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                   Impressum
                 </h2>
               </div>
-              <button
+              <IconButton
+                icon={<X size={20} />}
                 onClick={() => setShowLegal(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X size={20} />
-              </button>
+                tooltip="Schließen"
+              />
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-6">
               <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -458,12 +457,13 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-              <button
+              <Button
                 onClick={() => setShowLegal(false)}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                variant="primary"
+                fullWidth
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>
