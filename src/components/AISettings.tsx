@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Bot, Save, RefreshCw, CheckCircle, XCircle, Eye, EyeOff, Sparkles, Zap, Settings2, FileText, RotateCcw } from 'lucide-react';
 import { aiApi, AIConfig, DEFAULT_SYSTEM_PROMPTS } from '../services/api';
-import { Button, IconButton } from '../ui';
+import { Button, IconButton } from './ui';
 
 export const AISettings = () => {
   const [loading, setLoading] = useState(true);

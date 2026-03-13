@@ -1,6 +1,6 @@
 import React, { Component, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home, Bug, Copy, Check } from 'lucide-react';
-import { Button } from '../ui';
+import { Button } from './ui';
 
 interface ErrorInfo {
   componentStack: string;
