@@ -119,7 +119,9 @@ export type AuditAction =
   | 'email.test'
   // Customer domain mapping actions
   | 'customer_domain.add'
-  | 'customer_domain.remove';
+  | 'customer_domain.remove'
+  // Migration actions
+  | 'customers.migrate_contacts';
 
 export interface AuditLogEntry {
   id: string;
