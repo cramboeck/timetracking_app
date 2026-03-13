@@ -783,20 +783,22 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
           </div>
 
           <div className="flex gap-3">
-            <button
+            <Button
               onClick={() => setStep('preview')}
-              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
+              variant="secondary"
             >
               Zurück
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleImport}
               disabled={!createMissingProjects && previewData.projects.filter(p => !p.matchedId).some(p => !projectMapping[`${p.customerName}|${p.name}`])}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="primary"
+              icon={<ArrowRight size={18} />}
+              iconPosition="right"
+              className="flex-1"
             >
               Import starten
-              <ArrowRight size={18} />
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -861,12 +863,13 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
             </div>
           )}
 
-          <button
+          <Button
             onClick={resetImport}
-            className="w-full px-4 py-2 btn-accent"
+            variant="primary"
+            fullWidth
           >
             Neuen Import starten
-          </button>
+          </Button>
         </div>
       )}
     </div>

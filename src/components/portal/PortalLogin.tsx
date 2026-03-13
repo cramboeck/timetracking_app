@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Ticket, Lock, Mail, AlertCircle, ArrowRight, Shield, Info, X, Smartphone, ArrowLeft } from 'lucide-react';
 import { customerPortalApi, PortalContact } from '../../services/api';
+import { Button, IconButton } from '../ui/Button';
 
 interface PortalLoginProps {
   onLoginSuccess: (contact: PortalContact) => void;
@@ -220,31 +221,28 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                 </div>
               </label>
 
-              <button
+              <Button
                 onClick={() => handleMfaSubmit()}
-                disabled={loading || mfaCode.join('').length !== 6 || !!retryAfter}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
+                variant="primary"
+                fullWidth
+                loading={loading}
+                disabled={mfaCode.join('').length !== 6 || !!retryAfter}
+                icon={!loading ? <ArrowRight size={20} /> : undefined}
+                iconPosition="right"
+                className="py-3"
               >
-                {loading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Überprüfen...
-                  </>
-                ) : (
-                  <>
-                    Verifizieren
-                    <ArrowRight size={20} />
-                  </>
-                )}
-              </button>
+                {loading ? 'Überprüfen...' : 'Verifizieren'}
+              </Button>
 
-              <button
+              <Button
                 onClick={handleBackToLogin}
-                className="w-full flex items-center justify-center gap-2 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                variant="ghost"
+                fullWidth
+                icon={<ArrowLeft size={18} />}
+                className="py-2"
               >
-                <ArrowLeft size={18} />
                 Zurück zur Anmeldung
-              </button>
+              </Button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -289,23 +287,17 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                 </div>
               </div>
 
-              <button
+              <Button
                 type="submit"
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
+                variant="primary"
+                fullWidth
+                loading={loading}
+                icon={!loading ? <ArrowRight size={20} /> : undefined}
+                iconPosition="right"
+                className="py-3"
               >
-                {loading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Anmelden...
-                  </>
-                ) : (
-                  <>
-                    Anmelden
-                    <ArrowRight size={20} />
-                  </>
-                )}
-              </button>
+                {loading ? 'Anmelden...' : 'Anmelden'}
+              </Button>
             </form>
           )}
         </div>
