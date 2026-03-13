@@ -10,7 +10,7 @@ import { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi } from '
 import { ticketsApi } from './tickets';
 import { customerPortalApi } from './portal';
 import { contractsApi, importApi, socialMediaApi } from './business';
-import { interactionsApi, opportunitiesApi } from './crm';
+import { interactionsApi, opportunitiesApi, contactsApi } from './crm';
 import { leadsApi } from './leads';
 
 // Base utilities
@@ -104,8 +104,8 @@ export {
   DEFAULT_SYSTEM_PROMPTS,
 } from './business';
 
-// CRM API (interactions, opportunities, pipeline)
-export { interactionsApi, pipelineStagesApi, opportunitiesApi } from './crm';
+// CRM API (interactions, opportunities, pipeline, contacts)
+export { interactionsApi, pipelineStagesApi, opportunitiesApi, contactsApi } from './crm';
 
 // Leads API
 export { leadsApi } from './leads';
@@ -137,6 +137,11 @@ export type {
   PipelineView,
   OpportunityForecast,
   OpportunityStats,
+  ContactRole,
+  PreferredContactMethod,
+  CRMContact,
+  ContactFilters,
+  CreateContactInput,
 } from './crm';
 export type {
   MaintenanceType,
@@ -195,6 +200,7 @@ const api = {
   interactions: interactionsApi,
   opportunities: opportunitiesApi,
   leads: leadsApi,
+  contacts: contactsApi,
 };
 
 export default api;

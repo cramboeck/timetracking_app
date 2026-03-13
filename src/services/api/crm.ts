@@ -446,3 +446,143 @@ export const opportunitiesApi = {
     });
   },
 };
+
+// ============================================
+// CRM Contacts Types
+// ============================================
+
+export type ContactRole = 'decision_maker' | 'technical' | 'billing' | 'contact';
+export type PreferredContactMethod = 'email' | 'phone' | 'portal';
+
+export interface CRMContact {
+  id: string;
+  organization_id: string;
+  customer_id: string;
+  first_name?: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  job_title?: string;
+  department?: string;
+  role: ContactRole;
+  is_primary: boolean;
+  portal_user_id?: string;
+  preferred_contact_method: PreferredContactMethod;
+  notify_on_ticket_update: boolean;
+  notify_on_maintenance: boolean;
+  linkedin_url?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  customer_name?: string;
+  customer_color?: string;
+  has_portal_access?: boolean;
+  portal_last_login?: string;
+  recent_interactions?: {
+    id: string;
+    type: string;
+    subject?: string;
+    occurred_at: string;
+    outcome?: string;
+  }[];
+}
+
+export interface ContactFilters {
+  customer_id?: string;
+  role?: ContactRole;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CreateContactInput {
+  customer_id: string;
+  first_name?: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  job_title?: string;
+  department?: string;
+  role?: ContactRole;
+  is_primary?: boolean;
+  preferred_contact_method?: PreferredContactMethod;
+  notify_on_ticket_update?: boolean;
+  notify_on_maintenance?: boolean;
+  linkedin_url?: string;
+  notes?: string;
+}
+
+// ============================================
+// CRM Contacts API
+// ============================================
+
+export const contactsApi = {
+  // List all contacts
+  getAll: async (filters?: ContactFilters): Promise<{
+    contacts: CRMContact[];
+    total: number;
+    limit: number;
+    offset: number;
+  }> => {
+    const params = new URLSearchParams();
+    if (filters?.customer_id) params.append('customer_id', filters.customer_id);
+    if (filters?.role) params.append('role', filters.role);
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    if (filters?.offset) params.append('offset', String(filters.offset));
+
+    return authFetch(`/contacts?${params.toString()}`);
+  },
+
+  // Get single contact
+  getById: async (id: string): Promise<CRMContact> => {
+    return authFetch(`/contacts/${id}`);
+  },
+
+  // Get contacts for a specific customer
+  getByCustomer: async (customerId: string): Promise<CRMContact[]> => {
+    return authFetch(`/contacts/customer/${customerId}`);
+  },
+
+  // Create contact
+  create: async (data: CreateContactInput): Promise<CRMContact> => {
+    return authFetch(`/contacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update contact
+  update: async (id: string, data: Partial<CreateContactInput>): Promise<CRMContact> => {
+    return authFetch(`/contacts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete contact
+  delete: async (id: string): Promise<{ success: boolean; deleted: string }> => {
+    return authFetch(`/contacts/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Enable portal access for contact
+  enablePortalAccess: async (id: string, sendInvitation?: boolean): Promise<{
+    success: boolean;
+    portal_user_id: string;
+    invitation_token?: string;
+    message: string;
+  }> => {
+    return authFetch(`/contacts/${id}/portal-access`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ send_invitation: sendInvitation ?? true }),
+    });
+  },
+};
