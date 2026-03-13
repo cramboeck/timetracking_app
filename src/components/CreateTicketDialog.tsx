@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Save } from 'lucide-react';
 import { Customer, Project, TicketPriority } from '../types';
 import { ticketsApi } from '../services/api';
+import { Button, IconButton } from './ui';
 
 interface CreateTicketDialogProps {
   isOpen: boolean;
@@ -82,12 +83,11 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Neues Ticket</h2>
-          <button
+          <IconButton
+            icon={<X size={20} />}
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <X size={20} />
-          </button>
+            size="md"
+          />
         </div>
 
         {/* Form */}
@@ -210,21 +210,26 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
           {/* Footer */}
           <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <div className="flex gap-3">
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="lg"
+                fullWidth
                 onClick={onClose}
-                className="flex-1 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 Abbrechen
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
-                disabled={submitting || !customerId || !title.trim()}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 btn-accent rounded-lg disabled:opacity-50"
+                variant="primary"
+                size="lg"
+                fullWidth
+                icon={<Save size={20} />}
+                loading={submitting}
+                disabled={!customerId || !title.trim()}
               >
-                <Save size={20} />
                 {submitting ? 'Erstelle...' : 'Erstellen'}
-              </button>
+              </Button>
             </div>
           </div>
         </form>
