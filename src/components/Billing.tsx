@@ -358,24 +358,24 @@ export const Billing = ({ onBack }: BillingProps) => {
       {/* Month Selector */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div className="flex items-center justify-between">
-          <button
+          <IconButton
             onClick={handlePrevMonth}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-          >
-            <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
-          </button>
+            icon={<ChevronLeft size={20} />}
+            variant="default"
+            tooltip="Vorheriger Monat"
+          />
           <div className="flex items-center gap-2">
             <Calendar size={20} className="text-gray-500 dark:text-gray-400" />
             <span className="text-lg font-semibold text-gray-900 dark:text-white">
               {monthName}
             </span>
           </div>
-          <button
+          <IconButton
             onClick={handleNextMonth}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-          >
-            <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
-          </button>
+            icon={<ChevronRight size={20} />}
+            variant="default"
+            tooltip="Nächster Monat"
+          />
         </div>
       </div>
 
@@ -386,19 +386,22 @@ export const Billing = ({ onBack }: BillingProps) => {
             Nicht abgerechnete Zeiten
           </h3>
           <div className="flex items-center gap-2">
-            <button
+            <Button
               onClick={selectAll}
-              className="text-sm text-accent-primary hover:underline"
+              variant="ghost"
+              size="sm"
+              className="text-accent-primary"
             >
               Alle auswählen
-            </button>
+            </Button>
             <span className="text-gray-300">|</span>
-            <button
+            <Button
               onClick={deselectAll}
-              className="text-sm text-gray-500 hover:underline"
+              variant="ghost"
+              size="sm"
             >
               Keine
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -487,31 +490,27 @@ export const Billing = ({ onBack }: BillingProps) => {
                   {/* Actions */}
                   <div className="flex flex-col gap-2">
                     {hasConfig && customer.sevdeskCustomerId ? (
-                      <button
+                      <Button
                         onClick={() => handleCreateInvoice(customer)}
                         disabled={processing === customer.customerId}
-                        className="flex items-center gap-2 px-3 py-2 bg-accent-primary text-white rounded-lg text-sm hover:bg-accent-primary/90 disabled:opacity-50"
+                        variant="primary"
+                        size="sm"
+                        loading={processing === customer.customerId}
+                        icon={processing !== customer.customerId ? <Send size={16} /> : undefined}
                       >
-                        {processing === customer.customerId ? (
-                          <Loader2 className="animate-spin" size={16} />
-                        ) : (
-                          <Send size={16} />
-                        )}
                         Rechnung
-                      </button>
+                      </Button>
                     ) : (
-                      <button
+                      <Button
                         onClick={() => handleMarkAsBilled(customer)}
                         disabled={processing === customer.customerId}
-                        className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                        variant="secondary"
+                        size="sm"
+                        loading={processing === customer.customerId}
+                        icon={processing !== customer.customerId ? <Check size={16} /> : undefined}
                       >
-                        {processing === customer.customerId ? (
-                          <Loader2 className="animate-spin" size={16} />
-                        ) : (
-                          <Check size={16} />
-                        )}
                         Erledigt
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -546,17 +545,15 @@ export const Billing = ({ onBack }: BillingProps) => {
           <h3 className="font-semibold text-gray-900 dark:text-white">
             Erledigte Abrechnungen ({invoiceExports.length})
           </h3>
-          <button
+          <Button
             onClick={() => setShowCompleted(!showCompleted)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-              showCompleted
-                ? 'bg-accent-primary/10 text-accent-primary'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
+            variant={showCompleted ? 'primary' : 'secondary'}
+            size="sm"
+            icon={showCompleted ? <EyeOff size={16} /> : <Eye size={16} />}
+            className={showCompleted ? 'bg-accent-primary/10 text-accent-primary' : ''}
           >
-            {showCompleted ? <EyeOff size={16} /> : <Eye size={16} />}
             {showCompleted ? 'Ausblenden' : 'Anzeigen'}
-          </button>
+          </Button>
         </div>
 
         {showCompleted && (
@@ -600,18 +597,14 @@ export const Billing = ({ onBack }: BillingProps) => {
                     </span>
                     {/* Undo button - only for manual exports without sevDesk invoice */}
                     {!exp.sevdeskInvoiceNumber && (
-                      <button
+                      <IconButton
                         onClick={() => handleUndoExport(exp.id, exp.customerName)}
                         disabled={processing === exp.id}
-                        className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        title="Rückgängig machen"
-                      >
-                        {processing === exp.id ? (
-                          <Loader2 className="animate-spin" size={16} />
-                        ) : (
-                          <RotateCcw size={16} />
-                        )}
-                      </button>
+                        icon={processing === exp.id ? <Loader2 className="animate-spin" size={16} /> : <RotateCcw size={16} />}
+                        variant="danger"
+                        size="sm"
+                        tooltip="Rückgängig machen"
+                      />
                     )}
                   </div>
                 </div>

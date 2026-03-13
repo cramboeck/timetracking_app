@@ -9,9 +9,9 @@ import {
   AlertTriangle,
   Check,
   X,
-  Loader2,
 } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { Button, IconButton } from './ui';
 
 export const PushNotificationSettings = () => {
   const {
@@ -142,18 +142,16 @@ export const PushNotificationSettings = () => {
           </div>
           <div className="flex items-center gap-2">
             {isSubscribed && (
-              <button
+              <Button
                 onClick={handleTestNotification}
-                disabled={testSending || loading}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50"
+                isDisabled={testSending || loading}
+                isLoading={testSending}
+                variant="secondary"
+                size="sm"
+                icon={<Send size={16} />}
               >
-                {testSending ? (
-                  <Loader2 className="animate-spin" size={16} />
-                ) : (
-                  <Send size={16} />
-                )}
                 Test
-              </button>
+              </Button>
             )}
             <button
               onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}

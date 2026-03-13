@@ -886,9 +886,9 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     return (
       <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
         <p>{error || 'Ticket nicht gefunden'}</p>
-        <button onClick={onBack} className="mt-4 text-accent-primary hover:underline">
+        <Button onClick={onBack} variant="ghost">
           Zurück zur Liste
-        </button>
+        </Button>
       </div>
     );
   }
@@ -1060,13 +1060,13 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                           placeholder="Neuer Tag..."
                           className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         />
-                        <button
+                        <IconButton
                           onClick={handleCreateTag}
                           disabled={!newTagName.trim()}
-                          className="p-1 rounded bg-accent-primary text-white disabled:opacity-50"
-                        >
-                          <Plus size={14} />
-                        </button>
+                          icon={<Plus size={14} />}
+                          variant="primary"
+                          size="sm"
+                        />
                       </div>
                     </div>
                     <div className="max-h-40 overflow-y-auto p-1">
@@ -1179,38 +1179,43 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
 
             {/* AI Assistant Type Buttons */}
             <div className="grid grid-cols-2 gap-2 mb-3">
-              <button
+              <Button
                 onClick={() => generateAiSuggestion('solution')}
                 disabled={loadingAiSuggestion}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg transition-colors"
+                variant="primary"
+                size="sm"
+                icon={<Lightbulb size={14} />}
+                className="bg-purple-600 hover:bg-purple-700"
               >
-                <Lightbulb size={14} />
                 Lösung vorschlagen
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => generateAiSuggestion('category')}
                 disabled={loadingAiSuggestion}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
+                variant="primary"
+                size="sm"
+                icon={<Tag size={14} />}
               >
-                <Tag size={14} />
                 Kategorie analysieren
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => generateAiSuggestion('priority')}
                 disabled={loadingAiSuggestion}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white rounded-lg transition-colors"
+                variant="warning"
+                size="sm"
+                icon={<ChevronDown size={14} />}
               >
-                <ChevronDown size={14} />
                 Priorität bewerten
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => generateAiSuggestion('response')}
                 disabled={loadingAiSuggestion}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg transition-colors"
+                variant="success"
+                size="sm"
+                icon={<MessageSquare size={14} />}
               >
-                <MessageSquare size={14} />
                 Antwort generieren
-              </button>
+              </Button>
             </div>
 
             {loadingAiSuggestion && (
@@ -1267,48 +1272,52 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                     <div className="flex flex-wrap items-center gap-2 mt-3 pt-2 border-t border-purple-100 dark:border-purple-800">
                       {/* Type-specific actions */}
                       {suggestion.suggestionType === 'response' && (
-                        <button
+                        <Button
                           onClick={() => applyResponseSuggestion(suggestion.content)}
-                          className="flex items-center gap-1 px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 rounded transition-colors"
-                          title="In Kommentar übernehmen"
+                          variant="success"
+                          size="sm"
+                          icon={<ArrowRight size={12} />}
+                          className="text-xs"
                         >
-                          <ArrowRight size={12} />
                           In Kommentar
-                        </button>
+                        </Button>
                       )}
                       {suggestion.suggestionType === 'priority' && (
-                        <button
+                        <Button
                           onClick={() => applyPrioritySuggestion(suggestion.content)}
-                          className="flex items-center gap-1 px-2 py-1 text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 dark:text-orange-400 rounded transition-colors"
-                          title="Priorität übernehmen"
+                          variant="warning"
+                          size="sm"
+                          icon={<ArrowRight size={12} />}
+                          className="text-xs"
                         >
-                          <ArrowRight size={12} />
                           Übernehmen
-                        </button>
+                        </Button>
                       )}
                       {suggestion.suggestionType === 'solution' && (
-                        <button
+                        <Button
                           onClick={() => {
                             setSolutionText(suggestion.content);
                             setShowSolutionModal(true);
                           }}
-                          className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors"
-                          title="Als Lösung übernehmen"
+                          variant="secondary"
+                          size="sm"
+                          icon={<ArrowRight size={12} />}
+                          className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400"
                         >
-                          <ArrowRight size={12} />
                           Als Lösung
-                        </button>
+                        </Button>
                       )}
 
                       {/* Copy button for all types */}
-                      <button
+                      <Button
                         onClick={() => copySuggestionToClipboard(suggestion.content)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-400 rounded transition-colors"
-                        title="In Zwischenablage kopieren"
+                        variant="secondary"
+                        size="sm"
+                        icon={<Copy size={12} />}
+                        className="text-xs"
                       >
-                        <Copy size={12} />
                         Kopieren
-                      </button>
+                      </Button>
 
                       <div className="flex-1" />
 
@@ -1316,20 +1325,20 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                       <span className="text-xs text-gray-500 dark:text-gray-400">
                         {new Date(suggestion.createdAt).toLocaleString('de-DE')}
                       </span>
-                      <button
+                      <IconButton
                         onClick={() => handleSuggestionFeedback(suggestion.id, true)}
-                        className="p-1 text-gray-400 hover:text-green-500 transition-colors"
-                        title="Hilfreich"
-                      >
-                        <ThumbsUp size={14} />
-                      </button>
-                      <button
+                        icon={<ThumbsUp size={14} />}
+                        variant="success"
+                        size="sm"
+                        tooltip="Hilfreich"
+                      />
+                      <IconButton
                         onClick={() => handleSuggestionFeedback(suggestion.id, false)}
-                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                        title="Nicht hilfreich"
-                      >
-                        <ThumbsDown size={14} />
-                      </button>
+                        icon={<ThumbsDown size={14} />}
+                        variant="danger"
+                        size="sm"
+                        tooltip="Nicht hilfreich"
+                      />
                     </div>
                   </div>
                 );
@@ -1442,20 +1451,20 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                         autoFocus
                         className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                       />
-                      <button
+                      <IconButton
                         onClick={() => handleSaveEditTask(task.id)}
-                        className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
-                        title="Speichern"
-                      >
-                        <Check size={16} />
-                      </button>
-                      <button
+                        icon={<Check size={16} />}
+                        variant="success"
+                        size="sm"
+                        tooltip="Speichern"
+                      />
+                      <IconButton
                         onClick={handleCancelEditTask}
-                        className="p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                        title="Abbrechen"
-                      >
-                        <X size={16} />
-                      </button>
+                        icon={<X size={16} />}
+                        variant="default"
+                        size="sm"
+                        tooltip="Abbrechen"
+                      />
                     </div>
                   ) : (
                     <span
@@ -1473,13 +1482,14 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
 
                   {/* Edit Button - only show when not editing */}
                   {editingTaskId !== task.id && (
-                    <button
+                    <IconButton
                       onClick={() => handleStartEditTask(task)}
-                      className="p-1.5 text-gray-400 hover:text-accent-primary hover:bg-accent-primary/10 rounded opacity-0 group-hover:opacity-100 transition-all"
-                      title="Aufgabe bearbeiten"
-                    >
-                      <Pencil size={16} />
-                    </button>
+                      icon={<Pencil size={16} />}
+                      variant="primary"
+                      size="sm"
+                      tooltip="Aufgabe bearbeiten"
+                      className="opacity-0 group-hover:opacity-100"
+                    />
                   )}
 
                   {/* Visibility Toggle */}
@@ -1496,13 +1506,14 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                   </button>
 
                   {/* Delete Button */}
-                  <button
+                  <IconButton
                     onClick={() => handleDeleteTask(task.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded opacity-0 group-hover:opacity-100 transition-all"
-                    title="Aufgabe löschen"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                    icon={<Trash2 size={16} />}
+                    variant="danger"
+                    size="sm"
+                    tooltip="Aufgabe löschen"
+                    className="opacity-0 group-hover:opacity-100"
+                  />
                 </div>
               ))}
 
@@ -1528,13 +1539,15 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                 >
                   {newTaskVisible ? <Eye size={16} /> : <EyeOff size={16} />}
                 </button>
-                <button
+                <Button
                   onClick={handleAddTask}
                   disabled={!newTaskTitle.trim() || addingTask}
-                  className="px-3 py-1.5 text-sm btn-accent rounded disabled:opacity-50"
+                  variant="primary"
+                  size="sm"
+                  loading={addingTask}
                 >
-                  {addingTask ? '...' : 'Hinzufügen'}
-                </button>
+                  Hinzufügen
+                </Button>
               </div>
             </div>
           )}
@@ -1596,13 +1609,14 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                           >
                             <Download size={16} />
                           </a>
-                          <button
+                          <IconButton
                             onClick={() => handleDeleteAttachment(attachment.id)}
-                            className="p-2 bg-white/20 hover:bg-red-500/50 rounded-full text-white transition-colors"
-                            title="Löschen"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                            icon={<Trash2 size={16} />}
+                            variant="danger"
+                            size="sm"
+                            tooltip="Löschen"
+                            className="bg-white/20 hover:bg-red-500/50 text-white"
+                          />
                         </div>
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
                           {attachment.filename}
@@ -1646,13 +1660,13 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                             >
                               <Download size={16} />
                             </a>
-                            <button
+                            <IconButton
                               onClick={() => handleDeleteAttachment(attachment.id)}
-                              className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
-                              title="Löschen"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                              icon={<Trash2 size={16} />}
+                              variant="danger"
+                              size="sm"
+                              tooltip="Löschen"
+                            />
                           </div>
                         </div>
                       );
@@ -2089,32 +2103,24 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
               </div>
             </div>
             <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
-              <button
+              <Button
                 onClick={() => {
                   setShowSolutionModal(false);
                   setPendingStatusChange(null);
                 }}
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                variant="secondary"
               >
                 Abbrechen
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleSaveSolution}
                 disabled={!solutionText.trim() || savingSolution}
-                className="px-4 py-2 btn-accent rounded-lg disabled:opacity-50 flex items-center gap-2"
+                variant="primary"
+                loading={savingSolution}
+                icon={<CheckSquare size={16} />}
               >
-                {savingSolution ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Speichern...
-                  </>
-                ) : (
-                  <>
-                    <CheckSquare size={16} />
-                    Ticket schließen
-                  </>
-                )}
-              </button>
+                Ticket schließen
+              </Button>
             </div>
           </div>
         </div>

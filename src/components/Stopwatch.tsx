@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Pause, Square, Plus, Sparkles, Loader2, Check } from 'lucide-react';
+import { Play, Pause, Square, Plus, Sparkles, Check } from 'lucide-react';
 import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { aiApi } from '../services/api';
 import { SearchableSelect } from './SearchableSelect';
-import { Button } from './ui/Button';
+import { Button } from './ui';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => Promise<boolean> | void;
@@ -513,80 +513,66 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
             )}
 
             {!isRunning && elapsedSeconds === 0 && !isStopping && (
-              <button
+              <Button
                 onClick={handleStart}
-                className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                variant="primary"
+                size="lg"
+                icon={<Play size={20} className="sm:w-6 sm:h-6" />}
                 disabled={!projectId}
+                className="rounded-full px-6 sm:px-8 py-3 sm:py-4 shadow-lg hover:shadow-xl active:scale-95 touch-manipulation"
               >
-                <Play size={20} className="sm:w-6 sm:h-6" />
                 Start
-              </button>
+              </Button>
             )}
 
             {(isRunning || isStopping) && (
               <>
-                <button
+                <Button
                   onClick={handlePause}
                   disabled={isStopping}
-                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-yellow-500 text-white rounded-full font-semibold hover:bg-yellow-600 active:bg-yellow-700 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="warning"
+                  size="lg"
+                  icon={<Pause size={20} className="sm:w-6 sm:h-6" />}
+                  className="rounded-full px-6 sm:px-8 py-3 sm:py-4 shadow-lg hover:shadow-xl touch-manipulation"
                 >
-                  <Pause size={20} className="sm:w-6 sm:h-6" />
                   Pause
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleStop}
                   disabled={isStopping}
-                  className={`flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-white rounded-full font-semibold touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:cursor-not-allowed ${
-                    isStopping
-                      ? 'bg-red-400 cursor-wait'
-                      : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
-                  }`}
+                  variant="danger"
+                  size="lg"
+                  loading={isStopping}
+                  icon={!isStopping ? <Square size={20} className="sm:w-6 sm:h-6" /> : undefined}
+                  className="rounded-full px-6 sm:px-8 py-3 sm:py-4 shadow-lg hover:shadow-xl touch-manipulation"
                 >
-                  {isStopping ? (
-                    <>
-                      <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
-                      Speichere...
-                    </>
-                  ) : (
-                    <>
-                      <Square size={20} className="sm:w-6 sm:h-6" />
-                      Stop
-                    </>
-                  )}
-                </button>
+                  {isStopping ? 'Speichere...' : 'Stop'}
+                </Button>
               </>
             )}
 
             {!isRunning && elapsedSeconds > 0 && !isStopping && (
               <>
-                <button
+                <Button
                   onClick={handleResume}
-                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
+                  variant="primary"
+                  size="lg"
+                  icon={<Play size={20} className="sm:w-6 sm:h-6" />}
+                  className="rounded-full px-6 sm:px-8 py-3 sm:py-4 shadow-lg hover:shadow-xl active:scale-95 touch-manipulation"
                 >
-                  <Play size={20} className="sm:w-6 sm:h-6" />
                   Weiter
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleStop}
                   disabled={isStopping}
-                  className={`flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-white rounded-full font-semibold touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:cursor-not-allowed ${
-                    isStopping
-                      ? 'bg-red-400 cursor-wait'
-                      : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
-                  }`}
+                  variant="danger"
+                  size="lg"
+                  loading={isStopping}
+                  icon={!isStopping ? <Square size={20} className="sm:w-6 sm:h-6" /> : undefined}
+                  className="rounded-full px-6 sm:px-8 py-3 sm:py-4 shadow-lg hover:shadow-xl touch-manipulation"
                 >
-                  {isStopping ? (
-                    <>
-                      <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
-                      Speichere...
-                    </>
-                  ) : (
-                    <>
-                      <Square size={20} className="sm:w-6 sm:h-6" />
-                      Stop
-                    </>
-                  )}
-                </button>
+                  {isStopping ? 'Speichere...' : 'Stop'}
+                </Button>
               </>
             )}
           </div>
