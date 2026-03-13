@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import {
   Clock, List, Calendar,
   Ticket, Monitor, Bell, Wrench, Mail,
-  BarChart3, Wallet, FileText, FileSignature, Share2, FileInput,
-  Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo,
-  ChevronLeft, ChevronRight, Shield, Users, Target
+  BarChart3, Wallet, FileText, FileSignature, FileInput,
+  Settings, Briefcase, HeadphonesIcon, ListTodo,
+  ChevronLeft, ChevronRight, Shield, Users, Target,
+  LayoutDashboard, Building2, Receipt
 } from 'lucide-react';
 import { useFeatures } from '../contexts/FeaturesContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,6 +21,13 @@ interface DesktopSidebarProps {
 const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
 
 const areaConfig = {
+  dashboard: {
+    icon: LayoutDashboard,
+    label: 'Dashboard',
+    subViews: [
+      { view: 'overview' as SubView, icon: BarChart3, label: 'Übersicht' },
+    ],
+  },
   arbeiten: {
     icon: Briefcase,
     label: 'Arbeiten',
@@ -41,17 +49,22 @@ const areaConfig = {
       { view: 'maintenance' as SubView, icon: Wrench, label: 'Wartung' },
     ],
   },
-  business: {
-    icon: TrendingUp,
-    label: 'Business',
+  crm: {
+    icon: Building2,
+    label: 'CRM',
     subViews: [
-      { view: 'dashboard' as SubView, icon: BarChart3, label: 'Dashboard' },
-      { view: 'leads' as SubView, icon: Users, label: 'Leads' },
-      { view: 'pipeline' as SubView, icon: Target, label: 'Pipeline' },
-      { view: 'invoices' as SubView, icon: FileInput, label: 'Rechnungen' },
+      { view: 'customers' as SubView, icon: Users, label: 'Kunden' },
+      { view: 'leads' as SubView, icon: Target, label: 'Leads' },
+      { view: 'pipeline' as SubView, icon: BarChart3, label: 'Pipeline' },
       { view: 'contracts' as SubView, icon: FileSignature, label: 'Verträge' },
-      { view: 'billing' as SubView, icon: Wallet, label: 'Finanzen' },
-      { view: 'social-media' as SubView, icon: Share2, label: 'Social Media' },
+    ],
+  },
+  finanzen: {
+    icon: Receipt,
+    label: 'Finanzen',
+    subViews: [
+      { view: 'invoices' as SubView, icon: FileInput, label: 'Rechnungen' },
+      { view: 'billing' as SubView, icon: Wallet, label: 'Abrechnung' },
       { view: 'reports' as SubView, icon: FileText, label: 'Berichte' },
     ],
   },
@@ -93,11 +106,12 @@ export const DesktopSidebar = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Determine which areas to show
+  // Determine which areas to show - dashboard always visible
   const visibleAreas: Area[] = [
+    'dashboard',
     'arbeiten',
     ...(hasPackage('support') ? ['support' as Area] : []),
-    ...(hasPackage('business') ? ['business' as Area] : []),
+    ...(hasPackage('business') ? ['crm' as Area, 'finanzen' as Area] : []),
   ];
 
   return (

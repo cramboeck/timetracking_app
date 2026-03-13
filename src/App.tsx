@@ -804,13 +804,15 @@ function App() {
   };
 
   // Get visible areas for swipe navigation
-  const visibleAreas: Area[] = ['arbeiten', 'support', 'business'];
+  const visibleAreas: Area[] = ['dashboard', 'arbeiten', 'support', 'crm', 'finanzen'];
 
   // SubView configuration for each area (matching AreaNavigation)
   const subViewConfig: Record<Area, SubView[]> = {
+    dashboard: ['overview'],
     arbeiten: ['stopwatch', 'tasks', 'list', 'calendar'],
-    support: ['tickets', 'devices', 'alerts', 'maintenance'],
-    business: ['dashboard', 'leads', 'pipeline', 'contracts', 'billing', 'social-media', 'reports'],
+    support: ['tickets', 'inbox', 'devices', 'alerts', 'maintenance'],
+    crm: ['customers', 'leads', 'pipeline', 'contracts'],
+    finanzen: ['invoices', 'billing', 'reports'],
   };
 
   // Swipe between areas (Bottom zone - bottom 30%)
@@ -998,7 +1000,7 @@ function App() {
             }}
           />
         )}
-        {currentSubView === 'dashboard' && (
+        {(currentSubView === 'dashboard' || currentSubView === 'overview') && (
           <Dashboard
             entries={entries}
             projects={projects}
@@ -1006,6 +1008,39 @@ function App() {
             activities={activities}
             onNavigateToBilling={() => setCurrentSubView('billing')}
           />
+        )}
+        {currentSubView === 'customers' && (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+              Kunden (CRM)
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
+              360° Kundenansicht - Zeigt alle Informationen zu einem Kunden an einem Ort.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {customers.map(customer => (
+                <div
+                  key={customer.id}
+                  className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div
+                      className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
+                      style={{ backgroundColor: customer.color || '#3b82f6' }}
+                    >
+                      {customer.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{customer.name}</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {projects.filter(p => p.customerId === customer.id).length} Projekte
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
         {currentSubView === 'tickets' && (
           <Tickets
@@ -1047,7 +1082,7 @@ function App() {
           <InvoiceInbox />
         )}
         {currentSubView === 'billing' && (
-          <Finanzen onBack={() => setCurrentSubView('dashboard')} />
+          <Finanzen onBack={() => setCurrentSubView('overview')} />
         )}
         {currentSubView === 'pipeline' && (
           <SalesPipeline />
