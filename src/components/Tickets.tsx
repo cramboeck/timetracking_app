@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { LayoutDashboard, List, Keyboard, Columns, CheckSquare } from 'lucide-react';
+import { IconButton } from './ui';
 import { Ticket, Customer, Project } from '../types';
 import { TicketList } from './TicketList';
 import { TicketDetail } from './TicketDetail';
@@ -255,14 +256,14 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
             </button>
           </div>
           {/* Keyboard shortcuts hint */}
-          <button
+          <IconButton
             onClick={() => setShowHelp(true)}
-            className="hidden sm:flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-            title="Tastenkürzel anzeigen"
-          >
-            <Keyboard size={14} />
-            <span>?</span>
-          </button>
+            icon={<><Keyboard size={14} /><span className="text-xs">?</span></>}
+            variant="default"
+            size="sm"
+            tooltip="Tastenkürzel anzeigen"
+            className="hidden sm:flex items-center gap-1.5"
+          />
         </div>
       </div>
 
