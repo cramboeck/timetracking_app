@@ -22,7 +22,7 @@ export type SubView =
   // Finanzen
   | 'invoices' | 'billing' | 'reports'
   // Settings & Admin (special)
-  | 'settings' | 'admin';
+  | 'settings' | 'admin' | 'social-media';
 
 interface AreaNavigationProps {
   currentArea: Area;

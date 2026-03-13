@@ -5,7 +5,6 @@ import { Stopwatch } from './components/Stopwatch';
 import { ManualEntryModern } from './components/ManualEntryModern';
 import { TimeEntriesList } from './components/TimeEntriesList';
 import { CalendarView } from './components/CalendarView';
-import { Dashboard } from './components/Dashboard';
 import { DashboardOverview } from './components/DashboardOverview';
 import { CustomerView } from './components/CustomerView';
 import { Settings } from './components/Settings';
@@ -1016,15 +1015,6 @@ function App() {
               setCurrentArea('arbeiten');
               setCurrentSubView('stopwatch');
             }}
-          />
-        )}
-        {currentSubView === 'dashboard' && (
-          <Dashboard
-            entries={entries}
-            projects={projects}
-            customers={customers}
-            activities={activities}
-            onNavigateToBilling={() => setCurrentSubView('billing')}
           />
         )}
         {currentSubView === 'customers' && (
