@@ -1014,28 +1014,33 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Dashboard & Reports</h1>
           <div className="flex flex-wrap gap-2">
-            <button
+            <Button
               onClick={() => setReportAssistantOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors text-sm sm:text-base"
+              variant="secondary"
+              size="sm"
+              icon={<FileText size={16} />}
+              className="bg-gray-600 hover:bg-gray-700 text-white"
             >
-              <FileText size={16} />
               <span className="hidden xs:inline">Report-</span>Assistent
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={openSavedReports}
-              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm sm:text-base"
+              variant="primary"
+              size="sm"
+              icon={<Archive size={16} />}
+              className="bg-blue-600 hover:bg-blue-700"
             >
-              <Archive size={16} />
               <span className="hidden sm:inline">Gespeicherte </span>Reports
-            </button>
+            </Button>
             {filteredEntries.length > 0 && (
-              <button
+              <Button
                 onClick={generatePDF}
-                className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 btn-accent text-sm sm:text-base"
+                variant="primary"
+                size="sm"
+                icon={<Download size={16} />}
               >
-                <Download size={16} />
                 PDF
-              </button>
+              </Button>
             )}
           </div>
         </div>

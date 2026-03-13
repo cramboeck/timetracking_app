@@ -397,12 +397,13 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-              <button
+              <Button
                 onClick={() => setShowPrivacy(false)}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                variant="primary"
+                fullWidth
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>
