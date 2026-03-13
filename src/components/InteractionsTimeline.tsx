@@ -32,6 +32,7 @@ import {
 } from '../services/api';
 import { Customer } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Button, IconButton } from './ui';
 
 // ============================================
 // Types
@@ -385,20 +386,21 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-4">
-        <button
+        <Button
           type="button"
+          variant="secondary"
           onClick={onCancel}
-          className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg"
         >
           Abbrechen
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
+          variant="primary"
           disabled={saving || !subject.trim()}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium"
+          loading={saving}
         >
-          {saving ? 'Speichern...' : interaction ? 'Aktualisieren' : 'Erstellen'}
-        </button>
+          {interaction ? 'Aktualisieren' : 'Erstellen'}
+        </Button>
       </div>
     </form>
   );
@@ -514,16 +516,17 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
             </button>
           )}
         </div>
-        <button
+        <Button
+          variant="primary"
+          size="sm"
+          icon={<Plus size={16} />}
           onClick={() => {
             setEditingInteraction(null);
             setShowForm(true);
           }}
-          className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg"
         >
-          <Plus size={16} />
           Neu
-        </button>
+        </Button>
       </div>
 
       {/* Filters */}
@@ -564,12 +567,10 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingInteraction ? 'Interaktion bearbeiten' : 'Neue Interaktion'}
               </h3>
-              <button
+              <IconButton
+                icon={<X size={20} />}
                 onClick={() => setShowForm(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-              >
-                <X size={20} />
-              </button>
+              />
             </div>
             <div className="p-4">
               <InteractionForm
@@ -597,9 +598,9 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
       {error && (
         <div className="text-center py-4 text-red-500">
           <p>{error}</p>
-          <button onClick={loadInteractions} className="mt-2 text-blue-600 hover:underline">
+          <Button variant="ghost" onClick={loadInteractions} className="mt-2">
             Erneut versuchen
-          </button>
+          </Button>
         </div>
       )}
 
@@ -664,21 +665,20 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
 
                     {/* Actions */}
                     <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                      <button
+                      <IconButton
+                        icon={<Edit2 size={14} />}
+                        size="sm"
                         onClick={() => {
                           setEditingInteraction(interaction);
                           setShowForm(true);
                         }}
-                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
+                      />
+                      <IconButton
+                        icon={<Trash2 size={14} />}
+                        size="sm"
+                        variant="danger"
                         onClick={() => setDeleteInteraction(interaction)}
-                        className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-500"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      />
                     </div>
                   </div>
 
@@ -705,12 +705,13 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
                         <Clock size={12} />
                         Follow-up: {interaction.follow_up_date ? new Date(interaction.follow_up_date).toLocaleDateString('de-DE') : 'Offen'}
                       </span>
-                      <button
+                      <Button
+                        variant="success"
+                        size="sm"
                         onClick={() => handleCompleteFollowUp(interaction)}
-                        className="text-green-600 hover:text-green-700 font-medium"
                       >
                         Erledigt
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -722,12 +723,16 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
 
       {/* Show more link for compact mode */}
       {compact && interactions.length >= 5 && (
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          fullWidth
+          icon={<ArrowRight size={14} />}
+          iconPosition="right"
           onClick={() => onInteractionClick?.(interactions[0])}
-          className="w-full text-center text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 py-2"
         >
-          Alle anzeigen <ArrowRight size={14} className="inline ml-1" />
-        </button>
+          Alle anzeigen
+        </Button>
       )}
 
       {/* Delete Confirmation */}
