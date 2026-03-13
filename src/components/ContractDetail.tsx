@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { contractsApi, Contract, ContractPosition, ContractHourlyTracking, customersApi } from '../services/api';
 import { Customer } from '../types';
+import { Button, IconButton } from './ui';
 
 interface ContractDetailProps {
   contractId: string | null; // null = create new
@@ -242,12 +243,11 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
       <div className={`bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button
+            <IconButton
               onClick={onBack}
-              className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700`}
-            >
-              <ArrowLeft className={`w-5 h-5 text-gray-600 dark:text-gray-400`} />
-            </button>
+              icon={<ArrowLeft className="w-5 h-5" />}
+              size="lg"
+            />
             <div>
               <h1 className={`text-xl font-bold text-gray-900 dark:text-white`}>
                 {contractId ? 'Vertrag bearbeiten' : 'Neuer Vertrag'}
@@ -261,22 +261,24 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
           </div>
           <div className="flex items-center gap-2">
             {contractId && (
-              <button
+              <Button
                 onClick={handleDelete}
-                className="flex items-center gap-2 px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
+                variant="ghost"
+                icon={<Trash2 className="w-4 h-4" />}
+                className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
               >
-                <Trash2 className="w-4 h-4" />
                 <span className="hidden sm:inline">Löschen</span>
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               onClick={handleSave}
               disabled={saving}
-              className={`flex items-center gap-2 px-4 py-2 bg-accent-primary-600 hover:bg-accent-primary-700 text-white rounded-lg disabled:opacity-50`}
+              variant="primary"
+              loading={saving}
+              icon={<Save className="w-4 h-4" />}
             >
-              <Save className="w-4 h-4" />
-              <span>{saving ? 'Speichern...' : 'Speichern'}</span>
-            </button>
+              {saving ? 'Speichern...' : 'Speichern'}
+            </Button>
           </div>
         </div>
 
@@ -637,13 +639,14 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
               <h2 className={`text-lg font-semibold text-gray-900 dark:text-white`}>
                 Vertragspositionen
               </h2>
-              <button
+              <Button
                 onClick={() => setShowAddPosition(!showAddPosition)}
-                className={`flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-primary-600 hover:bg-accent-primary-700 text-white rounded-lg`}
+                variant="primary"
+                size="sm"
+                icon={<Plus className="w-4 h-4" />}
               >
-                <Plus className="w-4 h-4" />
                 Position hinzufügen
-              </button>
+              </Button>
             </div>
 
             {showAddPosition && (
@@ -674,19 +677,19 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                   />
                 </div>
                 <div className="flex justify-end gap-2">
-                  <button
+                  <Button
                     onClick={() => setShowAddPosition(false)}
-                    className={`px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg`}
+                    variant="secondary"
                   >
                     Abbrechen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={handleAddPosition}
                     disabled={!positionForm.name}
-                    className={`px-4 py-2 bg-accent-primary-600 hover:bg-accent-primary-700 text-white rounded-lg disabled:opacity-50`}
+                    variant="primary"
                   >
                     Hinzufügen
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -714,12 +717,12 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                         {position.isRecurring && ' / Monat'}
                       </div>
                     </div>
-                    <button
+                    <IconButton
                       onClick={() => handleDeletePosition(position.id)}
-                      className={`p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                      icon={<Trash2 className="w-4 h-4" />}
+                      variant="danger"
+                      size="lg"
+                    />
                   </div>
                 ))}
                 <div className={`flex justify-between pt-3 mt-3 border-t border-gray-200 dark:border-gray-700`}>
