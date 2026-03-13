@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { TimeEntry, Project, Customer, Ticket as TicketType } from '../types';
 import { StatWidget, QuickAction } from './ui/StatWidget';
+import { Card } from './ui/Card';
 import { useAuth } from '../contexts/AuthContext';
 import { Area, SubView } from './AreaNavigation';
 
@@ -416,10 +417,7 @@ export const DashboardOverview = ({
 
       {/* Bottom Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div
-          onClick={() => onNavigate('arbeiten', 'tasks')}
-          className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-md transition-all"
-        >
+        <Card interactive className="p-4 rounded-xl" onClick={() => onNavigate('arbeiten', 'tasks')}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center">
               <Target size={20} className="text-indigo-600 dark:text-indigo-400" />
@@ -429,12 +427,9 @@ export const DashboardOverview = ({
               <p className="text-xs text-gray-500 dark:text-gray-400">Diese Woche</p>
             </div>
           </div>
-        </div>
+        </Card>
 
-        <div
-          onClick={() => onNavigate('crm', 'leads')}
-          className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-md transition-all"
-        >
+        <Card interactive className="p-4 rounded-xl" onClick={() => onNavigate('crm', 'leads')}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
               <TrendingUp size={20} className="text-emerald-600 dark:text-emerald-400" />
@@ -444,12 +439,9 @@ export const DashboardOverview = ({
               <p className="text-xs text-gray-500 dark:text-gray-400">Aktive Projekte</p>
             </div>
           </div>
-        </div>
+        </Card>
 
-        <div
-          onClick={() => onNavigate('finanzen', 'invoices')}
-          className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-md transition-all"
-        >
+        <Card interactive className="p-4 rounded-xl" onClick={() => onNavigate('finanzen', 'invoices')}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
               <FileText size={20} className="text-amber-600 dark:text-amber-400" />
@@ -459,12 +451,9 @@ export const DashboardOverview = ({
               <p className="text-xs text-gray-500 dark:text-gray-400">Offene Einträge</p>
             </div>
           </div>
-        </div>
+        </Card>
 
-        <div
-          onClick={() => onNavigate('support', 'tickets')}
-          className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-md transition-all"
-        >
+        <Card interactive className="p-4 rounded-xl" onClick={() => onNavigate('support', 'tickets')}>
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
               ticketStats.critical > 0
@@ -482,7 +471,7 @@ export const DashboardOverview = ({
               <p className="text-xs text-gray-500 dark:text-gray-400">Kritische Tickets</p>
             </div>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

@@ -3,9 +3,9 @@ import {
   Clock, Receipt, CheckCircle2, AlertCircle,
   TrendingUp, Users, ArrowRight, Zap
 } from 'lucide-react';
-import { StatWidget
-
- } from './ui/StatWidget';
+import { StatWidget } from './ui/StatWidget';
+import { Button } from './ui/Button';
+import { Card } from './ui/Card';
 
 export interface BillingSummaryData {
   customerId: string;
@@ -84,13 +84,13 @@ export const BillingOverview = ({
           </p>
         </div>
         {stats.unbilledCount > 0 && onMarkAllBilled && (
-          <button
+          <Button
             onClick={onMarkAllBilled}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            icon={<Zap size={18} />}
+            className="bg-green-600 hover:bg-green-700"
           >
-            <Zap size={18} />
             Alle abrechnen
-          </button>
+          </Button>
         )}
       </div>
 
@@ -124,7 +124,7 @@ export const BillingOverview = ({
 
       {/* Top Customers Quick List */}
       {stats.topCustomers.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <Card className="rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <TrendingUp size={18} className="text-orange-500" />
@@ -157,19 +157,19 @@ export const BillingOverview = ({
                     </p>
                   </div>
                   {onCreateInvoice && customer.sevdeskCustomerId && (
-                    <button
+                    <Button
                       onClick={() => onCreateInvoice(customer)}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+                      size="sm"
+                      icon={<Receipt size={14} />}
                     >
-                      <Receipt size={14} />
                       Rechnung
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Empty State */}

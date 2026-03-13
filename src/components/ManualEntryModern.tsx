@@ -8,6 +8,8 @@ import { ModernDatePicker } from './ModernDatePicker';
 import { ModernTimePicker } from './ModernTimePicker';
 import { SearchableSelect } from './SearchableSelect';
 import { Toast, useToast } from './Toast';
+import { Button } from './ui/Button';
+import { Card } from './ui/Card';
 
 interface ManualEntryModernProps {
   onSave: (entry: TimeEntry) => void;
@@ -192,7 +194,7 @@ export const ManualEntryModern = ({
         />
 
         {/* Time Range */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+        <Card className="rounded-2xl p-4">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             Zeitraum
           </label>
@@ -260,7 +262,7 @@ export const ManualEntryModern = ({
               ))}
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Project Selection */}
         <div className="space-y-4">
@@ -327,21 +329,19 @@ export const ManualEntryModern = ({
         </div>
 
         {/* Submit Button */}
-        <button
+        <Button
           type="submit"
           disabled={!projectId || calculatedDuration <= 0}
-          className={`
-            w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-semibold text-lg
-            transition-all duration-200
-            ${projectId && calculatedDuration > 0
-              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40'
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-            }
-          `}
+          fullWidth
+          size="lg"
+          icon={<Save size={22} />}
+          className={projectId && calculatedDuration > 0
+            ? 'py-4 text-lg shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40'
+            : 'py-4 text-lg'
+          }
         >
-          <Save size={22} />
           Eintrag speichern
-        </button>
+        </Button>
       </form>
 
       <Toast

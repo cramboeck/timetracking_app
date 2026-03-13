@@ -3,6 +3,8 @@ import { Bell, BellOff } from 'lucide-react';
 import { IOSSwitch } from '../IOSSwitch';
 import { PushNotificationSettings } from '../PushNotificationSettings';
 import { notificationService } from '../../utils/notifications';
+import { Button } from '../ui/Button';
+import { Card, CardContent } from '../ui/Card';
 
 export const NotificationSettings = () => {
   // Notification Settings State (synced with localStorage)
@@ -60,12 +62,13 @@ export const NotificationSettings = () => {
               <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">
                 Aktiviere Push-Benachrichtigungen um keine wichtigen Erinnerungen zu verpassen.
               </p>
-              <button
+              <Button
                 onClick={requestNotificationPermission}
-                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium"
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700"
               >
                 Benachrichtigungen aktivieren
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -75,7 +78,7 @@ export const NotificationSettings = () => {
       <PushNotificationSettings />
 
       {/* In-App Notifications */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+      <Card className="rounded-xl p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
             <Bell size={24} className="text-blue-600 dark:text-blue-400" />
@@ -119,7 +122,7 @@ export const NotificationSettings = () => {
             onChange={(v) => handleToggleNotification('notification_weekly_report', v, setNotifWeeklyReport)}
           />
         </div>
-      </div>
+      </Card>
     </div>
   );
 };
