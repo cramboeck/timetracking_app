@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Monitor, Laptop, Server, Wifi, WifiOff, RefreshCw, Search, User, Globe, AlertTriangle, ChevronDown, ChevronUp, Clock, CheckCircle, HardDrive, Cpu, Power, LayoutGrid, List, Package, Shield } from 'lucide-react';
 import { customerPortalApi, PortalContact, PortalDevice, PortalDeviceAlert } from '../../services/api';
+import { Button, IconButton } from '../ui/Button';
 
 interface PortalDevicesProps {
   contact: PortalContact;
@@ -343,36 +344,28 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
         <div className="flex items-center gap-2">
           {/* View Toggle */}
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-            <button
+            <IconButton
+              icon={<LayoutGrid size={18} />}
               onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-md transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
-              title="Kachelansicht"
-            >
-              <LayoutGrid size={18} />
-            </button>
-            <button
+              variant={viewMode === 'grid' ? 'primary' : 'default'}
+              tooltip="Kachelansicht"
+              className={viewMode === 'grid' ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : ''}
+            />
+            <IconButton
+              icon={<List size={18} />}
               onClick={() => setViewMode('table')}
-              className={`p-2 rounded-md transition-colors ${
-                viewMode === 'table'
-                  ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
-              title="Tabellenansicht"
-            >
-              <List size={18} />
-            </button>
+              variant={viewMode === 'table' ? 'primary' : 'default'}
+              tooltip="Tabellenansicht"
+              className={viewMode === 'table' ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : ''}
+            />
           </div>
-          <button
+          <Button
             onClick={loadDevices}
-            className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            variant="ghost"
+            icon={<RefreshCw size={18} />}
           >
-            <RefreshCw size={18} />
             Aktualisieren
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -710,9 +703,11 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
 
                     {/* Software Section */}
                     <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
-                      <button
+                      <Button
                         onClick={(e) => { e.stopPropagation(); toggleSoftware(device.id); }}
-                        className="w-full flex items-center justify-between text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full flex items-center justify-between text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
                       >
                         <span className="flex items-center gap-1">
                           <Package size={12} />
@@ -724,7 +719,7 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                           )}
                         </span>
                         {showSoftware === device.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      </button>
+                      </Button>
 
                       {showSoftware === device.id && (
                         <div className="mt-3">
@@ -748,38 +743,42 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                                       className="w-full pl-7 pr-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                     />
                                   </div>
-                                  <button
+                                  <IconButton
+                                    icon={<RefreshCw size={12} className={loadingSoftware === device.id ? 'animate-spin' : ''} />}
                                     onClick={(e) => { e.stopPropagation(); loadDeviceSoftware(device.id, true); }}
                                     disabled={loadingSoftware === device.id}
-                                    className="p-1.5 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 disabled:opacity-50"
-                                    title="Aktualisieren"
-                                  >
-                                    <RefreshCw size={12} className={loadingSoftware === device.id ? 'animate-spin' : ''} />
-                                  </button>
+                                    tooltip="Aktualisieren"
+                                    size="sm"
+                                    className="border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700"
+                                  />
                                 </div>
 
                                 {/* Sort Toggle */}
                                 <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded p-0.5" onClick={(e) => e.stopPropagation()}>
-                                  <button
+                                  <Button
                                     onClick={() => setSoftwareSort('name')}
-                                    className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+                                    variant="ghost"
+                                    size="sm"
+                                    className={`flex-1 px-2 py-1 text-xs rounded ${
                                       softwareSort === 'name'
                                         ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
                                         : 'text-gray-500 dark:text-gray-400'
                                     }`}
                                   >
                                     A-Z
-                                  </button>
-                                  <button
+                                  </Button>
+                                  <Button
                                     onClick={() => setSoftwareSort('date')}
-                                    className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+                                    variant="ghost"
+                                    size="sm"
+                                    className={`flex-1 px-2 py-1 text-xs rounded ${
                                       softwareSort === 'date'
                                         ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
                                         : 'text-gray-500 dark:text-gray-400'
                                     }`}
                                   >
                                     Datum
-                                  </button>
+                                  </Button>
                                 </div>
                               </div>
 
@@ -814,9 +813,11 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
 
                     {/* Windows Updates Section */}
                     <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
-                      <button
+                      <Button
                         onClick={(e) => { e.stopPropagation(); togglePatches(device.id); }}
-                        className="w-full flex items-center justify-between text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full flex items-center justify-between text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
                       >
                         <span className="flex items-center gap-1">
                           <Shield size={12} />
@@ -828,7 +829,7 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                           )}
                         </span>
                         {showPatches === device.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      </button>
+                      </Button>
 
                       {showPatches === device.id && (
                         <div className="mt-3">

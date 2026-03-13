@@ -755,19 +755,20 @@ export const KnowledgeBaseSettings = () => {
           </label>
 
           <div className="flex justify-end gap-2 pt-4">
-            <button
+            <Button
               onClick={() => setCategoryModalOpen(false)}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+              variant="secondary"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSaveCategory}
-              disabled={saving || !categoryForm.name.trim()}
-              className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+              disabled={!categoryForm.name.trim()}
+              loading={saving}
+              variant="primary"
             >
               {saving ? 'Speichere...' : 'Speichern'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -784,14 +785,15 @@ export const KnowledgeBaseSettings = () => {
           {!editingArticle && aiConfigured && (
             <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
               {!showTicketSelector ? (
-                <button
+                <Button
                   onClick={() => setShowTicketSelector(true)}
-                  className="flex items-center gap-2 text-purple-700 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-200 transition-colors"
+                  variant="ghost"
+                  icon={<Sparkles size={18} />}
+                  className="text-purple-700 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-200"
                 >
-                  <Sparkles size={18} />
                   <span className="font-medium">Aus Ticket generieren</span>
                   <span className="text-sm text-purple-600 dark:text-purple-400">(KI)</span>
-                </button>
+                </Button>
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -799,12 +801,11 @@ export const KnowledgeBaseSettings = () => {
                       <Ticket size={18} />
                       <span className="font-medium">Ticket auswählen</span>
                     </div>
-                    <button
+                    <IconButton
                       onClick={() => setShowTicketSelector(false)}
-                      className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                    >
-                      <X size={18} />
-                    </button>
+                      icon={<X size={18} />}
+                      tooltip="Schließen"
+                    />
                   </div>
 
                   {/* Ticket search */}
@@ -870,23 +871,16 @@ export const KnowledgeBaseSettings = () => {
                   </div>
 
                   {/* Generate button */}
-                  <button
+                  <Button
                     onClick={handleGenerateFromTicket}
-                    disabled={!selectedTicketId || generatingFromTicket}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!selectedTicketId}
+                    loading={generatingFromTicket}
+                    variant="primary"
+                    fullWidth
+                    icon={generatingFromTicket ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
                   >
-                    {generatingFromTicket ? (
-                      <>
-                        <Loader2 size={18} className="animate-spin" />
-                        Generiere...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={18} />
-                        Artikel generieren
-                      </>
-                    )}
-                  </button>
+                    {generatingFromTicket ? 'Generiere...' : 'Artikel generieren'}
+                  </Button>
                 </div>
               )}
             </div>
@@ -1014,19 +1008,20 @@ export const KnowledgeBaseSettings = () => {
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
-            <button
+            <Button
               onClick={() => setArticleModalOpen(false)}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50 rounded-lg transition-colors"
+              variant="secondary"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSaveArticle}
-              disabled={saving || !articleForm.title.trim() || !articleForm.content.trim()}
-              className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+              disabled={!articleForm.title.trim() || !articleForm.content.trim()}
+              loading={saving}
+              variant="primary"
             >
               {saving ? 'Speichere...' : 'Speichern'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

@@ -16,6 +16,7 @@ import {
   Bot,
 } from 'lucide-react';
 import { sevdeskApi, PositionSearchResult, CreateQuoteInput, aiApi } from '../services/api';
+import { Button, IconButton } from './ui/Button';
 
 interface SevdeskContact {
   id: string;
@@ -527,12 +528,12 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
             <FileText size={20} />
             {isEditing ? 'Angebot bearbeiten' : 'Neues Angebot erstellen'}
           </h3>
-          <button
+          <IconButton
             onClick={onClose}
-            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            <X size={20} />
-          </button>
+            icon={<X size={20} />}
+            variant="default"
+            tooltip="Schließen"
+          />
         </div>
 
         {/* Content */}
@@ -635,19 +636,16 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                 ))}
               </select>
               {aiConfigured && (
-                <button
+                <Button
                   onClick={generateAiHeadText}
                   disabled={generatingHeadText}
-                  className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
-                  title="KI generiert Text"
+                  variant="secondary"
+                  size="sm"
+                  icon={generatingHeadText ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400"
                 >
-                  {generatingHeadText ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Sparkles size={12} />
-                  )}
                   KI-Text
-                </button>
+                </Button>
               )}
             </div>
             <textarea
@@ -666,25 +664,31 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                 Positionen *
               </label>
               <div className="flex gap-2">
-                <button
-                  onClick={addHeading}
-                  className="text-xs px-2 py-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded"
-                >
-                  + Zwischenüberschrift
-                </button>
-                <button
-                  onClick={() => addPosition()}
-                  className="text-xs px-2 py-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded"
-                >
-                  + Leere Position
-                </button>
-                <button
-                  onClick={() => setShowPositionSearch(!showPositionSearch)}
-                  className="text-xs px-2 py-1 bg-accent-primary text-white rounded flex items-center gap-1"
-                >
-                  <Search size={12} />
-                  Aus Vorlagen
-                </button>
+                <Button
+                onClick={addHeading}
+                variant="outline"
+                size="sm"
+                className="text-xs"
+              >
+                + Zwischenüberschrift
+              </Button>
+              <Button
+                onClick={() => addPosition()}
+                variant="outline"
+                size="sm"
+                className="text-xs"
+              >
+                + Leere Position
+              </Button>
+              <Button
+                onClick={() => setShowPositionSearch(!showPositionSearch)}
+                variant="primary"
+                size="sm"
+                icon={<Search size={12} />}
+                className="text-xs"
+              >
+                Aus Vorlagen
+              </Button>
               </div>
             </div>
 
@@ -792,35 +796,38 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                         )}
                       </div>
                       <div className="flex items-center gap-1">
-                        <button
+                        <IconButton
                           onClick={(e) => {
                             e.stopPropagation();
                             movePosition(index, 'up');
                           }}
                           disabled={index === 0}
-                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
-                        >
-                          <ChevronUp size={16} />
-                        </button>
-                        <button
+                          icon={<ChevronUp size={16} />}
+                          variant="default"
+                          size="sm"
+                          tooltip="Nach oben"
+                        />
+                        <IconButton
                           onClick={(e) => {
                             e.stopPropagation();
                             movePosition(index, 'down');
                           }}
                           disabled={index === positions.length - 1}
-                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
-                        >
-                          <ChevronDown size={16} />
-                        </button>
-                        <button
+                          icon={<ChevronDown size={16} />}
+                          variant="default"
+                          size="sm"
+                          tooltip="Nach unten"
+                        />
+                        <IconButton
                           onClick={(e) => {
                             e.stopPropagation();
                             removePosition(pos.id);
                           }}
-                          className="p-1 text-red-400 hover:text-red-600"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                          icon={<Trash2 size={16} />}
+                          variant="danger"
+                          size="sm"
+                          tooltip="Löschen"
+                        />
                       </div>
                     </div>
 
@@ -849,32 +856,26 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                                 <div className="flex items-center gap-2">
                                   {aiConfigured && pos.name && (
                                     <>
-                                      <button
+                                      <Button
                                         onClick={() => generateDescription(pos.id, pos.name)}
                                         disabled={generatingDescription === pos.id}
-                                        className="flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
-                                        title="KI generiert Beschreibung"
+                                        variant="secondary"
+                                        size="sm"
+                                        icon={generatingDescription === pos.id ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                                        className="text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400"
                                       >
-                                        {generatingDescription === pos.id ? (
-                                          <Loader2 size={10} className="animate-spin" />
-                                        ) : (
-                                          <Sparkles size={10} />
-                                        )}
                                         Beschreibung
-                                      </button>
-                                      <button
+                                      </Button>
+                                      <Button
                                         onClick={() => researchPrice(pos.id, pos.name)}
                                         disabled={researchingPrice === pos.id}
-                                        className="flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
-                                        title="KI Preisrecherche"
+                                        variant="secondary"
+                                        size="sm"
+                                        icon={researchingPrice === pos.id ? <Loader2 size={10} className="animate-spin" /> : <Bot size={10} />}
+                                        className="text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400"
                                       >
-                                        {researchingPrice === pos.id ? (
-                                          <Loader2 size={10} className="animate-spin" />
-                                        ) : (
-                                          <Bot size={10} />
-                                        )}
                                         Preis
-                                      </button>
+                                      </Button>
                                     </>
                                   )}
                                 </div>
