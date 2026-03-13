@@ -5,7 +5,7 @@ import { AccountType } from '../types';
 import { ForgotPassword } from './ForgotPassword';
 import { ResetPassword } from './ResetPassword';
 import { organizationsApi } from '../services/api';
-import { Button } from './ui/Button';
+import { Button } from './ui';
 
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'join-organization';
 
@@ -364,16 +364,17 @@ export const Auth = () => {
 
           {/* Back Link */}
           <div className="text-center mt-6">
-            <button
+            <Button
               onClick={() => {
                 window.history.replaceState({}, '', '/');
                 setAuthView('login');
                 setInvitationCode(null);
               }}
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-accent-primary transition-colors"
+              variant="ghost"
+              size="sm"
             >
               Zurück zur normalen Anmeldung
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -548,13 +549,14 @@ export const Auth = () => {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Passwort
                       </label>
-                      <button
+                      <Button
                         type="button"
                         onClick={() => setAuthView('forgot-password')}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors"
+                        variant="ghost"
+                        size="sm"
                       >
                         Passwort vergessen?
-                      </button>
+                      </Button>
                     </div>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
