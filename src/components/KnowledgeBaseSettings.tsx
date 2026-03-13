@@ -4,7 +4,7 @@ import {
   Star, Save, Palette, Globe, Image, ChevronDown, ChevronUp, Search, X,
   Sparkles, Ticket, Loader2
 } from 'lucide-react';
-import { Button, IconButton } from './ui/Button';
+import { Button, IconButton } from './ui';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { knowledgeBaseApi, portalSettingsApi, aiApi, ticketsApi, KbCategory, KbArticle, PortalSettings } from '../services/api';
