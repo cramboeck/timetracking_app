@@ -853,38 +853,42 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
                                       className="w-full pl-7 pr-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                     />
                                   </div>
-                                  <button
+                                  <IconButton
+                                    icon={<RefreshCw size={12} className={loadingPatches === device.id ? 'animate-spin' : ''} />}
                                     onClick={(e) => { e.stopPropagation(); loadDevicePatches(device.id, true); }}
                                     disabled={loadingPatches === device.id}
-                                    className="p-1.5 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 disabled:opacity-50"
-                                    title="Aktualisieren"
-                                  >
-                                    <RefreshCw size={12} className={loadingPatches === device.id ? 'animate-spin' : ''} />
-                                  </button>
+                                    tooltip="Aktualisieren"
+                                    size="sm"
+                                    className="border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700"
+                                  />
                                 </div>
 
                                 {/* Tab Toggle */}
                                 <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded p-0.5" onClick={(e) => e.stopPropagation()}>
-                                  <button
+                                  <Button
                                     onClick={() => setPatchesTab('pending')}
-                                    className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+                                    variant="ghost"
+                                    size="sm"
+                                    className={`flex-1 px-2 py-1 text-xs rounded ${
                                       patchesTab === 'pending'
                                         ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
                                         : 'text-gray-500 dark:text-gray-400'
                                     }`}
                                   >
                                     Ausstehend ({devicePatches[device.id]?.pending?.length || 0})
-                                  </button>
-                                  <button
+                                  </Button>
+                                  <Button
                                     onClick={() => setPatchesTab('installed')}
-                                    className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+                                    variant="ghost"
+                                    size="sm"
+                                    className={`flex-1 px-2 py-1 text-xs rounded ${
                                       patchesTab === 'installed'
                                         ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
                                         : 'text-gray-500 dark:text-gray-400'
                                     }`}
                                   >
                                     Installiert ({devicePatches[device.id]?.installed?.length || 0})
-                                  </button>
+                                  </Button>
                                 </div>
                               </div>
 

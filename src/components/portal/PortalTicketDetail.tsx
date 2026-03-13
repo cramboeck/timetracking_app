@@ -7,6 +7,7 @@ import {
 import { customerPortalApi, PortalTicket, PortalComment, getApiBaseUrl } from '../../services/api';
 import { MarkdownEditor } from '../MarkdownEditor';
 import { MarkdownRenderer } from '../MarkdownRenderer';
+import { Button, IconButton } from '../ui/Button';
 
 // Helper to convert relative file URLs to absolute URLs
 const getAbsoluteFileUrl = (fileUrl: string): string => {

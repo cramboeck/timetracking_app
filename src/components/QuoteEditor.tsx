@@ -1047,19 +1047,16 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                 ))}
               </select>
               {aiConfigured && (
-                <button
+                <Button
                   onClick={generateAiFootText}
                   disabled={generatingFootText}
-                  className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
-                  title="KI generiert Text"
+                  variant="secondary"
+                  size="sm"
+                  icon={generatingFootText ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400"
                 >
-                  {generatingFootText ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Sparkles size={12} />
-                  )}
                   KI-Text
-                </button>
+                </Button>
               )}
             </div>
             <textarea
@@ -1087,20 +1084,20 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
-          <button
+          <Button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+            variant="outline"
           >
             Abbrechen
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSubmit}
             disabled={submitting || !!success}
-            className="px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50 flex items-center gap-2"
+            variant="primary"
+            loading={submitting}
           >
-            {submitting && <Loader2 size={16} className="animate-spin" />}
             {success ? 'Erstellt!' : createAsDraft ? 'Als Entwurf speichern' : 'Angebot erstellen'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

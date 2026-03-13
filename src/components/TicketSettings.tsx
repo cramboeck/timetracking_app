@@ -847,18 +847,17 @@ export const TicketSettings = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
-                      <button
+                      <IconButton
                         onClick={() => startEditSla(policy)}
-                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
+                        icon={<Edit2 size={16} />}
+                        tooltip="Bearbeiten"
+                      />
+                      <IconButton
                         onClick={() => setSlaToDelete(policy)}
-                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                        icon={<Trash2 size={16} />}
+                        variant="danger"
+                        tooltip="Löschen"
+                      />
                     </div>
                   </div>
                 </div>

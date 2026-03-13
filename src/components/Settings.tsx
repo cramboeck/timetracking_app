@@ -2615,23 +2615,23 @@ export const Settings = ({
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => {
                     setMappingModalOpen(false);
                     setCsvPreviewData(null);
                     setColumnMappings({});
                   }}
-                  className="px-6 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
                   Abbrechen
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="primary"
                   onClick={processImportWithMappings}
                   disabled={!Object.values(columnMappings).includes('name')}
-                  className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
                 >
                   {csvPreviewData.allData.length} {csvPreviewData.allData.length === 1 ? 'Kunde' : 'Kunden'} importieren
-                </button>
+                </Button>
               </div>
             </>
           )}
@@ -2686,20 +2686,21 @@ export const Settings = ({
           )}
 
           <div className="flex gap-3 pt-4">
-            <button
+            <Button
+              variant="primary"
               onClick={handleSaveProfile}
               disabled={!!profileSuccess}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-darker disabled:bg-gray-400 text-white rounded-lg transition-colors"
+              icon={<Save size={18} />}
+              fullWidth
             >
-              <Save size={18} />
               Speichern
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setEditProfileOpen(false)}
-              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg transition-colors"
             >
               Abbrechen
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
