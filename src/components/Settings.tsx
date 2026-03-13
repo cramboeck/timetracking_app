@@ -12,6 +12,7 @@ import { PushNotificationSettings } from './PushNotificationSettings';
 import { AISettings } from './AISettings';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 import { CustomerNinjaRMMLink } from './CustomerNinjaRMMLink';
+import { CustomerDetailModal } from './CustomerDetailModal';
 import { IOSSwitch } from './IOSSwitch';
 import { MFASettings } from './MFASettings';
 import { ClockodoImport } from './ClockodoImport';
@@ -104,6 +105,9 @@ export const Settings = ({
 
   // Customer Email Domains Modal
   const [emailDomainsCustomer, setEmailDomainsCustomer] = useState<Customer | null>(null);
+
+  // Customer Detail Modal (CRM view)
+  const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
 
   // Pending domain from navigation (shown as hint when creating customer)
   const [pendingDomain, setPendingDomain] = useState<string | null>(null);
@@ -1683,6 +1687,13 @@ export const Settings = ({
                             </div>
                           </div>
                           <div className="flex gap-2 ml-2">
+                            <button
+                              onClick={() => setDetailCustomer(customer)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              title="Kundendetails anzeigen"
+                            >
+                              <Building size={18} />
+                            </button>
                             {billingEnabled && (
                               <button
                                 onClick={() => setSevdeskLinkCustomer(customer)}
@@ -3699,6 +3710,20 @@ export const Settings = ({
           onLinked={() => {
             // Reload customers to get updated ninjarmmOrganizationId
             window.location.reload();
+          }}
+        />
+      )}
+
+      {/* Customer Detail Modal (CRM) */}
+      {detailCustomer && (
+        <CustomerDetailModal
+          isOpen={!!detailCustomer}
+          customer={detailCustomer}
+          projects={projects}
+          onClose={() => setDetailCustomer(null)}
+          onEdit={() => {
+            openCustomerModal(detailCustomer);
+            setDetailCustomer(null);
           }}
         />
       )}
