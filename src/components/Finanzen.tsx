@@ -34,6 +34,7 @@ import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQ
 import { QuoteEditor } from './QuoteEditor';
 import { SevdeskSettings } from './SevdeskSettings';
 import { InvoiceCreationDialog } from './InvoiceCreationDialog';
+import { BillingOverview } from './BillingOverview';
 
 type FinanzenTab = 'billing' | 'documents' | 'settings';
 type DocumentType = 'invoices' | 'quotes' | 'vouchers';
@@ -497,6 +498,27 @@ const BillingTab = () => {
           <Check size={18} />
           <span className="text-sm">{success}</span>
         </div>
+      )}
+
+      {/* Billing Overview Stats */}
+      {!loading && billingSummary.length > 0 && (
+        <BillingOverview
+          billingSummary={billingSummary.map(item => ({
+            customerId: item.customerId,
+            customerName: item.customerName,
+            totalHours: item.totalHours,
+            roundedHours: item.roundedHours,
+            totalAmount: item.totalAmount || 0,
+            isBilled: item.isBilled || false,
+            sevdeskCustomerId: item.sevdeskCustomerId,
+            entryCount: item.entries?.length || 0,
+          }))}
+          periodName={periodName}
+          onCreateInvoice={hasConfig ? (customer) => {
+            const item = billingSummary.find(b => b.customerId === customer.customerId);
+            if (item) handleCreateInvoice(item);
+          } : undefined}
+        />
       )}
 
       {/* Period Type Toggle */}
