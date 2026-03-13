@@ -3,7 +3,7 @@
  * Handles lead management and conversion
  */
 
-import { API_BASE_URL, authFetch, handleResponse } from './base';
+import { authFetch } from './base';
 
 // ============================================
 // Types
@@ -121,52 +121,43 @@ export const leadsApi = {
     if (filters?.priority) params.append('priority', filters.priority);
     if (filters?.source) params.append('source', filters.source);
 
-    const url = params.toString()
-      ? `${API_BASE_URL}/leads?${params.toString()}`
-      : `${API_BASE_URL}/leads`;
-
-    const response = await authFetch(url);
-    return handleResponse(response);
+    const url = params.toString() ? `/leads?${params.toString()}` : `/leads`;
+    return authFetch(url);
   },
 
   // Get pipeline statistics
   getPipeline: async (): Promise<{ success: boolean; data: LeadPipelineStats[] }> => {
-    const response = await authFetch(`${API_BASE_URL}/leads/pipeline`);
-    return handleResponse(response);
+    return authFetch(`/leads/pipeline`);
   },
 
   // Get single lead with activities
   getById: async (id: string): Promise<{ success: boolean; data: Lead }> => {
-    const response = await authFetch(`${API_BASE_URL}/leads/${id}`);
-    return handleResponse(response);
+    return authFetch(`/leads/${id}`);
   },
 
   // Create lead
   create: async (data: CreateLeadInput): Promise<{ success: boolean; data: Lead }> => {
-    const response = await authFetch(`${API_BASE_URL}/leads`, {
+    return authFetch(`/leads`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
   },
 
   // Update lead
   update: async (id: string, data: UpdateLeadInput): Promise<{ success: boolean; data: Lead }> => {
-    const response = await authFetch(`${API_BASE_URL}/leads/${id}`, {
+    return authFetch(`/leads/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
   },
 
   // Delete lead
   delete: async (id: string): Promise<{ success: boolean; message: string }> => {
-    const response = await authFetch(`${API_BASE_URL}/leads/${id}`, {
+    return authFetch(`/leads/${id}`, {
       method: 'DELETE',
     });
-    return handleResponse(response);
   },
 
   // Add activity to lead
@@ -174,12 +165,11 @@ export const leadsApi = {
     leadId: string,
     data: CreateLeadActivityInput
   ): Promise<{ success: boolean; data: LeadActivity }> => {
-    const response = await authFetch(`${API_BASE_URL}/leads/${leadId}/activities`, {
+    return authFetch(`/leads/${leadId}/activities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
   },
 
   // Complete activity
@@ -188,15 +178,11 @@ export const leadsApi = {
     activityId: string,
     outcome?: string
   ): Promise<{ success: boolean; message: string }> => {
-    const response = await authFetch(
-      `${API_BASE_URL}/leads/${leadId}/activities/${activityId}/complete`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome }),
-      }
-    );
-    return handleResponse(response);
+    return authFetch(`/leads/${leadId}/activities/${activityId}/complete`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ outcome }),
+    });
   },
 
   // Convert lead to customer
@@ -205,11 +191,10 @@ export const leadsApi = {
     createCustomer: boolean,
     customerColor?: string
   ): Promise<{ success: boolean; message: string; customerId?: string }> => {
-    const response = await authFetch(`${API_BASE_URL}/leads/${leadId}/convert`, {
+    return authFetch(`/leads/${leadId}/convert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ createCustomer, customerColor }),
     });
-    return handleResponse(response);
   },
 };

@@ -3,7 +3,7 @@
  * Handles customer interactions, opportunities, and sales pipeline
  */
 
-import { API_BASE_URL, authFetch, handleResponse } from './base';
+import { authFetch } from './base';
 
 // ============================================
 // Types
@@ -229,14 +229,12 @@ export const interactionsApi = {
     if (filters?.limit) params.append('limit', String(filters.limit));
     if (filters?.offset) params.append('offset', String(filters.offset));
 
-    const response = await authFetch(`${API_BASE_URL}/interactions?${params.toString()}`);
-    return handleResponse(response);
+    return authFetch(`/interactions?${params.toString()}`);
   },
 
   // Get single interaction
   getById: async (id: string): Promise<Interaction> => {
-    const response = await authFetch(`${API_BASE_URL}/interactions/${id}`);
-    return handleResponse(response);
+    return authFetch(`/interactions/${id}`);
   },
 
   // Get pending follow-ups
@@ -248,8 +246,7 @@ export const interactionsApi = {
     const params = new URLSearchParams();
     if (assignedToMe) params.append('assigned_to_me', 'true');
     if (overdueOnly) params.append('overdue_only', 'true');
-    const response = await authFetch(`${API_BASE_URL}/interactions/follow-ups?${params.toString()}`);
-    return handleResponse(response);
+    return authFetch(`/interactions/follow-ups?${params.toString()}`);
   },
 
   // Get customer timeline
@@ -258,35 +255,31 @@ export const interactionsApi = {
     total: number;
   }> => {
     const params = limit ? `?limit=${limit}` : '';
-    const response = await authFetch(`${API_BASE_URL}/interactions/customer/${customerId}/timeline${params}`);
-    return handleResponse(response);
+    return authFetch(`/interactions/customer/${customerId}/timeline${params}`);
   },
 
   // Get stats
   getStats: async (periodDays?: number): Promise<InteractionStats> => {
     const params = periodDays ? `?period=${periodDays}` : '';
-    const response = await authFetch(`${API_BASE_URL}/interactions/stats/overview${params}`);
-    return handleResponse(response);
+    return authFetch(`/interactions/stats/overview${params}`);
   },
 
   // Create interaction
   create: async (data: Partial<Interaction>): Promise<Interaction> => {
-    const response = await authFetch(`${API_BASE_URL}/interactions`, {
+    return authFetch(`/interactions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
   },
 
   // Update interaction
   update: async (id: string, data: Partial<Interaction>): Promise<Interaction> => {
-    const response = await authFetch(`${API_BASE_URL}/interactions/${id}`, {
+    return authFetch(`/interactions/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
   },
 
   // Complete follow-up
@@ -294,7 +287,7 @@ export const interactionsApi = {
     success: boolean;
     interaction: Interaction;
   }> => {
-    const response = await authFetch(`${API_BASE_URL}/interactions/${id}/complete-follow-up`, {
+    return authFetch(`/interactions/${id}/complete-follow-up`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -303,15 +296,13 @@ export const interactionsApi = {
         new_follow_up_notes: newNotes,
       }),
     });
-    return handleResponse(response);
   },
 
   // Delete interaction
   delete: async (id: string): Promise<{ success: boolean }> => {
-    const response = await authFetch(`${API_BASE_URL}/interactions/${id}`, {
+    return authFetch(`/interactions/${id}`, {
       method: 'DELETE',
     });
-    return handleResponse(response);
   },
 };
 
@@ -322,47 +313,42 @@ export const interactionsApi = {
 export const pipelineStagesApi = {
   // Get all stages
   getAll: async (): Promise<PipelineStage[]> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities/stages`);
-    return handleResponse(response);
+    return authFetch(`/opportunities/stages`);
   },
 
   // Create stage
   create: async (data: Partial<PipelineStage>): Promise<PipelineStage> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities/stages`, {
+    return authFetch(`/opportunities/stages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
   },
 
   // Update stage
   update: async (id: string, data: Partial<PipelineStage>): Promise<PipelineStage> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities/stages/${id}`, {
+    return authFetch(`/opportunities/stages/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
   },
 
   // Reorder stages
   reorder: async (stageIds: string[]): Promise<PipelineStage[]> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities/stages/reorder`, {
+    return authFetch(`/opportunities/stages/reorder`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage_ids: stageIds }),
     });
-    return handleResponse(response);
   },
 
   // Delete stage
   delete: async (id: string, moveToStageId?: string): Promise<{ success: boolean }> => {
     const params = moveToStageId ? `?move_opportunities_to=${moveToStageId}` : '';
-    const response = await authFetch(`${API_BASE_URL}/opportunities/stages/${id}${params}`, {
+    return authFetch(`/opportunities/stages/${id}${params}`, {
       method: 'DELETE',
     });
-    return handleResponse(response);
   },
 };
 
@@ -390,63 +376,55 @@ export const opportunitiesApi = {
     if (filters?.limit) params.append('limit', String(filters.limit));
     if (filters?.offset) params.append('offset', String(filters.offset));
 
-    const response = await authFetch(`${API_BASE_URL}/opportunities?${params.toString()}`);
-    return handleResponse(response);
+    return authFetch(`/opportunities?${params.toString()}`);
   },
 
   // Get pipeline view (grouped by stage)
   getPipeline: async (): Promise<PipelineView> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities/pipeline`);
-    return handleResponse(response);
+    return authFetch(`/opportunities/pipeline`);
   },
 
   // Get forecast
   getForecast: async (months?: number): Promise<OpportunityForecast> => {
     const params = months ? `?months=${months}` : '';
-    const response = await authFetch(`${API_BASE_URL}/opportunities/forecast${params}`);
-    return handleResponse(response);
+    return authFetch(`/opportunities/forecast${params}`);
   },
 
   // Get stats
   getStats: async (): Promise<OpportunityStats> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities/stats/overview`);
-    return handleResponse(response);
+    return authFetch(`/opportunities/stats/overview`);
   },
 
   // Get single opportunity
   getById: async (id: string): Promise<Opportunity> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities/${id}`);
-    return handleResponse(response);
+    return authFetch(`/opportunities/${id}`);
   },
 
   // Create opportunity
   create: async (data: Partial<Opportunity>): Promise<Opportunity> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities`, {
+    return authFetch(`/opportunities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
   },
 
   // Update opportunity
   update: async (id: string, data: Partial<Opportunity>): Promise<Opportunity> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities/${id}`, {
+    return authFetch(`/opportunities/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
   },
 
   // Move to different stage
   move: async (id: string, stageId: string, note?: string): Promise<Opportunity> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities/${id}/move`, {
+    return authFetch(`/opportunities/${id}/move`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage_id: stageId, note }),
     });
-    return handleResponse(response);
   },
 
   // Add activity
@@ -454,19 +432,17 @@ export const opportunitiesApi = {
     opportunityId: string,
     data: Partial<OpportunityActivity>
   ): Promise<OpportunityActivity> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities/${opportunityId}/activities`, {
+    return authFetch(`/opportunities/${opportunityId}/activities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
   },
 
   // Delete opportunity
   delete: async (id: string): Promise<{ success: boolean }> => {
-    const response = await authFetch(`${API_BASE_URL}/opportunities/${id}`, {
+    return authFetch(`/opportunities/${id}`, {
       method: 'DELETE',
     });
-    return handleResponse(response);
   },
 };
