@@ -35,7 +35,7 @@ import {
   XCircle,
   X
 } from 'lucide-react';
-import { Button, IconButton } from './ui/Button';
+import { Button, IconButton } from './ui';
 import { adminApi } from '../services/adminApi';
 import { useAuth } from '../contexts/AuthContext';
 
