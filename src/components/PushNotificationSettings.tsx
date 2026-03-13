@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Check,
   X,
+  Loader2,
 } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { Button, IconButton } from './ui';
@@ -144,8 +145,8 @@ export const PushNotificationSettings = () => {
             {isSubscribed && (
               <Button
                 onClick={handleTestNotification}
-                isDisabled={testSending || loading}
-                isLoading={testSending}
+                disabled={testSending || loading}
+                loading={testSending}
                 variant="secondary"
                 size="sm"
                 icon={<Send size={16} />}
@@ -155,8 +156,8 @@ export const PushNotificationSettings = () => {
             )}
             <Button
               onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
-              isDisabled={loading || permission === 'denied' || actionLoading !== null}
-              isLoading={actionLoading === 'subscribe' || actionLoading === 'unsubscribe'}
+              disabled={loading || permission === 'denied' || actionLoading !== null}
+              loading={actionLoading === 'subscribe' || actionLoading === 'unsubscribe'}
               variant={isSubscribed ? 'secondary' : 'primary'}
               size="md"
               icon={isSubscribed ? <BellOff size={18} /> : <Bell size={18} />}
