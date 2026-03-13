@@ -4,7 +4,7 @@ import {
   Ticket, Monitor, Bell, Wrench, Mail,
   BarChart3, Wallet, FileText, FileSignature, Share2, FileInput,
   Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo,
-  ChevronLeft, ChevronRight, Shield
+  ChevronLeft, ChevronRight, Shield, Users, Target
 } from 'lucide-react';
 import { useFeatures } from '../contexts/FeaturesContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -46,6 +46,8 @@ const areaConfig = {
     label: 'Business',
     subViews: [
       { view: 'dashboard' as SubView, icon: BarChart3, label: 'Dashboard' },
+      { view: 'leads' as SubView, icon: Users, label: 'Leads' },
+      { view: 'pipeline' as SubView, icon: Target, label: 'Pipeline' },
       { view: 'invoices' as SubView, icon: FileInput, label: 'Rechnungen' },
       { view: 'contracts' as SubView, icon: FileSignature, label: 'Verträge' },
       { view: 'billing' as SubView, icon: Wallet, label: 'Finanzen' },
