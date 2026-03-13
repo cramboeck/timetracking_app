@@ -70,6 +70,8 @@ import { StatWidget } from './ui/StatWidget';
 import { InteractionsTimeline } from './InteractionsTimeline';
 import { Modal } from './Modal';
 import { CustomerContacts } from './CustomerContacts';
+import { CreateTicketDialog } from './CreateTicketDialog';
+import TaskModal from './TaskModal';
 
 // ============================================
 // Types
@@ -1234,6 +1236,8 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
 
   // Modal states
   const [showContactsModal, setShowContactsModal] = useState(false);
+  const [showTicketDialog, setShowTicketDialog] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
 
   // Filter customers
   const filteredCustomers = useMemo(() => {
@@ -1423,13 +1427,11 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
   };
 
   const handleCreateTicket = () => {
-    // TODO: Navigate to ticket creation
-    console.log('Create ticket for customer:', selectedCustomerId);
+    setShowTicketDialog(true);
   };
 
   const handleCreateTask = () => {
-    // TODO: Open task creation modal
-    console.log('Create task for customer:', selectedCustomerId);
+    setShowTaskModal(true);
   };
 
   const handleStartTimer = () => {
@@ -1726,6 +1728,36 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
               loadCustomerData(selectedCustomerId);
             }
           }}
+        />
+      )}
+
+      {/* Create Ticket Dialog */}
+      <CreateTicketDialog
+        isOpen={showTicketDialog}
+        onClose={() => setShowTicketDialog(false)}
+        onCreated={() => {
+          setShowTicketDialog(false);
+          // Refresh tickets
+          if (selectedCustomerId) {
+            loadCustomerData(selectedCustomerId);
+          }
+        }}
+        customers={selectedCustomer ? [selectedCustomer] : customers}
+        projects={selectedCustomer ? projects.filter(p => p.customerId === selectedCustomer.id) : projects}
+      />
+
+      {/* Create Task Modal */}
+      {showTaskModal && (
+        <TaskModal
+          onClose={() => setShowTaskModal(false)}
+          onSave={() => {
+            setShowTaskModal(false);
+            // Refresh tasks
+            if (selectedCustomerId) {
+              loadCustomerData(selectedCustomerId);
+            }
+          }}
+          defaultCustomerId={selectedCustomerId || undefined}
         />
       )}
     </div>
