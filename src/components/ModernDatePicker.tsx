@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { IconButton } from '../ui';
 
 interface ModernDatePickerProps {
   value: string; // Format: "YYYY-MM-DD"
@@ -232,23 +233,19 @@ export const ModernDatePicker = ({
         <div className="absolute z-50 mt-2 w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl p-4">
           {/* Month Navigation */}
           <div className="flex items-center justify-between mb-4">
-            <button
-              type="button"
+            <IconButton
+              icon={<ChevronLeft size={20} />}
+              size="md"
               onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <ChevronLeft size={20} className="text-gray-600 dark:text-gray-400" />
-            </button>
+            />
             <span className="font-semibold text-gray-900 dark:text-white">
               {viewMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
             </span>
-            <button
-              type="button"
+            <IconButton
+              icon={<ChevronRight size={20} />}
+              size="md"
               onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <ChevronRight size={20} className="text-gray-600 dark:text-gray-400" />
-            </button>
+            />
           </div>
 
           {/* Day Labels */}
