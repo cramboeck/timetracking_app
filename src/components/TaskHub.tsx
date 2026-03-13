@@ -27,6 +27,7 @@ import {
 import { tasksApi } from '../services/api';
 import type { Task, TaskDashboardData, TaskFilters, TaskPriority } from '../types';
 import TaskModal from './TaskModal';
+import { Button, IconButton } from './ui';
 
 interface TaskHubProps {
   onTimerStart?: (taskId: string) => void;
@@ -265,35 +266,31 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
             {/* Actions */}
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               {task.projectId && (
-                <button
+                <IconButton
                   onClick={() => handleTimerToggle(task)}
-                  className={`p-1.5 rounded-lg transition-colors ${
-                    isRunning
-                      ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500'
-                  }`}
-                  title={isRunning ? 'Timer stoppen' : 'Timer starten'}
-                >
-                  {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                </button>
+                  variant={isRunning ? 'danger' : 'default'}
+                  size="md"
+                  icon={isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  tooltip={isRunning ? 'Timer stoppen' : 'Timer starten'}
+                />
               )}
-              <button
+              <IconButton
                 onClick={() => {
                   setEditingTask(task);
                   setShowTaskModal(true);
                 }}
-                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                title="Bearbeiten"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
-              <button
+                variant="default"
+                size="md"
+                icon={<Edit className="w-4 h-4" />}
+                tooltip="Bearbeiten"
+              />
+              <IconButton
                 onClick={() => handleDeleteTask(task.id)}
-                className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-500 hover:text-red-600 dark:hover:text-red-400"
-                title="Löschen"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+                variant="danger"
+                size="md"
+                icon={<Trash2 className="w-4 h-4" />}
+                tooltip="Löschen"
+              />
             </div>
           </div>
 
@@ -391,16 +388,17 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
               Unified Task Hub - Alle Aufgaben an einem Ort
             </p>
           </div>
-          <button
+          <Button
             onClick={() => {
               setEditingTask(null);
               setShowTaskModal(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            variant="primary"
+            size="md"
+            icon={<Plus className="w-5 h-5" />}
           >
-            <Plus className="w-5 h-5" />
             Neue Aufgabe
-          </button>
+          </Button>
         </div>
 
         {/* Quick Stats */}
@@ -493,16 +491,18 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
             <ListTodo className="w-16 h-16 mb-4 opacity-50" />
             <p className="text-lg font-medium">Keine Aufgaben gefunden</p>
             <p className="text-sm mt-1">Erstelle eine neue Aufgabe, um loszulegen</p>
-            <button
+            <Button
               onClick={() => {
                 setEditingTask(null);
                 setShowTaskModal(true);
               }}
-              className="mt-4 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              variant="primary"
+              size="md"
+              icon={<Plus className="w-5 h-5" />}
+              className="mt-4"
             >
-              <Plus className="w-5 h-5" />
               Neue Aufgabe
-            </button>
+            </Button>
           </div>
         ) : (
           <div>
