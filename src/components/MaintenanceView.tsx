@@ -1151,15 +1151,14 @@ export default function MaintenanceView() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
+                    <IconButton
                       onClick={() => setSelectedAnnouncementId(announcement.id)}
-                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
-                      title="Details"
-                    >
-                      <Eye className="w-5 h-5" />
-                    </button>
+                      icon={<Eye className="w-5 h-5" />}
+                      variant="primary"
+                      tooltip="Details"
+                    />
                     {['draft', 'scheduled', 'sent'].includes(announcement.status) && (
-                      <button
+                      <IconButton
                         onClick={async () => {
                           // Load announcement details to get customer IDs
                           try {
@@ -1170,19 +1169,17 @@ export default function MaintenanceView() {
                             setError(err.message || 'Fehler beim Laden der Ankündigung');
                           }
                         }}
-                        className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg"
-                        title="Bearbeiten"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
+                        icon={<Edit className="w-5 h-5" />}
+                        variant="success"
+                        tooltip="Bearbeiten"
+                      />
                     )}
-                    <button
+                    <IconButton
                       onClick={() => handleDelete(announcement)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
-                      title="Löschen"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                      icon={<Trash2 className="w-5 h-5" />}
+                      variant="danger"
+                      tooltip="Löschen"
+                    />
                   </div>
                 </div>
               </div>
