@@ -18,7 +18,7 @@ export type SubView =
   // Support
   | 'tickets' | 'devices' | 'alerts' | 'maintenance' | 'inbox'
   // CRM
-  | 'customers' | 'leads' | 'pipeline' | 'contracts'
+  | 'crm-dashboard' | 'customers' | 'leads' | 'pipeline' | 'contracts'
   // Finanzen
   | 'invoices' | 'billing' | 'reports'
   // Settings & Admin (special)
@@ -64,6 +64,7 @@ const areaConfig = {
     icon: Building2,
     label: 'CRM',
     subViews: [
+      { view: 'crm-dashboard' as SubView, icon: BarChart3, label: 'Dashboard' },
       { view: 'customers' as SubView, icon: Users, label: 'Kunden' },
       { view: 'leads' as SubView, icon: Target, label: 'Leads' },
       { view: 'pipeline' as SubView, icon: BarChart3, label: 'Pipeline' },
@@ -200,7 +201,7 @@ export const getAreaFromSubView = (subView: SubView): Area => {
   if (['overview'].includes(subView)) return 'dashboard';
   if (['stopwatch', 'list', 'calendar', 'manual', 'tasks'].includes(subView)) return 'arbeiten';
   if (['tickets', 'devices', 'alerts', 'maintenance', 'inbox'].includes(subView)) return 'support';
-  if (['customers', 'leads', 'pipeline', 'contracts'].includes(subView)) return 'crm';
+  if (['crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts'].includes(subView)) return 'crm';
   if (['invoices', 'billing', 'reports'].includes(subView)) return 'finanzen';
   return 'dashboard'; // Default to dashboard
 };
@@ -211,7 +212,7 @@ export const getDefaultSubView = (area: Area): SubView => {
     case 'dashboard': return 'overview';
     case 'arbeiten': return 'stopwatch';
     case 'support': return 'tickets';
-    case 'crm': return 'customers';
+    case 'crm': return 'crm-dashboard';
     case 'finanzen': return 'invoices';
     default: return 'overview';
   }

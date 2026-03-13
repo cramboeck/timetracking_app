@@ -67,6 +67,9 @@ import {
 } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 import { StatWidget } from './ui/StatWidget';
+import { InteractionsTimeline } from './InteractionsTimeline';
+import { Modal } from './Modal';
+import { CustomerContacts } from './CustomerContacts';
 
 // ============================================
 // Types
@@ -927,6 +930,182 @@ const TasksTab: React.FC<TasksTabProps> = ({ tasks, onCreateTask, onTaskClick })
   );
 };
 
+// ============================================
+// Contracts Tab
+// ============================================
+
+interface ContractsTabProps {
+  contracts: Contract[];
+  onContractClick?: (contract: Contract) => void;
+}
+
+const ContractsTab: React.FC<ContractsTabProps> = ({ contracts, onContractClick }) => {
+  const [filter, setFilter] = useState<'all' | 'active' | 'expiring'>('all');
+
+  const filteredContracts = contracts.filter(c => {
+    if (filter === 'active') return c.status === 'active';
+    if (filter === 'expiring') {
+      if (c.status !== 'active' || !c.endDate) return false;
+      const daysUntilExpiry = Math.ceil((new Date(c.endDate).getTime() - Date.now()) / 86400000);
+      return daysUntilExpiry <= 90 && daysUntilExpiry > 0;
+    }
+    return true;
+  });
+
+  const activeContracts = contracts.filter(c => c.status === 'active');
+  const expiringCount = contracts.filter(c => {
+    if (c.status !== 'active' || !c.endDate) return false;
+    const daysUntilExpiry = Math.ceil((new Date(c.endDate).getTime() - Date.now()) / 86400000);
+    return daysUntilExpiry <= 90 && daysUntilExpiry > 0;
+  }).length;
+
+  const monthlyRevenue = activeContracts.reduce((sum, c) => {
+    if (!c.monthlyValue) return sum;
+    return sum + c.monthlyValue;
+  }, 0);
+
+  const statusColors: Record<string, string> = {
+    draft: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+    active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    paused: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+    expiring: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+    expired: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    cancelled: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+    terminated: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  };
+
+  const statusLabels: Record<string, string> = {
+    draft: 'Entwurf',
+    active: 'Aktiv',
+    paused: 'Pausiert',
+    expiring: 'Läuft aus',
+    expired: 'Abgelaufen',
+    cancelled: 'Gekündigt',
+    terminated: 'Beendet',
+  };
+
+  const typeLabels: Record<string, string> = {
+    service: 'Service',
+    support: 'Support',
+    maintenance: 'Wartung',
+    project: 'Projekt',
+    subscription: 'Abonnement',
+    framework: 'Rahmenvertrag',
+    other: 'Sonstiges',
+  };
+
+  const getDaysUntilExpiry = (endDate: string) => {
+    return Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Aktive Verträge</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{activeContracts.length}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Monatlicher Wert</p>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(monthlyRevenue)}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Laufen bald aus</p>
+          <p className={`text-2xl font-bold ${expiringCount > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white'}`}>
+            {expiringCount}
+          </p>
+        </div>
+      </div>
+
+      {/* Filter */}
+      <div className="flex gap-2">
+        {(['all', 'active', 'expiring'] as const).map(f => (
+          <Button
+            key={f}
+            onClick={() => setFilter(f)}
+            variant={filter === f ? 'primary' : 'ghost'}
+            size="sm"
+          >
+            {f === 'all' ? 'Alle' : f === 'active' ? 'Aktiv' : 'Läuft aus'}
+            {f === 'expiring' && expiringCount > 0 && ` (${expiringCount})`}
+          </Button>
+        ))}
+      </div>
+
+      {/* Contract List */}
+      {filteredContracts.length === 0 ? (
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
+          <FileSignature size={48} className="mx-auto mb-3 text-gray-400" />
+          <p className="text-gray-500 dark:text-gray-400">
+            {filter === 'expiring' ? 'Keine auslaufenden Verträge' : 'Keine Verträge vorhanden'}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+          {filteredContracts.map(contract => {
+            const daysUntilExpiry = contract.endDate ? getDaysUntilExpiry(contract.endDate) : null;
+            const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry <= 90 && daysUntilExpiry > 0;
+
+            return (
+              <button
+                key={contract.id}
+                onClick={() => onContractClick?.(contract)}
+                className="w-full p-4 flex items-start gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+              >
+                <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
+                  <FileSignature size={20} className="text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+                      {contract.contractNumber}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[contract.status]}`}>
+                      {statusLabels[contract.status]}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                      {typeLabels[contract.contractType]}
+                    </span>
+                  </div>
+                  <p className="font-medium text-gray-900 dark:text-white truncate">
+                    {contract.name}
+                  </p>
+                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <Calendar size={12} />
+                      {formatDate(contract.startDate)}
+                      {contract.endDate && !contract.isIndefinite && ` - ${formatDate(contract.endDate)}`}
+                      {contract.isIndefinite && ' - Unbefristet'}
+                    </span>
+                    {contract.monthlyValue && (
+                      <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                        <DollarSign size={12} />
+                        {formatCurrency(contract.monthlyValue)}/Monat
+                      </span>
+                    )}
+                  </div>
+                  {isExpiringSoon && (
+                    <div className="mt-2 flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
+                      <AlertTriangle size={12} />
+                      Läuft in {daysUntilExpiry} Tagen aus
+                    </div>
+                  )}
+                </div>
+                <ChevronRight size={16} className="text-gray-400 mt-2" />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================
+// Time Entries Tab
+// ============================================
+
 interface TimeEntriesTabProps {
   entries: TimeEntry[];
   projects: Project[];
@@ -1052,6 +1231,9 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
   const [tasks, setTasks] = useState<Task[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Modal states
+  const [showContactsModal, setShowContactsModal] = useState(false);
 
   // Filter customers
   const filteredCustomers = useMemo(() => {
@@ -1230,15 +1412,14 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
     }
   };
 
-  // Quick action handlers (placeholder implementations)
+  // Quick action handlers
   const handleAddContact = () => {
-    // TODO: Open contact modal
-    console.log('Add contact for customer:', selectedCustomerId);
+    setShowContactsModal(true);
   };
 
   const handleAddInteraction = () => {
-    // TODO: Open interaction modal
-    console.log('Add interaction for customer:', selectedCustomerId);
+    // Switch to interactions tab which has the form built-in
+    setActiveTab('interactions');
   };
 
   const handleCreateTicket = () => {
@@ -1481,12 +1662,11 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                     onEnablePortalAccess={(contact) => console.log('Enable portal:', contact.id)}
                   />
                 )}
-                {activeTab === 'interactions' && (
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                    <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                      Interaktionen-Tab - Integration mit InteractionsTimeline Komponente
-                    </p>
-                  </div>
+                {activeTab === 'interactions' && selectedCustomer && (
+                  <InteractionsTimeline
+                    customerId={selectedCustomer.id}
+                    customer={selectedCustomer}
+                  />
                 )}
                 {activeTab === 'tickets' && (
                   <TicketsTab
@@ -1503,11 +1683,13 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                   />
                 )}
                 {activeTab === 'contracts' && (
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                    <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                      Verträge-Tab - {contracts.length} Verträge
-                    </p>
-                  </div>
+                  <ContractsTab
+                    contracts={contracts}
+                    onContractClick={(contract) => {
+                      // Navigate to contracts view or open contract modal
+                      console.log('Open contract:', contract.id);
+                    }}
+                  />
                 )}
                 {activeTab === 'entries' && (
                   <TimeEntriesTab
@@ -1530,6 +1712,21 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
             </div>
           </div>
         )
+      )}
+
+      {/* Customer Contacts Modal */}
+      {selectedCustomer && (
+        <CustomerContacts
+          isOpen={showContactsModal}
+          customer={selectedCustomer}
+          onClose={() => {
+            setShowContactsModal(false);
+            // Refresh contacts
+            if (selectedCustomerId) {
+              loadCustomerData(selectedCustomerId);
+            }
+          }}
+        />
       )}
     </div>
   );

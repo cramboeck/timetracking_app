@@ -17,6 +17,7 @@ import TaskHub from './components/TaskHub';
 import Contracts from './components/Contracts';
 import SalesPipeline from './components/SalesPipeline';
 import Leads from './components/Leads';
+import { CRMDashboard } from './components/CRMDashboard';
 import { InvoiceInbox } from './components/InvoiceInbox';
 import { SupportInbox } from './components/SupportInbox';
 import { SocialMediaProvider } from './features/social-media/context';
@@ -1086,6 +1087,18 @@ function App() {
         )}
         {currentSubView === 'billing' && (
           <Finanzen onBack={() => setCurrentSubView('overview')} />
+        )}
+        {currentSubView === 'crm-dashboard' && (
+          <CRMDashboard
+            customers={customers}
+            projects={projects}
+            onNavigateToCustomer={(customerId) => {
+              setCurrentSubView('customers');
+            }}
+            onNavigateToOpportunity={(opportunityId) => {
+              setCurrentSubView('pipeline');
+            }}
+          />
         )}
         {currentSubView === 'pipeline' && (
           <SalesPipeline />
