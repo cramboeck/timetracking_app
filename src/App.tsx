@@ -6,6 +6,8 @@ import { ManualEntry } from './components/ManualEntry';
 import { TimeEntriesList } from './components/TimeEntriesList';
 import { CalendarView } from './components/CalendarView';
 import { Dashboard } from './components/Dashboard';
+import { DashboardOverview } from './components/DashboardOverview';
+import { CustomerView } from './components/CustomerView';
 import { Settings } from './components/Settings';
 import { Tickets } from './components/Tickets';
 import { Finanzen } from './components/Finanzen';
@@ -1000,7 +1002,23 @@ function App() {
             }}
           />
         )}
-        {(currentSubView === 'dashboard' || currentSubView === 'overview') && (
+        {currentSubView === 'overview' && (
+          <DashboardOverview
+            entries={entries}
+            projects={projects}
+            customers={customers}
+            runningEntry={runningEntry}
+            onNavigate={(area, subView) => {
+              setCurrentArea(area);
+              setCurrentSubView(subView);
+            }}
+            onStartTimer={() => {
+              setCurrentArea('arbeiten');
+              setCurrentSubView('stopwatch');
+            }}
+          />
+        )}
+        {currentSubView === 'dashboard' && (
           <Dashboard
             entries={entries}
             projects={projects}
@@ -1010,37 +1028,11 @@ function App() {
           />
         )}
         {currentSubView === 'customers' && (
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-              Kunden (CRM)
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
-              360° Kundenansicht - Zeigt alle Informationen zu einem Kunden an einem Ort.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {customers.map(customer => (
-                <div
-                  key={customer.id}
-                  className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow cursor-pointer"
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
-                      style={{ backgroundColor: customer.color || '#3b82f6' }}
-                    >
-                      {customer.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white">{customer.name}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {projects.filter(p => p.customerId === customer.id).length} Projekte
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <CustomerView
+            customers={customers}
+            projects={projects}
+            entries={entries}
+          />
         )}
         {currentSubView === 'tickets' && (
           <Tickets
