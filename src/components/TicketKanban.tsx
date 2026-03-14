@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
-import { Clock, Building2, AlertCircle, Tag, RefreshCw, Filter, User, Users, Layers, X, Calendar, ChevronDown } from 'lucide-react';
+import { Clock, Building2, AlertCircle, RefreshCw, Filter, User, Layers, X, Calendar, ChevronDown } from 'lucide-react';
 import { Ticket, TicketStatus, TicketPriority, Customer } from '../types';
 import { ticketsApi, TicketTag, organizationsApi, OrganizationMember } from '../services/api';
 import { Button, IconButton } from './ui';
@@ -21,8 +21,6 @@ export const DEFAULT_KANBAN_CONFIG: KanbanConfig = {
   infiniteScrollThreshold: 100, // 100px vor dem Ende
 };
 
-// Aktive Konfiguration (kann durch Props überschrieben werden)
-let KANBAN_CONFIG = { ...DEFAULT_KANBAN_CONFIG };
 
 interface TicketKanbanProps {
   customers: Customer[];
@@ -327,25 +325,40 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
     setDragOverColumn(null);
   };
 
-  const getCustomerName = (customerId: string) => {
-    return customers.find(c => c.id === customerId)?.name || 'Unbekannt';
-  };
+  // Memoized Maps für schnellen Lookup - verbesserte Performance bei vielen Tickets
+  const customerMap = useMemo(() => {
+    const map = new Map<string, { name: string; color: string }>();
+    customers.forEach(c => map.set(c.id, { name: c.name, color: c.color || '#6B7280' }));
+    return map;
+  }, [customers]);
 
-  const getCustomerColor = (customerId: string) => {
-    return customers.find(c => c.id === customerId)?.color || '#6B7280';
-  };
+  const teamMemberMap = useMemo(() => {
+    const map = new Map<string, { name: string; initials: string }>();
+    teamMembers.forEach(m => {
+      const name = m.display_name || m.username || '';
+      const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+      map.set(m.user_id, { name, initials });
+    });
+    return map;
+  }, [teamMembers]);
 
-  const getAssigneeName = (assignedTo: string | null) => {
+  const getCustomerName = useCallback((customerId: string) => {
+    return customerMap.get(customerId)?.name || 'Unbekannt';
+  }, [customerMap]);
+
+  const getCustomerColor = useCallback((customerId: string) => {
+    return customerMap.get(customerId)?.color || '#6B7280';
+  }, [customerMap]);
+
+  const getAssigneeName = useCallback((assignedTo: string | null) => {
     if (!assignedTo) return null;
-    const member = teamMembers.find(m => m.user_id === assignedTo);
-    return member?.display_name || member?.username || null;
-  };
+    return teamMemberMap.get(assignedTo)?.name || null;
+  }, [teamMemberMap]);
 
-  const getAssigneeInitials = (assignedTo: string | null) => {
-    const name = getAssigneeName(assignedTo);
-    if (!name) return null;
-    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-  };
+  const getAssigneeInitials = useCallback((assignedTo: string | null) => {
+    if (!assignedTo) return null;
+    return teamMemberMap.get(assignedTo)?.initials || null;
+  }, [teamMemberMap]);
 
   // Apply filters - memoized für bessere Performance
   const filteredTickets = useMemo(() => {
@@ -418,19 +431,25 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
     };
   }, [getColumnTickets, columnLimits]);
 
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
+  // Infinite Scroll Handler pro Spalte
+  const handleColumnScroll = useCallback((status: TicketStatus, e: React.UIEvent<HTMLDivElement>) => {
+    if (!activeConfig.enableInfiniteScroll) return;
 
-    if (diffDays > 0) return `${diffDays}d`;
-    if (diffHours > 0) return `${diffHours}h`;
-    if (diffMins > 0) return `${diffMins}m`;
-    return 'neu';
-  };
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < activeConfig.infiniteScrollThreshold;
+
+    if (isNearBottom) {
+      const visibleData = getVisibleColumnTickets(status);
+      if (visibleData.hasMore && !loadingMore[status]) {
+        loadMoreTickets(status);
+      }
+    }
+  }, [activeConfig.enableInfiniteScroll, activeConfig.infiniteScrollThreshold, getVisibleColumnTickets, loadingMore, loadMoreTickets]);
+
+  // Ref-Setter für Spalten (für potenzielle IntersectionObserver-Nutzung)
+  const setColumnRef = useCallback((status: TicketStatus, el: HTMLDivElement | null) => {
+    columnRefs.current[status] = el;
+  }, []);
 
   const hasActiveFilters = customerFilter || assigneeFilter || priorityFilter;
 
@@ -604,6 +623,8 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
 
                 {/* Column Content */}
                 <div
+                  ref={(el) => setColumnRef(column.status, el)}
+                  onScroll={(e) => handleColumnScroll(column.status, e)}
                   className={`flex-1 overflow-y-auto p-2 rounded-b-lg border border-t-0 border-gray-200 dark:border-gray-700 transition-colors ${
                     isDropTarget
                       ? 'bg-accent-primary/10 border-accent-primary ring-2 ring-accent-primary/20'
@@ -639,8 +660,14 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
                               Keine Tickets
                             </div>
                           )}
-                          {/* "Mehr laden" Button */}
-                          {visibleData.hasMore && (
+                          {/* Loading Indicator für Infinite Scroll */}
+                          {loadingMore[column.status] && (
+                            <div className="flex items-center justify-center py-3">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
+                            </div>
+                          )}
+                          {/* "Mehr laden" Button - nur wenn Infinite Scroll deaktiviert ist */}
+                          {visibleData.hasMore && !activeConfig.enableInfiniteScroll && !loadingMore[column.status] && (
                             <button
                               onClick={() => loadMoreTickets(column.status)}
                               className="w-full py-2 px-3 mt-2 text-xs font-medium text-accent-primary bg-accent-primary/10 hover:bg-accent-primary/20 rounded-lg transition-colors flex items-center justify-center gap-1"
@@ -648,6 +675,12 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
                               <ChevronDown size={14} />
                               {visibleData.remaining} weitere laden
                             </button>
+                          )}
+                          {/* Info-Anzeige bei Infinite Scroll */}
+                          {visibleData.hasMore && activeConfig.enableInfiniteScroll && !loadingMore[column.status] && (
+                            <div className="text-center py-2 text-[10px] text-gray-400">
+                              Scrolle nach unten um {Math.min(visibleData.remaining, activeConfig.loadMoreIncrement)} weitere zu laden
+                            </div>
                           )}
                         </div>
                       );
@@ -664,8 +697,14 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
                               Keine Tickets
                             </div>
                           )}
-                          {/* "Mehr laden" Button */}
-                          {visibleData.hasMore && (
+                          {/* Loading Indicator für Infinite Scroll */}
+                          {loadingMore[column.status] && (
+                            <div className="flex items-center justify-center py-3">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
+                            </div>
+                          )}
+                          {/* "Mehr laden" Button - nur wenn Infinite Scroll deaktiviert ist */}
+                          {visibleData.hasMore && !activeConfig.enableInfiniteScroll && !loadingMore[column.status] && (
                             <button
                               onClick={() => loadMoreTickets(column.status)}
                               className="w-full py-2 px-3 mt-2 text-xs font-medium text-accent-primary bg-accent-primary/10 hover:bg-accent-primary/20 rounded-lg transition-colors flex items-center justify-center gap-1"
@@ -673,6 +712,12 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
                               <ChevronDown size={14} />
                               {visibleData.remaining} weitere laden
                             </button>
+                          )}
+                          {/* Info-Anzeige bei Infinite Scroll */}
+                          {visibleData.hasMore && activeConfig.enableInfiniteScroll && !loadingMore[column.status] && (
+                            <div className="text-center py-2 text-[10px] text-gray-400">
+                              Scrolle nach unten um {Math.min(visibleData.remaining, activeConfig.loadMoreIncrement)} weitere zu laden
+                            </div>
                           )}
                         </div>
                       );
