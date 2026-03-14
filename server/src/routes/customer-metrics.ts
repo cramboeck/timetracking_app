@@ -812,4 +812,260 @@ router.post('/calculate/:customerId', async (req: Request, res: Response) => {
   }
 });
 
+// ============================================
+// Admin Endpoints for Health Score Job Management
+// ============================================
+
+const adminTriggerSchema = z.object({
+  periodType: z.enum(['monthly', 'quarterly', 'yearly']).optional().default('monthly'),
+  organizationId: z.string().uuid().optional()
+});
+
+// ============================================
+// POST /api/customer-metrics/admin/trigger-job
+// Manually trigger health score calculation
+// Requires admin role
+// ============================================
+router.post('/admin/trigger-job', requireOrgRole('admin'), async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const organizationId = await getUserOrganizationId(userId);
+
+    const validation = adminTriggerSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: 'Invalid request body', details: validation.error.errors });
+    }
+
+    const { periodType, organizationId: targetOrgId } = validation.data;
+
+    // Log the manual trigger
+    await auditLog.log({
+      userId,
+      action: 'health_score.manual_trigger' as any,
+      details: JSON.stringify({
+        periodType,
+        targetOrganizationId: targetOrgId || organizationId,
+        triggeredAt: new Date().toISOString()
+      })
+    });
+
+    // If specific organization is requested (super admin feature)
+    // Otherwise use the user's organization
+    const effectiveOrgId = targetOrgId || organizationId;
+
+    if (effectiveOrgId) {
+      // Run for specific organization
+      const result = await runHealthScoreJobForOrganization(effectiveOrgId, periodType);
+
+      res.json({
+        success: true,
+        message: 'Health score calculation triggered for organization',
+        organizationId: effectiveOrgId,
+        periodType,
+        result: {
+          customersProcessed: result.results.length + result.errors.length,
+          customersUpdated: result.results.length,
+          warningsGenerated: result.warnings.length,
+          errors: result.errors.length
+        },
+        warnings: result.warnings.map(w => ({
+          customerId: w.customerId,
+          customerName: w.customerName,
+          healthScore: w.healthScore,
+          churnRisk: w.churnRisk,
+          riskFactors: w.riskFactors
+        }))
+      });
+    } else {
+      // Run for all organizations (system admin only)
+      const result = await runHealthScoreJob();
+
+      res.json({
+        success: result.success,
+        message: 'Health score calculation triggered for all organizations',
+        result: {
+          durationMs: result.durationMs,
+          customersProcessed: result.customersProcessed,
+          customersUpdated: result.customersUpdated,
+          customersSkipped: result.customersSkipped,
+          warningsGenerated: result.warningsGenerated.length,
+          errors: result.errors.length
+        },
+        highRiskWarnings: result.warningsGenerated
+          .filter(w => w.churnRisk === 'high')
+          .map(w => ({
+            customerId: w.customerId,
+            customerName: w.customerName,
+            healthScore: w.healthScore,
+            riskFactors: w.riskFactors
+          }))
+      });
+    }
+  } catch (error) {
+    console.error('Error triggering health score job:', error);
+    res.status(500).json({ error: 'Failed to trigger health score calculation' });
+  }
+});
+
+// ============================================
+// GET /api/customer-metrics/admin/job-status
+// Get current job status and last execution result
+// Requires admin role
+// ============================================
+router.get('/admin/job-status', requireOrgRole('admin'), async (req: Request, res: Response) => {
+  try {
+    const status = getJobStatus();
+    const history = await customerHealthScoreService.getJobHistory(5);
+
+    res.json({
+      isRunning: status.isRunning,
+      isScheduled: status.isScheduled,
+      lastResult: status.lastResult ? {
+        success: status.lastResult.success,
+        startedAt: status.lastResult.startedAt,
+        completedAt: status.lastResult.completedAt,
+        durationMs: status.lastResult.durationMs,
+        customersProcessed: status.lastResult.customersProcessed,
+        customersUpdated: status.lastResult.customersUpdated,
+        warningsGenerated: status.lastResult.warningsGenerated.length,
+        errors: status.lastResult.errors.length
+      } : null,
+      recentRuns: history.map(run => ({
+        id: run.id,
+        startedAt: run.started_at,
+        completedAt: run.completed_at,
+        durationMs: run.duration_ms,
+        success: run.success,
+        customersProcessed: run.customers_processed,
+        customersUpdated: run.customers_updated,
+        warningsGenerated: run.warnings_generated,
+        errors: run.errors ? JSON.parse(run.errors).length : 0
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting job status:', error);
+    res.status(500).json({ error: 'Failed to get job status' });
+  }
+});
+
+// ============================================
+// GET /api/customer-metrics/admin/churn-warnings
+// Get unacknowledged churn risk warnings
+// Requires admin role
+// ============================================
+router.get('/admin/churn-warnings', requireOrgRole('admin'), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const acknowledged = req.query.acknowledged === 'true' ? true :
+                         req.query.acknowledged === 'false' ? false : undefined;
+    const riskLevel = req.query.riskLevel as 'medium' | 'high' | undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+
+    const warnings = await customerHealthScoreService.getChurnWarnings(organizationId, {
+      acknowledged,
+      riskLevel,
+      limit
+    });
+
+    res.json({
+      warnings,
+      total: warnings.length,
+      unacknowledgedHighRisk: warnings.filter(w => w.churnRisk === 'high').length,
+      unacknowledgedMediumRisk: warnings.filter(w => w.churnRisk === 'medium').length
+    });
+  } catch (error) {
+    console.error('Error getting churn warnings:', error);
+    res.status(500).json({ error: 'Failed to get churn warnings' });
+  }
+});
+
+// ============================================
+// POST /api/customer-metrics/admin/acknowledge-warning/:warningId
+// Acknowledge a churn warning
+// Requires admin role
+// ============================================
+router.post('/admin/acknowledge-warning/:warningId', requireOrgRole('admin'), async (req: Request, res: Response) => {
+  try {
+    const { warningId } = req.params;
+    const userId = (req as any).user.id;
+
+    if (!warningId || !z.string().uuid().safeParse(warningId).success) {
+      return res.status(400).json({ error: 'Invalid warning ID' });
+    }
+
+    const success = await customerHealthScoreService.acknowledgeWarning(warningId, userId);
+
+    if (success) {
+      res.json({
+        success: true,
+        message: 'Warning acknowledged successfully'
+      });
+    } else {
+      res.status(404).json({ error: 'Warning not found' });
+    }
+  } catch (error) {
+    console.error('Error acknowledging warning:', error);
+    res.status(500).json({ error: 'Failed to acknowledge warning' });
+  }
+});
+
+// ============================================
+// POST /api/customer-metrics/calculate-all
+// Calculate metrics for all customers in the organization
+// Requires admin role
+// ============================================
+router.post('/calculate-all', requireOrgRole('admin'), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const validation = adminTriggerSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: 'Invalid request body', details: validation.error.errors });
+    }
+
+    const { periodType } = validation.data;
+
+    const result = await runHealthScoreJobForOrganization(organizationId, periodType);
+
+    res.json({
+      success: result.success,
+      message: `Calculated health scores for ${result.results.length} customers`,
+      summary: {
+        customersProcessed: result.results.length + result.errors.length,
+        customersUpdated: result.results.length,
+        errors: result.errors.length,
+        warningsGenerated: result.warnings.length
+      },
+      scoreDistribution: {
+        healthy: result.results.filter(r => r.calculated.healthScore >= 70).length,
+        atRisk: result.results.filter(r => r.calculated.healthScore >= 40 && r.calculated.healthScore < 70).length,
+        critical: result.results.filter(r => r.calculated.healthScore < 40).length
+      },
+      churnRiskDistribution: {
+        low: result.results.filter(r => r.calculated.churnRisk === 'low').length,
+        medium: result.results.filter(r => r.calculated.churnRisk === 'medium').length,
+        high: result.results.filter(r => r.calculated.churnRisk === 'high').length
+      },
+      warnings: result.warnings.map(w => ({
+        customerId: w.customerId,
+        customerName: w.customerName,
+        healthScore: w.healthScore,
+        churnRisk: w.churnRisk,
+        riskFactors: w.riskFactors
+      })),
+      errors: result.errors
+    });
+  } catch (error) {
+    console.error('Error calculating all customer metrics:', error);
+    res.status(500).json({ error: 'Failed to calculate customer metrics' });
+  }
+});
+
 export default router;

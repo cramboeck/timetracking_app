@@ -7,6 +7,7 @@ import fs from 'fs';
 import { initializeDatabase } from './config/database';
 import { startNotificationJobs } from './jobs/notificationJobs';
 import { startNinjaJobs } from './jobs/ninjaJobs';
+import { startHealthScoreJobs } from './jobs/healthScoreJobs';
 import authRoutes from './routes/auth';
 import entriesRoutes from './routes/entries';
 import projectsRoutes from './routes/projects';
@@ -193,6 +194,9 @@ startNotificationJobs();
 
 // Start NinjaRMM auto-sync jobs
 startNinjaJobs();
+
+// Start Customer Health Score jobs (daily at 2:00 AM)
+startHealthScoreJobs();
 
 // Start server
 app.listen(PORT, () => {
