@@ -9,7 +9,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { query, getClient } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
-import { getUserOrganizationId } from '../middleware/organization';
+import { getUserOrganizationId, requireOrgRole } from '../middleware/organization';
+import { runHealthScoreJob, runHealthScoreJobForOrganization, getJobStatus } from '../jobs/healthScoreJobs';
+import { customerHealthScoreService } from '../services/customerHealthScoreService';
+import { auditLog } from '../services/auditLog';
 
 const router = Router();
 
