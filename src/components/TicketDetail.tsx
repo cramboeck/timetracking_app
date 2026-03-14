@@ -8,6 +8,7 @@ import { TicketMergeDialog } from './TicketMergeDialog';
 import { MarkdownEditor } from './MarkdownEditor';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { Button, IconButton } from './ui/Button';
+import { sanitizeHtml } from '../utils/sanitize';
 
 // Resolution type labels
 const resolutionTypeConfig: Record<TicketResolutionType, { label: string; description: string }> = {
@@ -1999,7 +2000,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                               {email.body_html ? (
                                 <div
                                   className="prose prose-sm dark:prose-invert max-w-none"
-                                  dangerouslySetInnerHTML={{ __html: email.body_html }}
+                                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(email.body_html) }}
                                 />
                               ) : (
                                 <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300">

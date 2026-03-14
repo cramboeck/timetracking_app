@@ -7,6 +7,7 @@ import {
 import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
 import { UnknownCustomerDialog } from './UnknownCustomerDialog';
 import { Button, IconButton } from './ui/Button';
+import { sanitizeHtml } from '../utils/sanitize';
 
 interface PersonalEmail extends SupportEmail {
   matchedCustomer?: {
@@ -310,7 +311,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
                   <div
                     className="prose dark:prose-invert max-w-none text-sm"
                     dangerouslySetInnerHTML={{
-                      __html: selectedEmail.body?.content || selectedEmail.bodyPreview
+                      __html: sanitizeHtml(selectedEmail.body?.content || selectedEmail.bodyPreview)
                     }}
                   />
                 ) : (

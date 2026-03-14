@@ -38,6 +38,7 @@ import microsoft365Routes from './routes/microsoft365';
 import contactsRoutes from './routes/contacts';
 import interactionsRoutes from './routes/interactions';
 import opportunitiesRoutes from './routes/opportunities';
+import slaPoliciesRoutes from './routes/sla-policies';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -118,6 +119,7 @@ app.use('/api/microsoft365', microsoft365Routes);
 app.use('/api/contacts', contactsRoutes);
 app.use('/api/interactions', interactionsRoutes);
 app.use('/api/opportunities', opportunitiesRoutes);
+app.use('/api/sla-policies', slaPoliciesRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
