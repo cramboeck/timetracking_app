@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { query } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
 import { getUserOrganizationId } from '../middleware/organization';
+import { emailService } from '../services/emailService';
 
 const router = Router();
 
@@ -437,17 +438,126 @@ router.post('/:id/portal-access', async (req: Request, res: Response) => {
       [portalUserId, id]
     );
 
-    // TODO: Send invitation email if send_invitation is true
+    // Send invitation email if requested
+    let emailSent = false;
+    if (send_invitation) {
+      // Get sender name (current user)
+      const senderResult = await query(
+        'SELECT username, email FROM users WHERE id = $1',
+        [userId]
+      );
+      const senderName = senderResult.rows[0]?.username || senderResult.rows[0]?.email || undefined;
+
+      // Get customer name
+      const customerResult = await query(
+        'SELECT name FROM customers WHERE id = $1',
+        [contactData.customer_id]
+      );
+      const customerName = customerResult.rows[0]?.name || 'Unser Unternehmen';
+
+      emailSent = await emailService.sendPortalInvitationEmail({
+        to: contactData.email,
+        contactName: `${contactData.first_name || ''} ${contactData.last_name || ''}`.trim() || contactData.email,
+        customerName,
+        invitationToken: resetToken,
+        expiresAt: resetExpires,
+        senderName,
+        organizationId,
+      });
+
+      console.log(`📧 Portal invitation email ${emailSent ? 'sent' : 'failed'} for contact: ${contactData.email}`);
+    }
 
     res.json({
       success: true,
       portal_user_id: portalUserId,
       invitation_token: resetToken,
-      message: send_invitation ? 'Portal access created and invitation sent' : 'Portal access created'
+      email_sent: emailSent,
+      message: send_invitation
+        ? (emailSent ? 'Portal access created and invitation sent' : 'Portal access created but email failed')
+        : 'Portal access created'
     });
   } catch (error) {
     console.error('Error enabling portal access:', error);
     res.status(500).json({ error: 'Failed to enable portal access' });
+  }
+});
+
+// ============================================
+// POST /api/contacts/:id/resend-invitation - Resend portal invitation
+// ============================================
+router.post('/:id/resend-invitation', async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    const userId = (req as any).user.id;
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const { id } = req.params;
+
+    // Get contact with portal user info
+    const contact = await query(`
+      SELECT cc.*, cpu.id as portal_user_id, cpu.email as portal_email,
+             c.id as customer_id, c.name as customer_name
+      FROM customer_contacts cc
+      LEFT JOIN customer_portal_users cpu ON cc.portal_user_id = cpu.id
+      JOIN customers c ON cc.customer_id = c.id
+      WHERE cc.id = $1 AND cc.organization_id = $2
+    `, [id, organizationId]);
+
+    if (contact.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const contactData = contact.rows[0];
+
+    if (!contactData.portal_user_id) {
+      return res.status(400).json({ error: 'Contact does not have portal access' });
+    }
+
+    // Generate new reset token
+    const resetToken = uuidv4();
+    const resetExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    // Update portal user with new token
+    await query(
+      `UPDATE customer_portal_users
+       SET password_reset_token = $1, password_reset_expires = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [resetToken, resetExpires, contactData.portal_user_id]
+    );
+
+    // Get sender name
+    const senderResult = await query(
+      'SELECT username, email FROM users WHERE id = $1',
+      [userId]
+    );
+    const senderName = senderResult.rows[0]?.username || senderResult.rows[0]?.email || undefined;
+
+    // Send invitation email
+    const emailSent = await emailService.resendPortalInvitationEmail({
+      to: contactData.portal_email || contactData.email,
+      contactName: `${contactData.first_name || ''} ${contactData.last_name || ''}`.trim() || contactData.email,
+      customerName: contactData.customer_name,
+      invitationToken: resetToken,
+      expiresAt: resetExpires,
+      senderName,
+      organizationId,
+    });
+
+    console.log(`📧 Portal invitation resend ${emailSent ? 'sent' : 'failed'} for contact: ${contactData.email}`);
+
+    res.json({
+      success: true,
+      email_sent: emailSent,
+      invitation_token: resetToken,
+      expires_at: resetExpires.toISOString(),
+      message: emailSent ? 'Invitation resent successfully' : 'Failed to send invitation email'
+    });
+  } catch (error) {
+    console.error('Error resending portal invitation:', error);
+    res.status(500).json({ error: 'Failed to resend invitation' });
   }
 });
 

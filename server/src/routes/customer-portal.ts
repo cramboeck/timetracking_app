@@ -712,6 +712,146 @@ router.post('/set-password', async (req, res) => {
 });
 
 // ============================================================================
+// PORTAL INVITATION TOKEN VALIDATION AND ACTIVATION
+// ============================================================================
+
+// Verify invitation token (check if valid without activating)
+router.get('/invitation/verify/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      return res.status(400).json({ valid: false, error: 'Token required' });
+    }
+
+    // Find portal user with this token
+    const result = await pool.query(
+      `SELECT cpu.id, cpu.email, cpu.name, cpu.password_reset_expires,
+              c.name as customer_name, cpu.password_hash
+       FROM customer_portal_users cpu
+       JOIN customers c ON cpu.customer_id = c.id
+       WHERE cpu.password_reset_token = $1`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        valid: false,
+        error: 'Ungultiger Einladungslink'
+      });
+    }
+
+    const portalUser = result.rows[0];
+
+    // Check if token has expired
+    if (portalUser.password_reset_expires && new Date(portalUser.password_reset_expires) < new Date()) {
+      return res.status(400).json({
+        valid: false,
+        error: 'Der Einladungslink ist abgelaufen. Bitte fordern Sie eine neue Einladung an.',
+        expired: true
+      });
+    }
+
+    // Check if already activated (password already set)
+    if (portalUser.password_hash) {
+      return res.status(400).json({
+        valid: false,
+        error: 'Dieser Zugang wurde bereits aktiviert. Bitte melden Sie sich an.',
+        already_activated: true
+      });
+    }
+
+    res.json({
+      valid: true,
+      email: portalUser.email,
+      name: portalUser.name,
+      customerName: portalUser.customer_name,
+      expiresAt: portalUser.password_reset_expires
+    });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(500).json({ valid: false, error: 'Internal server error' });
+  }
+});
+
+// Activate portal account with invitation token
+router.post('/invitation/activate', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token erforderlich' });
+    }
+
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen lang sein' });
+    }
+
+    // Find portal user with this token
+    const result = await pool.query(
+      `SELECT cpu.*, c.name as customer_name, cc.id as contact_id
+       FROM customer_portal_users cpu
+       JOIN customers c ON cpu.customer_id = c.id
+       LEFT JOIN customer_contacts cc ON cc.portal_user_id = cpu.id
+       WHERE cpu.password_reset_token = $1`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Ungultiger Einladungslink' });
+    }
+
+    const portalUser = result.rows[0];
+
+    // Check if token has expired
+    if (portalUser.password_reset_expires && new Date(portalUser.password_reset_expires) < new Date()) {
+      return res.status(400).json({
+        error: 'Der Einladungslink ist abgelaufen. Bitte fordern Sie eine neue Einladung an.',
+        expired: true
+      });
+    }
+
+    // Check if already activated
+    if (portalUser.password_hash) {
+      return res.status(400).json({
+        error: 'Dieser Zugang wurde bereits aktiviert. Bitte melden Sie sich an.',
+        already_activated: true
+      });
+    }
+
+    // Hash the new password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Update portal user with password and clear token
+    await pool.query(
+      `UPDATE customer_portal_users
+       SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL, updated_at = NOW()
+       WHERE id = $2`,
+      [passwordHash, portalUser.id]
+    );
+
+    // Also update the linked contact if exists
+    if (portalUser.contact_id) {
+      await pool.query(
+        `UPDATE customer_contacts SET password_hash = $1 WHERE id = $2`,
+        [passwordHash, portalUser.contact_id]
+      );
+    }
+
+    console.log(`✅ Portal account activated for: ${portalUser.email}`);
+
+    res.json({
+      success: true,
+      message: 'Ihr Zugang wurde erfolgreich aktiviert. Sie konnen sich jetzt anmelden.',
+      email: portalUser.email
+    });
+  } catch (error) {
+    console.error('Portal activation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
 // TICKET ACTIONS
 // ============================================================================
 

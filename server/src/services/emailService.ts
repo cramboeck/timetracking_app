@@ -2205,6 +2205,228 @@ ${action === 'approved'
 RamboFlow von ramboeck.IT
     `.trim();
   }
+  // ===========================================
+  // Portal Invitation Email
+  // ===========================================
+
+  /**
+   * Send portal invitation email to a customer contact
+   */
+  async sendPortalInvitationEmail(data: {
+    to: string;
+    contactName: string;
+    customerName: string;
+    invitationToken: string;
+    expiresAt: Date;
+    senderName?: string;
+    organizationId?: string;
+  }): Promise<boolean> {
+    const { to, contactName, customerName, invitationToken, expiresAt, senderName, organizationId } = data;
+
+    const portalUrl = process.env.PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const activationUrl = `${portalUrl}/portal/activate?token=${invitationToken}`;
+
+    const html = this.generatePortalInvitationHTML(contactName, customerName, activationUrl, expiresAt, senderName);
+    const text = this.generatePortalInvitationText(contactName, customerName, activationUrl, expiresAt, senderName);
+    const subject = 'Einladung zum Kunden-Portal - RamboFlow';
+
+    const success = await this.sendEmail({
+      to,
+      subject,
+      html,
+      text,
+    }, {
+      emailType: 'portal_invitation',
+      subject,
+      recipientEmail: to,
+      recipientName: contactName,
+      organizationId,
+      metadata: { customerName, invitationToken },
+    });
+
+    console.log(`📧 Portal invitation email ${success ? 'sent' : 'failed'} to: ${to}`);
+
+    return success;
+  }
+
+  /**
+   * Resend portal invitation email
+   */
+  async resendPortalInvitationEmail(data: {
+    to: string;
+    contactName: string;
+    customerName: string;
+    invitationToken: string;
+    expiresAt: Date;
+    senderName?: string;
+    organizationId?: string;
+  }): Promise<boolean> {
+    const { to, contactName, customerName, invitationToken, expiresAt, senderName, organizationId } = data;
+
+    const portalUrl = process.env.PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const activationUrl = `${portalUrl}/portal/activate?token=${invitationToken}`;
+
+    const html = this.generatePortalInvitationHTML(contactName, customerName, activationUrl, expiresAt, senderName, true);
+    const text = this.generatePortalInvitationText(contactName, customerName, activationUrl, expiresAt, senderName, true);
+    const subject = 'Erneute Einladung zum Kunden-Portal - RamboFlow';
+
+    const success = await this.sendEmail({
+      to,
+      subject,
+      html,
+      text,
+    }, {
+      emailType: 'portal_invitation_resend',
+      subject,
+      recipientEmail: to,
+      recipientName: contactName,
+      organizationId,
+      metadata: { customerName, invitationToken },
+    });
+
+    console.log(`📧 Portal invitation resend email ${success ? 'sent' : 'failed'} to: ${to}`);
+
+    return success;
+  }
+
+  private generatePortalInvitationHTML(
+    contactName: string,
+    customerName: string,
+    activationUrl: string,
+    expiresAt: Date,
+    senderName?: string,
+    isResend: boolean = false
+  ): string {
+    const greeting = contactName ? `Hallo ${contactName}` : 'Hallo';
+    const expiresFormatted = expiresAt.toLocaleString('de-DE', {
+      dateStyle: 'long',
+      timeStyle: 'short'
+    });
+
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">${greeting},</h2>
+
+      ${isResend ? `
+        <div style="background-color: #fef3c7; border-radius: 8px; padding: 16px; margin: 0 0 24px 0;">
+          <p style="color: #92400e; font-size: 14px; margin: 0;">
+            <strong>Hinweis:</strong> Dies ist eine erneute Einladung. Ihre vorherige Einladung wurde aktualisiert.
+          </p>
+        </div>
+      ` : ''}
+
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        ${senderName ? `<strong>${senderName}</strong> hat` : 'Sie wurden'}
+        Sie zum Self-Service-Portal von <strong>${customerName}</strong> eingeladen.
+      </p>
+
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        Mit dem Kunden-Portal haben Sie Zugriff auf:
+      </p>
+
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <table style="width: 100%;">
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #F27024;">&#10003;</strong> Support-Tickets erstellen und verfolgen
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #F27024;">&#10003;</strong> Projektstatus einsehen
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #F27024;">&#10003;</strong> Rechnungen und Angebote abrufen
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #F27024;">&#10003;</strong> Direkte Kommunikation mit dem Support-Team
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="background-color: #fef3c7; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="color: #92400e; font-size: 15px; line-height: 1.6; margin: 0;">
+          <strong>Wichtig:</strong> Dieser Einladungslink ist <strong>7 Tage</strong> gültig!<br>
+          Gültig bis: ${expiresFormatted} Uhr
+        </p>
+      </div>
+
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 24px 0;">
+        Klicken Sie auf den Button unten, um Ihr Passwort festzulegen und Ihren Zugang zu aktivieren:
+      </p>
+
+      <div style="background-color: #f9fafb; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">
+          Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:
+        </p>
+        <p style="color: #F27024; font-size: 12px; word-break: break-all; margin: 0;">
+          <a href="${activationUrl}" style="color: #F27024; text-decoration: none;">${activationUrl}</a>
+        </p>
+      </div>
+
+      <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; line-height: 1.6;">
+        <strong>Diese Einladung nicht erwartet?</strong><br>
+        Falls Sie diese E-Mail nicht angefordert haben, können Sie sie ignorieren.
+        Es wird kein Konto erstellt, solange Sie den Link nicht aktivieren.
+      </p>
+    `;
+
+    return this.generateEmailWrapper('Einladung zum Kunden-Portal', content, {
+      text: 'Zugang aktivieren',
+      url: activationUrl
+    });
+  }
+
+  private generatePortalInvitationText(
+    contactName: string,
+    customerName: string,
+    activationUrl: string,
+    expiresAt: Date,
+    senderName?: string,
+    isResend: boolean = false
+  ): string {
+    const greeting = contactName ? `Hallo ${contactName}` : 'Hallo';
+    const expiresFormatted = expiresAt.toLocaleString('de-DE', {
+      dateStyle: 'long',
+      timeStyle: 'short'
+    });
+
+    const resendNote = isResend
+      ? '\nHinweis: Dies ist eine erneute Einladung. Ihre vorherige Einladung wurde aktualisiert.\n'
+      : '';
+
+    return `
+Einladung zum Kunden-Portal
+${resendNote}
+${greeting},
+
+${senderName ? `${senderName} hat` : 'Sie wurden'} Sie zum Self-Service-Portal von ${customerName} eingeladen.
+
+Mit dem Kunden-Portal haben Sie Zugriff auf:
+- Support-Tickets erstellen und verfolgen
+- Projektstatus einsehen
+- Rechnungen und Angebote abrufen
+- Direkte Kommunikation mit dem Support-Team
+
+WICHTIG: Dieser Einladungslink ist 7 Tage gueltig!
+Gueltig bis: ${expiresFormatted} Uhr
+
+Klicken Sie auf den folgenden Link, um Ihr Passwort festzulegen und Ihren Zugang zu aktivieren:
+
+${activationUrl}
+
+Diese Einladung nicht erwartet?
+Falls Sie diese E-Mail nicht angefordert haben, koennen Sie sie ignorieren.
+Es wird kein Konto erstellt, solange Sie den Link nicht aktivieren.
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
+  }
 }
 
 export const emailService = new EmailService();
