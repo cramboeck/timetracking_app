@@ -2489,13 +2489,12 @@ export async function initializeDatabase() {
         -- Acknowledgment
         acknowledged BOOLEAN DEFAULT false,
         acknowledged_at TIMESTAMP,
-        acknowledged_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-
-        -- Unique constraint: one warning per customer per day
-        UNIQUE(customer_id, DATE(generated_at))
+        acknowledged_by TEXT REFERENCES users(id) ON DELETE SET NULL
       )
     `);
 
+    // Unique constraint: one warning per customer per day (using expression index)
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_churn_warnings_unique_day ON churn_risk_warnings(customer_id, DATE(generated_at))');
     await client.query('CREATE INDEX IF NOT EXISTS idx_churn_warnings_org ON churn_risk_warnings(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_churn_warnings_customer ON churn_risk_warnings(customer_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_churn_warnings_unack ON churn_risk_warnings(organization_id, acknowledged) WHERE acknowledged = false');
