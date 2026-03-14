@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { Clock, Building2, AlertCircle, Tag, RefreshCw, Filter, User, Users, Layers, X, Calendar, ChevronDown } from 'lucide-react';
 import { Ticket, TicketStatus, TicketPriority, Customer } from '../types';
 import { ticketsApi, TicketTag, organizationsApi, OrganizationMember } from '../services/api';
@@ -178,7 +178,13 @@ const TicketCard = memo(({
 
 TicketCard.displayName = 'TicketCard';
 
-export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0 }: TicketKanbanProps) => {
+export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config }: TicketKanbanProps) => {
+  // Merge custom config with defaults
+  const activeConfig = useMemo(() => ({
+    ...DEFAULT_KANBAN_CONFIG,
+    ...config,
+  }), [config]);
+
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketTags, setTicketTags] = useState<Record<string, TicketTag[]>>({});
   const [loading, setLoading] = useState(true);
@@ -197,14 +203,34 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0 }: Tick
   // Team members
   const [teamMembers, setTeamMembers] = useState<OrganizationMember[]>([]);
 
+  // Refs für Infinite Scroll
+  const columnRefs = useRef<Record<TicketStatus, HTMLDivElement | null>>({
+    open: null,
+    in_progress: null,
+    waiting: null,
+    resolved: null,
+    closed: null,
+    archived: null,
+  });
+
   // Pagination state pro Spalte
   const [columnLimits, setColumnLimits] = useState<Record<TicketStatus, number>>({
-    open: KANBAN_CONFIG.initialLimit,
-    in_progress: KANBAN_CONFIG.initialLimit,
-    waiting: KANBAN_CONFIG.initialLimit,
-    resolved: KANBAN_CONFIG.initialLimit,
-    closed: KANBAN_CONFIG.initialLimit,
-    archived: KANBAN_CONFIG.initialLimit,
+    open: activeConfig.initialLimit,
+    in_progress: activeConfig.initialLimit,
+    waiting: activeConfig.initialLimit,
+    resolved: activeConfig.initialLimit,
+    closed: activeConfig.initialLimit,
+    archived: activeConfig.initialLimit,
+  });
+
+  // Loading state für Infinite Scroll pro Spalte
+  const [loadingMore, setLoadingMore] = useState<Record<TicketStatus, boolean>>({
+    open: false,
+    in_progress: false,
+    waiting: false,
+    resolved: false,
+    closed: false,
+    archived: false,
   });
 
   const loadTickets = useCallback(async () => {
@@ -217,10 +243,10 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0 }: Tick
       );
       setTickets(activeTickets);
 
-      // Load tags for all tickets (mit erhöhtem Limit)
+      // Load tags for all tickets (mit konfigurierbarem Limit)
       const tagsMap: Record<string, TicketTag[]> = {};
       await Promise.all(
-        activeTickets.slice(0, KANBAN_CONFIG.maxTagsToLoad).map(async (ticket: Ticket) => {
+        activeTickets.slice(0, activeConfig.maxTagsToLoad).map(async (ticket: Ticket) => {
           try {
             const tagsResponse = await ticketsApi.getTicketTags(ticket.id);
             tagsMap[ticket.id] = tagsResponse.data;
@@ -235,7 +261,7 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0 }: Tick
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeConfig.maxTagsToLoad]);
 
   const loadTeamMembers = useCallback(async () => {
     try {
@@ -365,11 +391,20 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0 }: Tick
 
   // Funktion zum Laden weiterer Tickets pro Spalte
   const loadMoreTickets = useCallback((status: TicketStatus) => {
-    setColumnLimits(prev => ({
-      ...prev,
-      [status]: prev[status] + KANBAN_CONFIG.loadMoreIncrement,
-    }));
-  }, []);
+    // Verhindere mehrfaches Laden
+    if (loadingMore[status]) return;
+
+    setLoadingMore(prev => ({ ...prev, [status]: true }));
+
+    // Kurze Verzögerung für visuelles Feedback
+    setTimeout(() => {
+      setColumnLimits(prev => ({
+        ...prev,
+        [status]: prev[status] + activeConfig.loadMoreIncrement,
+      }));
+      setLoadingMore(prev => ({ ...prev, [status]: false }));
+    }, 100);
+  }, [activeConfig.loadMoreIncrement, loadingMore]);
 
   // Begrenzte Tickets für die Anzeige mit Pagination-Info
   const getVisibleColumnTickets = useCallback((status: TicketStatus, priority?: TicketPriority) => {
