@@ -1971,6 +1971,56 @@ export async function initializeDatabase() {
           ALTER TABLE customer_portal_users ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
         END IF;
 
+        -- Add portal permission columns to customer_portal_users
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_create_tickets'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_create_tickets BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_all_tickets'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_all_tickets BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_devices'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_devices BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_invoices'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_invoices BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_quotes'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_quotes BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'notify_ticket_created'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN notify_ticket_created BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'notify_ticket_status_changed'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN notify_ticket_status_changed BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'notify_ticket_reply'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN notify_ticket_reply BOOLEAN DEFAULT true;
+        END IF;
+
         -- Add organization_id to feature_packages
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns

@@ -318,15 +318,17 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
       return res.status(404).json({ error: 'Customer not found' });
     }
 
+    // Use customer_portal_users table for portal contacts
     const result = await pool.query(
-      `SELECT id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+      `SELECT id, customer_id, name, email, is_primary_contact as is_primary,
+              can_create_tickets, can_view_all_tickets,
               can_view_devices, can_view_invoices, can_view_quotes,
               notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply,
-              last_login, created_at, password_hash IS NOT NULL as is_activated
-       FROM customer_contacts
-       WHERE customer_id = $1
-       ORDER BY is_primary DESC, name`,
-      [customerId]
+              last_login, created_at, password_hash IS NOT NULL AND password_hash != '' as is_activated
+       FROM customer_portal_users
+       WHERE customer_id = $1 AND organization_id = $2
+       ORDER BY is_primary_contact DESC, name`,
+      [customerId, organizationId]
     );
 
     const contacts = result.rows.map(row => ({
@@ -335,8 +337,8 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
       name: row.name,
       email: row.email,
       isPrimary: row.is_primary,
-      canCreateTickets: row.can_create_tickets,
-      canViewAllTickets: row.can_view_all_tickets,
+      canCreateTickets: row.can_create_tickets ?? true,
+      canViewAllTickets: row.can_view_all_tickets ?? false,
       canViewDevices: row.can_view_devices ?? false,
       canViewInvoices: row.can_view_invoices ?? false,
       canViewQuotes: row.can_view_quotes ?? false,
@@ -358,7 +360,7 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
   }
 });
 
-// POST /api/customers/:customerId/contacts - Create new contact (requires member role)
+// POST /api/customers/:customerId/contacts - Create new portal contact (requires member role)
 router.post('/:customerId/contacts', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createContactSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -377,9 +379,9 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // Check if email already exists for this customer
+    // Check if email already exists for this customer in portal users
     const existingContact = await pool.query(
-      'SELECT id FROM customer_contacts WHERE customer_id = $1 AND LOWER(email) = LOWER($2)',
+      'SELECT id FROM customer_portal_users WHERE customer_id = $1 AND LOWER(email) = LOWER($2)',
       [customerId, email]
     );
     if (existingContact.rows.length > 0) {
@@ -388,16 +390,20 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
 
     // If setting as primary, unset other primary contacts
     if (isPrimary) {
-      await pool.query('UPDATE customer_contacts SET is_primary = FALSE WHERE customer_id = $1', [customerId]);
+      await pool.query('UPDATE customer_portal_users SET is_primary_contact = FALSE WHERE customer_id = $1', [customerId]);
     }
 
     const id = crypto.randomUUID();
+    // Create portal user with empty password_hash (will be set when activated)
     await pool.query(
-      `INSERT INTO customer_contacts (id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+      `INSERT INTO customer_portal_users (
+        id, owner_user_id, organization_id, customer_id, name, email, password_hash,
+        is_primary_contact, is_active, can_create_tickets, can_view_all_tickets,
         can_view_devices, can_view_invoices, can_view_quotes,
-        notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())`,
-      [id, customerId, name, email, isPrimary, canCreateTickets, canViewAllTickets,
+        notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, '', $7, true, $8, $9, $10, $11, $12, $13, $14, $15, NOW())`,
+      [id, userId, organizationId, customerId, name, email, isPrimary ?? false,
+       canCreateTickets ?? true, canViewAllTickets ?? false,
        canViewDevices ?? false, canViewInvoices ?? false, canViewQuotes ?? false,
        notifyTicketCreated ?? true, notifyTicketStatusChanged ?? true, notifyTicketReply ?? true]
     );
@@ -417,12 +423,15 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
         customerId,
         name,
         email,
-        isPrimary,
-        canCreateTickets,
-        canViewAllTickets,
+        isPrimary: isPrimary ?? false,
+        canCreateTickets: canCreateTickets ?? true,
+        canViewAllTickets: canViewAllTickets ?? false,
         canViewDevices: canViewDevices ?? false,
         canViewInvoices: canViewInvoices ?? false,
         canViewQuotes: canViewQuotes ?? false,
+        notifyTicketCreated: notifyTicketCreated ?? true,
+        notifyTicketStatusChanged: notifyTicketStatusChanged ?? true,
+        notifyTicketReply: notifyTicketReply ?? true,
         isActivated: false,
         lastLogin: null,
         createdAt: new Date().toISOString(),
@@ -434,7 +443,7 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
   }
 });
 
-// PUT /api/customers/:customerId/contacts/:contactId - Update contact (requires member role)
+// PUT /api/customers/:customerId/contacts/:contactId - Update portal contact (requires member role)
 router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateContactSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -449,15 +458,15 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // Verify contact exists
-    const contactResult = await pool.query('SELECT * FROM customer_contacts WHERE id = $1 AND customer_id = $2', [contactId, customerId]);
+    // Verify portal user exists
+    const contactResult = await pool.query('SELECT * FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3', [contactId, customerId, organizationId]);
     if (contactResult.rows.length === 0) {
       return res.status(404).json({ error: 'Contact not found' });
     }
 
     // If setting as primary, unset other primary contacts
     if (updates.isPrimary) {
-      await pool.query('UPDATE customer_contacts SET is_primary = FALSE WHERE customer_id = $1 AND id != $2', [customerId, contactId]);
+      await pool.query('UPDATE customer_portal_users SET is_primary_contact = FALSE WHERE customer_id = $1 AND id != $2', [customerId, contactId]);
     }
 
     // Build dynamic update query
@@ -472,7 +481,7 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
     if (updates.email !== undefined) {
       // Check if email already exists
       const existingContact = await pool.query(
-        'SELECT id FROM customer_contacts WHERE customer_id = $1 AND LOWER(email) = LOWER($2) AND id != $3',
+        'SELECT id FROM customer_portal_users WHERE customer_id = $1 AND LOWER(email) = LOWER($2) AND id != $3',
         [customerId, updates.email, contactId]
       );
       if (existingContact.rows.length > 0) {
@@ -482,7 +491,7 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
       values.push(updates.email);
     }
     if (updates.isPrimary !== undefined) {
-      fields.push(`is_primary = $${paramCount++}`);
+      fields.push(`is_primary_contact = $${paramCount++}`);
       values.push(updates.isPrimary);
     }
     if (updates.canCreateTickets !== undefined) {
@@ -522,16 +531,18 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
       return res.status(400).json({ error: 'No fields to update' });
     }
 
+    fields.push(`updated_at = NOW()`);
     values.push(contactId);
-    const query = `UPDATE customer_contacts SET ${fields.join(', ')} WHERE id = $${paramCount}`;
+    const query = `UPDATE customer_portal_users SET ${fields.join(', ')} WHERE id = $${paramCount}`;
     await pool.query(query, values);
 
     const updatedResult = await pool.query(
-      `SELECT id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+      `SELECT id, customer_id, name, email, is_primary_contact as is_primary,
+              can_create_tickets, can_view_all_tickets,
               can_view_devices, can_view_invoices, can_view_quotes,
               notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply,
-              last_login, created_at, password_hash IS NOT NULL as is_activated
-       FROM customer_contacts WHERE id = $1`,
+              last_login, created_at, password_hash IS NOT NULL AND password_hash != '' as is_activated
+       FROM customer_portal_users WHERE id = $1`,
       [contactId]
     );
     const updated = updatedResult.rows[0];
@@ -544,8 +555,8 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
         name: updated.name,
         email: updated.email,
         isPrimary: updated.is_primary,
-        canCreateTickets: updated.can_create_tickets,
-        canViewAllTickets: updated.can_view_all_tickets,
+        canCreateTickets: updated.can_create_tickets ?? true,
+        canViewAllTickets: updated.can_view_all_tickets ?? false,
         canViewDevices: updated.can_view_devices ?? false,
         canViewInvoices: updated.can_view_invoices ?? false,
         canViewQuotes: updated.can_view_quotes ?? false,
@@ -563,7 +574,7 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
   }
 });
 
-// DELETE /api/customers/:customerId/contacts/:contactId - Delete contact (requires admin role)
+// DELETE /api/customers/:customerId/contacts/:contactId - Delete portal contact (requires admin role)
 router.delete('/:customerId/contacts/:contactId', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -577,13 +588,13 @@ router.delete('/:customerId/contacts/:contactId', authenticateToken, attachOrgan
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // Verify contact exists
-    const contactResult = await pool.query('SELECT * FROM customer_contacts WHERE id = $1 AND customer_id = $2', [contactId, customerId]);
+    // Verify portal user exists
+    const contactResult = await pool.query('SELECT * FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3', [contactId, customerId, organizationId]);
     if (contactResult.rows.length === 0) {
       return res.status(404).json({ error: 'Contact not found' });
     }
 
-    await pool.query('DELETE FROM customer_contacts WHERE id = $1', [contactId]);
+    await pool.query('DELETE FROM customer_portal_users WHERE id = $1', [contactId]);
 
     auditLog.log({
       userId,
@@ -617,10 +628,10 @@ router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, a
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // Get contact
+    // Get portal user
     const contactResult = await pool.query(
-      'SELECT * FROM customer_contacts WHERE id = $1 AND customer_id = $2',
-      [contactId, customerId]
+      'SELECT * FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3',
+      [contactId, customerId, organizationId]
     );
     if (contactResult.rows.length === 0) {
       return res.status(404).json({ error: 'Contact not found' });
@@ -700,10 +711,10 @@ router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, 
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // Get contact
+    // Get portal user
     const contactResult = await pool.query(
-      'SELECT * FROM customer_contacts WHERE id = $1 AND customer_id = $2',
-      [contactId, customerId]
+      'SELECT * FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3',
+      [contactId, customerId, organizationId]
     );
     if (contactResult.rows.length === 0) {
       return res.status(404).json({ error: 'Contact not found' });
@@ -713,10 +724,10 @@ router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, 
 
     // Hash password and update
     const passwordHash = await bcrypt.hash(password, 10);
-    console.log(`🔑 Setting password for contact "${contact.email}" (id: ${contactId}), hash length: ${passwordHash.length}`);
+    console.log(`🔑 Setting password for portal user "${contact.email}" (id: ${contactId}), hash length: ${passwordHash.length}`);
 
     const updateResult = await pool.query(
-      'UPDATE customer_contacts SET password_hash = $1 WHERE id = $2 RETURNING id, password_hash IS NOT NULL as has_password',
+      'UPDATE customer_portal_users SET password_hash = $1, updated_at = NOW() WHERE id = $2 RETURNING id, password_hash IS NOT NULL AND password_hash != \'\' as has_password',
       [passwordHash, contactId]
     );
 
