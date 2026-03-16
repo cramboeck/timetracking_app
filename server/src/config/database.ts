@@ -2365,6 +2365,43 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_followup ON customer_interactions(follow_up_date) WHERE follow_up_required = true AND follow_up_completed = false');
     console.log('✅ Customer interactions table created');
 
+    // CRM Interactions - For external email/calendar integration (Microsoft 365, etc.)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS crm_interactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+        -- Interaction type
+        type TEXT NOT NULL CHECK(type IN ('email', 'call', 'meeting', 'note', 'chat')),
+        direction TEXT CHECK(direction IN ('inbound', 'outbound')),
+
+        -- Details
+        subject TEXT,
+        content TEXT,
+        summary TEXT,
+
+        -- Timing
+        occurred_at TIMESTAMP NOT NULL DEFAULT NOW(),
+
+        -- External source tracking (for email integration)
+        external_id TEXT,
+        external_source TEXT,
+
+        -- Timestamps
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_crm_interactions_org ON crm_interactions(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_crm_interactions_customer ON crm_interactions(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_crm_interactions_user ON crm_interactions(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_crm_interactions_date ON crm_interactions(occurred_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_crm_interactions_external ON crm_interactions(organization_id, external_id, external_source)');
+    console.log('✅ CRM interactions table created');
+
     // SLA Policies - Missing table that was referenced but not created
     await client.query(`
       CREATE TABLE IF NOT EXISTS sla_policies (
