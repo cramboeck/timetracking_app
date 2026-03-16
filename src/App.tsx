@@ -1044,6 +1044,17 @@ function App() {
               setCurrentArea('arbeiten');
               setCurrentSubView('stopwatch');
             }}
+            onAddManualEntry={(customerId, projectId) => {
+              // Set prefilled entry and switch to manual entry
+              if (projectId) {
+                setPrefilledEntry({
+                  projectId,
+                  description: '',
+                });
+              }
+              setCurrentArea('arbeiten');
+              setCurrentSubView('manual');
+            }}
           />
         )}
         {currentSubView === 'tickets' && (

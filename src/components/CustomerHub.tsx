@@ -89,6 +89,7 @@ interface CustomerHubProps {
   onNavigateToTicket?: (ticketId: string) => void;
   onNavigateToTask?: (taskId: string) => void;
   onStartTimer?: (customerId: string, projectId?: string, description?: string) => void;
+  onAddManualEntry?: (customerId: string, projectId?: string) => void;
   initialCustomerId?: string;
 }
 
@@ -326,6 +327,7 @@ interface QuickActionsProps {
   onCreateTicket: () => void;
   onCreateTask: () => void;
   onStartTimer: () => void;
+  onAddManualEntry: () => void;
 }
 
 const QuickActions: React.FC<QuickActionsProps> = ({
@@ -334,6 +336,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({
   onCreateTicket,
   onCreateTask,
   onStartTimer,
+  onAddManualEntry,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -343,6 +346,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({
     { icon: Ticket, label: 'Ticket erstellen', onClick: onCreateTicket, color: 'text-orange-600' },
     { icon: ListTodo, label: 'Aufgabe erstellen', onClick: onCreateTask, color: 'text-purple-600' },
     { icon: Timer, label: 'Timer starten', onClick: onStartTimer, color: 'text-indigo-600' },
+    { icon: Clock, label: 'Zeit manuell erfassen', onClick: onAddManualEntry, color: 'text-teal-600' },
   ];
 
   return (
@@ -1115,9 +1119,10 @@ interface TimeEntriesTabProps {
   entries: TimeEntry[];
   projects: Project[];
   onStartTimer: () => void;
+  onAddManualEntry: () => void;
 }
 
-const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onStartTimer }) => {
+const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onStartTimer, onAddManualEntry }) => {
   const getProjectName = (projectId: string) => {
     return projects.find(p => p.id === projectId)?.name || 'Unbekannt';
   };
@@ -1163,9 +1168,14 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onSt
             </span>
           </div>
         </div>
-        <Button onClick={onStartTimer} variant="primary" size="sm" icon={<Timer size={16} />}>
-          Timer starten
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={onAddManualEntry} variant="secondary" size="sm" icon={<Clock size={16} />}>
+            Manuell erfassen
+          </Button>
+          <Button onClick={onStartTimer} variant="primary" size="sm" icon={<Timer size={16} />}>
+            Timer starten
+          </Button>
+        </div>
       </div>
 
       {entries.length === 0 ? (
@@ -1222,6 +1232,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
   onNavigateToTicket,
   onNavigateToTask,
   onStartTimer,
+  onAddManualEntry,
   initialCustomerId,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -1445,6 +1456,13 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
     }
   };
 
+  const handleAddManualEntry = () => {
+    if (selectedCustomerId) {
+      const customerProjects = projects.filter(p => p.customerId === selectedCustomerId && p.isActive);
+      onAddManualEntry?.(selectedCustomerId, customerProjects[0]?.id);
+    }
+  };
+
   const tabs: { id: TabType; label: string; icon: React.ElementType; count?: number }[] = [
     { id: 'overview', label: 'Übersicht', icon: Activity },
     { id: 'contacts', label: 'Kontakte', icon: Users, count: contacts.length },
@@ -1616,6 +1634,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                   onCreateTicket={handleCreateTicket}
                   onCreateTask={handleCreateTask}
                   onStartTimer={handleStartTimer}
+                  onAddManualEntry={handleAddManualEntry}
                 />
               </div>
             </div>
@@ -1708,6 +1727,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                     entries={customerEntries}
                     projects={projects}
                     onStartTimer={handleStartTimer}
+                    onAddManualEntry={handleAddManualEntry}
                   />
                 )}
               </>

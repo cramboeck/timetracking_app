@@ -1244,12 +1244,16 @@ router.post('/migrate-contacts', authenticateToken, attachOrganization, requireO
         const contactId = crypto.randomUUID();
         const contactName = customer.contact_person || customer.name;
 
+        // Split contact name into first and last name
+        const nameParts = contactName.trim().split(/\s+/);
+        const firstName = nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : null;
+        const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : contactName;
+
         await pool.query(`
           INSERT INTO customer_contacts (
-            id, organization_id, customer_id, name, email, is_primary,
-            can_create_tickets, can_view_all_tickets, created_at
-          ) VALUES ($1, $2, $3, $4, $5, true, true, false, NOW())
-        `, [contactId, organizationId, customer.id, contactName, customer.email]);
+            id, organization_id, customer_id, first_name, last_name, email, is_primary, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, true, NOW())
+        `, [contactId, organizationId, customer.id, firstName, lastName, customer.email]);
 
         stats.contactsFromEmail++;
       } catch (err: any) {
@@ -1380,12 +1384,16 @@ router.post('/migrate-contacts', authenticateToken, attachOrganization, requireO
           const contactId = crypto.randomUUID();
           const contactName = email.from_name || email.from_email.split('@')[0];
 
+          // Split contact name into first and last name
+          const nameParts = contactName.trim().split(/\s+/);
+          const firstName = nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : null;
+          const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : contactName;
+
           await pool.query(`
             INSERT INTO customer_contacts (
-              id, organization_id, customer_id, name, email, is_primary,
-              can_create_tickets, can_view_all_tickets, created_at
-            ) VALUES ($1, $2, $3, $4, $5, false, true, false, NOW())
-          `, [contactId, organizationId, email.customer_id, contactName, email.from_email]);
+              id, organization_id, customer_id, first_name, last_name, email, is_primary, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, false, NOW())
+          `, [contactId, organizationId, email.customer_id, firstName, lastName, email.from_email]);
 
           stats.contactsFromTickets++;
         } catch (err: any) {
