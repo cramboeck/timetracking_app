@@ -420,15 +420,18 @@ router.post('/:id/portal-access', async (req: Request, res: Response) => {
     const portalUserId = uuidv4();
     const resetToken = uuidv4();
     const resetExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    // Temporary placeholder hash - user must set password via reset link
+    const temporaryPasswordHash = '$2a$10$PLACEHOLDER_HASH_USER_MUST_RESET_PASSWORD';
 
     await query(`
       INSERT INTO customer_portal_users (
-        id, owner_user_id, organization_id, customer_id, email, name,
-        is_primary_contact, password_reset_token, password_reset_expires
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        id, owner_user_id, organization_id, customer_id, email, password_hash, name,
+        is_primary_contact, is_active, password_reset_token, password_reset_expires
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, $10)
     `, [
       portalUserId, userId, organizationId, contactData.customer_id,
-      contactData.email, `${contactData.first_name || ''} ${contactData.last_name}`.trim(),
+      contactData.email, temporaryPasswordHash,
+      `${contactData.first_name || ''} ${contactData.last_name}`.trim(),
       contactData.is_primary, resetToken, resetExpires
     ]);
 
