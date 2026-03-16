@@ -1340,7 +1340,7 @@ router.post('/support/emails/:id/save-as-interaction', requireOrgRole('member'),
 
     // Check if interaction already exists for this email
     const existingInteraction = await query(
-      `SELECT id FROM crm_interactions
+      `SELECT id FROM customer_interactions
        WHERE organization_id = $1
        AND external_id = $2
        AND external_source = 'microsoft365'`,
@@ -1371,14 +1371,14 @@ router.post('/support/emails/:id/save-as-interaction', requireOrgRole('member'),
 
     // Create interaction
     const interactionResult = await query(
-      `INSERT INTO crm_interactions (
+      `INSERT INTO customer_interactions (
         id, organization_id, customer_id, user_id, type, direction,
         subject, content, summary, occurred_at, external_id, external_source,
-        created_at, updated_at
+        created_at
       ) VALUES (
-        gen_random_uuid(), $1, $2, $3, 'email', 'inbound',
+        gen_random_uuid()::text, $1, $2, $3, 'email', 'inbound',
         $4, $5, $6, $7, $8, 'microsoft365',
-        NOW(), NOW()
+        NOW()
       ) RETURNING id`,
       [
         organizationId,
@@ -1561,7 +1561,7 @@ router.post('/personal/emails/:id/save-as-interaction', requireOrgRole('member')
 
     // Check if interaction already exists for this email
     const existingInteraction = await query(
-      `SELECT id FROM crm_interactions
+      `SELECT id FROM customer_interactions
        WHERE organization_id = $1
        AND external_id = $2
        AND external_source = 'microsoft365_personal'`,
@@ -1594,14 +1594,14 @@ router.post('/personal/emails/:id/save-as-interaction', requireOrgRole('member')
 
     // Create interaction
     const interactionResult = await query(
-      `INSERT INTO crm_interactions (
+      `INSERT INTO customer_interactions (
         id, organization_id, customer_id, user_id, type, direction,
         subject, content, summary, occurred_at, external_id, external_source,
-        created_at, updated_at
+        created_at
       ) VALUES (
-        gen_random_uuid(), $1, $2, $3, 'email', $4,
+        gen_random_uuid()::text, $1, $2, $3, 'email', $4,
         $5, $6, $7, $8, $9, 'microsoft365_personal',
-        NOW(), NOW()
+        NOW()
       ) RETURNING id`,
       [
         organizationId,

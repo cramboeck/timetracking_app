@@ -2363,6 +2363,28 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_user ON customer_interactions(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_date ON customer_interactions(occurred_at DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_followup ON customer_interactions(follow_up_date) WHERE follow_up_required = true AND follow_up_completed = false');
+
+    // Migration: Add external_id and external_source columns for email integration
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_interactions' AND column_name = 'external_id'
+        ) THEN
+          ALTER TABLE customer_interactions ADD COLUMN external_id TEXT;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_interactions' AND column_name = 'external_source'
+        ) THEN
+          ALTER TABLE customer_interactions ADD COLUMN external_source TEXT;
+        END IF;
+      END $$;
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_external ON customer_interactions(organization_id, external_id, external_source) WHERE external_id IS NOT NULL');
+
     console.log('✅ Customer interactions table created');
 
     // CRM Interactions - For external email/calendar integration (Microsoft 365, etc.)
