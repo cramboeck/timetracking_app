@@ -27,7 +27,7 @@ export const TicketDescription = ({
           <MarkdownEditor
             value={editDescription}
             onChange={onEditDescriptionChange}
-            placeholder="Beschreibung hinzufugen..."
+            placeholder="Beschreibung hinzufügen..."
             rows={4}
           />
         </div>

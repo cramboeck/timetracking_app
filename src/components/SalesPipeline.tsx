@@ -874,9 +874,9 @@ const SalesPipeline: React.FC = () => {
         isOpen={!!deleteOpportunity}
         onClose={() => setDeleteOpportunity(null)}
         onConfirm={handleDeleteOpportunity}
-        title="Opportunity loschen"
-        message={`Mochtest du "${deleteOpportunity?.name}" wirklich loschen? Diese Aktion kann nicht rückgängig gemacht werden.`}
-        confirmText={deleting ? 'Loschen...' : 'Loschen'}
+        title="Opportunity löschen"
+        message={`Möchtest du "${deleteOpportunity?.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`}
+        confirmText={deleting ? 'Löschen...' : 'Löschen'}
         variant="danger"
       />
     </div>

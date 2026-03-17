@@ -137,7 +137,7 @@ export const TicketComments = ({
           <MarkdownEditor
             value={newComment}
             onChange={setNewComment}
-            placeholder="Kommentar hinzufugen..."
+            placeholder="Kommentar hinzufügen..."
             rows={3}
           />
           <div className="flex items-center justify-between flex-wrap gap-2">

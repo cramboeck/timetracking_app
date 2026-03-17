@@ -153,7 +153,7 @@ export const TeamProvider = ({ children }: TeamProviderProps) => {
       setOrganizationInvitations(prev => prev.filter(inv => inv.id !== invitationId));
     } catch (error) {
       console.error('Error deleting invitation:', error);
-      alert('Fehler beim Loschen der Einladung');
+      alert('Fehler beim Löschen der Einladung');
     }
   }, [currentOrganization]);
 

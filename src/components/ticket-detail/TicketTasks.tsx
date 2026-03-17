@@ -213,7 +213,7 @@ export const TicketTasks = ({
                     ? 'text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
                     : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
-                title={task.visibleToCustomer ? 'Fur Kunden sichtbar' : 'Nur intern sichtbar'}
+                title={task.visibleToCustomer ? 'Für Kunden sichtbar' : 'Nur intern sichtbar'}
               >
                 {task.visibleToCustomer ? <Eye size={16} /> : <EyeOff size={16} />}
               </button>
@@ -224,7 +224,7 @@ export const TicketTasks = ({
                 icon={<Trash2 size={16} />}
                 variant="danger"
                 size="sm"
-                tooltip="Aufgabe loschen"
+                tooltip="Aufgabe löschen"
                 className="opacity-0 group-hover:opacity-100"
               />
             </div>
@@ -238,7 +238,7 @@ export const TicketTasks = ({
               value={newTaskTitle}
               onChange={(e) => setNewTaskTitle(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleAddTask()}
-              placeholder="Neue Aufgabe hinzufugen..."
+              placeholder="Neue Aufgabe hinzufügen..."
               className="flex-1 bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
             />
             <button
@@ -248,7 +248,7 @@ export const TicketTasks = ({
                   ? 'text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
                   : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
-              title={newTaskVisible ? 'Fur Kunden sichtbar' : 'Nur intern sichtbar'}
+              title={newTaskVisible ? 'Für Kunden sichtbar' : 'Nur intern sichtbar'}
             >
               {newTaskVisible ? <Eye size={16} /> : <EyeOff size={16} />}
             </button>
@@ -259,7 +259,7 @@ export const TicketTasks = ({
               size="sm"
               loading={addingTask}
             >
-              Hinzufugen
+              Hinzufügen
             </Button>
           </div>
         </div>

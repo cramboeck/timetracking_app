@@ -740,9 +740,9 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
         isOpen={!!deleteInteraction}
         onClose={() => setDeleteInteraction(null)}
         onConfirm={handleDelete}
-        title="Interaktion loschen"
-        message={`Mochtest du die Interaktion "${deleteInteraction?.subject}" wirklich loschen?`}
-        confirmText={deleting ? 'Loschen...' : 'Loschen'}
+        title="Interaktion löschen"
+        message={`Möchtest du die Interaktion "${deleteInteraction?.subject}" wirklich löschen?`}
+        confirmText={deleting ? 'Löschen...' : 'Löschen'}
         variant="danger"
       />
     </div>

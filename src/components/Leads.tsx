@@ -166,7 +166,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onCon
                   </Button>
                 )}
                 <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
-                <div className="px-3 py-1 text-xs text-gray-500 uppercase">Status andern</div>
+                <div className="px-3 py-1 text-xs text-gray-500 uppercase">Status ändern</div>
                 {(Object.keys(STATUS_CONFIG) as LeadStatus[])
                   .filter((s) => s !== lead.status && s !== 'won' && s !== 'lost')
                   .map((status) => (
@@ -880,9 +880,9 @@ const Leads: React.FC = () => {
         isOpen={!!deleteLead}
         onClose={() => setDeleteLead(null)}
         onConfirm={handleDeleteLead}
-        title="Lead loschen"
-        message={`Mochtest du "${deleteLead?.name}" wirklich loschen?`}
-        confirmText={deleting ? 'Loschen...' : 'Loschen'}
+        title="Lead löschen"
+        message={`Möchtest du "${deleteLead?.name}" wirklich löschen?`}
+        confirmText={deleting ? 'Löschen...' : 'Löschen'}
         variant="danger"
       />
     </div>

@@ -50,11 +50,11 @@ export const TicketAttachments = ({
     <div>
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          Anhange ({attachments.length})
+          Anhänge ({attachments.length})
         </h2>
         <label className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-accent-primary bg-accent-primary/10 hover:bg-accent-primary/20 rounded-lg cursor-pointer transition-colors">
           <Paperclip size={16} />
-          {uploadingFiles ? 'Ladt...' : 'Datei hinzufugen'}
+          {uploadingFiles ? 'Lädt...' : 'Datei hinzufügen'}
           <input
             ref={fileInputRef}
             type="file"

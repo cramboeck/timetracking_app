@@ -248,7 +248,7 @@ export const TeamSettings = () => {
                     <button
                       onClick={() => deleteInvitation(invitation.id)}
                       className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                      title="Einladung loschen"
+                      title="Einladung löschen"
                     >
                       <Trash2 size={18} />
                     </button>
