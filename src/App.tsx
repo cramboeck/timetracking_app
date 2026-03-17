@@ -194,6 +194,42 @@ function App() {
         const running = (entriesResponse.data || []).find(e => e.isRunning);
         if (running) {
           setRunningEntry(running);
+        } else {
+          // TIMER SAFETY: Check localStorage for backup of running timer
+          // This helps recover if the server lost track of the running state
+          const RUNNING_TIMER_KEY = 'running_timer_backup';
+          try {
+            const backupStr = localStorage.getItem(RUNNING_TIMER_KEY);
+            if (backupStr) {
+              const backup = JSON.parse(backupStr);
+              const backupAge = Date.now() - new Date(backup.savedAt).getTime();
+              const maxBackupAge = 24 * 60 * 60 * 1000; // 24 hours
+
+              if (backupAge < maxBackupAge && backup.entry?.isRunning) {
+                console.log('🔄 [TIMER] Found backup timer in localStorage, recovering...');
+                // Check if this entry exists in the loaded entries
+                const existingEntry = (entriesResponse.data || []).find(e => e.id === backup.entry.id);
+                if (existingEntry && !existingEntry.endTime) {
+                  // Entry exists but server doesn't know it's running - resume it
+                  const recoveredEntry = { ...existingEntry, isRunning: true };
+                  setRunningEntry(recoveredEntry);
+                  // Update server
+                  entriesApi.update(recoveredEntry.id, recoveredEntry).catch(err => {
+                    console.error('❌ [TIMER] Failed to sync recovered timer:', err);
+                  });
+                  console.log('✅ [TIMER] Timer recovered from backup');
+                } else {
+                  // Entry doesn't exist or was already completed - clear backup
+                  localStorage.removeItem(RUNNING_TIMER_KEY);
+                }
+              } else {
+                // Backup too old - clear it
+                localStorage.removeItem(RUNNING_TIMER_KEY);
+              }
+            }
+          } catch (err) {
+            console.error('❌ [TIMER] Failed to recover timer from backup:', err);
+          }
         }
 
         // Note: Don't auto-switch to stopwatch view - respect user's saved preference
@@ -615,6 +651,79 @@ function App() {
       syncPendingEntries();
     }
   }, [isOnline, wasOffline, syncPendingEntries]);
+
+  // TIMER SAFETY: Warn user before closing page with running timer
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (runningEntry) {
+        const message = 'Du hast einen laufenden Timer! Wenn du die Seite verlässt, könnte Zeit verloren gehen.';
+        e.preventDefault();
+        e.returnValue = message;
+        return message;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [runningEntry]);
+
+  // TIMER SAFETY: Recalculate elapsed time when tab becomes visible again
+  // This prevents time drift if the tab was in background
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && runningEntry) {
+        console.log('👁️ [TIMER] Tab became visible, syncing timer state...');
+        // The Stopwatch component will recalculate elapsed time from startTime
+        // We just need to ensure the entry is fresh
+        setRunningEntry(prev => prev ? { ...prev } : null);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [runningEntry]);
+
+  // TIMER SAFETY: Periodic heartbeat - save running timer to backend every 5 minutes
+  // This ensures the server has the latest state even if the client crashes
+  useEffect(() => {
+    if (!runningEntry || !isOnline) return;
+
+    const heartbeatInterval = setInterval(async () => {
+      if (runningEntry && runningEntry.isRunning) {
+        try {
+          console.log('💓 [TIMER] Heartbeat: saving running timer state...');
+          await entriesApi.update(runningEntry.id, {
+            ...runningEntry,
+            duration: Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000),
+          });
+          console.log('💓 [TIMER] Heartbeat successful');
+        } catch (error) {
+          console.error('💔 [TIMER] Heartbeat failed:', error);
+          // If heartbeat fails, save to local storage as backup
+          addPendingEntry(runningEntry, 'update');
+        }
+      }
+    }, 5 * 60 * 1000); // Every 5 minutes
+
+    return () => clearInterval(heartbeatInterval);
+  }, [runningEntry, isOnline]);
+
+  // TIMER SAFETY: Save running timer to localStorage as backup
+  useEffect(() => {
+    const RUNNING_TIMER_KEY = 'running_timer_backup';
+
+    if (runningEntry) {
+      // Save backup to localStorage
+      localStorage.setItem(RUNNING_TIMER_KEY, JSON.stringify({
+        entry: runningEntry,
+        savedAt: new Date().toISOString(),
+      }));
+      console.log('💾 [TIMER] Saved backup to localStorage');
+    } else {
+      // Clear backup when timer stops
+      localStorage.removeItem(RUNNING_TIMER_KEY);
+    }
+  }, [runningEntry]);
 
   const handleDeleteEntry = async (id: string) => {
     try {
