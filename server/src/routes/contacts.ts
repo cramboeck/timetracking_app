@@ -39,7 +39,7 @@ router.get('/', async (req: Request, res: Response) => {
         cc.*,
         c.name as customer_name,
         c.color as customer_color,
-        cpu.id as has_portal_access
+        CASE WHEN cc.password_hash IS NOT NULL OR cpu.id IS NOT NULL THEN true ELSE false END as has_portal_access
       FROM customer_contacts cc
       LEFT JOIN customers c ON cc.customer_id = c.id
       LEFT JOIN customer_portal_users cpu ON cc.portal_user_id = cpu.id
@@ -142,7 +142,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         cc.*,
         c.name as customer_name,
         c.color as customer_color,
-        cpu.id as has_portal_access,
+        CASE WHEN cc.password_hash IS NOT NULL OR cpu.id IS NOT NULL THEN true ELSE false END as has_portal_access,
         cpu.last_login as portal_last_login
       FROM customer_contacts cc
       LEFT JOIN customers c ON cc.customer_id = c.id
@@ -391,8 +391,8 @@ router.post('/:id/portal-access', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Contact must have an email address for portal access' });
     }
 
-    // Check if portal user already exists
-    if (contactData.portal_user_id) {
+    // Check if portal user already exists (via old system or new direct password)
+    if (contactData.portal_user_id || contactData.password_hash) {
       return res.status(400).json({ error: 'Contact already has portal access' });
     }
 
@@ -579,7 +579,7 @@ router.get('/customer/:customerId', async (req: Request, res: Response) => {
     const result = await query(`
       SELECT
         cc.*,
-        cpu.id as has_portal_access,
+        CASE WHEN cc.password_hash IS NOT NULL OR cpu.id IS NOT NULL THEN true ELSE false END as has_portal_access,
         cpu.last_login as portal_last_login
       FROM customer_contacts cc
       LEFT JOIN customer_portal_users cpu ON cc.portal_user_id = cpu.id

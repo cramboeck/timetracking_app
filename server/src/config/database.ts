@@ -1587,6 +1587,33 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add portal authentication columns to customer_contacts
+    // This allows contacts to log in directly to the portal without a separate customer_portal_users entry
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'password_hash'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN password_hash TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'password_reset_token'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN password_reset_token TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'password_reset_expires'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN password_reset_expires TIMESTAMP;
+        END IF;
+      END $$;
+    `);
+    console.log('✅ Customer contact portal authentication columns added');
+
     // Migration: Add email notification preferences to customer_contacts
     await client.query(`
       DO $$
