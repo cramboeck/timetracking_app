@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Ticket, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { Ticket, Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { customerPortalApi } from '../../services/api';
 
 interface PortalActivateProps {
   token: string;
   onActivated: () => void;
+}
+
+interface InvitationInfo {
+  email: string;
+  name: string;
+  customerName: string;
 }
 
 export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
@@ -14,6 +20,33 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(true);
+  const [invitationInfo, setInvitationInfo] = useState<InvitationInfo | null>(null);
+  const [tokenInvalid, setTokenInvalid] = useState(false);
+
+  useEffect(() => {
+    const verifyToken = async () => {
+      try {
+        const result = await customerPortalApi.verifyInvitation(token);
+        if (result.valid) {
+          setInvitationInfo({
+            email: result.email || '',
+            name: result.name || '',
+            customerName: result.customerName || '',
+          });
+        } else {
+          setTokenInvalid(true);
+          setError(result.error || 'Ungültiger Einladungslink');
+        }
+      } catch (err) {
+        setTokenInvalid(true);
+        setError(err instanceof Error ? err.message : 'Fehler bei der Überprüfung des Links');
+      } finally {
+        setVerifying(false);
+      }
+    };
+    verifyToken();
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +78,50 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
     }
   };
 
+  // Loading state while verifying token
+  if (verifying) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <div className="w-full max-w-md text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 text-white mb-4">
+            <Loader2 size={32} className="animate-spin" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Link wird überprüft...
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Bitte warten Sie einen Moment.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Invalid token state
+  if (tokenInvalid) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <div className="w-full max-w-md text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 text-red-600 mb-4">
+            <AlertCircle size={32} />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Ungültiger Link
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            {error || 'Der Aktivierungslink ist ungültig oder abgelaufen.'}
+          </p>
+          <button
+            onClick={onActivated}
+            className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+          >
+            Zur Anmeldung
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
@@ -75,8 +152,13 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
             Konto aktivieren
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Legen Sie ein Passwort fest, um Ihr Konto zu aktivieren
+            {invitationInfo?.name ? `Willkommen, ${invitationInfo.name}!` : 'Legen Sie ein Passwort fest, um Ihr Konto zu aktivieren'}
           </p>
+          {invitationInfo?.customerName && (
+            <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+              Unternehmen: {invitationInfo.customerName}
+            </p>
+          )}
         </div>
 
         {/* Form */}
