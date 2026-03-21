@@ -41,7 +41,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col" style={brandStyles}>
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             {portalSettings?.logoUrl ? (
               <img
@@ -112,7 +112,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
       {/* Navigation Tabs */}
       {(onShowTickets || onShowDevices || onShowInvoices) && (
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="max-w-5xl mx-auto px-4">
+          <div className="max-w-6xl mx-auto px-4">
             <nav className="flex gap-1 overflow-x-auto">
               {onShowTickets && (
                 <Button
@@ -165,13 +165,13 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
       )}
 
       {/* Main Content */}
-      <main className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-6">
+      <main className="flex-1 max-w-6xl mx-auto w-full p-4 sm:p-6">
         {children}
       </main>
 
       {/* Footer */}
       <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-4">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
             <div className="text-sm text-gray-500 dark:text-gray-400">
               Support-Portal powered by RamboFlow

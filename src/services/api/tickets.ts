@@ -471,6 +471,7 @@ export interface PortalSettings {
   primaryColor: string;
   showKnowledgeBase: boolean;
   requireLoginForKb?: boolean;
+  teamviewerLink?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
