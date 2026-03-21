@@ -115,13 +115,13 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
     try {
       setLoadingSoftware(deviceId);
       const endpoint = forceRefresh
-        ? `/portal/devices/${deviceId}/software/refresh`
-        : `/portal/devices/${deviceId}/software`;
+        ? `/customer-portal/devices/${deviceId}/software/refresh`
+        : `/customer-portal/devices/${deviceId}/software`;
 
       const response = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
         method: forceRefresh ? 'POST' : 'GET',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('portal_token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('portal_auth_token')}`,
           'Content-Type': 'application/json',
         },
       });
@@ -155,13 +155,13 @@ export const PortalDevices = ({ contact }: PortalDevicesProps) => {
     try {
       setLoadingPatches(deviceId);
       const endpoint = forceRefresh
-        ? `/portal/devices/${deviceId}/os-patches/refresh`
-        : `/portal/devices/${deviceId}/os-patches`;
+        ? `/customer-portal/devices/${deviceId}/os-patches/refresh`
+        : `/customer-portal/devices/${deviceId}/os-patches`;
 
       const response = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
         method: forceRefresh ? 'POST' : 'GET',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('portal_token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('portal_auth_token')}`,
           'Content-Type': 'application/json',
         },
       });
