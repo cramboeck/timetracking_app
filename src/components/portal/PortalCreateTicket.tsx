@@ -46,11 +46,181 @@ interface ConversationStep {
   collectAs?: string; // Which field to save the answer to
 }
 
+// Dynamic message generator based on context
+function getContextualMessage(stepId: string, collectedData: Record<string, string>): string {
+  const messages: Record<string, () => string> = {
+    start: () => 'Hallo! 👋 Schön, dass Sie da sind. Wie kann ich Ihnen heute helfen?',
+
+    // Problem flow - empathetic responses
+    problem_type: () => 'Oh je, das ist natürlich ärgerlich! 😟 Um was für ein Problem handelt es sich?',
+
+    software_name: () => 'Verstehe, ein Software-Problem. 💻 Welches Programm macht denn Schwierigkeiten?',
+
+    error_message: () => {
+      const sw = collectedData.software;
+      return sw
+        ? `Alles klar, ${sw} zickt also rum. 🤔 Erscheint dabei eine Fehlermeldung?`
+        : 'Verstanden. Erscheint dabei eine Fehlermeldung?';
+    },
+
+    error_message_text: () => 'Das hilft uns sehr! Können Sie die Fehlermeldung hier einfügen oder abtippen? 📝\n\n💡 Tipp: Ein Screenshot ist auch super hilfreich!',
+
+    hardware_device: () => 'Hardware-Problem – das schauen wir uns an! 🔧 Welches Gerät ist betroffen?',
+
+    network_details: () => 'Netzwerk-Probleme sind frustrierend, ich verstehe! 😤 Was genau funktioniert nicht?',
+
+    email_problem: () => 'E-Mail Probleme können den Arbeitstag ganz schön durcheinander bringen! 📧 Was genau ist los?',
+
+    printer_problem: () => 'Ah, der Drucker... ein Klassiker! 🖨️ Was macht er denn (nicht)?',
+
+    problem_description: () => {
+      const type = collectedData.problemType;
+      const device = collectedData.device;
+      const sw = collectedData.software;
+
+      if (sw) return `Gut, ich habe schon einiges notiert. 📝 Beschreiben Sie bitte noch kurz, was genau bei ${sw} passiert:`;
+      if (device) return `Alles klar, das ${device} macht Probleme. Beschreiben Sie bitte kurz, was genau passiert:`;
+
+      const typeLabels: Record<string, string> = {
+        network: 'zum Netzwerk-Problem',
+        email: 'zum E-Mail Problem',
+        printer: 'zum Drucker',
+      };
+      return `Okay! Erzählen Sie mir bitte noch etwas mehr ${typeLabels[type] || 'dazu'}:`;
+    },
+
+    // Request flow - helpful tone
+    request_type: () => 'Alles klar, Sie brauchen etwas Neues! 🛒 Was genau benötigen Sie?',
+
+    new_hardware_type: () => 'Neue Hardware – immer spannend! 💻 Was für ein Gerät soll es sein?',
+
+    new_software_name: () => 'Software-Anfrage, verstanden! 📦 Welche Software benötigen Sie?',
+
+    new_access_type: () => 'Zugang oder Account – da helfen wir gerne! 🔑 Was genau wird benötigt?',
+
+    new_user_details: () => 'Ein neuer Kollege/eine neue Kollegin kommt – willkommen! 🎉 Wie heißt die Person?',
+
+    new_user_department: () => {
+      const name = collectedData.newUserName;
+      return name
+        ? `Super, ${name} also. In welcher Abteilung wird ${name.includes(' ') ? name.split(' ')[0] : 'er/sie'} arbeiten?`
+        : 'In welcher Abteilung wird die Person arbeiten?';
+    },
+
+    new_user_start: () => {
+      const name = collectedData.newUserName;
+      const firstName = name?.includes(' ') ? name.split(' ')[0] : name;
+      return firstName
+        ? `Prima! Wann startet ${firstName} denn? 📅`
+        : 'Wann ist der Starttermin? 📅';
+    },
+
+    new_user_permissions: () => {
+      const name = collectedData.newUserName;
+      const dept = collectedData.department;
+      const firstName = name?.includes(' ') ? name.split(' ')[0] : name;
+
+      if (firstName && dept) {
+        return `Super! ${firstName} in der ${dept}. 📋 Welche Programme und Zugänge werden benötigt?\n\n💡 Tipp: Wenn es einen Kollegen mit ähnlicher Rolle gibt, können Sie den als Vorlage nennen.`;
+      }
+      return 'Welche Programme und Zugänge werden benötigt? 📋\n\n💡 Tipp: Gibt es einen Kollegen als Vorlage?';
+    },
+
+    accessory_type: () => 'Zubehör – gute Ausstattung ist wichtig! 🎧 Was genau brauchen Sie?',
+
+    request_reason: () => {
+      const hw = collectedData.hardwareType;
+      const sw = collectedData.softwareName;
+      const acc = collectedData.accessoryType;
+
+      if (hw) return `Ein ${hw} also. 📋 Kurz zur Dokumentation: Warum wird das benötigt?`;
+      if (sw) return `${sw} – notiert! 📋 Kurz für die Freigabe: Wofür wird die Software benötigt?`;
+      if (acc) return `${acc} – verstanden! Kurze Begründung für die Anfrage?`;
+
+      return 'Kurz für unsere Dokumentation: Warum wird das benötigt? 📋';
+    },
+
+    // Change flow - professional tone
+    change_type: () => 'Änderungswunsch – da sind Sie bei mir richtig! ✏️ Was soll geändert werden?',
+
+    user_change_type: () => 'Benutzer-Änderung, verstanden. Was genau soll angepasst werden?',
+
+    affected_user: () => {
+      const changeType = collectedData.userChangeType;
+      const changeLabels: Record<string, string> = {
+        permissions: 'die Berechtigungen anpassen',
+        deactivate: 'den Account deaktivieren',
+        name: 'den Namen ändern',
+        department: 'die Abteilung wechseln',
+      };
+      const action = changeLabels[changeType] || 'ändern';
+      return `Wir sollen also ${action}. Bei welchem Benutzer? 👤`;
+    },
+
+    password_account: () => 'Passwort-Reset – kein Problem! 🔑 Für welchen Account?',
+
+    change_description: () => {
+      const user = collectedData.affectedUser;
+      return user
+        ? `Alles klar, es geht um ${user}. Was genau soll geändert werden?`
+        : 'Was genau soll geändert werden?';
+    },
+
+    // Question flow
+    question_details: () => 'Fragen sind immer willkommen! 🤓 Was möchten Sie wissen?',
+
+    // Urgency - contextual
+    urgency: () => {
+      const category = collectedData.category;
+      if (category === 'problem') {
+        return 'Verstanden! 📊 Noch eine wichtige Frage: Wie stark beeinträchtigt das Problem Ihre Arbeit?';
+      }
+      return 'Fast geschafft! 📊 Wie dringend ist Ihr Anliegen?';
+    },
+
+    // Contact preference - friendly
+    contact_preference: () => {
+      const priority = collectedData.priority;
+      if (priority === 'critical') {
+        return 'Ich sehe, es ist dringend! 🚨 Wie erreichen wir Sie am schnellsten?';
+      }
+      if (priority === 'high') {
+        return 'Wir kümmern uns schnell darum! 📞 Wie sollen wir Sie kontaktieren?';
+      }
+      return 'Letzte Frage: Wie können wir Sie am besten erreichen? 📬';
+    },
+
+    // Summary - with recap
+    summary: () => {
+      const category = collectedData.category;
+      const priority = collectedData.priority;
+
+      const categoryLabels: Record<string, string> = {
+        problem: 'Ihr Support-Ticket',
+        request: 'Ihre Anfrage',
+        change: 'Ihren Änderungswunsch',
+        question: 'Ihre Frage',
+      };
+
+      const priorityEmojis: Record<string, string> = {
+        low: '🟢',
+        normal: '🟡',
+        high: '🟠',
+        critical: '🔴',
+      };
+
+      return `Perfekt, ich habe alles! ✅\n\n${priorityEmojis[priority] || '📋'} ${categoryLabels[category] || 'Ihr Ticket'} ist fertig zur Erstellung.\n\nSoll ich es jetzt absenden?`;
+    },
+  };
+
+  return messages[stepId]?.() || `Schritt: ${stepId}`;
+}
+
 // Define the conversation flow
 const conversationFlow: Record<string, ConversationStep> = {
   start: {
     id: 'start',
-    message: 'Hallo! 👋 Was können wir heute für Sie tun?',
+    message: '', // Will be filled dynamically
     options: [
       { id: 'problem', label: '🔧 Ich habe ein Problem', value: 'problem' },
       { id: 'request', label: '📦 Ich brauche etwas Neues', value: 'request' },
@@ -69,14 +239,14 @@ const conversationFlow: Record<string, ConversationStep> = {
   // Problem flow
   problem_type: {
     id: 'problem_type',
-    message: 'Was für ein Problem haben Sie?',
+    message: '',
     options: [
       { id: 'software', label: '💻 Software funktioniert nicht', value: 'software' },
       { id: 'hardware', label: '🖥️ Computer/Gerät defekt', value: 'hardware' },
-      { id: 'network', label: '🌐 Kein Internet/Netzwerk', value: 'network' },
+      { id: 'network', label: '🌐 Internet/Netzwerk', value: 'network' },
       { id: 'email', label: '📧 E-Mail Problem', value: 'email' },
-      { id: 'printer', label: '🖨️ Drucker Problem', value: 'printer' },
-      { id: 'other', label: '📝 Sonstiges', value: 'other' },
+      { id: 'printer', label: '🖨️ Drucker', value: 'printer' },
+      { id: 'other', label: '💬 Etwas anderes', value: 'other' },
     ],
     nextStep: (answer) => {
       if (answer === 'software') return 'software_name';
@@ -91,19 +261,20 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   software_name: {
     id: 'software_name',
-    message: 'Welche Software ist betroffen?',
+    message: '',
     inputType: 'text',
-    inputPlaceholder: 'z.B. Microsoft Word, SAP, Browser...',
+    inputPlaceholder: 'z.B. Word, Excel, SAP, Browser...',
     nextStep: () => 'error_message',
     collectAs: 'software',
   },
 
   error_message: {
     id: 'error_message',
-    message: 'Gibt es eine Fehlermeldung?',
+    message: '',
     options: [
-      { id: 'yes', label: '✅ Ja', value: 'yes' },
-      { id: 'no', label: '❌ Nein', value: 'no' },
+      { id: 'yes', label: '✅ Ja, ich sehe eine Meldung', value: 'yes' },
+      { id: 'no', label: '❌ Nein, keine Meldung', value: 'no' },
+      { id: 'screenshot', label: '📷 Ich lade einen Screenshot hoch', value: 'no' },
     ],
     nextStep: (answer) => answer === 'yes' ? 'error_message_text' : 'problem_description',
     collectAs: 'hasError',
@@ -111,23 +282,23 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   error_message_text: {
     id: 'error_message_text',
-    message: 'Wie lautet die Fehlermeldung?',
+    message: '',
     inputType: 'text',
-    inputPlaceholder: 'Kopieren Sie die Meldung hier rein...',
+    inputPlaceholder: 'Fehlermeldung hier einfügen...',
     nextStep: () => 'problem_description',
     collectAs: 'errorMessage',
   },
 
   hardware_device: {
     id: 'hardware_device',
-    message: 'Welches Gerät ist betroffen?',
+    message: '',
     options: [
-      { id: 'laptop', label: '💻 Laptop', value: 'laptop' },
-      { id: 'desktop', label: '🖥️ Desktop-PC', value: 'desktop' },
-      { id: 'monitor', label: '🖵 Monitor', value: 'monitor' },
-      { id: 'keyboard', label: '⌨️ Tastatur/Maus', value: 'keyboard' },
-      { id: 'headset', label: '🎧 Headset', value: 'headset' },
-      { id: 'other', label: '📝 Anderes', value: 'other' },
+      { id: 'laptop', label: '💻 Laptop', value: 'Laptop' },
+      { id: 'desktop', label: '🖥️ Desktop-PC', value: 'Desktop-PC' },
+      { id: 'monitor', label: '🖵 Monitor/Bildschirm', value: 'Monitor' },
+      { id: 'keyboard', label: '⌨️ Tastatur oder Maus', value: 'Tastatur/Maus' },
+      { id: 'headset', label: '🎧 Headset/Audio', value: 'Headset' },
+      { id: 'other', label: '🔧 Anderes Gerät', value: 'Anderes Gerät' },
     ],
     nextStep: () => 'problem_description',
     collectAs: 'device',
@@ -135,13 +306,13 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   network_details: {
     id: 'network_details',
-    message: 'Was funktioniert nicht?',
+    message: '',
     options: [
-      { id: 'no_internet', label: '🌐 Gar kein Internet', value: 'no_internet' },
-      { id: 'slow', label: '🐌 Sehr langsam', value: 'slow' },
-      { id: 'vpn', label: '🔒 VPN funktioniert nicht', value: 'vpn' },
-      { id: 'wifi', label: '📶 WLAN Probleme', value: 'wifi' },
-      { id: 'share', label: '📁 Netzlaufwerk nicht erreichbar', value: 'share' },
+      { id: 'no_internet', label: '🚫 Gar kein Internet', value: 'Kein Internet' },
+      { id: 'slow', label: '🐌 Sehr langsam', value: 'Sehr langsam' },
+      { id: 'vpn', label: '🔒 VPN geht nicht', value: 'VPN Problem' },
+      { id: 'wifi', label: '📶 WLAN instabil', value: 'WLAN Problem' },
+      { id: 'share', label: '📁 Netzlaufwerk weg', value: 'Netzlaufwerk nicht erreichbar' },
     ],
     nextStep: () => 'problem_description',
     collectAs: 'networkIssue',
@@ -149,13 +320,13 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   email_problem: {
     id: 'email_problem',
-    message: 'Was ist das E-Mail Problem?',
+    message: '',
     options: [
-      { id: 'no_send', label: '📤 Kann nicht senden', value: 'no_send' },
-      { id: 'no_receive', label: '📥 Empfange keine E-Mails', value: 'no_receive' },
-      { id: 'login', label: '🔐 Kann mich nicht anmelden', value: 'login' },
-      { id: 'slow', label: '🐌 Sehr langsam', value: 'slow' },
-      { id: 'other', label: '📝 Sonstiges', value: 'other' },
+      { id: 'no_send', label: '📤 Senden geht nicht', value: 'Kann nicht senden' },
+      { id: 'no_receive', label: '📥 Empfange nichts', value: 'Empfange keine E-Mails' },
+      { id: 'login', label: '🔐 Login klappt nicht', value: 'Login funktioniert nicht' },
+      { id: 'slow', label: '🐌 Extrem langsam', value: 'Sehr langsam' },
+      { id: 'other', label: '💬 Anderes Problem', value: 'Sonstiges' },
     ],
     nextStep: () => 'problem_description',
     collectAs: 'emailIssue',
@@ -163,12 +334,12 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   printer_problem: {
     id: 'printer_problem',
-    message: 'Was ist das Drucker-Problem?',
+    message: '',
     options: [
-      { id: 'offline', label: '🔴 Drucker offline', value: 'offline' },
-      { id: 'paper', label: '📄 Papierstau', value: 'paper' },
-      { id: 'quality', label: '🖼️ Schlechte Druckqualität', value: 'quality' },
-      { id: 'not_found', label: '❓ Drucker wird nicht gefunden', value: 'not_found' },
+      { id: 'offline', label: '🔴 Zeigt "offline"', value: 'Drucker offline' },
+      { id: 'paper', label: '📄 Papierstau', value: 'Papierstau' },
+      { id: 'quality', label: '🖼️ Druckt schlecht', value: 'Schlechte Druckqualität' },
+      { id: 'not_found', label: '❓ Finde ihn nicht', value: 'Drucker nicht gefunden' },
     ],
     nextStep: () => 'problem_description',
     collectAs: 'printerIssue',
@@ -176,21 +347,21 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   problem_description: {
     id: 'problem_description',
-    message: 'Können Sie das Problem kurz beschreiben?',
+    message: '',
     inputType: 'textarea',
-    inputPlaceholder: 'Was genau passiert? Wann ist es aufgetreten?',
+    inputPlaceholder: 'Was passiert genau? Wann fing es an? Haben Sie schon etwas probiert?',
     nextStep: () => 'urgency',
     collectAs: 'description',
   },
 
-  // Request flow (neue Anforderungen)
+  // Request flow
   request_type: {
     id: 'request_type',
-    message: 'Was benötigen Sie?',
+    message: '',
     options: [
       { id: 'hardware', label: '💻 Neues Gerät', value: 'hardware' },
       { id: 'software', label: '📦 Neue Software', value: 'software' },
-      { id: 'access', label: '🔑 Neuer Zugang/Account', value: 'access' },
+      { id: 'access', label: '🔑 Zugang/Account', value: 'access' },
       { id: 'accessory', label: '🎧 Zubehör', value: 'accessory' },
     ],
     nextStep: (answer) => {
@@ -204,13 +375,13 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   new_hardware_type: {
     id: 'new_hardware_type',
-    message: 'Welches Gerät benötigen Sie?',
+    message: '',
     options: [
-      { id: 'laptop', label: '💻 Laptop', value: 'laptop' },
-      { id: 'desktop', label: '🖥️ Desktop-PC', value: 'desktop' },
-      { id: 'monitor', label: '🖵 Monitor', value: 'monitor' },
-      { id: 'phone', label: '📱 Smartphone', value: 'phone' },
-      { id: 'tablet', label: '📱 Tablet', value: 'tablet' },
+      { id: 'laptop', label: '💻 Laptop', value: 'Laptop' },
+      { id: 'desktop', label: '🖥️ Desktop-PC', value: 'Desktop-PC' },
+      { id: 'monitor', label: '🖵 Monitor', value: 'Monitor' },
+      { id: 'phone', label: '📱 Smartphone', value: 'Smartphone' },
+      { id: 'tablet', label: '📱 Tablet', value: 'Tablet' },
     ],
     nextStep: () => 'request_reason',
     collectAs: 'hardwareType',
@@ -218,22 +389,22 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   new_software_name: {
     id: 'new_software_name',
-    message: 'Welche Software benötigen Sie?',
+    message: '',
     inputType: 'text',
-    inputPlaceholder: 'Name der Software...',
+    inputPlaceholder: 'Name der Software oder was sie können soll...',
     nextStep: () => 'request_reason',
     collectAs: 'softwareName',
   },
 
   new_access_type: {
     id: 'new_access_type',
-    message: 'Welchen Zugang benötigen Sie?',
+    message: '',
     options: [
-      { id: 'user', label: '👤 Neuer Benutzer anlegen', value: 'user' },
-      { id: 'email', label: '📧 E-Mail Account', value: 'email' },
-      { id: 'vpn', label: '🔒 VPN Zugang', value: 'vpn' },
-      { id: 'system', label: '💼 Zugang zu System/Software', value: 'system' },
-      { id: 'folder', label: '📁 Zugriff auf Ordner/Laufwerk', value: 'folder' },
+      { id: 'user', label: '👤 Neuer Mitarbeiter', value: 'user' },
+      { id: 'email', label: '📧 Neue E-Mail-Adresse', value: 'email' },
+      { id: 'vpn', label: '🔒 VPN-Zugang', value: 'vpn' },
+      { id: 'system', label: '💼 System-Zugang', value: 'system' },
+      { id: 'folder', label: '📁 Ordner-Zugriff', value: 'folder' },
     ],
     nextStep: (answer) => answer === 'user' ? 'new_user_details' : 'request_reason',
     collectAs: 'accessType',
@@ -241,41 +412,50 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   new_user_details: {
     id: 'new_user_details',
-    message: 'Für wen wird der Benutzer angelegt?',
+    message: '',
     inputType: 'text',
-    inputPlaceholder: 'Name des neuen Mitarbeiters...',
+    inputPlaceholder: 'Vor- und Nachname...',
     nextStep: () => 'new_user_department',
     collectAs: 'newUserName',
   },
 
   new_user_department: {
     id: 'new_user_department',
-    message: 'In welcher Abteilung arbeitet die Person?',
+    message: '',
     inputType: 'text',
-    inputPlaceholder: 'z.B. Vertrieb, Buchhaltung, IT...',
+    inputPlaceholder: 'z.B. Vertrieb, Buchhaltung, Produktion...',
     nextStep: () => 'new_user_start',
     collectAs: 'department',
   },
 
   new_user_start: {
     id: 'new_user_start',
-    message: 'Wann ist der Starttermin?',
+    message: '',
     inputType: 'text',
-    inputPlaceholder: 'z.B. 01.04.2026 oder "nächste Woche"',
-    nextStep: () => 'request_reason',
+    inputPlaceholder: 'Datum oder "nächste Woche", "ab sofort"...',
+    nextStep: () => 'new_user_permissions',
     collectAs: 'startDate',
+  },
+
+  new_user_permissions: {
+    id: 'new_user_permissions',
+    message: '',
+    inputType: 'textarea',
+    inputPlaceholder: 'Welche Programme/Zugänge werden benötigt? Gibt es einen Kollegen als Vorlage?',
+    nextStep: () => 'urgency',
+    collectAs: 'permissions',
   },
 
   accessory_type: {
     id: 'accessory_type',
-    message: 'Welches Zubehör benötigen Sie?',
+    message: '',
     options: [
-      { id: 'keyboard', label: '⌨️ Tastatur', value: 'keyboard' },
-      { id: 'mouse', label: '🖱️ Maus', value: 'mouse' },
-      { id: 'headset', label: '🎧 Headset', value: 'headset' },
-      { id: 'webcam', label: '📷 Webcam', value: 'webcam' },
-      { id: 'docking', label: '🔌 Docking Station', value: 'docking' },
-      { id: 'cable', label: '🔌 Kabel/Adapter', value: 'cable' },
+      { id: 'keyboard', label: '⌨️ Tastatur', value: 'Tastatur' },
+      { id: 'mouse', label: '🖱️ Maus', value: 'Maus' },
+      { id: 'headset', label: '🎧 Headset', value: 'Headset' },
+      { id: 'webcam', label: '📷 Webcam', value: 'Webcam' },
+      { id: 'docking', label: '🔌 Docking Station', value: 'Docking Station' },
+      { id: 'cable', label: '🔌 Kabel/Adapter', value: 'Kabel/Adapter' },
     ],
     nextStep: () => 'request_reason',
     collectAs: 'accessoryType',
@@ -283,9 +463,9 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   request_reason: {
     id: 'request_reason',
-    message: 'Warum wird das benötigt?',
+    message: '',
     inputType: 'textarea',
-    inputPlaceholder: 'Kurze Begründung...',
+    inputPlaceholder: 'Wofür wird es benötigt? Ersatz oder Neuanschaffung?',
     nextStep: () => 'urgency',
     collectAs: 'reason',
   },
@@ -293,10 +473,10 @@ const conversationFlow: Record<string, ConversationStep> = {
   // Change flow
   change_type: {
     id: 'change_type',
-    message: 'Was möchten Sie ändern?',
+    message: '',
     options: [
-      { id: 'user', label: '👤 Benutzer/Berechtigungen', value: 'user' },
-      { id: 'password', label: '🔑 Passwort zurücksetzen', value: 'password' },
+      { id: 'user', label: '👤 Benutzer/Rechte', value: 'user' },
+      { id: 'password', label: '🔑 Passwort vergessen', value: 'password' },
       { id: 'email', label: '📧 E-Mail Einstellungen', value: 'email' },
       { id: 'system', label: '⚙️ System-Einstellungen', value: 'system' },
     ],
@@ -310,11 +490,11 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   user_change_type: {
     id: 'user_change_type',
-    message: 'Was soll geändert werden?',
+    message: '',
     options: [
-      { id: 'permissions', label: '🔐 Berechtigungen anpassen', value: 'permissions' },
-      { id: 'deactivate', label: '🚫 Benutzer deaktivieren', value: 'deactivate' },
-      { id: 'name', label: '✏️ Name ändern', value: 'name' },
+      { id: 'permissions', label: '🔐 Mehr/andere Rechte', value: 'permissions' },
+      { id: 'deactivate', label: '🚫 Account deaktivieren', value: 'deactivate' },
+      { id: 'name', label: '✏️ Name korrigieren', value: 'name' },
       { id: 'department', label: '🏢 Abteilung wechseln', value: 'department' },
     ],
     nextStep: () => 'affected_user',
@@ -323,27 +503,27 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   affected_user: {
     id: 'affected_user',
-    message: 'Welcher Benutzer ist betroffen?',
+    message: '',
     inputType: 'text',
-    inputPlaceholder: 'Name oder E-Mail-Adresse...',
+    inputPlaceholder: 'Name oder E-Mail des Benutzers...',
     nextStep: () => 'change_description',
     collectAs: 'affectedUser',
   },
 
   password_account: {
     id: 'password_account',
-    message: 'Für welchen Account soll das Passwort zurückgesetzt werden?',
+    message: '',
     inputType: 'text',
-    inputPlaceholder: 'E-Mail-Adresse oder Benutzername...',
+    inputPlaceholder: 'Ihre E-Mail-Adresse oder Benutzername...',
     nextStep: () => 'urgency',
     collectAs: 'passwordAccount',
   },
 
   change_description: {
     id: 'change_description',
-    message: 'Was genau soll geändert werden?',
+    message: '',
     inputType: 'textarea',
-    inputPlaceholder: 'Beschreiben Sie die gewünschte Änderung...',
+    inputPlaceholder: 'Was genau soll geändert werden?',
     nextStep: () => 'urgency',
     collectAs: 'description',
   },
@@ -351,9 +531,9 @@ const conversationFlow: Record<string, ConversationStep> = {
   // Question flow
   question_details: {
     id: 'question_details',
-    message: 'Was möchten Sie wissen?',
+    message: '',
     inputType: 'textarea',
-    inputPlaceholder: 'Stellen Sie Ihre Frage...',
+    inputPlaceholder: 'Stellen Sie Ihre Frage – wir helfen gerne!',
     nextStep: () => 'urgency',
     collectAs: 'question',
   },
@@ -361,12 +541,12 @@ const conversationFlow: Record<string, ConversationStep> = {
   // Common ending
   urgency: {
     id: 'urgency',
-    message: 'Wie dringend ist Ihr Anliegen?',
+    message: '',
     options: [
-      { id: 'low', label: '🟢 Kann warten (1-2 Tage)', value: 'low' },
-      { id: 'normal', label: '🟡 Normal (heute/morgen)', value: 'normal' },
-      { id: 'high', label: '🟠 Dringend (heute noch)', value: 'high' },
-      { id: 'critical', label: '🔴 Blockiert meine Arbeit!', value: 'critical' },
+      { id: 'low', label: '🟢 Kann 1-2 Tage warten', value: 'low' },
+      { id: 'normal', label: '🟡 Heute oder morgen', value: 'normal' },
+      { id: 'high', label: '🟠 Möglichst heute!', value: 'high' },
+      { id: 'critical', label: '🔴 Ich kann nicht arbeiten!', value: 'critical' },
     ],
     nextStep: () => 'contact_preference',
     collectAs: 'priority',
@@ -374,11 +554,11 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   contact_preference: {
     id: 'contact_preference',
-    message: 'Wie können wir Sie am besten erreichen?',
+    message: '',
     options: [
       { id: 'email', label: '📧 Per E-Mail', value: 'email' },
-      { id: 'phone', label: '📞 Telefonisch', value: 'phone' },
-      { id: 'any', label: '✅ Egal', value: 'any' },
+      { id: 'phone', label: '📞 Ruft mich an', value: 'phone' },
+      { id: 'any', label: '👍 Mir egal', value: 'any' },
     ],
     nextStep: () => 'summary',
     collectAs: 'contactPreference',
@@ -386,7 +566,7 @@ const conversationFlow: Record<string, ConversationStep> = {
 
   summary: {
     id: 'summary',
-    message: 'Perfekt! Ich habe alle Informationen. Soll ich das Ticket jetzt erstellen?',
+    message: '',
     options: [
       { id: 'create', label: '✅ Ja, Ticket erstellen', value: 'create' },
       { id: 'restart', label: '🔄 Nochmal von vorne', value: 'restart' },
@@ -507,11 +687,15 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
     }
   }, [isOpen]);
 
-  const addBotMessage = (step: ConversationStep) => {
+  const addBotMessage = (step: ConversationStep, dataOverride?: Record<string, string>) => {
+    // Use the contextual message generator for dynamic, empathetic responses
+    const contextData = dataOverride || collectedData;
+    const dynamicMessage = getContextualMessage(step.id, contextData);
+
     const newMessage: Message = {
       id: `bot-${Date.now()}`,
       type: 'bot',
-      content: step.message,
+      content: dynamicMessage,
       options: step.options,
       inputType: step.inputType,
       inputPlaceholder: step.inputPlaceholder,
@@ -617,11 +801,6 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
     // Add user message
     addUserMessage(option.label);
 
-    // Collect data
-    if (step.collectAs) {
-      setCollectedData(prev => ({ ...prev, [step.collectAs!]: option.value }));
-    }
-
     // Handle special actions
     if (currentStep === 'summary') {
       if (option.value === 'create') {
@@ -635,9 +814,15 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
     // Get next step
     const nextStepId = step.nextStep?.(option.value);
     if (nextStepId && conversationFlow[nextStepId]) {
+      // Calculate updated data for contextual message
+      const updatedData = step.collectAs
+        ? { ...collectedData, [step.collectAs]: option.value }
+        : collectedData;
+
       setCurrentStep(nextStepId);
+      setCollectedData(updatedData);
       setTimeout(() => {
-        addBotMessage(conversationFlow[nextStepId]);
+        addBotMessage(conversationFlow[nextStepId], updatedData);
       }, 500);
     }
   };
@@ -646,23 +831,25 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
     if (!inputValue.trim()) return;
 
     const step = conversationFlow[currentStep];
+    const trimmedValue = inputValue.trim();
 
     // Add user message
-    addUserMessage(inputValue);
+    addUserMessage(trimmedValue);
 
-    // Collect data
-    if (step.collectAs) {
-      setCollectedData(prev => ({ ...prev, [step.collectAs!]: inputValue }));
-    }
+    // Calculate updated data for contextual message
+    const updatedData = step.collectAs
+      ? { ...collectedData, [step.collectAs]: trimmedValue }
+      : collectedData;
 
+    setCollectedData(updatedData);
     setInputValue('');
 
     // Get next step
-    const nextStepId = step.nextStep?.(inputValue);
+    const nextStepId = step.nextStep?.(trimmedValue);
     if (nextStepId && conversationFlow[nextStepId]) {
       setCurrentStep(nextStepId);
       setTimeout(() => {
-        addBotMessage(conversationFlow[nextStepId]);
+        addBotMessage(conversationFlow[nextStepId], updatedData);
       }, 500);
     }
   };
