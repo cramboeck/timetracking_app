@@ -731,6 +731,13 @@ router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, 
       [passwordHash, contactId]
     );
 
+    // Also update the linked customer_contacts entry (login checks this table)
+    await pool.query(
+      `UPDATE customer_contacts SET password_hash = $1, updated_at = NOW()
+       WHERE portal_user_id = $2`,
+      [passwordHash, contactId]
+    );
+
     console.log(`🔑 Password set result:`, updateResult.rows[0]);
 
     auditLog.log({
