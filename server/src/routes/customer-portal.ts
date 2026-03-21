@@ -753,7 +753,9 @@ router.get('/invitation/verify/:token', async (req, res) => {
     }
 
     // Check if already activated (password already set)
-    if (portalUser.password_hash) {
+    // Note: Placeholder hash starts with '$2a$10$PLACEHOLDER' and means user hasn't set password yet
+    const isPlaceholderHash = portalUser.password_hash?.startsWith('$2a$10$PLACEHOLDER');
+    if (portalUser.password_hash && !isPlaceholderHash) {
       return res.status(400).json({
         valid: false,
         error: 'Dieser Zugang wurde bereits aktiviert. Bitte melden Sie sich an.',
@@ -812,7 +814,9 @@ router.post('/invitation/activate', async (req, res) => {
     }
 
     // Check if already activated
-    if (portalUser.password_hash) {
+    // Note: Placeholder hash starts with '$2a$10$PLACEHOLDER' and means user hasn't set password yet
+    const isPlaceholderHash = portalUser.password_hash?.startsWith('$2a$10$PLACEHOLDER');
+    if (portalUser.password_hash && !isPlaceholderHash) {
       return res.status(400).json({
         error: 'Dieser Zugang wurde bereits aktiviert. Bitte melden Sie sich an.',
         already_activated: true
