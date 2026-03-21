@@ -1,11 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, ArrowLeft, CheckCircle, AlertTriangle, Loader2, Paperclip, MessageCircle } from 'lucide-react';
+import { X, Send, ArrowLeft, CheckCircle, AlertTriangle, Loader2, Paperclip, MessageCircle, Image, Trash2 } from 'lucide-react';
 import { customerPortalApi, PortalTicket } from '../../services/api';
 
 interface PortalCreateTicketProps {
   isOpen: boolean;
   onClose: () => void;
   onCreated: (ticket: PortalTicket) => void;
+}
+
+// Uploaded file with preview
+interface UploadedFile {
+  id: string;
+  file: File;
+  preview: string;
+  name: string;
 }
 
 // Message types for the conversation
@@ -17,6 +25,7 @@ interface Message {
   inputType?: 'text' | 'textarea';
   inputPlaceholder?: string;
   timestamp: Date;
+  images?: UploadedFile[];
 }
 
 interface Option {
@@ -473,8 +482,11 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
   const [collectedData, setCollectedData] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -508,15 +520,96 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
     setMessages(prev => [...prev, newMessage]);
   };
 
-  const addUserMessage = (content: string) => {
+  const addUserMessage = (content: string, images?: UploadedFile[]) => {
     const newMessage: Message = {
       id: `user-${Date.now()}`,
       type: 'user',
       content,
       timestamp: new Date(),
+      images,
     };
     setMessages(prev => [...prev, newMessage]);
   };
+
+  // Handle file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newFiles: UploadedFile[] = [];
+
+    Array.from(files).forEach(file => {
+      // Only allow images
+      if (!file.type.startsWith('image/')) {
+        return;
+      }
+
+      // Max 10MB per file
+      if (file.size > 10 * 1024 * 1024) {
+        return;
+      }
+
+      const id = `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const preview = URL.createObjectURL(file);
+
+      newFiles.push({
+        id,
+        file,
+        preview,
+        name: file.name,
+      });
+    });
+
+    if (newFiles.length > 0) {
+      setUploadedFiles(prev => [...prev, ...newFiles]);
+
+      // Add a user message showing the uploaded images
+      const imageMessage: Message = {
+        id: `user-images-${Date.now()}`,
+        type: 'user',
+        content: newFiles.length === 1 ? '📷 Screenshot hochgeladen' : `📷 ${newFiles.length} Screenshots hochgeladen`,
+        timestamp: new Date(),
+        images: newFiles,
+      };
+      setMessages(prev => [...prev, imageMessage]);
+
+      // Bot acknowledges
+      setTimeout(() => {
+        const ackMessage: Message = {
+          id: `bot-ack-${Date.now()}`,
+          type: 'bot',
+          content: newFiles.length === 1
+            ? '👍 Danke für den Screenshot! Das hilft uns bei der Analyse.'
+            : `👍 Danke für die ${newFiles.length} Screenshots! Das hilft uns bei der Analyse.`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, ackMessage]);
+      }, 500);
+    }
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Remove uploaded file
+  const removeFile = (fileId: string) => {
+    setUploadedFiles(prev => {
+      const file = prev.find(f => f.id === fileId);
+      if (file) {
+        URL.revokeObjectURL(file.preview);
+      }
+      return prev.filter(f => f.id !== fileId);
+    });
+  };
+
+  // Cleanup previews on unmount
+  useEffect(() => {
+    return () => {
+      uploadedFiles.forEach(f => URL.revokeObjectURL(f.preview));
+    };
+  }, []);
 
   const handleOptionClick = async (option: Option) => {
     const step = conversationFlow[currentStep];
@@ -587,11 +680,31 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
         priority: priority as 'low' | 'normal' | 'high' | 'critical',
       });
 
+      // Upload attachments if any
+      if (uploadedFiles.length > 0) {
+        setUploadingFiles(true);
+        try {
+          const formData = new FormData();
+          uploadedFiles.forEach(f => {
+            formData.append('files', f.file);
+          });
+          await customerPortalApi.uploadAttachments(ticket.id, formData);
+        } catch (uploadErr) {
+          console.error('Failed to upload attachments:', uploadErr);
+          // Continue anyway, ticket was created
+        }
+        setUploadingFiles(false);
+      }
+
       // Show success message
+      const attachmentNote = uploadedFiles.length > 0
+        ? `\n\n📎 ${uploadedFiles.length} Anhang/Anhänge wurden hochgeladen.`
+        : '';
+
       const successMessage: Message = {
         id: `bot-success-${Date.now()}`,
         type: 'bot',
-        content: `✅ Super! Ihr Ticket wurde erfolgreich erstellt.\n\n**Ticket-Nummer:** ${ticket.ticketNumber || ticket.id}\n\nWir melden uns schnellstmöglich bei Ihnen!`,
+        content: `✅ Super! Ihr Ticket wurde erfolgreich erstellt.\n\n**Ticket-Nummer:** ${ticket.ticketNumber || ticket.id}${attachmentNote}\n\nWir melden uns schnellstmöglich bei Ihnen!`,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, successMessage]);
@@ -621,6 +734,9 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
   };
 
   const resetConversation = () => {
+    // Cleanup file previews
+    uploadedFiles.forEach(f => URL.revokeObjectURL(f.preview));
+    setUploadedFiles([]);
     setMessages([]);
     setCurrentStep('start');
     setCollectedData({});
@@ -632,6 +748,9 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
   };
 
   const handleClose = () => {
+    // Cleanup file previews
+    uploadedFiles.forEach(f => URL.revokeObjectURL(f.preview));
+    setUploadedFiles([]);
     setMessages([]);
     setCurrentStep('start');
     setCollectedData({});
@@ -691,6 +810,21 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
                 }`}
               >
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                {/* Show attached images */}
+                {message.images && message.images.length > 0 && (
+                  <div className={`mt-2 grid gap-2 ${message.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {message.images.map(img => (
+                      <div key={img.id} className="relative group">
+                        <img
+                          src={img.preview}
+                          alt={img.name}
+                          className="rounded-lg max-h-32 w-full object-cover cursor-pointer hover:opacity-90"
+                          onClick={() => window.open(img.preview, '_blank')}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -725,10 +859,57 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
+        {/* Uploaded files preview bar */}
+        {uploadedFiles.length > 0 && !loading && (
+          <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                📎 {uploadedFiles.length} Anhang/Anhänge
+              </span>
+              <div className="flex gap-1 overflow-x-auto">
+                {uploadedFiles.map(f => (
+                  <div key={f.id} className="relative group flex-shrink-0">
+                    <img
+                      src={f.preview}
+                      alt={f.name}
+                      className="h-10 w-10 rounded object-cover"
+                    />
+                    <button
+                      onClick={() => removeFile(f.id)}
+                      className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Input */}
         {showInput && (
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
             <div className="flex gap-2">
+              {/* Screenshot button */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="p-2.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 rounded-full transition-colors"
+                title="Screenshot hochladen"
+              >
+                <Image size={18} />
+              </button>
+
               {currentStepData.inputType === 'textarea' ? (
                 <textarea
                   ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -767,6 +948,19 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
                 <Send size={18} />
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Options with screenshot button */}
+        {showOptions && !showInput && (
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full flex items-center justify-center gap-2 py-2 text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <Image size={16} />
+              <span>Screenshot hinzufügen</span>
+            </button>
           </div>
         )}
 
