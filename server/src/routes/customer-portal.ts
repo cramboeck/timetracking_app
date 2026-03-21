@@ -374,7 +374,7 @@ router.get('/tickets/:id', authenticateCustomerToken, async (req: CustomerAuthRe
     const commentsResult = await pool.query(
       `SELECT tc.*,
         u.username as user_name,
-        cc.name as contact_name
+        COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as contact_name
        FROM ticket_comments tc
        LEFT JOIN users u ON tc.user_id = u.id
        LEFT JOIN customer_contacts cc ON tc.customer_contact_id = cc.id
@@ -616,7 +616,7 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
 
     // Get created comment with contact name and ticket info for notification
     const commentResult = await pool.query(
-      `SELECT tc.*, cc.name as contact_name, t.ticket_number, t.title as ticket_title, t.user_id as ticket_owner_id
+      `SELECT tc.*, COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as contact_name, t.ticket_number, t.title as ticket_title, t.user_id as ticket_owner_id
        FROM ticket_comments tc
        JOIN customer_contacts cc ON tc.customer_contact_id = cc.id
        JOIN tickets t ON tc.ticket_id = t.id
@@ -1085,7 +1085,7 @@ router.get('/tickets/:id/attachments', authenticateCustomerToken, async (req: Cu
 
     // Get attachments
     const attachmentsResult = await pool.query(
-      `SELECT ta.*, cc.name as uploaded_by_name
+      `SELECT ta.*, COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as uploaded_by_name
        FROM ticket_attachments ta
        LEFT JOIN customer_contacts cc ON ta.uploaded_by_contact_id = cc.id
        WHERE ta.ticket_id = $1
@@ -2566,7 +2566,7 @@ router.get('/debug/contact-status', async (req, res) => {
       `SELECT
         cc.id,
         cc.email,
-        cc.name,
+        COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as name,
         cc.customer_id,
         c.name as customer_name,
         cc.password_hash IS NOT NULL as has_password,

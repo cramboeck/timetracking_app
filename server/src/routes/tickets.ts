@@ -265,7 +265,7 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req, res)
       SELECT ta.id, ta.ticket_id, ta.action_type as action, ta.old_value, ta.new_value, ta.created_at,
              t.ticket_number, t.title,
              COALESCE(u.display_name, u.username) as actor_name,
-             cc.name as contact_name
+             COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as contact_name
       FROM ticket_activities ta
       JOIN tickets t ON ta.ticket_id = t.id
       LEFT JOIN users u ON ta.user_id = u.id
@@ -655,7 +655,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       // Send email and push notification for status change (except archived)
       if (status !== 'archived') {
         const contactInfo = await query(`
-          SELECT t.title, t.ticket_number, t.contact_id, cc.email, cc.name, cc.notify_ticket_status_changed
+          SELECT t.title, t.ticket_number, t.contact_id, cc.email, COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as name, cc.notify_ticket_status_changed
           FROM tickets t
           LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
           WHERE t.id = $1
@@ -1128,7 +1128,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
           const ticketInfo = await query(`
             SELECT t.title, t.ticket_number, t.contact_id, t.customer_id, t.email_conversation_id, t.email_from, t.source,
                    COALESCE(cc.email, primary_contact.email) as contact_email,
-                   COALESCE(cc.name, primary_contact.name) as contact_name,
+                   COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name, primary_contact.first_name || ' ' || primary_contact.last_name, primary_contact.last_name) as contact_name,
                    COALESCE(cc.notify_ticket_reply, primary_contact.notify_ticket_reply, true) as notify_ticket_reply,
                    COALESCE(cc.id, primary_contact.id) as resolved_contact_id,
                    COALESCE(u.display_name, u.username) as replier_name
@@ -1318,7 +1318,7 @@ router.get('/:ticketId/attachments', authenticateToken, attachOrganization, asyn
         ta.file_size,
         ta.mime_type,
         ta.created_at,
-        COALESCE(u.display_name, u.username, cc.name) as uploaded_by_name,
+        COALESCE(u.display_name, u.username, cc.first_name || ' ' || cc.last_name, cc.last_name) as uploaded_by_name,
         CASE WHEN ta.uploaded_by_user_id IS NOT NULL THEN 'user' ELSE 'customer' END as uploaded_by_type
       FROM ticket_attachments ta
       LEFT JOIN users u ON ta.uploaded_by_user_id = u.id
@@ -1598,10 +1598,10 @@ router.post('/contacts', authenticateToken, attachOrganization, async (req, res)
     const isPrimary = parseInt(existingContacts.rows[0].count) === 0;
 
     const result = await query(`
-      INSERT INTO customer_contacts (id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+      INSERT INTO customer_contacts (id, customer_id, organization_id, last_name, email, is_primary, can_create_tickets, can_view_all_tickets,
                                      notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+      VALUES ($1, $2, (SELECT organization_id FROM customers WHERE id = $2), $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, customer_id, last_name as name, email, is_primary, can_create_tickets, can_view_all_tickets,
                 notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply, created_at
     `, [id, customerId, name, email, isPrimary, canCreateTickets, canViewAllTickets,
         notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply]);
@@ -2323,7 +2323,7 @@ router.get('/:ticketId/activities', authenticateToken, attachOrganization, async
       SELECT
         ta.*,
         COALESCE(u.display_name, u.username) as user_name,
-        cc.name as contact_name
+        COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as contact_name
       FROM ticket_activities ta
       LEFT JOIN users u ON ta.user_id = u.id
       LEFT JOIN customer_contacts cc ON ta.customer_contact_id = cc.id
