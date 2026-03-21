@@ -37,7 +37,7 @@ import { useIsDesktop } from './hooks/useMediaQuery';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { haptics } from './utils/haptics';
 import { notificationService } from './utils/notifications';
-import { addPendingEntry, getPendingEntries, removePendingEntry, getPendingCount } from './utils/offlineStorage';
+import { addPendingEntry, getRetryableEntries, removePendingEntry, getPendingCount, getFailedCount, markEntryFailed, isRetryableError, resetFailedEntry, discardFailedEntry } from './utils/offlineStorage';
 import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, userApi } from './services/api';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
@@ -51,6 +51,8 @@ function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(() => getPendingCount());
+  const [failedCount, setFailedCount] = useState(() => getFailedCount());
+  const syncMutexRef = useRef(false);
 
   // Track sidebar collapsed state for layout adjustment
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -528,9 +530,9 @@ function App() {
         console.log('✅ [ENTRY] Entry updated:', response);
         setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
       } else {
-        // Create new entry
+        // Create new entry with clientId for idempotency
         console.log('💾 [ENTRY] Creating new entry');
-        const response = await entriesApi.create(entry);
+        const response = await entriesApi.create({ ...entry, clientId: entry.id });
         console.log('✅ [ENTRY] Entry created:', response);
         setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
       }
@@ -589,7 +591,7 @@ function App() {
         // Create new entry (only if not already being created)
         pendingEntryIdsRef.current.add(entry.id);
         try {
-          const response = await entriesApi.create(entry);
+          const response = await entriesApi.create({ ...entry, clientId: entry.id });
           console.log('✅ [ENTRY] Running entry created:', response);
           setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
         } finally {
@@ -600,20 +602,35 @@ function App() {
       }
     } catch (error) {
       console.error('❌ [ENTRY] Failed to update running entry:', error);
+
+      // Save to pending storage for later sync (prevents data loss)
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        console.log('📴 [ENTRY] Network error - saving running entry update locally:', entry.id);
+        addPendingEntry(entry, 'update');
+        setPendingCount(getPendingCount());
+      }
     }
   };
 
   // Sync pending entries when back online
   const syncPendingEntries = useCallback(async () => {
-    const pending = getPendingEntries();
+    // Mutex: prevent concurrent sync attempts
+    if (syncMutexRef.current) {
+      console.log('🔒 [SYNC] Sync already in progress, skipping');
+      return;
+    }
+
+    const pending = getRetryableEntries();
     if (pending.length === 0) return;
 
+    syncMutexRef.current = true;
     console.log('🔄 [SYNC] Starting sync of', pending.length, 'pending entries');
     setIsSyncing(true);
     setSyncError(null);
 
     let successCount = 0;
     let failCount = 0;
+    let permanentFailCount = 0;
 
     for (const { entry, action } of pending) {
       try {
@@ -621,27 +638,36 @@ function App() {
           const response = await entriesApi.update(entry.id, entry);
           setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
         } else {
-          const response = await entriesApi.create(entry);
+          // Send clientId for idempotent creation
+          const response = await entriesApi.create({ ...entry, clientId: entry.id });
           setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
         }
         removePendingEntry(entry.id);
         successCount++;
         console.log('✅ [SYNC] Synced entry:', entry.id);
       } catch (error) {
-        console.error('❌ [SYNC] Failed to sync entry:', entry.id, error);
+        const retryable = isRetryableError(error);
+        const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+        markEntryFailed(entry.id, errorMessage, !retryable);
+        console.error('❌ [SYNC] Failed to sync entry:', entry.id, retryable ? '(will retry)' : '(permanent)', error);
         failCount++;
+        if (!retryable) permanentFailCount++;
       }
     }
 
     setPendingCount(getPendingCount());
+    setFailedCount(getFailedCount());
     setIsSyncing(false);
+    syncMutexRef.current = false;
 
-    if (failCount > 0) {
-      setSyncError(`${failCount} Einträge konnten nicht synchronisiert werden`);
+    if (permanentFailCount > 0) {
+      setSyncError(`${permanentFailCount} ${permanentFailCount === 1 ? 'Eintrag konnte' : 'Einträge konnten'} nicht synchronisiert werden (Daten ungültig)`);
+    } else if (failCount > 0) {
+      setSyncError(`${failCount} ${failCount === 1 ? 'Eintrag' : 'Einträge'} – Retry läuft automatisch`);
       setTimeout(() => setSyncError(null), 5000);
     }
 
-    console.log('🔄 [SYNC] Sync complete:', successCount, 'synced,', failCount, 'failed');
+    console.log('🔄 [SYNC] Sync complete:', successCount, 'synced,', failCount, 'failed (' + permanentFailCount + ' permanent)');
   }, []);
 
   // Auto-sync when coming back online
@@ -651,6 +677,37 @@ function App() {
       syncPendingEntries();
     }
   }, [isOnline, wasOffline, syncPendingEntries]);
+
+  // Periodic sync retry every 30 seconds while there are retryable pending entries
+  useEffect(() => {
+    if (!isOnline) return;
+
+    const interval = setInterval(() => {
+      const retryable = getRetryableEntries();
+      if (retryable.length > 0) {
+        console.log('🔄 [SYNC] Periodic retry: found', retryable.length, 'retryable entries');
+        syncPendingEntries();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isOnline, syncPendingEntries]);
+
+  // Handlers for failed entry management (called from OfflineBanner)
+  const handleRetryFailedEntry = useCallback((entryId: string) => {
+    resetFailedEntry(entryId);
+    setPendingCount(getPendingCount());
+    setFailedCount(getFailedCount());
+    // Trigger immediate sync
+    syncPendingEntries();
+  }, [syncPendingEntries]);
+
+  const handleDiscardFailedEntry = useCallback((entryId: string) => {
+    discardFailedEntry(entryId);
+    setEntries(prev => prev.filter(e => e.id !== entryId));
+    setPendingCount(getPendingCount());
+    setFailedCount(getFailedCount());
+  }, []);
 
   // TIMER SAFETY: Warn user before closing page with running timer
   useEffect(() => {
@@ -1020,8 +1077,12 @@ function App() {
         isOnline={isOnline}
         wasOffline={wasOffline}
         pendingCount={pendingCount}
+        failedCount={failedCount}
         isSyncing={isSyncing}
         syncError={syncError}
+        onRetryFailed={handleRetryFailedEntry}
+        onDiscardFailed={handleDiscardFailedEntry}
+        onRetryAll={syncPendingEntries}
       />
 
       {/* Top Navigation Header */}

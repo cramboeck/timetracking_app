@@ -30,7 +30,7 @@ export const entriesApi = {
     return authFetch(`/entries/${id}`);
   },
 
-  create: async (entry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'>): Promise<{ success: boolean; data: TimeEntry }> => {
+  create: async (entry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'> & { clientId?: string }): Promise<{ success: boolean; data: TimeEntry }> => {
     return authFetch('/entries', {
       method: 'POST',
       body: JSON.stringify(entry),

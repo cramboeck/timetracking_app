@@ -12,6 +12,7 @@ const router = Router();
 
 // Validation schemas
 const createEntrySchema = z.object({
+  clientId: z.string().uuid().optional(), // Client-generated ID for idempotency
   startTime: z.string().datetime(),
   endTime: z.string().datetime().optional(),
   duration: z.number().int().min(0),
@@ -170,7 +171,23 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { startTime, endTime, duration, projectId, activityId, ticketId, description, isRunning, isBillable = true } = req.body;
+    const { clientId, startTime, endTime, duration, projectId, activityId, ticketId, description, isRunning, isBillable = true } = req.body;
+
+    // Idempotency: If clientId is provided, check if entry already exists
+    if (clientId) {
+      const existingResult = await pool.query(
+        'SELECT * FROM time_entries WHERE id = $1 AND organization_id = $2',
+        [clientId, organizationId]
+      );
+      if (existingResult.rows.length > 0) {
+        // Entry already exists - return it (idempotent response)
+        const existingEntry = transformRow(existingResult.rows[0]);
+        return res.status(200).json({
+          success: true,
+          data: existingEntry
+        });
+      }
+    }
 
     // Verify project belongs to organization
     const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2', [projectId, organizationId]);
@@ -194,7 +211,8 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       }
     }
 
-    const id = crypto.randomUUID();
+    // Use client-provided ID for idempotency, or generate a new one
+    const id = clientId || crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     await pool.query(
