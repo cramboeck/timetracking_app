@@ -124,6 +124,8 @@ router.post('/login', authLimiter, async (req, res) => {
       const portalUserResult = await pool.query(
         `SELECT cpu.id, cpu.email, cpu.name, cpu.password_hash, cpu.customer_id,
                 cpu.mfa_enabled, cpu.mfa_secret, cpu.organization_id,
+                cpu.can_create_tickets, cpu.can_view_all_tickets,
+                cpu.can_view_devices, cpu.can_view_invoices, cpu.can_view_quotes,
                 c.name as customer_name, c.user_id
          FROM customer_portal_users cpu
          JOIN customers c ON cpu.customer_id = c.id
@@ -144,6 +146,11 @@ router.post('/login', authLimiter, async (req, res) => {
           password_hash: pu.password_hash,
           mfa_enabled: pu.mfa_enabled,
           mfa_secret: pu.mfa_secret,
+          can_create_tickets: pu.can_create_tickets,
+          can_view_all_tickets: pu.can_view_all_tickets,
+          can_view_devices: pu.can_view_devices,
+          can_view_invoices: pu.can_view_invoices,
+          can_view_quotes: pu.can_view_quotes,
           is_portal_user: true
         };
       }
@@ -252,15 +259,34 @@ router.post('/login', authLimiter, async (req, res) => {
 // Get current contact info
 router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
-    const contactResult = await pool.query(
-      `SELECT cc.*, c.name as customer_name, c.user_id
+    // First try customer_contacts
+    let contactResult = await pool.query(
+      `SELECT cc.*,
+              COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as name,
+              c.name as customer_name, c.user_id
        FROM customer_contacts cc
        JOIN customers c ON cc.customer_id = c.id
        WHERE cc.id = $1`,
       [req.contactId]
     );
 
-    const contact = contactResult.rows[0];
+    let contact = contactResult.rows[0];
+
+    // If not found, try customer_portal_users
+    if (!contact) {
+      const portalUserResult = await pool.query(
+        `SELECT cpu.id, cpu.email, cpu.name, cpu.customer_id, cpu.organization_id,
+                cpu.can_create_tickets, cpu.can_view_all_tickets,
+                cpu.can_view_devices, cpu.can_view_invoices, cpu.can_view_quotes,
+                c.name as customer_name, c.user_id
+         FROM customer_portal_users cpu
+         JOIN customers c ON cpu.customer_id = c.id
+         WHERE cpu.id = $1`,
+        [req.contactId]
+      );
+      contact = portalUserResult.rows[0];
+    }
+
     if (!contact) {
       return res.status(404).json({ error: 'Contact not found' });
     }
@@ -272,8 +298,8 @@ router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, re
       userId: contact.user_id, // Service provider's user ID
       name: contact.name,
       email: contact.email,
-      canCreateTickets: contact.can_create_tickets,
-      canViewAllTickets: contact.can_view_all_tickets,
+      canCreateTickets: contact.can_create_tickets ?? true,
+      canViewAllTickets: contact.can_view_all_tickets ?? false,
       canViewDevices: contact.can_view_devices ?? false,
       canViewInvoices: contact.can_view_invoices ?? false,
       canViewQuotes: contact.can_view_quotes ?? false,
