@@ -74,6 +74,30 @@ async function createPortalTrustedDevice(contactId: string, userAgent: string | 
 
 const router = Router();
 
+// Helper to get contact permissions from either customer_contacts or customer_portal_users
+async function getContactPermissions(contactId: string): Promise<{
+  can_view_devices: boolean;
+  can_view_invoices: boolean;
+  can_view_quotes: boolean;
+  can_create_tickets: boolean;
+  can_view_all_tickets: boolean;
+} | null> {
+  // Try customer_contacts first
+  let result = await pool.query(
+    'SELECT can_view_devices, can_view_invoices, can_view_quotes, can_create_tickets, can_view_all_tickets FROM customer_contacts WHERE id = $1',
+    [contactId]
+  );
+  if (result.rows.length > 0) {
+    return result.rows[0];
+  }
+  // Try customer_portal_users
+  result = await pool.query(
+    'SELECT can_view_devices, can_view_invoices, can_view_quotes, can_create_tickets, can_view_all_tickets FROM customer_portal_users WHERE id = $1',
+    [contactId]
+  );
+  return result.rows[0] || null;
+}
+
 // Validation schemas
 const loginSchema = z.object({
   email: z.string().email(),
@@ -442,12 +466,8 @@ router.get('/tickets/:id', authenticateCustomerToken, async (req: CustomerAuthRe
 router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check if contact can create tickets
-    const contactResult = await pool.query(
-      'SELECT can_create_tickets FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_create_tickets) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_create_tickets) {
       return res.status(403).json({ error: 'You are not allowed to create tickets' });
     }
 
@@ -1344,12 +1364,8 @@ router.post('/tickets/:id/rate', authenticateCustomerToken, async (req: Customer
 router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1445,12 +1461,8 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
 router.get('/devices/:deviceId/alerts', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1515,12 +1527,8 @@ router.get('/devices/:deviceId/alerts', authenticateCustomerToken, async (req: C
 router.get('/devices/:deviceId/software', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1587,12 +1595,8 @@ router.get('/devices/:deviceId/software', authenticateCustomerToken, async (req:
 router.post('/devices/:deviceId/software/refresh', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1647,12 +1651,8 @@ router.post('/devices/:deviceId/software/refresh', authenticateCustomerToken, as
 router.get('/devices/:deviceId/os-patches', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1705,12 +1705,8 @@ router.get('/devices/:deviceId/os-patches', authenticateCustomerToken, async (re
 router.post('/devices/:deviceId/os-patches/refresh', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1767,12 +1763,8 @@ router.post('/devices/:deviceId/os-patches/refresh', authenticateCustomerToken, 
 router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_invoices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_invoices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_invoices) {
       return res.status(403).json({ error: 'No permission to view invoices' });
     }
 
@@ -1853,12 +1845,8 @@ router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthReque
 router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_quotes FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_quotes) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_quotes) {
       return res.status(403).json({ error: 'No permission to view quotes' });
     }
 
