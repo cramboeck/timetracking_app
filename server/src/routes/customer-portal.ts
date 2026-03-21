@@ -104,16 +104,50 @@ router.post('/login', authLimiter, async (req, res) => {
     const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
     const userAgent = req.headers['user-agent'];
 
-    // Find customer contact by email
+    // Find customer contact by email, also check linked portal user for password
     const contactResult = await pool.query(
-      `SELECT cc.*, c.name as customer_name, c.user_id
+      `SELECT cc.*, c.name as customer_name, c.user_id,
+              cpu.password_hash as portal_user_password_hash,
+              cpu.mfa_enabled as portal_mfa_enabled,
+              cpu.mfa_secret as portal_mfa_secret
        FROM customer_contacts cc
        JOIN customers c ON cc.customer_id = c.id
+       LEFT JOIN customer_portal_users cpu ON cc.portal_user_id = cpu.id
        WHERE LOWER(cc.email) = LOWER($1)`,
       [email]
     );
 
-    const contact = contactResult.rows[0];
+    let contact = contactResult.rows[0];
+
+    // If not found in customer_contacts, try customer_portal_users directly
+    if (!contact) {
+      const portalUserResult = await pool.query(
+        `SELECT cpu.id, cpu.email, cpu.name, cpu.password_hash, cpu.customer_id,
+                cpu.mfa_enabled, cpu.mfa_secret, cpu.organization_id,
+                c.name as customer_name, c.user_id
+         FROM customer_portal_users cpu
+         JOIN customers c ON cpu.customer_id = c.id
+         WHERE LOWER(cpu.email) = LOWER($1)`,
+        [email]
+      );
+      if (portalUserResult.rows.length > 0) {
+        const pu = portalUserResult.rows[0];
+        // Map portal user to contact-like structure
+        contact = {
+          id: pu.id,
+          email: pu.email,
+          name: pu.name,
+          customer_id: pu.customer_id,
+          customer_name: pu.customer_name,
+          user_id: pu.user_id,
+          organization_id: pu.organization_id,
+          password_hash: pu.password_hash,
+          mfa_enabled: pu.mfa_enabled,
+          mfa_secret: pu.mfa_secret,
+          is_portal_user: true
+        };
+      }
+    }
 
     if (!contact) {
       // Log failed login (user not found)
@@ -122,16 +156,21 @@ router.post('/login', authLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    console.log(`🔐 Portal login attempt for "${email}": contact found (id: ${contact.id}), password_hash exists: ${!!contact.password_hash}`);
+    // Use portal user password if contact password is not set but portal user has one
+    const effectivePasswordHash = contact.password_hash || contact.portal_user_password_hash;
+    const effectiveMfaEnabled = contact.mfa_enabled || contact.portal_mfa_enabled;
+    const effectiveMfaSecret = contact.mfa_secret || contact.portal_mfa_secret;
 
-    if (!contact.password_hash) {
+    console.log(`🔐 Portal login attempt for "${email}": contact found (id: ${contact.id}), password_hash exists: ${!!effectivePasswordHash}`);
+
+    if (!effectivePasswordHash) {
       // Log failed login (account not activated)
       console.log(`🔐 Portal login failed: No password_hash for contact "${email}" (id: ${contact.id})`);
       securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Account not activated. Please contact support.' });
     }
 
-    const validPassword = await bcrypt.compare(password, contact.password_hash);
+    const validPassword = await bcrypt.compare(password, effectivePasswordHash);
     if (!validPassword) {
       // Log failed login (wrong password)
       securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
@@ -139,7 +178,7 @@ router.post('/login', authLimiter, async (req, res) => {
     }
 
     // Check if MFA is enabled
-    if (contact.mfa_enabled && contact.mfa_secret) {
+    if (effectiveMfaEnabled && effectiveMfaSecret) {
       // Check if this is a trusted device
       const deviceToken = req.headers['x-device-token'] as string;
       const isTrusted = deviceToken ? await checkPortalTrustedDevice(contact.id, deviceToken) : false;
