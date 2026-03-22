@@ -256,6 +256,59 @@ export const InvoiceInbox = () => {
     return isNaN(num) ? null : num;
   };
 
+  // Validate extracted invoice data for consistency
+  const validateExtractedData = (data: ExtractedInvoiceData): string[] => {
+    const warnings: string[] = [];
+    const { netAmount, grossAmount, vatAmount, vatRate } = data;
+    const rate = vatRate ?? 19;
+
+    if (grossAmount === null && netAmount === null) {
+      warnings.push('Weder Brutto- noch Nettobetrag erkannt');
+      return warnings;
+    }
+
+    // Check if all three amounts are present and consistent
+    if (netAmount !== null && grossAmount !== null) {
+      if (vatAmount !== null) {
+        // We have all three - check if net + vat = gross
+        const calculatedGross = netAmount + vatAmount;
+        const diff = Math.abs(grossAmount - calculatedGross);
+        if (diff > 0.02) {
+          warnings.push(
+            `Beträge inkonsistent: ${formatAmount(netAmount)}€ + ${formatAmount(vatAmount)}€ = ${formatAmount(calculatedGross)}€ ≠ ${formatAmount(grossAmount)}€ Brutto`
+          );
+        }
+        // Check if VAT rate matches
+        const actualRate = (vatAmount / netAmount) * 100;
+        if (Math.abs(actualRate - rate) > 0.5) {
+          warnings.push(
+            `MwSt-Satz inkonsistent: ${rate}% angegeben, aber ${actualRate.toFixed(1)}% berechnet`
+          );
+        }
+      } else {
+        // Check if gross = net * (1 + rate)
+        const expectedGross = netAmount * (1 + rate / 100);
+        const diff = Math.abs(grossAmount - expectedGross);
+        if (diff > 0.02) {
+          const impliedRate = ((grossAmount / netAmount) - 1) * 100;
+          warnings.push(
+            `MwSt-Satz prüfen: ${rate}% ergibt ${formatAmount(expectedGross)}€ Brutto, aber ${formatAmount(grossAmount)}€ erkannt (${impliedRate.toFixed(1)}%)`
+          );
+        }
+      }
+    }
+
+    // Warn about unusual VAT rates
+    if (vatRate !== null && ![0, 7, 19].includes(vatRate)) {
+      warnings.push(`Ungewöhnlicher MwSt-Satz: ${vatRate}% (Standard: 0%, 7%, 19%)`);
+    }
+
+    return warnings;
+  };
+
+  // Get current validation warnings
+  const validationWarnings = extractedData ? validateExtractedData(extractedData) : [];
+
   const handleDeleteDraft = async (invoiceId: string) => {
     if (!confirm('Entwurf wirklich löschen?')) return;
 
@@ -892,6 +945,25 @@ export const InvoiceInbox = () => {
                         </select>
                       </div>
                     </div>
+
+                    {/* Validation Warnings */}
+                    {validationWarnings.length > 0 && (
+                      <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">
+                              Bitte prüfen
+                            </h4>
+                            <ul className="text-sm text-amber-700 dark:text-amber-400 space-y-1">
+                              {validationWarnings.map((warning, idx) => (
+                                <li key={idx}>• {warning}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Line Items Section */}
                     {extractedData.lineItems && extractedData.lineItems.length > 0 && (

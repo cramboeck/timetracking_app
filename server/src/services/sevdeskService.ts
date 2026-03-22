@@ -1303,6 +1303,7 @@ export async function createVoucherFromFile(
   voucherData: {
     voucherDate: string;
     description?: string;
+    invoiceNumber?: string;  // Rechnungsnummer für sevDesk
     supplierName?: string;
     sumNet?: number | string;
     sumGross?: number | string;
@@ -1310,7 +1311,9 @@ export async function createVoucherFromFile(
     taxRate?: number;
     creditDebit?: 'C' | 'D';
   }
-): Promise<{ voucherId: string }> {
+): Promise<{ voucherId: string; validationWarnings?: string[] }> {
+  const validationWarnings: string[] = [];
+
   // First, we need to get or create the supplier if provided
   let supplierId: string | null = null;
 
@@ -1328,23 +1331,75 @@ export async function createVoucherFromFile(
   }
 
   // Build voucher data - handle both number and string inputs
-  const taxRate = voucherData.taxRate || 19;
+  let taxRate = voucherData.taxRate || 19;
   const sumNetInput = typeof voucherData.sumNet === 'string' ? parseFloat(voucherData.sumNet) : voucherData.sumNet;
   const sumGrossInput = typeof voucherData.sumGross === 'string' ? parseFloat(voucherData.sumGross) : voucherData.sumGross;
+  const sumTaxInput = typeof voucherData.sumTax === 'string' ? parseFloat(voucherData.sumTax) : voucherData.sumTax;
 
-  // Calculate net from gross if only gross is provided
+  // Smart calculation with validation
   let sumNet = sumNetInput || 0;
-  if (!sumNet && sumGrossInput) {
-    sumNet = sumGrossInput / (1 + taxRate / 100);
+  let sumGross = sumGrossInput || 0;
+  let sumTax = sumTaxInput || 0;
+
+  // Case 1: We have all three values - validate consistency
+  if (sumNetInput && sumGrossInput && sumTaxInput) {
+    const calculatedGross = sumNetInput + sumTaxInput;
+    const diff = Math.abs(sumGrossInput - calculatedGross);
+    if (diff > 0.02) {
+      validationWarnings.push(
+        `Betragsinkonsistenz: Netto ${sumNetInput.toFixed(2)}€ + MwSt ${sumTaxInput.toFixed(2)}€ = ${calculatedGross.toFixed(2)}€ ≠ Brutto ${sumGrossInput.toFixed(2)}€`
+      );
+      // Trust net + tax over gross
+      sumGross = calculatedGross;
+    }
+    // Calculate actual tax rate from amounts
+    const actualTaxRate = (sumTaxInput / sumNetInput) * 100;
+    if (Math.abs(actualTaxRate - taxRate) > 0.5) {
+      validationWarnings.push(
+        `MwSt-Satz korrigiert: ${taxRate}% → ${Math.round(actualTaxRate)}% (basierend auf Beträgen)`
+      );
+      taxRate = Math.round(actualTaxRate);
+    }
   }
-  const sumGross = sumGrossInput || (sumNet * (1 + taxRate / 100));
+  // Case 2: We have net and tax - calculate gross
+  else if (sumNetInput && sumTaxInput) {
+    sumGross = sumNetInput + sumTaxInput;
+    const actualTaxRate = (sumTaxInput / sumNetInput) * 100;
+    if (Math.abs(actualTaxRate - taxRate) > 0.5) {
+      taxRate = Math.round(actualTaxRate);
+    }
+  }
+  // Case 3: We have gross and tax - calculate net
+  else if (sumGrossInput && sumTaxInput) {
+    sumNet = sumGrossInput - sumTaxInput;
+    const actualTaxRate = (sumTaxInput / sumNet) * 100;
+    if (Math.abs(actualTaxRate - taxRate) > 0.5) {
+      taxRate = Math.round(actualTaxRate);
+    }
+  }
+  // Case 4: Only gross - calculate net from taxRate
+  else if (sumGrossInput && !sumNetInput) {
+    sumNet = sumGrossInput / (1 + taxRate / 100);
+    sumTax = sumGrossInput - sumNet;
+  }
+  // Case 5: Only net - calculate gross from taxRate
+  else if (sumNetInput && !sumGrossInput) {
+    sumGross = sumNetInput * (1 + taxRate / 100);
+    sumTax = sumGross - sumNetInput;
+  }
+
+  // Build description with invoice number if provided
+  let description = voucherData.description || 'Beleg';
+  if (voucherData.invoiceNumber) {
+    description = `${voucherData.invoiceNumber} - ${description}`;
+  }
 
   const voucherPayload: Record<string, unknown> = {
     voucher: {
       objectName: 'Voucher',
       mapAll: true,
       voucherDate: Math.floor(new Date(voucherData.voucherDate).getTime() / 1000),
-      description: voucherData.description || 'Beleg',
+      description: description,
       status: 50, // Draft
       voucherType: 'VOU',
       creditDebit: voucherData.creditDebit || 'D',
@@ -1372,6 +1427,11 @@ export async function createVoucherFromFile(
     };
   }
 
+  // Log validation warnings
+  if (validationWarnings.length > 0) {
+    console.log(`Voucher validation warnings for file ${fileId}:`, validationWarnings);
+  }
+
   const response = await fetch(`${SEVDESK_API_URL}/Voucher/Factory/saveVoucher`, {
     method: 'POST',
     headers: {
@@ -1389,6 +1449,7 @@ export async function createVoucherFromFile(
   const data = await response.json() as { objects?: { voucher?: { id?: string | number } } };
   return {
     voucherId: data.objects?.voucher?.id?.toString() || '',
+    validationWarnings: validationWarnings.length > 0 ? validationWarnings : undefined,
   };
 }
 

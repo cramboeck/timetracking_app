@@ -75,6 +75,114 @@ export interface InvoiceDocument {
   createdAt: string;
 }
 
+// Validation result for OCR data before sevDesk submission
+export interface InvoiceDataValidation {
+  isValid: boolean;
+  warnings: string[];
+  errors: string[];
+  correctedData: {
+    netAmount: number | null;
+    grossAmount: number | null;
+    vatAmount: number | null;
+    vatRate: number | null;
+  };
+}
+
+/**
+ * Validate extracted invoice data before sending to sevDesk
+ * Checks consistency between net, gross, and VAT amounts
+ */
+export function validateInvoiceData(data: ExtractedInvoiceData): InvoiceDataValidation {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+  const correctedData = {
+    netAmount: data.netAmount,
+    grossAmount: data.grossAmount,
+    vatAmount: data.vatAmount,
+    vatRate: data.vatRate,
+  };
+
+  const netAmount = data.netAmount;
+  const grossAmount = data.grossAmount;
+  const vatAmount = data.vatAmount;
+  const vatRate = data.vatRate ?? 19;
+
+  // Check if we have at least gross or net amount
+  if (grossAmount === null && netAmount === null) {
+    errors.push('Weder Brutto- noch Nettobetrag erkannt');
+    return { isValid: false, warnings, errors, correctedData };
+  }
+
+  // If we have both net and gross, validate consistency
+  if (netAmount !== null && grossAmount !== null) {
+    // Calculate expected gross from net + vatRate
+    const expectedGrossFromNet = netAmount * (1 + vatRate / 100);
+    const grossDiff = Math.abs(grossAmount - expectedGrossFromNet);
+
+    // Allow 1 cent tolerance for rounding
+    if (grossDiff > 0.02) {
+      // Check if vatAmount helps explain the difference
+      if (vatAmount !== null) {
+        const calculatedGross = netAmount + vatAmount;
+        const grossDiffWithVat = Math.abs(grossAmount - calculatedGross);
+
+        if (grossDiffWithVat <= 0.02) {
+          // VAT amount is correct, but vatRate might be wrong
+          const actualVatRate = (vatAmount / netAmount) * 100;
+          if (Math.abs(actualVatRate - vatRate) > 0.5) {
+            warnings.push(
+              `MwSt-Satz inkonsistent: ${vatRate}% angegeben, aber ${actualVatRate.toFixed(1)}% berechnet (${vatAmount.toFixed(2)}€ von ${netAmount.toFixed(2)}€)`
+            );
+            correctedData.vatRate = Math.round(actualVatRate);
+          }
+        } else {
+          // Amounts don't match
+          warnings.push(
+            `Beträge inkonsistent: Netto ${netAmount.toFixed(2)}€ + MwSt ${vatAmount?.toFixed(2) ?? '?'}€ ≠ Brutto ${grossAmount.toFixed(2)}€ (Differenz: ${(grossAmount - calculatedGross).toFixed(2)}€)`
+          );
+        }
+      } else {
+        // No vatAmount, calculate it
+        const calculatedVat = grossAmount - netAmount;
+        const impliedVatRate = (calculatedVat / netAmount) * 100;
+
+        if (Math.abs(impliedVatRate - vatRate) > 0.5) {
+          warnings.push(
+            `MwSt-Satz prüfen: ${vatRate}% angegeben, aber ${impliedVatRate.toFixed(1)}% aus Beträgen berechnet`
+          );
+          correctedData.vatRate = Math.round(impliedVatRate);
+        }
+        correctedData.vatAmount = calculatedVat;
+      }
+    }
+  } else if (grossAmount !== null && netAmount === null) {
+    // Only gross - calculate net
+    correctedData.netAmount = grossAmount / (1 + vatRate / 100);
+    correctedData.vatAmount = grossAmount - correctedData.netAmount;
+  } else if (netAmount !== null && grossAmount === null) {
+    // Only net - calculate gross
+    correctedData.grossAmount = netAmount * (1 + vatRate / 100);
+    correctedData.vatAmount = correctedData.grossAmount - netAmount;
+  }
+
+  // Validate VAT rate is reasonable
+  if (vatRate !== null && ![0, 7, 19].includes(vatRate)) {
+    const nearestValid = [0, 7, 19].reduce((prev, curr) =>
+      Math.abs(curr - vatRate) < Math.abs(prev - vatRate) ? curr : prev
+    );
+    warnings.push(
+      `Ungewöhnlicher MwSt-Satz: ${vatRate}% (Standard: 0%, 7%, 19%). Nächster Standardsatz: ${nearestValid}%`
+    );
+  }
+
+  return {
+    isValid: errors.length === 0,
+    warnings,
+    errors,
+    correctedData,
+  };
+}
+
 export interface ProcessingResult {
   success: boolean;
   processedCount: number;
@@ -1553,22 +1661,30 @@ Wichtig:
             doc.mime_type
           );
 
+          // Validate extracted data before sending to sevDesk
+          const validation = validateInvoiceData(extractedData);
+          if (validation.warnings.length > 0) {
+            console.log(`Invoice ${processedInvoiceId} validation warnings:`, validation.warnings);
+          }
+
           // Use extracted data for voucher creation
           const voucherDate = extractedData.invoiceDate || invoice.received_at || new Date().toISOString();
           const supplierName = extractedData.supplierName || invoice.vendor_name || invoice.sender_name || undefined;
 
-          // Create voucher with extracted amount
+          // Create voucher with extracted amount - now including vatAmount and invoiceNumber
           const voucherResult = await createVoucherFromFile(
             apiToken,
             uploadResult.id,
             {
               voucherDate,
               description: invoice.email_subject || 'Eingangsrechnung',
+              invoiceNumber: extractedData.invoiceNumber || undefined,
               supplierName,
               creditDebit: 'D', // Debit = Ausgabe (Eingangsrechnung)
-              taxRate: extractedData.vatRate || 19,
-              sumGross: extractedData.grossAmount ?? undefined,
-              sumNet: extractedData.netAmount ?? undefined,
+              taxRate: validation.correctedData.vatRate ?? extractedData.vatRate ?? 19,
+              sumGross: validation.correctedData.grossAmount ?? extractedData.grossAmount ?? undefined,
+              sumNet: validation.correctedData.netAmount ?? extractedData.netAmount ?? undefined,
+              sumTax: validation.correctedData.vatAmount ?? extractedData.vatAmount ?? undefined,
             }
           );
 
