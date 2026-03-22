@@ -4027,6 +4027,44 @@ export async function initializeDatabase() {
 
     console.log('✅ Customer email domains table created');
 
+    // ============================================
+    // Portal Settings Table
+    // ============================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS portal_settings (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        company_name TEXT,
+        welcome_message TEXT,
+        logo_url TEXT,
+        primary_color TEXT DEFAULT '#3b82f6',
+        show_knowledge_base BOOLEAN DEFAULT true,
+        require_login_for_kb BOOLEAN DEFAULT false,
+        teamviewer_link TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_settings_user ON portal_settings(user_id)');
+
+    // Migration: Add teamviewer_link column if not exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'portal_settings' AND column_name = 'teamviewer_link'
+        ) THEN
+          ALTER TABLE portal_settings ADD COLUMN teamviewer_link TEXT;
+        END IF;
+      END $$;
+    `);
+
+    console.log('✅ Portal settings table created');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {
