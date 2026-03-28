@@ -399,8 +399,12 @@ router.post('/:id/invitations', authenticateToken, async (req, res) => {
     `, [id, email]);
 
     if (existingMember.rows.length > 0) {
-      return res.status(400).json({ success: false, error: 'User is already a member' });
+      return res.status(400).json({ success: false, error: 'Dieser Benutzer ist bereits Mitglied der Organisation' });
     }
+
+    // Check if a user with this email already exists (for informational purposes)
+    const existingUser = await query('SELECT id, username FROM users WHERE email = $1', [email]);
+    const userAlreadyExists = existingUser.rows.length > 0;
 
     // Check for existing pending invitation
     const existingInvite = await query(`
@@ -434,7 +438,11 @@ router.post('/:id/invitations', authenticateToken, async (req, res) => {
     res.status(201).json({
       success: true,
       data: result.rows[0],
-      invitationLink: `/join/${invitationCode}` // Frontend will construct full URL
+      invitationLink: `/join/${invitationCode}`, // Frontend will construct full URL
+      userAlreadyExists, // Inform if the invited user already has an account
+      message: userAlreadyExists
+        ? 'Einladung erstellt. Der Benutzer hat bereits ein Konto und kann sich anmelden, um beizutreten.'
+        : 'Einladung erstellt. Der Benutzer kann sich registrieren oder anmelden, um beizutreten.'
     });
   } catch (error) {
     console.error('Error creating invitation:', error);
@@ -540,7 +548,7 @@ router.get('/invitation/:code', async (req, res) => {
     const { code } = req.params;
 
     const result = await query(`
-      SELECT o.name as organization_name, o.logo, oi.role, oi.expires_at,
+      SELECT o.name as organization_name, o.logo, oi.role, oi.expires_at, oi.email,
              u.display_name as invited_by_name
       FROM organization_invitations oi
       JOIN organizations o ON oi.organization_id = o.id
@@ -549,14 +557,18 @@ router.get('/invitation/:code', async (req, res) => {
     `, [code]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Invitation not found or already used' });
+      return res.status(404).json({ success: false, error: 'Einladung nicht gefunden oder bereits verwendet' });
     }
 
     const inv = result.rows[0];
 
     if (new Date(inv.expires_at) < new Date()) {
-      return res.status(400).json({ success: false, error: 'Invitation has expired' });
+      return res.status(400).json({ success: false, error: 'Die Einladung ist abgelaufen' });
     }
+
+    // Check if a user with this email already exists
+    const existingUser = await query('SELECT id FROM users WHERE email = $1', [inv.email]);
+    const userAlreadyExists = existingUser.rows.length > 0;
 
     res.json({
       success: true,
@@ -565,7 +577,9 @@ router.get('/invitation/:code', async (req, res) => {
         logo: inv.logo,
         role: inv.role,
         invitedBy: inv.invited_by_name,
-        expiresAt: inv.expires_at
+        expiresAt: inv.expires_at,
+        invitedEmail: inv.email,
+        userAlreadyExists // If true, user should login instead of register
       }
     });
   } catch (error) {

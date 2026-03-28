@@ -34,11 +34,25 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
     // Check if user exists
     const existingUsername = await client.query('SELECT * FROM users WHERE username = $1', [username]);
     if (existingUsername.rows.length > 0) {
+      // If registering via invitation, provide a more helpful message
+      if (inviteCode) {
+        return res.status(400).json({
+          error: 'Dieser Benutzername ist bereits vergeben. Falls du bereits ein Konto hast, melde dich bitte an und die Einladung wird automatisch akzeptiert.',
+          code: 'USERNAME_EXISTS_WITH_INVITE'
+        });
+      }
       return res.status(400).json({ error: 'Username already exists' });
     }
 
     const existingEmail = await client.query('SELECT * FROM users WHERE email = $1', [email]);
     if (existingEmail.rows.length > 0) {
+      // If registering via invitation, provide a more helpful message
+      if (inviteCode) {
+        return res.status(400).json({
+          error: 'Diese E-Mail-Adresse ist bereits registriert. Bitte melde dich an, um die Einladung zu akzeptieren.',
+          code: 'EMAIL_EXISTS_WITH_INVITE'
+        });
+      }
       return res.status(400).json({ error: 'Email already exists' });
     }
 

@@ -15,6 +15,8 @@ interface InvitationInfo {
   role: string;
   invitedBy: string;
   expiresAt: string;
+  invitedEmail?: string;
+  userAlreadyExists?: boolean;
 }
 
 export const Auth = () => {
@@ -327,36 +329,63 @@ export const Auth = () => {
 
                 {/* Action */}
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
-                    Melde dich an oder erstelle einen Account, um der Organisation beizutreten.
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button
-                      onClick={() => {
-                        // Store invitation code for after login
-                        localStorage.setItem('pending_invitation', invitationCode);
-                        window.history.replaceState({}, '', '/');
-                        setAuthView('login');
-                      }}
-                      size="lg"
-                    >
-                      Anmelden
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        // Store invitation code and set registration via invitation mode
-                        localStorage.setItem('pending_invitation', invitationCode);
-                        setRegisteringViaInvitation(true);
-                        setInvitationOrgName(invitationInfo?.organizationName || null);
-                        window.history.replaceState({}, '', '/');
-                        setAuthView('register');
-                      }}
-                      variant="outline"
-                      size="lg"
-                    >
-                      Registrieren
-                    </Button>
-                  </div>
+                  {invitationInfo.userAlreadyExists ? (
+                    <>
+                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                        <p className="text-sm text-blue-700 dark:text-blue-300 text-center">
+                          <strong>Du hast bereits ein Konto</strong> mit der E-Mail-Adresse {invitationInfo.invitedEmail}. Bitte melde dich an, um der Organisation beizutreten.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => {
+                          // Store invitation code for after login
+                          localStorage.setItem('pending_invitation', invitationCode);
+                          window.history.replaceState({}, '', '/');
+                          setAuthView('login');
+                        }}
+                        size="lg"
+                        className="w-full"
+                      >
+                        Anmelden
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                        Du wurdest eingeladen für: <strong>{invitationInfo.invitedEmail}</strong>
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500 text-center">
+                        Falls du bereits ein Konto hast, melde dich an. Ansonsten registriere dich mit einem neuen Account.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button
+                          onClick={() => {
+                            // Store invitation code for after login
+                            localStorage.setItem('pending_invitation', invitationCode);
+                            window.history.replaceState({}, '', '/');
+                            setAuthView('login');
+                          }}
+                          size="lg"
+                        >
+                          Anmelden
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            // Store invitation code and set registration via invitation mode
+                            localStorage.setItem('pending_invitation', invitationCode);
+                            setRegisteringViaInvitation(true);
+                            setInvitationOrgName(invitationInfo?.organizationName || null);
+                            window.history.replaceState({}, '', '/');
+                            setAuthView('register');
+                          }}
+                          variant="outline"
+                          size="lg"
+                        >
+                          Registrieren
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

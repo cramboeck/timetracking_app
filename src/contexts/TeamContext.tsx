@@ -129,6 +129,10 @@ export const TeamProvider = ({ children }: TeamProviderProps) => {
         const baseUrl = window.location.origin;
         setInvitationLink(`${baseUrl}${response.invitationLink}`);
         setNewInvitationEmail('');
+        // Show info if user already has an account
+        if (response.userAlreadyExists) {
+          alert('Hinweis: Der eingeladene Benutzer hat bereits ein Konto. Er kann sich anmelden, um der Organisation beizutreten.');
+        }
       }
     } catch (error: any) {
       console.error('Error creating invitation:', error);

@@ -226,7 +226,7 @@ export const organizationsApi = {
   },
 
   // Create invitation
-  createInvitation: async (orgId: string, email: string, role: 'admin' | 'member' | 'viewer' = 'member'): Promise<{ success: boolean; data: OrganizationInvitation; invitationLink: string }> => {
+  createInvitation: async (orgId: string, email: string, role: 'admin' | 'member' | 'viewer' = 'member'): Promise<{ success: boolean; data: OrganizationInvitation; invitationLink: string; userAlreadyExists?: boolean; message?: string }> => {
     return authFetch(`/organizations/${orgId}/invitations`, {
       method: 'POST',
       body: JSON.stringify({ email, role }),
@@ -241,7 +241,7 @@ export const organizationsApi = {
   },
 
   // Get invitation info (public - no auth needed)
-  getInvitationInfo: async (code: string): Promise<{ success: boolean; data: { organizationName: string; logo: string | null; role: string; invitedBy: string; expiresAt: string } }> => {
+  getInvitationInfo: async (code: string): Promise<{ success: boolean; data: { organizationName: string; logo: string | null; role: string; invitedBy: string; expiresAt: string; invitedEmail?: string; userAlreadyExists?: boolean } }> => {
     const response = await fetch(`${API_BASE_URL}/organizations/invitation/${code}`);
     return handleResponse(response);
   },
