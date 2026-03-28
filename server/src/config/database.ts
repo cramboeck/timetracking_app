@@ -2136,7 +2136,14 @@ export async function initializeDatabase() {
           UPDATE customer_portal_users SET organization_id = new_org_id WHERE owner_user_id = user_rec.id AND organization_id IS NULL;
           UPDATE feature_packages SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
           UPDATE report_approvals SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
-          UPDATE ticket_sequences SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+
+          -- Only update ticket_sequences if it still has the old user_id column (pre-migration)
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'ticket_sequences' AND column_name = 'user_id'
+          ) THEN
+            UPDATE ticket_sequences SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          END IF;
 
           RAISE NOTICE 'Created organization % for user %', new_org_id, user_rec.username;
         END LOOP;
