@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { Paperclip, Download, Image, File, FileText, Trash2 } from 'lucide-react';
 import { IconButton } from '../ui/Button';
 import { TicketAttachment, formatFileSize } from './types';
-import { getApiBaseUrl } from '../../services/api';
+import { getAbsoluteFileUrl } from '../../utils/fileUrls';
 
 interface TicketAttachmentsProps {
   attachments: TicketAttachment[];
@@ -18,15 +18,6 @@ export const TicketAttachments = ({
   onDeleteAttachment,
 }: TicketAttachmentsProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const getAbsoluteFileUrl = (fileUrl: string): string => {
-    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-      return fileUrl;
-    }
-    const apiBase = getApiBaseUrl();
-    const relativePath = fileUrl.startsWith('/api') ? fileUrl.substring(4) : fileUrl;
-    return `${apiBase}${relativePath}`;
-  };
 
   const getFileIcon = (mimeType: string) => {
     if (mimeType?.startsWith('image/')) return Image;

@@ -83,6 +83,17 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
             {m[1]}
           </code>
         )},
+        // Images ![alt](url)
+        { regex: /!\[([^\]]*)\]\(([^)]+)\)/, render: (m: RegExpMatchArray) => (
+          <img
+            key={keyIndex++}
+            src={m[2]}
+            alt={m[1] || 'Bild'}
+            className="max-w-full h-auto rounded-lg my-2 cursor-pointer hover:opacity-90 transition-opacity"
+            style={{ maxHeight: '400px' }}
+            onClick={() => window.open(m[2], '_blank')}
+          />
+        )},
         // Links [text](url)
         { regex: /\[([^\]]+)\]\(([^)]+)\)/, render: (m: RegExpMatchArray) => (
           <a

@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { User, Send, MessageSquare, ChevronDown, Mail } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { MarkdownEditor } from '../MarkdownEditor';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { Ticket, TicketComment, CannedResponse, Customer, formatDate, statusConfig, priorityConfig } from './types';
+import { ticketsApi } from '../../services/api/tickets';
+import { getAbsoluteFileUrl } from '../../utils/fileUrls';
 
 interface TicketCommentsProps {
   ticket: Ticket;
@@ -38,6 +40,19 @@ export const TicketComments = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Handle image paste in comment editor
+  const handleImagePaste = useCallback(async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('files', file, file.name || `screenshot-${Date.now()}.png`);
+
+    const result = await ticketsApi.uploadAttachments(ticket.id, formData);
+    if (result.success && result.data.length > 0) {
+      const attachment = result.data[0];
+      return getAbsoluteFileUrl(attachment.url);
+    }
+    throw new Error('Upload fehlgeschlagen');
+  }, [ticket.id]);
 
   // Process template variables in canned response content
   const processTemplateVariables = (content: string): string => {
@@ -139,6 +154,7 @@ export const TicketComments = ({
             onChange={setNewComment}
             placeholder="Kommentar hinzufügen..."
             rows={3}
+            onImagePaste={handleImagePaste}
           />
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-3 flex-wrap">

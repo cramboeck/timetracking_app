@@ -1,5 +1,5 @@
-import { useRef, useCallback, KeyboardEvent } from 'react';
-import { Bold, Italic, List, Code, Link2, ListOrdered, Quote } from 'lucide-react';
+import { useRef, useCallback, useState, KeyboardEvent, ClipboardEvent } from 'react';
+import { Bold, Italic, List, Code, Link2, ListOrdered, Quote, Image, Loader2 } from 'lucide-react';
 
 interface MarkdownEditorProps {
   value: string;
@@ -8,6 +8,7 @@ interface MarkdownEditorProps {
   rows?: number;
   disabled?: boolean;
   className?: string;
+  onImagePaste?: (file: File) => Promise<string>;
 }
 
 interface ToolbarButton {
@@ -26,8 +27,10 @@ export const MarkdownEditor = ({
   rows = 4,
   disabled = false,
   className = '',
+  onImagePaste,
 }: MarkdownEditorProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const tools: ToolbarButton[] = [
     { icon: Bold, title: 'Fett (Ctrl+B)', shortcut: 'b', prefix: '**', suffix: '**' },
@@ -96,6 +99,48 @@ export const MarkdownEditor = ({
     insertFormatting(tool.prefix, tool.suffix, tool.multiline);
   }, [insertFormatting]);
 
+  const insertImageMarkdown = useCallback((url: string, altText = 'Bild') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const imageMarkdown = `![${altText}](${url})`;
+    const newText = value.substring(0, start) + imageMarkdown + value.substring(start);
+    onChange(newText);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const newPos = start + imageMarkdown.length;
+      textarea.setSelectionRange(newPos, newPos);
+    });
+  }, [value, onChange]);
+
+  const handlePaste = useCallback(async (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!onImagePaste) return;
+
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        setIsUploading(true);
+        try {
+          const url = await onImagePaste(file);
+          insertImageMarkdown(url);
+        } catch (error) {
+          console.error('Failed to upload image:', error);
+        } finally {
+          setIsUploading(false);
+        }
+        return;
+      }
+    }
+  }, [onImagePaste, insertImageMarkdown]);
+
   return (
     <div className={`border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden ${className}`}>
       {/* Toolbar */}
@@ -115,6 +160,20 @@ export const MarkdownEditor = ({
             </button>
           );
         })}
+        {onImagePaste && (
+          <div className="flex items-center gap-1 ml-2 pl-2 border-l border-gray-200 dark:border-gray-700">
+            <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:inline">
+              <Image size={14} className="inline mr-1" />
+              Strg+V für Screenshots
+            </span>
+          </div>
+        )}
+        {isUploading && (
+          <div className="flex items-center gap-1 ml-2 text-accent-primary">
+            <Loader2 size={14} className="animate-spin" />
+            <span className="text-xs">Hochladen...</span>
+          </div>
+        )}
         <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 hidden sm:inline">
           Markdown unterstützt
         </span>
@@ -126,9 +185,10 @@ export const MarkdownEditor = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         placeholder={placeholder}
         rows={rows}
-        disabled={disabled}
+        disabled={disabled || isUploading}
         className="w-full px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white resize-none focus:outline-none"
       />
     </div>

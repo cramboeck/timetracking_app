@@ -4,22 +4,11 @@ import {
   Paperclip, Download, Trash2, XCircle, RotateCcw, Star, FileText,
   Image, File, Archive
 } from 'lucide-react';
-import { customerPortalApi, PortalTicket, PortalComment, getApiBaseUrl } from '../../services/api';
+import { customerPortalApi, PortalTicket, PortalComment } from '../../services/api';
 import { MarkdownEditor } from '../MarkdownEditor';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { Button, IconButton } from '../ui/Button';
-
-// Helper to convert relative file URLs to absolute URLs
-const getAbsoluteFileUrl = (fileUrl: string): string => {
-  if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-    return fileUrl;
-  }
-  // Remove /api prefix since getApiBaseUrl already includes it
-  const apiBase = getApiBaseUrl();
-  const relativePath = fileUrl.startsWith('/api') ? fileUrl.substring(4) : fileUrl;
-  const absoluteUrl = `${apiBase}${relativePath}`;
-  return absoluteUrl;
-};
+import { getAbsoluteFileUrl } from '../../utils/fileUrls';
 
 interface Attachment {
   id: string;
