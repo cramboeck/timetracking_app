@@ -252,6 +252,12 @@ export const DashboardOverview = ({
           color="purple"
           onClick={() => onNavigate('arbeiten', 'calendar')}
         />
+        <QuickAction
+          label="Reports"
+          icon={FileText}
+          color="emerald"
+          onClick={() => onNavigate('finanzen', 'reports')}
+        />
       </div>
 
       {/* Stats Grid */}

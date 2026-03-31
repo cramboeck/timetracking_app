@@ -23,6 +23,7 @@ import { SupportInbox } from './components/SupportInbox';
 import { SocialMediaProvider } from './features/social-media/context';
 import SocialMediaLayout from './features/social-media/SocialMediaLayout';
 import AdminPortal from './components/AdminPortal';
+import { ReportsPage } from './components/ReportsPage';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
@@ -1296,9 +1297,12 @@ function App() {
           </SocialMediaProvider>
         )}
         {currentSubView === 'reports' && (
-          <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-            <p>Berichte-Modul kommt bald...</p>
-          </div>
+          <ReportsPage
+            entries={entries}
+            projects={projects}
+            customers={customers}
+            activities={activities}
+          />
         )}
         {currentSubView === 'settings' && (
           <Settings
