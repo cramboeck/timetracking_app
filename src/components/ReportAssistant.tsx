@@ -202,7 +202,7 @@ export const ReportAssistant = ({
     total_hours: number;
     entry_count: number;
     project_count: number;
-    status: 'saved' | 'pending' | 'approved' | 'rejected';
+    status: 'saved' | 'pending' | 'approved' | 'rejected' | 'revision_requested' | 'superseded';
     created_at: string;
     reviewed_at: string | null;
     expires_at: string | null;
@@ -215,6 +215,13 @@ export const ReportAssistant = ({
   const [savedReportsFilter, setSavedReportsFilter] = useState<'all' | 'saved' | 'pending' | 'approved' | 'rejected'>('all');
 
   // Send for approval state
+  interface CustomerContact {
+    id: string;
+    name: string;
+    email: string;
+    position?: string;
+    isPrimary?: boolean;
+  }
   const [sendApprovalDialog, setSendApprovalDialog] = useState<{
     show: boolean;
     report: SavedReport | null;
@@ -222,7 +229,11 @@ export const ReportAssistant = ({
     name: string;
     isSending: boolean;
     testMode: boolean;
-  }>({ show: false, report: null, email: '', name: '', isSending: false, testMode: true });
+    contacts: CustomerContact[];
+    loadingContacts: boolean;
+    includePdf: boolean;
+    revisionOfId?: string;
+  }>({ show: false, report: null, email: '', name: '', isSending: false, testMode: true, contacts: [], loadingContacts: false, includePdf: true });
 
   // Calculate effective date range
   const dateRange = useMemo(() => {
@@ -1377,15 +1388,51 @@ export const ReportAssistant = ({
   };
 
   // Send report for approval
-  const openSendApprovalDialog = (report: SavedReport) => {
+  const openSendApprovalDialog = async (report: SavedReport, revisionOfId?: string) => {
     setSendApprovalDialog({
       show: true,
       report,
       email: report.recipient_email || '',
       name: '',
       isSending: false,
-      testMode: true
+      testMode: true,
+      contacts: [],
+      loadingContacts: true,
+      includePdf: true,
+      revisionOfId
     });
+
+    // Load customer contacts
+    if (report.customer_id) {
+      try {
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch(`/api/report-approvals/customer-contacts/${report.customer_id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setSendApprovalDialog(prev => ({
+            ...prev,
+            contacts: data.contacts || [],
+            loadingContacts: false,
+            // Pre-select primary contact email if no email set
+            email: prev.email || (data.contacts?.find((c: CustomerContact) => c.isPrimary)?.email || prev.email)
+          }));
+        } else {
+          setSendApprovalDialog(prev => ({ ...prev, loadingContacts: false }));
+        }
+      } catch {
+        setSendApprovalDialog(prev => ({ ...prev, loadingContacts: false }));
+      }
+    } else {
+      setSendApprovalDialog(prev => ({ ...prev, loadingContacts: false }));
+    }
+  };
+
+  // Create revision from rejected report
+  const createRevision = async (report: SavedReport) => {
+    // Open the send dialog with revision flag
+    openSendApprovalDialog(report, report.id);
   };
 
   const sendForApproval = async () => {
@@ -1416,9 +1463,12 @@ export const ReportAssistant = ({
             totalHours: report.total_hours,
             entryCount: report.entry_count,
             projectCount: report.project_count
+            // Note: PDF attachment would be generated here if includePdf is true
+            // For now, the PDF generation happens server-side or would need separate implementation
           },
           expiresInDays: 7,
-          testMode: sendApprovalDialog.testMode
+          testMode: sendApprovalDialog.testMode,
+          revisionOfId: sendApprovalDialog.revisionOfId
         })
       });
 
@@ -1433,7 +1483,7 @@ export const ReportAssistant = ({
         setTimeout(() => setSaveMessage(null), 5000);
 
         // Close dialog and refresh list
-        setSendApprovalDialog({ show: false, report: null, email: '', name: '', isSending: false, testMode: true });
+        setSendApprovalDialog({ show: false, report: null, email: '', name: '', isSending: false, testMode: true, contacts: [], loadingContacts: false, includePdf: true });
         loadSavedReports();
       } else {
         const error = await response.json();
@@ -1471,6 +1521,10 @@ export const ReportAssistant = ({
         return { label: 'Genehmigt', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle };
       case 'rejected':
         return { label: 'Abgelehnt', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: XCircle };
+      case 'revision_requested':
+        return { label: 'Änderung gewünscht', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400', icon: AlertCircle };
+      case 'superseded':
+        return { label: 'Ersetzt', color: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500', icon: Archive };
       default:
         return { label: status, color: 'bg-gray-100 text-gray-700', icon: AlertCircle };
     }
@@ -2180,6 +2234,15 @@ ${companyInfo?.phone || ''}`;
                                   tooltip="Zur Genehmigung senden"
                                 />
                               )}
+                              {/* Revision button (for rejected or revision_requested reports) */}
+                              {(report.status === 'rejected' || report.status === 'revision_requested') && (
+                                <IconButton
+                                  onClick={() => createRevision(report)}
+                                  icon={<FileText size={18} />}
+                                  variant="primary"
+                                  tooltip="Überarbeiten und erneut senden"
+                                />
+                              )}
                               {/* Copy approval link (for pending reports) */}
                               {report.status === 'pending' && report.token && (
                                 <IconButton
@@ -2368,13 +2431,21 @@ ${companyInfo?.phone || ''}`;
         {/* Send for Approval Dialog */}
         {sendApprovalDialog.show && sendApprovalDialog.report && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[90vw] max-w-md p-6">
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[90vw] max-w-md p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center gap-3 mb-4">
                 <Send size={24} className="text-blue-600" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Zur Genehmigung senden
+                  {sendApprovalDialog.revisionOfId ? 'Überarbeiteten Report senden' : 'Zur Genehmigung senden'}
                 </h3>
               </div>
+
+              {sendApprovalDialog.revisionOfId && (
+                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                    Dies ist eine Überarbeitung eines abgelehnten Reports. Der ursprüngliche Report wird als "Ersetzt" markiert.
+                  </p>
+                </div>
+              )}
 
               <div className="mb-4 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -2386,6 +2457,39 @@ ${companyInfo?.phone || ''}`;
               </div>
 
               <div className="space-y-4">
+                {/* Contact Selection */}
+                {sendApprovalDialog.loadingContacts ? (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    <Loader2 size={16} className="inline animate-spin mr-2" />
+                    Lade Kontakte...
+                  </div>
+                ) : sendApprovalDialog.contacts.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Kontakt auswählen
+                    </label>
+                    <select
+                      value={sendApprovalDialog.email}
+                      onChange={(e) => {
+                        const contact = sendApprovalDialog.contacts.find(c => c.email === e.target.value);
+                        setSendApprovalDialog(prev => ({
+                          ...prev,
+                          email: e.target.value,
+                          name: contact?.name || prev.name
+                        }));
+                      }}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                    >
+                      <option value="">-- Kontakt wählen oder manuell eingeben --</option>
+                      {sendApprovalDialog.contacts.map(contact => (
+                        <option key={contact.id} value={contact.email}>
+                          {contact.name} {contact.position ? `(${contact.position})` : ''} - {contact.email}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     E-Mail Adresse des Empfängers *
@@ -2441,7 +2545,7 @@ ${companyInfo?.phone || ''}`;
 
               <div className="flex gap-3 mt-6">
                 <Button
-                  onClick={() => setSendApprovalDialog({ show: false, report: null, email: '', name: '', isSending: false, testMode: true })}
+                  onClick={() => setSendApprovalDialog({ show: false, report: null, email: '', name: '', isSending: false, testMode: true, contacts: [], loadingContacts: false, includePdf: true })}
                   disabled={sendApprovalDialog.isSending}
                   variant="secondary"
                   fullWidth
@@ -2456,7 +2560,7 @@ ${companyInfo?.phone || ''}`;
                   icon={<Send size={18} />}
                   fullWidth
                 >
-                  {sendApprovalDialog.isSending ? 'Wird gesendet...' : (sendApprovalDialog.testMode ? 'Link erstellen' : 'Senden')}
+                  {sendApprovalDialog.isSending ? 'Wird gesendet...' : (sendApprovalDialog.testMode ? 'Link erstellen' : (sendApprovalDialog.revisionOfId ? 'Überarbeitung senden' : 'Senden'))}
                 </Button>
               </div>
             </div>

@@ -105,5 +105,59 @@ export function startNotificationJobs() {
     }
   });
 
+  // Report approval reminders - run twice daily at 9:00 and 15:00
+  cron.schedule('0 9,15 * * *', async () => {
+    console.log('🔔 Running report approval reminder checks...');
+
+    try {
+      // Get pending approvals that expire in 2 days or less and haven't had a reminder sent recently
+      const result = await pool.query(
+        `SELECT ra.*, u.username as sender_name, u.email as sender_email
+         FROM report_approvals ra
+         JOIN users u ON ra.user_id = u.id
+         WHERE ra.status = 'pending'
+           AND ra.expires_at > NOW()
+           AND ra.expires_at <= NOW() + INTERVAL '2 days'
+           AND (ra.reminder_sent_at IS NULL OR ra.reminder_sent_at < NOW() - INTERVAL '1 day')
+         ORDER BY ra.expires_at ASC
+         LIMIT 50`
+      );
+
+      let remindersSent = 0;
+
+      for (const approval of result.rows) {
+        try {
+          const expiresAt = new Date(approval.expires_at);
+          const daysUntilExpiry = Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          const approvalUrl = `${process.env.FRONTEND_URL}/approve/${approval.token}`;
+
+          const emailSent = await emailService.sendReportApprovalReminder({
+            to: approval.recipient_email,
+            recipientName: approval.recipient_name,
+            senderName: approval.sender_name,
+            reportData: approval.report_data,
+            approvalUrl,
+            expiresAt,
+            daysUntilExpiry
+          });
+
+          if (emailSent) {
+            await pool.query(
+              `UPDATE report_approvals SET reminder_sent_at = NOW() WHERE id = $1`,
+              [approval.id]
+            );
+            remindersSent++;
+          }
+        } catch (err) {
+          console.error(`Failed to send reminder for approval ${approval.id}:`, err);
+        }
+      }
+
+      console.log(`✅ Report approval reminders: ${remindersSent} sent`);
+    } catch (error) {
+      console.error('❌ Error running report approval reminder jobs:', error);
+    }
+  });
+
   console.log('✅ Notification jobs started');
 }

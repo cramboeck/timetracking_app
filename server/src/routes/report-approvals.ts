@@ -13,21 +13,29 @@ const sendApprovalSchema = z.object({
   recipientEmail: z.string().email(),
   recipientName: z.string().optional(),
   reportData: z.object({
+    customerId: z.string().optional(),
     timeEntries: z.array(z.any()),
     customerName: z.string().optional(),
     projectName: z.string().optional(),
+    reportTitle: z.string().optional(),
     startDate: z.string(),
     endDate: z.string(),
     totalHours: z.number(),
     totalAmount: z.number().optional(),
-    hourlyRate: z.number().optional()
+    hourlyRate: z.number().optional(),
+    entryCount: z.number().optional(),
+    projectCount: z.number().optional(),
+    pdfBase64: z.string().optional() // Optional PDF as base64 for attachment
   }),
-  expiresInDays: z.number().min(1).max(30).optional().default(7)
+  expiresInDays: z.number().min(1).max(30).optional().default(7),
+  saveReport: z.boolean().optional().default(false), // Save report while sending
+  revisionOfId: z.string().uuid().optional() // If this is a revision of a rejected report
 });
 
 const reviewApprovalSchema = z.object({
-  action: z.enum(['approve', 'reject']),
-  comment: z.string().optional()
+  action: z.enum(['approve', 'reject', 'request_revision']),
+  comment: z.string().optional(),
+  revisionNotes: z.string().optional() // Specific notes for what needs to be changed
 });
 
 // Schema for saving report as proof (without sending)
@@ -47,10 +55,32 @@ const saveReportSchema = z.object({
   notes: z.string().optional()
 });
 
+// Schema for bulk send
+const bulkSendSchema = z.object({
+  reports: z.array(z.object({
+    recipientEmail: z.string().email(),
+    recipientName: z.string().optional(),
+    reportData: z.object({
+      customerId: z.string().optional(),
+      timeEntries: z.array(z.any()),
+      customerName: z.string().optional(),
+      reportTitle: z.string().optional(),
+      startDate: z.string(),
+      endDate: z.string(),
+      totalHours: z.number(),
+      entryCount: z.number().optional(),
+      projectCount: z.number().optional(),
+      pdfBase64: z.string().optional()
+    })
+  })),
+  expiresInDays: z.number().min(1).max(30).optional().default(7),
+  saveReports: z.boolean().optional().default(true)
+});
+
 // POST /api/report-approvals/send - Send report for approval (protected)
 router.post('/send', authenticateToken, validate(sendApprovalSchema), async (req: AuthRequest, res) => {
   try {
-    const { recipientEmail, recipientName, reportData, expiresInDays } = req.body;
+    const { recipientEmail, recipientName, reportData, expiresInDays, saveReport, revisionOfId } = req.body;
     const userId = req.userId!;
 
     // Generate unique token
@@ -58,18 +88,38 @@ router.post('/send', authenticateToken, validate(sendApprovalSchema), async (req
     const approvalId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
 
+    // Get organization_id for user
+    const orgResult = await pool.query(
+      `SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+    const organizationId = orgResult.rows[0]?.organization_id || null;
+
+    // Determine status - if saveReport is true, we save it as 'pending' (sent), otherwise just 'pending'
+    const status = 'pending';
+
+    // If this is a revision of a rejected report, mark the old one as superseded
+    if (revisionOfId) {
+      await pool.query(
+        `UPDATE report_approvals SET status = 'superseded' WHERE id = $1 AND user_id = $2`,
+        [revisionOfId, userId]
+      );
+    }
+
     // Store approval request in database
     await pool.query(
       `INSERT INTO report_approvals
-       (id, user_id, token, recipient_email, recipient_name, report_data, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+       (id, user_id, organization_id, token, recipient_email, recipient_name, report_data, status, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         approvalId,
         userId,
+        organizationId,
         token,
         recipientEmail,
         recipientName || recipientEmail,
         JSON.stringify(reportData),
+        status,
         expiresAt.toISOString()
       ]
     );
@@ -81,13 +131,25 @@ router.post('/send', authenticateToken, validate(sendApprovalSchema), async (req
     // Send approval request email
     const approvalUrl = `${process.env.FRONTEND_URL}/approve/${token}`;
 
+    // Prepare PDF attachment if provided
+    let pdfAttachment: { filename: string; content: Buffer } | undefined;
+    if (reportData.pdfBase64) {
+      const customerName = reportData.customerName?.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_') || 'Report';
+      const dateStr = new Date(reportData.startDate).toLocaleDateString('de-DE').replace(/\./g, '-');
+      pdfAttachment = {
+        filename: `Zeiterfassung_${customerName}_${dateStr}.pdf`,
+        content: Buffer.from(reportData.pdfBase64, 'base64')
+      };
+    }
+
     const emailSent = await emailService.sendReportApprovalRequest({
       to: recipientEmail,
       recipientName: recipientName || recipientEmail,
       senderName,
       reportData,
       approvalUrl,
-      expiresAt
+      expiresAt,
+      pdfAttachment
     });
 
     if (!emailSent) {
@@ -95,7 +157,7 @@ router.post('/send', authenticateToken, validate(sendApprovalSchema), async (req
       console.warn(`⚠️ Approval created but email failed for: ${recipientEmail}`);
     }
 
-    console.log(`📧 Report approval request sent to: ${recipientEmail}`);
+    console.log(`📧 Report approval request sent to: ${recipientEmail}${revisionOfId ? ' (revision)' : ''}`);
 
     res.json({
       success: true,
@@ -379,12 +441,19 @@ router.post('/review/:token', validate(reviewApprovalSchema), async (req, res) =
     }
 
     // Update approval status
-    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    const newStatus = action === 'approve' ? 'approved' : (action === 'request_revision' ? 'revision_requested' : 'rejected');
+    const { revisionNotes } = req.body;
+
+    // Combine comment and revision notes
+    const finalComment = revisionNotes
+      ? (comment ? `${comment}\n\nÄnderungswünsche:\n${revisionNotes}` : `Änderungswünsche:\n${revisionNotes}`)
+      : (comment || null);
+
     await pool.query(
       `UPDATE report_approvals
        SET status = $1, reviewed_at = NOW(), comment = $2
        WHERE id = $3`,
-      [newStatus, comment || null, approval.id]
+      [newStatus, finalComment, approval.id]
     );
 
     // Send notification email to sender
@@ -392,8 +461,8 @@ router.post('/review/:token', validate(reviewApprovalSchema), async (req, res) =
       to: approval.sender_email,
       senderName: approval.sender_name,
       recipientName: approval.recipient_name,
-      status: newStatus,
-      comment,
+      status: newStatus === 'revision_requested' ? 'rejected' : newStatus, // Use 'rejected' template for revision_requested
+      comment: finalComment,
       reportData: approval.report_data
     });
 
@@ -403,11 +472,15 @@ router.post('/review/:token', validate(reviewApprovalSchema), async (req, res) =
 
     console.log(`✅ Report ${newStatus} by ${approval.recipient_email}`);
 
+    const messages: Record<string, string> = {
+      'approved': 'Report wurde freigegeben',
+      'rejected': 'Report wurde abgelehnt',
+      'revision_requested': 'Änderungen wurden angefordert'
+    };
+
     res.json({
       success: true,
-      message: action === 'approve'
-        ? 'Report wurde freigegeben'
-        : 'Report wurde abgelehnt',
+      message: messages[newStatus] || 'Status wurde aktualisiert',
       status: newStatus
     });
   } catch (error) {
@@ -475,6 +548,312 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
     });
   } catch (error) {
     console.error('Delete approval error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/report-approvals/bulk-send - Send multiple reports for approval (protected)
+router.post('/bulk-send', authenticateToken, validate(bulkSendSchema), async (req: AuthRequest, res) => {
+  try {
+    const { reports, expiresInDays, saveReports } = req.body;
+    const userId = req.userId!;
+
+    // Get organization_id for user
+    const orgResult = await pool.query(
+      `SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+    const organizationId = orgResult.rows[0]?.organization_id || null;
+
+    // Get sender username
+    const userResult = await pool.query('SELECT username FROM users WHERE id = $1', [userId]);
+    const senderName = userResult.rows[0]?.username || 'Unknown';
+
+    const results: Array<{ customerId?: string; customerName?: string; success: boolean; error?: string; approvalId?: string }> = [];
+
+    for (const report of reports) {
+      try {
+        const { recipientEmail, recipientName, reportData } = report;
+
+        // Generate unique token
+        const token = crypto.randomUUID() + crypto.randomUUID();
+        const approvalId = crypto.randomUUID();
+        const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
+
+        // Store approval request in database
+        await pool.query(
+          `INSERT INTO report_approvals
+           (id, user_id, organization_id, token, recipient_email, recipient_name, report_data, status, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            approvalId,
+            userId,
+            organizationId,
+            token,
+            recipientEmail,
+            recipientName || recipientEmail,
+            JSON.stringify(reportData),
+            'pending',
+            expiresAt.toISOString()
+          ]
+        );
+
+        // Send approval request email
+        const approvalUrl = `${process.env.FRONTEND_URL}/approve/${token}`;
+
+        // Prepare PDF attachment if provided
+        let pdfAttachment: { filename: string; content: Buffer } | undefined;
+        if (reportData.pdfBase64) {
+          const customerName = reportData.customerName?.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_') || 'Report';
+          const dateStr = new Date(reportData.startDate).toLocaleDateString('de-DE').replace(/\./g, '-');
+          pdfAttachment = {
+            filename: `Zeiterfassung_${customerName}_${dateStr}.pdf`,
+            content: Buffer.from(reportData.pdfBase64, 'base64')
+          };
+        }
+
+        const emailSent = await emailService.sendReportApprovalRequest({
+          to: recipientEmail,
+          recipientName: recipientName || recipientEmail,
+          senderName,
+          reportData,
+          approvalUrl,
+          expiresAt,
+          pdfAttachment
+        });
+
+        results.push({
+          customerId: reportData.customerId,
+          customerName: reportData.customerName,
+          success: true,
+          approvalId
+        });
+
+        if (!emailSent) {
+          console.warn(`⚠️ Bulk: Approval created but email failed for: ${recipientEmail}`);
+        }
+      } catch (err: any) {
+        results.push({
+          customerId: report.reportData.customerId,
+          customerName: report.reportData.customerName,
+          success: false,
+          error: err.message
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+
+    console.log(`📧 Bulk send: ${successCount} successful, ${failCount} failed`);
+
+    res.json({
+      success: failCount === 0,
+      message: `${successCount} von ${reports.length} Reports erfolgreich gesendet`,
+      results,
+      successCount,
+      failCount
+    });
+  } catch (error) {
+    console.error('Bulk send error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/report-approvals/customer-contacts/:customerId - Get contacts for a customer (protected)
+router.get('/customer-contacts/:customerId', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const { customerId } = req.params;
+    const userId = req.userId!;
+
+    // Get organization_id for user
+    const orgResult = await pool.query(
+      `SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+    const organizationId = orgResult.rows[0]?.organization_id;
+
+    if (!organizationId) {
+      return res.status(403).json({ error: 'Keine Organisation zugewiesen' });
+    }
+
+    // Get contacts for this customer
+    const contactsResult = await pool.query(
+      `SELECT id, first_name, last_name, email, phone, position, is_primary
+       FROM contacts
+       WHERE customer_id = $1 AND organization_id = $2
+       ORDER BY is_primary DESC, first_name ASC`,
+      [customerId, organizationId]
+    );
+
+    // Get customer info including main email
+    const customerResult = await pool.query(
+      `SELECT id, name, email
+       FROM customers
+       WHERE id = $1 AND organization_id = $2`,
+      [customerId, organizationId]
+    );
+
+    const contacts = contactsResult.rows.map(c => ({
+      id: c.id,
+      name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Unbekannt',
+      email: c.email,
+      phone: c.phone,
+      position: c.position,
+      isPrimary: c.is_primary
+    }));
+
+    // Add customer main email if available and not already in contacts
+    const customer = customerResult.rows[0];
+    if (customer?.email && !contacts.find(c => c.email === customer.email)) {
+      contacts.unshift({
+        id: 'customer-main',
+        name: customer.name,
+        email: customer.email,
+        phone: null,
+        position: 'Haupt-E-Mail',
+        isPrimary: true
+      });
+    }
+
+    res.json({
+      contacts,
+      customerName: customer?.name
+    });
+  } catch (error) {
+    console.error('Get customer contacts error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/report-approvals/pending-reminders - Get reports needing reminders (internal, for cron job)
+router.get('/pending-reminders', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    // Get pending approvals that expire in 2 days and haven't had a reminder sent
+    const result = await pool.query(
+      `SELECT ra.*, u.username as sender_name, u.email as sender_email
+       FROM report_approvals ra
+       JOIN users u ON ra.user_id = u.id
+       WHERE ra.status = 'pending'
+         AND ra.expires_at > NOW()
+         AND ra.expires_at <= NOW() + INTERVAL '2 days'
+         AND (ra.reminder_sent_at IS NULL OR ra.reminder_sent_at < NOW() - INTERVAL '1 day')
+       ORDER BY ra.expires_at ASC`
+    );
+
+    res.json({
+      pendingReminders: result.rows.map(row => ({
+        id: row.id,
+        token: row.token,
+        recipientEmail: row.recipient_email,
+        recipientName: row.recipient_name,
+        senderName: row.sender_name,
+        senderEmail: row.sender_email,
+        reportData: row.report_data,
+        expiresAt: row.expires_at,
+        daysUntilExpiry: Math.ceil((new Date(row.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+      }))
+    });
+  } catch (error) {
+    console.error('Get pending reminders error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/report-approvals/send-reminder/:id - Send reminder for a pending approval (protected)
+router.post('/send-reminder/:id', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId!;
+
+    // Get the approval
+    const result = await pool.query(
+      `SELECT ra.*, u.username as sender_name
+       FROM report_approvals ra
+       JOIN users u ON ra.user_id = u.id
+       WHERE ra.id = $1 AND ra.user_id = $2 AND ra.status = 'pending'`,
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Freigabe-Anfrage nicht gefunden oder bereits bearbeitet' });
+    }
+
+    const approval = result.rows[0];
+    const expiresAt = new Date(approval.expires_at);
+    const daysUntilExpiry = Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+    if (daysUntilExpiry <= 0) {
+      return res.status(400).json({ error: 'Freigabe-Link ist bereits abgelaufen' });
+    }
+
+    const approvalUrl = `${process.env.FRONTEND_URL}/approve/${approval.token}`;
+
+    const emailSent = await emailService.sendReportApprovalReminder({
+      to: approval.recipient_email,
+      recipientName: approval.recipient_name,
+      senderName: approval.sender_name,
+      reportData: approval.report_data,
+      approvalUrl,
+      expiresAt,
+      daysUntilExpiry
+    });
+
+    if (emailSent) {
+      // Update reminder_sent_at
+      await pool.query(
+        `UPDATE report_approvals SET reminder_sent_at = NOW() WHERE id = $1`,
+        [id]
+      );
+
+      console.log(`📧 Reminder sent for approval ${id} to ${approval.recipient_email}`);
+
+      res.json({
+        success: true,
+        message: `Erinnerung wurde an ${approval.recipient_email} gesendet`
+      });
+    } else {
+      res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden' });
+    }
+  } catch (error) {
+    console.error('Send reminder error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/report-approvals/create-revision/:id - Create a revision of a rejected report (protected)
+router.post('/create-revision/:id', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId!;
+
+    // Get the rejected/revision_requested report
+    const result = await pool.query(
+      `SELECT * FROM report_approvals
+       WHERE id = $1 AND user_id = $2 AND status IN ('rejected', 'revision_requested')`,
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Report nicht gefunden oder nicht zur Überarbeitung verfügbar' });
+    }
+
+    const originalReport = result.rows[0];
+
+    // Return the original report data for revision
+    res.json({
+      success: true,
+      originalReport: {
+        id: originalReport.id,
+        recipientEmail: originalReport.recipient_email,
+        recipientName: originalReport.recipient_name,
+        reportData: originalReport.report_data,
+        comment: originalReport.comment, // This contains the revision notes
+        reviewedAt: originalReport.reviewed_at
+      }
+    });
+  } catch (error) {
+    console.error('Create revision error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -36,6 +36,8 @@ export const ReportApprovalReview = () => {
   const [approval, setApproval] = useState<ApprovalData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState('');
+  const [revisionNotes, setRevisionNotes] = useState('');
+  const [showRevisionForm, setShowRevisionForm] = useState(false);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
@@ -59,8 +61,14 @@ export const ReportApprovalReview = () => {
     }
   };
 
-  const handleSubmit = async (action: 'approve' | 'reject') => {
+  const handleSubmit = async (action: 'approve' | 'reject' | 'request_revision') => {
     if (submitting) return;
+
+    // For revision requests, require revision notes
+    if (action === 'request_revision' && !revisionNotes.trim()) {
+      setError('Bitte geben Sie an, welche Änderungen gewünscht sind.');
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -73,7 +81,8 @@ export const ReportApprovalReview = () => {
         },
         body: JSON.stringify({
           action,
-          comment: comment.trim() || undefined
+          comment: comment.trim() || undefined,
+          revisionNotes: action === 'request_revision' ? revisionNotes.trim() : undefined
         })
       });
 
@@ -313,25 +322,70 @@ export const ReportApprovalReview = () => {
           />
         </div>
 
+        {/* Revision Request Section */}
+        {showRevisionForm && (
+          <div className="bg-white dark:bg-dark-100 rounded-lg shadow-lg p-8 mb-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Änderungswünsche</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Beschreiben Sie, welche Änderungen am Report vorgenommen werden sollen:
+            </p>
+            <textarea
+              value={revisionNotes}
+              onChange={(e) => setRevisionNotes(e.target.value)}
+              placeholder="Z.B.: Bitte die Stunden für das Projekt X am 15.03. überprüfen..."
+              className="w-full px-4 py-3 border border-gray-300 dark:border-dark-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-dark-200 text-gray-900 dark:text-white resize-none"
+              rows={4}
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setShowRevisionForm(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => handleSubmit('request_revision')}
+                disabled={submitting || !revisionNotes.trim()}
+                className="flex-1 flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                <AlertCircle className="w-5 h-5" />
+                {submitting ? 'Wird gesendet...' : 'Änderung anfordern'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="bg-white dark:bg-dark-100 rounded-lg shadow-lg p-8">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <button
-              onClick={() => handleSubmit('approve')}
-              disabled={submitting}
-              className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-            >
-              <CheckCircle className="w-5 h-5" />
-              {submitting ? 'Wird gespeichert...' : 'Freigeben'}
-            </button>
-            <button
-              onClick={() => handleSubmit('reject')}
-              disabled={submitting}
-              className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-            >
-              <XCircle className="w-5 h-5" />
-              {submitting ? 'Wird gespeichert...' : 'Ablehnen'}
-            </button>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={() => handleSubmit('approve')}
+                disabled={submitting}
+                className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+              >
+                <CheckCircle className="w-5 h-5" />
+                {submitting ? 'Wird gespeichert...' : 'Freigeben'}
+              </button>
+              <button
+                onClick={() => handleSubmit('reject')}
+                disabled={submitting}
+                className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+              >
+                <XCircle className="w-5 h-5" />
+                {submitting ? 'Wird gespeichert...' : 'Ablehnen'}
+              </button>
+            </div>
+            {!showRevisionForm && (
+              <button
+                onClick={() => setShowRevisionForm(true)}
+                disabled={submitting}
+                className="flex items-center justify-center gap-2 border-2 border-orange-500 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 disabled:border-gray-300 disabled:text-gray-400 px-6 py-3 rounded-lg font-medium transition-colors"
+              >
+                <AlertCircle className="w-5 h-5" />
+                Änderung anfordern
+              </button>
+            )}
           </div>
 
           {error && (

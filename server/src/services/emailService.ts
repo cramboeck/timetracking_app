@@ -860,18 +860,120 @@ RamboFlow von ramboeck.IT
     reportData: any;
     approvalUrl: string;
     expiresAt: Date;
+    pdfAttachment?: { filename: string; content: Buffer };
   }): Promise<boolean> {
-    const { to, recipientName, senderName, reportData, approvalUrl, expiresAt } = data;
+    const { to, recipientName, senderName, reportData, approvalUrl, expiresAt, pdfAttachment } = data;
 
     const html = this.generateReportApprovalRequestHTML(recipientName, senderName, reportData, approvalUrl, expiresAt);
     const text = this.generateReportApprovalRequestText(recipientName, senderName, reportData, approvalUrl, expiresAt);
+
+    const attachments = pdfAttachment ? [{
+      filename: pdfAttachment.filename,
+      content: pdfAttachment.content,
+      contentType: 'application/pdf'
+    }] : undefined;
 
     return await this.sendEmail({
       to,
       subject: `Freigabe-Anfrage: Zeiterfassungs-Report von ${senderName}`,
       html,
+      text,
+      attachments
+    });
+  }
+
+  // Send reminder for pending approval
+  async sendReportApprovalReminder(data: {
+    to: string;
+    recipientName: string;
+    senderName: string;
+    reportData: any;
+    approvalUrl: string;
+    expiresAt: Date;
+    daysUntilExpiry: number;
+  }): Promise<boolean> {
+    const { to, recipientName, senderName, reportData, approvalUrl, expiresAt, daysUntilExpiry } = data;
+
+    const html = this.generateReportApprovalReminderHTML(recipientName, senderName, reportData, approvalUrl, expiresAt, daysUntilExpiry);
+    const text = this.generateReportApprovalReminderText(recipientName, senderName, reportData, approvalUrl, expiresAt, daysUntilExpiry);
+
+    return await this.sendEmail({
+      to,
+      subject: `Erinnerung: Report-Freigabe von ${senderName} läuft in ${daysUntilExpiry} Tag(en) ab`,
+      html,
       text
     });
+  }
+
+  private generateReportApprovalReminderHTML(
+    recipientName: string,
+    senderName: string,
+    reportData: any,
+    approvalUrl: string,
+    expiresAt: Date,
+    daysUntilExpiry: number
+  ): string {
+    const totalHours = reportData.totalHours?.toFixed(2) || '0';
+    const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
+    const urgencyColor = daysUntilExpiry <= 1 ? '#dc2626' : '#f59e0b';
+
+    const content = `
+      <div style="background-color: ${urgencyColor}; color: white; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+        <strong>⏰ Erinnerung: Dieser Link läuft in ${daysUntilExpiry} Tag(en) ab!</strong>
+      </div>
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${recipientName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        <strong>${senderName}</strong> wartet noch auf Ihre Freigabe für den folgenden Zeiterfassungs-Report:
+      </p>
+      <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+        ${reportData.customerName ? `<p style="margin: 0 0 8px 0;"><strong>Kunde:</strong> ${reportData.customerName}</p>` : ''}
+        <p style="margin: 0 0 8px 0;"><strong>Zeitraum:</strong> ${dateRange}</p>
+        <p style="margin: 0;"><strong>Gesamtstunden:</strong> ${totalHours} h</p>
+      </div>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        Der Link ist gültig bis: <strong>${expiresAt.toLocaleDateString('de-DE', { dateStyle: 'full' })}</strong>
+      </p>
+      <p style="color: #9ca3af; font-size: 13px; margin: 24px 0 0 0; text-align: center;">
+        Falls der Button nicht funktioniert:<br>
+        <a href="${approvalUrl}" style="color: #F27024; word-break: break-all;">${approvalUrl}</a>
+      </p>
+    `;
+
+    return this.generateEmailWrapper('Erinnerung: Report-Freigabe', content, {
+      text: 'Report jetzt prüfen',
+      url: approvalUrl
+    });
+  }
+
+  private generateReportApprovalReminderText(
+    recipientName: string,
+    senderName: string,
+    reportData: any,
+    approvalUrl: string,
+    expiresAt: Date,
+    daysUntilExpiry: number
+  ): string {
+    const totalHours = reportData.totalHours?.toFixed(2) || '0';
+    const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
+
+    return `
+ERINNERUNG: Report-Freigabe läuft in ${daysUntilExpiry} Tag(en) ab!
+
+Hallo ${recipientName},
+
+${senderName} wartet noch auf Ihre Freigabe für den folgenden Zeiterfassungs-Report:
+
+${reportData.customerName ? `Kunde: ${reportData.customerName}` : ''}
+Zeitraum: ${dateRange}
+Gesamtstunden: ${totalHours} h
+
+Der Link ist gültig bis: ${expiresAt.toLocaleDateString('de-DE')}
+
+Prüfen und freigeben: ${approvalUrl}
+
+---
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   async sendReportApprovalNotification(data: {

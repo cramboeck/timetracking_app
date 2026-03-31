@@ -4072,6 +4072,26 @@ export async function initializeDatabase() {
 
     console.log('✅ Portal settings table created');
 
+    // Migration: Extend report_approvals with reminder_sent_at and additional status values
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Add reminder_sent_at column if not exists
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'report_approvals' AND column_name = 'reminder_sent_at'
+        ) THEN
+          ALTER TABLE report_approvals ADD COLUMN reminder_sent_at TIMESTAMPTZ;
+        END IF;
+
+        -- Update status constraint to include new statuses
+        ALTER TABLE report_approvals DROP CONSTRAINT IF EXISTS report_approvals_status_check;
+        ALTER TABLE report_approvals ADD CONSTRAINT report_approvals_status_check
+          CHECK(status IN ('pending', 'approved', 'rejected', 'saved', 'revision_requested', 'superseded'));
+      END $$;
+    `);
+    console.log('✅ Report approvals reminder support added');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {
