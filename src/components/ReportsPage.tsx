@@ -125,6 +125,10 @@ export const ReportsPage = ({
             </li>
             <li className="flex items-start gap-2">
               <span className="text-green-500 mt-0.5">&#10003;</span>
+              CSV-Export fur Excel und andere Tabellenkalkulationen
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-green-500 mt-0.5">&#10003;</span>
               Flexible Zeitraume: Monat, Quartal, Jahr oder benutzerdefiniert
             </li>
             <li className="flex items-start gap-2">

@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
-import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2, Send, Copy, Link, CheckCircle, XCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2, Send, Copy, Link, CheckCircle, XCircle, AlertCircle, ExternalLink, Table } from 'lucide-react';
 import { Button, IconButton } from './ui';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
+import * as Papa from 'papaparse';
 import { useAuth } from '../contexts/AuthContext';
 import { userApi } from '../services/api';
 import { roundTimeUp } from '../utils/timeRounding';
@@ -965,6 +966,76 @@ export const ReportAssistant = ({
     openPdfConfigModal();
   };
 
+  // CSV Export function
+  const exportCSV = () => {
+    for (const customerId of Array.from(selectedCustomers)) {
+      const customerData = reportData.find(d => d.customer.id === customerId);
+      if (customerData) {
+        const customerEntries = getCustomerEntries(customerId);
+
+        // Prepare CSV data with German headers
+        const csvData = customerEntries.map(entry => ({
+          'Datum': entry.date.toLocaleDateString('de-DE'),
+          'Wochentag': entry.weekday,
+          'Projekt': entry.project.name,
+          'Aktivität': entry.activity?.name || '-',
+          'Beschreibung': entry.description,
+          'Stunden': entry.hours.toFixed(2).replace('.', ','),
+          ...(showAmounts && { 'Betrag (€)': entry.amount.toFixed(2).replace('.', ',') })
+        }));
+
+        // Add summary row
+        const totalHours = customerEntries.reduce((sum, e) => sum + e.hours, 0);
+        const totalAmount = customerEntries.reduce((sum, e) => sum + e.amount, 0);
+        csvData.push({
+          'Datum': '',
+          'Wochentag': '',
+          'Projekt': '',
+          'Aktivität': '',
+          'Beschreibung': 'GESAMT',
+          'Stunden': totalHours.toFixed(2).replace('.', ','),
+          ...(showAmounts && { 'Betrag (€)': totalAmount.toFixed(2).replace('.', ',') })
+        });
+
+        // Generate CSV with papaparse
+        const csv = Papa.unparse(csvData, {
+          delimiter: ';', // German Excel default
+          quotes: true
+        });
+
+        // Add BOM for proper Excel encoding
+        const bom = '\uFEFF';
+        const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+
+        // Generate filename
+        let dateStr: string;
+        switch (dateRangeType) {
+          case 'month':
+            dateStr = selectedMonth.replace('-', '_');
+            break;
+          case 'quarter':
+            dateStr = selectedQuarter.replace('-', '_');
+            break;
+          case 'year':
+            dateStr = selectedYear;
+            break;
+          default:
+            dateStr = `${customStartDate}_${customEndDate}`;
+        }
+
+        // Download file
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Zeiten_${customerData.customer.name.replace(/\s+/g, '_')}_${dateStr}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    }
+  };
+
   // Check for existing reports before saving
   const checkForDuplicates = async (): Promise<ExistingReport[]> => {
     const token = localStorage.getItem('auth_token');
@@ -1890,6 +1961,15 @@ ${companyInfo?.phone || ''}`;
                 icon={<Mail size={18} />}
               >
                 <span className="hidden sm:inline">E-Mail</span>
+              </Button>
+              <Button
+                onClick={exportCSV}
+                disabled={selectedCustomers.size === 0}
+                variant="secondary"
+                size="sm"
+                icon={<Table size={18} />}
+              >
+                <span className="hidden sm:inline">CSV</span>
               </Button>
               <Button
                 onClick={exportSelected}
