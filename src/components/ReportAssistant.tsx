@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
-import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2, Send, Copy, Link, CheckCircle, XCircle, AlertCircle, ExternalLink, Table } from 'lucide-react';
+import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2, Send, Copy, Link, CheckCircle, XCircle, AlertCircle, ExternalLink, Table, FileSpreadsheet } from 'lucide-react';
 import { Button, IconButton } from './ui';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import * as Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../contexts/AuthContext';
 import { userApi } from '../services/api';
 import { roundTimeUp } from '../utils/timeRounding';
@@ -1036,6 +1037,76 @@ export const ReportAssistant = ({
     }
   };
 
+  // Excel Export function
+  const exportExcel = () => {
+    for (const customerId of Array.from(selectedCustomers)) {
+      const customerData = reportData.find(d => d.customer.id === customerId);
+      if (customerData) {
+        const customerEntries = getCustomerEntries(customerId);
+
+        // Prepare Excel data with German headers
+        const excelData = customerEntries.map(entry => ({
+          'Datum': entry.date.toLocaleDateString('de-DE'),
+          'Wochentag': entry.weekday,
+          'Projekt': entry.project.name,
+          'Aktivität': entry.activity?.name || '-',
+          'Beschreibung': entry.description,
+          'Stunden': entry.hours,
+          ...(showAmounts && { 'Betrag (€)': entry.amount })
+        }));
+
+        // Add summary row
+        const totalHours = customerEntries.reduce((sum, e) => sum + e.hours, 0);
+        const totalAmount = customerEntries.reduce((sum, e) => sum + e.amount, 0);
+        excelData.push({
+          'Datum': '',
+          'Wochentag': '',
+          'Projekt': '',
+          'Aktivität': '',
+          'Beschreibung': 'GESAMT',
+          'Stunden': totalHours,
+          ...(showAmounts && { 'Betrag (€)': totalAmount })
+        });
+
+        // Create workbook and worksheet
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        const wb = XLSX.utils.book_new();
+
+        // Set column widths
+        ws['!cols'] = [
+          { wch: 12 },  // Datum
+          { wch: 8 },   // Wochentag
+          { wch: 25 },  // Projekt
+          { wch: 20 },  // Aktivität
+          { wch: 50 },  // Beschreibung
+          { wch: 10 },  // Stunden
+          ...(showAmounts ? [{ wch: 12 }] : [])  // Betrag
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Zeiterfassung');
+
+        // Generate filename
+        let dateStr: string;
+        switch (dateRangeType) {
+          case 'month':
+            dateStr = selectedMonth.replace('-', '_');
+            break;
+          case 'quarter':
+            dateStr = selectedQuarter.replace('-', '_');
+            break;
+          case 'year':
+            dateStr = selectedYear;
+            break;
+          default:
+            dateStr = `${customStartDate}_${customEndDate}`;
+        }
+
+        // Download file
+        XLSX.writeFile(wb, `Zeiten_${customerData.customer.name.replace(/\s+/g, '_')}_${dateStr}.xlsx`);
+      }
+    }
+  };
+
   // Check for existing reports before saving
   const checkForDuplicates = async (): Promise<ExistingReport[]> => {
     const token = localStorage.getItem('auth_token');
@@ -1970,6 +2041,15 @@ ${companyInfo?.phone || ''}`;
                 icon={<Table size={18} />}
               >
                 <span className="hidden sm:inline">CSV</span>
+              </Button>
+              <Button
+                onClick={exportExcel}
+                disabled={selectedCustomers.size === 0}
+                variant="secondary"
+                size="sm"
+                icon={<FileSpreadsheet size={18} />}
+              >
+                <span className="hidden sm:inline">Excel</span>
               </Button>
               <Button
                 onClick={exportSelected}
