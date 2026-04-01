@@ -32,6 +32,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   const [editStartTime, setEditStartTime] = useState('');
   const [editEndTime, setEditEndTime] = useState('');
   const [editIsBillable, setEditIsBillable] = useState(true);
+  const [editActivityId, setEditActivityId] = useState('');
 
   // Inline editing for running entries
   const [inlineEditDescriptions, setInlineEditDescriptions] = useState<Record<string, string>>({});
@@ -396,6 +397,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     setEditProjectId(entry.projectId);
     setEditDescription(entry.description);
     setEditIsBillable(entry.isBillable ?? true);
+    setEditActivityId(entry.activityId || '');
 
     // Extract date and times
     const startDate = new Date(entry.startTime);
@@ -424,7 +426,8 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       startTime: startDateTime,
       endTime: endDateTime,
       duration,
-      isBillable: editIsBillable
+      isBillable: editIsBillable,
+      activityId: editActivityId || undefined
     });
 
     setEditingEntry(null);
@@ -1113,6 +1116,24 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                   </option>
                 );
               })}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Tätigkeit
+            </label>
+            <select
+              value={editActivityId}
+              onChange={(e) => setEditActivityId(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+            >
+              <option value="">— Keine Tätigkeit —</option>
+              {activities.map(activity => (
+                <option key={activity.id} value={activity.id}>
+                  {activity.name}
+                </option>
+              ))}
             </select>
           </div>
 
