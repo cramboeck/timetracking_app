@@ -376,6 +376,7 @@ export async function getBillingSummary(
        AND DATE(te.start_time) >= $2::date
        AND DATE(te.start_time) <= $3::date
        AND te.end_time IS NOT NULL
+       AND te.is_billable = true
      ORDER BY c.name, te.start_time`,
     [userId, startDate, endDate]
   );
@@ -630,7 +631,7 @@ export async function createInvoice(
       },
       invoiceType: 'RE',
       currency: 'EUR',
-      showNet: false,
+      showNet: true,
       mapAll: true,
       version: 0,
       smallSettlement: false,
