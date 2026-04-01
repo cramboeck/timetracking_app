@@ -865,80 +865,70 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                               </div>
                             )}
                           </div>
+                          {/* Time and duration row */}
                           <div className={`flex items-center justify-between ${isRunning ? 'pl-7' : 'pl-5'}`}>
-                            {isRunning ? (
-                              /* Inline editable description for running entries */
-                              <input
-                                type="text"
-                                value={inlineEditDescriptions[entry.id] ?? entry.description}
-                                onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
-                                placeholder="Beschreibung eingeben..."
-                                className="text-xs text-gray-700 dark:text-gray-300 flex-1 min-w-0 bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5 mr-2"
-                              />
-                            ) : (
-                              <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex-1">
-                                {entry.description || ''}
-                              </span>
-                            )}
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <span className="text-xs text-gray-400 dark:text-gray-500">
-                                {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
-                              </span>
-                              <span className={`font-semibold text-sm ${isRunning ? 'text-green-600 dark:text-green-400' : 'text-accent-primary'}`}>
-                                {formatDuration(entry.duration)}
-                              </span>
-                            </div>
+                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                              {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
+                            </span>
+                            <span className={`font-semibold text-sm ${isRunning ? 'text-green-600 dark:text-green-400' : 'text-accent-primary'}`}>
+                              {formatDuration(entry.duration)}
+                            </span>
                           </div>
+                          {/* Description row */}
+                          {(isRunning || entry.description) && (
+                            <div className={`${isRunning ? 'pl-7' : 'pl-5'}`}>
+                              {isRunning ? (
+                                <input
+                                  type="text"
+                                  value={inlineEditDescriptions[entry.id] ?? entry.description}
+                                  onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
+                                  placeholder="Beschreibung eingeben..."
+                                  className="text-xs text-gray-700 dark:text-gray-300 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
+                                />
+                              ) : (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 whitespace-pre-wrap">
+                                  {entry.description}
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
 
-                        {/* Desktop: Single row layout */}
-                        <div className="hidden sm:flex items-center gap-2">
-                          {selectionMode && (
-                            <IconButton
-                              onClick={() => toggleEntrySelection(entry.id)}
-                              icon={selectedEntries.has(entry.id) ? (
-                                <CheckSquare size={16} className="text-accent-primary" />
-                              ) : (
-                                <Square size={16} />
-                              )}
-                              variant={selectedEntries.has(entry.id) ? 'primary' : 'default'}
-                              size="sm"
-                            />
-                          )}
-                          {/* Running indicator */}
-                          {isRunning && (
-                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
-                          )}
-                          {customer && (
-                            <div
-                              className="w-3 h-3 rounded flex-shrink-0"
-                              style={{ backgroundColor: customer.color }}
-                            />
-                          )}
-                          <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-shrink-0 max-w-[200px]">
-                            {getProjectDisplay(entry)}
-                          </span>
-                          {isRunning ? (
-                            /* Inline editable description for running entries */
-                            <input
-                              type="text"
-                              value={inlineEditDescriptions[entry.id] ?? entry.description}
-                              onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
-                              placeholder="Beschreibung eingeben..."
-                              className="text-xs text-gray-700 dark:text-gray-300 flex-1 min-w-0 bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
-                            />
-                          ) : entry.description ? (
-                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex-1 min-w-0">
-                              {entry.description}
+                        {/* Desktop: Two row layout for better description visibility */}
+                        <div className="hidden sm:flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            {selectionMode && (
+                              <IconButton
+                                onClick={() => toggleEntrySelection(entry.id)}
+                                icon={selectedEntries.has(entry.id) ? (
+                                  <CheckSquare size={16} className="text-accent-primary" />
+                                ) : (
+                                  <Square size={16} />
+                                )}
+                                variant={selectedEntries.has(entry.id) ? 'primary' : 'default'}
+                                size="sm"
+                              />
+                            )}
+                            {/* Running indicator */}
+                            {isRunning && (
+                              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                            )}
+                            {customer && (
+                              <div
+                                className="w-3 h-3 rounded flex-shrink-0"
+                                style={{ backgroundColor: customer.color }}
+                              />
+                            )}
+                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-1">
+                              {getProjectDisplay(entry)}
                             </span>
-                          ) : null}
-                          <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 ml-auto">
-                            {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
-                          </span>
-                          <span className={`font-semibold text-sm flex-shrink-0 w-16 text-right ${isRunning ? 'text-green-600 dark:text-green-400' : 'text-accent-primary'}`}>
-                            {formatDuration(entry.duration)}
-                          </span>
-                          {!selectionMode && (
+                            <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
+                              {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
+                            </span>
+                            <span className={`font-semibold text-sm flex-shrink-0 w-16 text-right ${isRunning ? 'text-green-600 dark:text-green-400' : 'text-accent-primary'}`}>
+                              {formatDuration(entry.duration)}
+                            </span>
+                            {!selectionMode && (
                             <div className="flex gap-0.5 flex-shrink-0">
                               {onRepeatEntry && !entry.isRunning && (
                                 <IconButton
@@ -963,6 +953,25 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                                 size="sm"
                                 tooltip="Löschen"
                               />
+                            </div>
+                          )}
+                          </div>
+                          {/* Description row */}
+                          {(isRunning || entry.description) && (
+                            <div className="pl-5">
+                              {isRunning ? (
+                                <input
+                                  type="text"
+                                  value={inlineEditDescriptions[entry.id] ?? entry.description}
+                                  onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
+                                  placeholder="Beschreibung eingeben..."
+                                  className="text-xs text-gray-700 dark:text-gray-300 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
+                                />
+                              ) : (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 whitespace-pre-wrap">
+                                  {entry.description}
+                                </p>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1028,7 +1037,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                                 className="w-full text-sm text-gray-700 dark:text-gray-300 mt-1 bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
                               />
                             ) : entry.description ? (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{entry.description}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 whitespace-pre-wrap">{entry.description}</p>
                             ) : null}
                           </div>
                         </div>
