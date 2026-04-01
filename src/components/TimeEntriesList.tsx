@@ -386,6 +386,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
         updates.activityId = bulkActivityId === '__remove__' ? '' : bulkActivityId;
       }
 
+      console.log('🔄 [BULK] Sending updates:', updates, 'for entries:', Array.from(selectedEntries));
       await onBulkUpdate(Array.from(selectedEntries), updates);
 
       setBulkEditModal(false);
