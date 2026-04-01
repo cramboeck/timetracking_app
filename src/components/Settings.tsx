@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { Button, IconButton } from './ui/Button';
@@ -193,6 +193,10 @@ export const Settings = ({
   const [projectCustomerId, setProjectCustomerId] = useState('');
   const [projectRateType, setProjectRateType] = useState<'hourly' | 'daily'>('hourly');
   const [projectHourlyRate, setProjectHourlyRate] = useState('');
+
+  // Project List View State
+  const [projectSearchQuery, setProjectSearchQuery] = useState('');
+  const [collapsedCustomerGroups, setCollapsedCustomerGroups] = useState<Set<string>>(new Set());
 
   // Activity Modal
   const [activityModalOpen, setActivityModalOpen] = useState(false);
@@ -1613,7 +1617,7 @@ export const Settings = ({
         {activeTab === 'projects' && (
           <div className="max-w-4xl mx-auto">
             <div>
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center gap-3">
                     <p className="text-gray-600 dark:text-dark-400">{projects.length} Projekt(e)</p>
                     {userRole === 'viewer' && (
@@ -1632,65 +1636,175 @@ export const Settings = ({
                   )}
                 </div>
 
+                {/* Search and Filter Bar */}
+                {projects.length > 0 && (
+                  <div className="mb-6">
+                    <div className="relative">
+                      <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400" />
+                      <input
+                        type="text"
+                        placeholder="Projekte oder Kunden suchen..."
+                        value={projectSearchQuery}
+                        onChange={(e) => setProjectSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-600 rounded-lg bg-white dark:bg-dark-800 text-gray-900 dark:text-dark-100 placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                      />
+                      {projectSearchQuery && (
+                        <button
+                          onClick={() => setProjectSearchQuery('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-dark-400 dark:hover:text-dark-200"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex justify-between items-center mt-2">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
+                        Gruppiert nach Kunden (A-Z), Projekte alphabetisch sortiert
+                      </p>
+                      {collapsedCustomerGroups.size > 0 && (
+                        <button
+                          onClick={() => setCollapsedCustomerGroups(new Set())}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          Alle aufklappen
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {customers.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 dark:text-dark-400">
                     <Users size={48} className="mx-auto mb-4 opacity-50" />
-                <p>Bitte füge zuerst einen Kunden hinzu</p>
-              </div>
-            ) : projects.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <FolderOpen size={48} className="mx-auto mb-4 opacity-50" />
-                <p>Noch keine Projekte vorhanden</p>
-                <p className="text-sm mt-2">Füge dein erstes Projekt hinzu</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {projects.map(project => {
-                  const customer = getCustomerById(project.customerId);
-                  return (
-                    <div
-                      key={project.id}
-                      className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3 flex-1">
-                          {customer && (
-                            <div
-                              className="w-10 h-10 rounded-lg flex-shrink-0"
-                              style={{ backgroundColor: customer.color }}
-                            />
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <h3 className="font-semibold text-gray-900">{project.name}</h3>
-                            <p className="text-sm text-gray-500">{customer?.name}</p>
-                            <p className="text-sm font-medium text-blue-600 mt-1">
-                              {(project.hourlyRate || 0).toFixed(2)} € / Stunde
-                            </p>
+                    <p>Bitte füge zuerst einen Kunden hinzu</p>
+                  </div>
+                ) : projects.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-dark-400">
+                    <FolderOpen size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Noch keine Projekte vorhanden</p>
+                    <p className="text-sm mt-2">Füge dein erstes Projekt hinzu</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {(() => {
+                      // Filter projects by search query
+                      const filteredProjects = projects.filter(project => {
+                        if (!projectSearchQuery.trim()) return true;
+                        const query = projectSearchQuery.toLowerCase();
+                        const customer = getCustomerById(project.customerId);
+                        return (
+                          project.name.toLowerCase().includes(query) ||
+                          customer?.name.toLowerCase().includes(query)
+                        );
+                      });
+
+                      // Group projects by customer and sort
+                      const customerProjectGroups = customers
+                        .map(customer => ({
+                          customer,
+                          projects: filteredProjects
+                            .filter(p => p.customerId === customer.id)
+                            .sort((a, b) => a.name.localeCompare(b.name, 'de'))
+                        }))
+                        .filter(group => group.projects.length > 0)
+                        .sort((a, b) => a.customer.name.localeCompare(b.customer.name, 'de'));
+
+                      if (customerProjectGroups.length === 0) {
+                        return (
+                          <div className="text-center py-8 text-gray-500 dark:text-dark-400">
+                            <Search size={32} className="mx-auto mb-3 opacity-50" />
+                            <p>Keine Projekte gefunden für "{projectSearchQuery}"</p>
+                            <button
+                              onClick={() => setProjectSearchQuery('')}
+                              className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-2"
+                            >
+                              Suche zurücksetzen
+                            </button>
                           </div>
-                        </div>
-                        <div className="flex gap-2">
-                          {canEdit && (
-                            <IconButton
-                              icon={<Edit2 size={18} />}
-                              onClick={() => openProjectModal(project)}
-                              tooltip="Bearbeiten"
-                            />
-                          )}
-                          {canDelete && (
-                            <IconButton
-                              icon={<Trash2 size={18} />}
-                              onClick={() => handleDeleteProject(project)}
-                              variant="danger"
-                              tooltip="Löschen"
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                        );
+                      }
+
+                      return customerProjectGroups.map(({ customer, projects: customerProjects }) => {
+                        const isCollapsed = collapsedCustomerGroups.has(customer.id);
+
+                        return (
+                          <div key={customer.id} className="bg-white dark:bg-dark-800 rounded-xl border border-gray-200 dark:border-dark-600 overflow-hidden">
+                            {/* Customer Group Header */}
+                            <button
+                              onClick={() => {
+                                const newCollapsed = new Set(collapsedCustomerGroups);
+                                if (isCollapsed) {
+                                  newCollapsed.delete(customer.id);
+                                } else {
+                                  newCollapsed.add(customer.id);
+                                }
+                                setCollapsedCustomerGroups(newCollapsed);
+                              }}
+                              className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 dark:hover:bg-dark-700 transition-colors"
+                            >
+                              <div
+                                className="w-8 h-8 rounded-lg flex-shrink-0"
+                                style={{ backgroundColor: customer.color }}
+                              />
+                              <div className="flex-1 text-left">
+                                <h3 className="font-semibold text-gray-900 dark:text-dark-100">{customer.name}</h3>
+                                <p className="text-xs text-gray-500 dark:text-dark-400">
+                                  {customerProjects.length} Projekt{customerProjects.length !== 1 ? 'e' : ''}
+                                </p>
+                              </div>
+                              {isCollapsed ? (
+                                <ChevronRight size={20} className="text-gray-400 dark:text-dark-400" />
+                              ) : (
+                                <ChevronDown size={20} className="text-gray-400 dark:text-dark-400" />
+                              )}
+                            </button>
+
+                            {/* Projects List */}
+                            {!isCollapsed && (
+                              <div className="border-t border-gray-100 dark:border-dark-700">
+                                {customerProjects.map((project, index) => (
+                                  <div
+                                    key={project.id}
+                                    className={`flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-700 ${
+                                      index !== customerProjects.length - 1 ? 'border-b border-gray-100 dark:border-dark-700' : ''
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3 pl-11">
+                                      <FolderOpen size={16} className="text-gray-400 dark:text-dark-400" />
+                                      <div>
+                                        <p className="font-medium text-gray-900 dark:text-dark-100">{project.name}</p>
+                                        <p className="text-sm text-blue-600 dark:text-blue-400">
+                                          {(project.hourlyRate || 0).toFixed(2)} € / {project.rateType === 'daily' ? 'Tag' : 'Stunde'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-1">
+                                      {canEdit && (
+                                        <IconButton
+                                          icon={<Edit2 size={16} />}
+                                          onClick={() => openProjectModal(project)}
+                                          tooltip="Bearbeiten"
+                                        />
+                                      )}
+                                      {canDelete && (
+                                        <IconButton
+                                          icon={<Trash2 size={16} />}
+                                          onClick={() => handleDeleteProject(project)}
+                                          variant="danger"
+                                          tooltip="Löschen"
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
             </div>
           </div>
         )}
