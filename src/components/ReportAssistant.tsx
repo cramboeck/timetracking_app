@@ -1387,6 +1387,254 @@ export const ReportAssistant = ({
     }
   };
 
+  // Download saved report as PDF
+  const downloadSavedReport = async (report: SavedReport) => {
+    try {
+      // Convert saved time_entries to ReportEntry format
+      const reportEntries: ReportEntry[] = report.time_entries.map((entry: any) => ({
+        date: new Date(entry.date),
+        weekday: entry.weekday || getWeekdayAbbr(new Date(entry.date)),
+        project: {
+          id: '',
+          name: entry.projectName || 'Projekt',
+          customerId: report.customer_id,
+          hourlyRate: 0,
+          color: '#6b7280'
+        } as Project,
+        activity: entry.activityName && entry.activityName !== '-'
+          ? { id: '', name: entry.activityName } as Activity
+          : undefined,
+        description: entry.description || '',
+        hours: entry.hours || 0,
+        amount: 0
+      }));
+
+      // Create customer data object
+      const customerData: CustomerReportData = {
+        customer: {
+          id: report.customer_id,
+          name: report.customer_name,
+          reportTitle: report.report_title,
+        } as Customer,
+        totalHours: report.total_hours,
+        totalAmount: 0,
+        projectCount: report.project_count,
+        entryCount: report.entry_count
+      };
+
+      // Create PDF config for this report
+      const config: PdfConfig = {
+        ...pdfConfig,
+        reportTitle: report.report_title || 'Dienstleistungsnachweis'
+      };
+
+      // Generate PDF using saved entries
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+
+      // Page dimensions
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+
+      // Colors
+      const dark = { r: 17, g: 24, b: 39 };
+      const gray = { r: 107, g: 114, b: 128 };
+      const lightGray = { r: 243, g: 244, b: 246 };
+      const accent = { r: 249, g: 115, b: 22 };
+
+      let y = 25;
+      let pageNum = 1;
+
+      // Header with company info
+      if (companyInfo?.name) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        doc.text(companyInfo.name, margin, y + 8);
+      }
+
+      // Main title section
+      y = 60;
+      doc.setFillColor(accent.r, accent.g, accent.b);
+      doc.rect(margin, y, 4, 35, 'F');
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(13);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(report.report_title || 'Dienstleistungsnachweis', margin + 12, y + 8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(report.customer_name, margin + 12, y + 24);
+
+      // Date range
+      const startDate = new Date(report.start_date).toLocaleDateString('de-DE');
+      const endDate = new Date(report.end_date).toLocaleDateString('de-DE');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(`${startDate} - ${endDate}`, margin + 12, y + 35);
+
+      // Summary cards
+      y = 120;
+      const cardWidth = (contentWidth - 16) / 3;
+      const cardHeight = 45;
+
+      // Card 1: Total Hours
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.roundedRect(margin, y, cardWidth, cardHeight, 4, 4, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text('Gesamtzeit', margin + 10, y + 15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(formatHoursMinutes(report.total_hours), margin + 10, y + 32);
+
+      // Card 2: Entry Count
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.roundedRect(margin + cardWidth + 8, y, cardWidth, cardHeight, 4, 4, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text('Einträge', margin + cardWidth + 18, y + 15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(report.entry_count.toString(), margin + cardWidth + 18, y + 32);
+
+      // Card 3: Projects
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.roundedRect(margin + (cardWidth + 8) * 2, y, cardWidth, cardHeight, 4, 4, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text('Projekte', margin + (cardWidth + 8) * 2 + 10, y + 15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(report.project_count.toString(), margin + (cardWidth + 8) * 2 + 10, y + 32);
+
+      // Add new page for entries table
+      doc.addPage();
+      pageNum++;
+
+      // Table header
+      y = 25;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.rect(margin, y - 5, contentWidth, 12, 'F');
+
+      const colPositions = {
+        date: margin + 2,
+        weekday: margin + 25,
+        project: margin + 40,
+        description: margin + 85,
+        hours: margin + contentWidth - 2
+      };
+
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text('Datum', colPositions.date, y + 2);
+      doc.text('Tag', colPositions.weekday, y + 2);
+      doc.text('Projekt', colPositions.project, y + 2);
+      doc.text('Beschreibung', colPositions.description, y + 2);
+      doc.text('Stunden', colPositions.hours, y + 2, { align: 'right' });
+
+      y += 15;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+
+      // Table rows
+      let totalHours = 0;
+      for (const entry of reportEntries) {
+        const lineHeight = 5;
+        const maxDescWidth = colPositions.hours - colPositions.description - 15;
+        const descLines = doc.splitTextToSize(entry.description || '-', maxDescWidth);
+        const rowHeight = Math.max(lineHeight, descLines.length * lineHeight) + 3;
+
+        // Check page break
+        if (y + rowHeight > pageHeight - 25) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(gray.r, gray.g, gray.b);
+          doc.text(`Seite ${pageNum}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+
+          doc.addPage();
+          pageNum++;
+          y = 25;
+
+          // Repeat header
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+          doc.rect(margin, y - 5, contentWidth, 12, 'F');
+          doc.setTextColor(dark.r, dark.g, dark.b);
+          doc.text('Datum', colPositions.date, y + 2);
+          doc.text('Tag', colPositions.weekday, y + 2);
+          doc.text('Projekt', colPositions.project, y + 2);
+          doc.text('Beschreibung', colPositions.description, y + 2);
+          doc.text('Stunden', colPositions.hours, y + 2, { align: 'right' });
+          y += 15;
+          doc.setFont('helvetica', 'normal');
+        }
+
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        doc.text(entry.date.toLocaleDateString('de-DE'), colPositions.date, y);
+
+        doc.setTextColor(gray.r, gray.g, gray.b);
+        doc.text(entry.weekday, colPositions.weekday, y);
+
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        const maxProjectWidth = colPositions.description - colPositions.project - 5;
+        let projectName = entry.project.name;
+        while (doc.getTextWidth(projectName) > maxProjectWidth && projectName.length > 3) {
+          projectName = projectName.substring(0, projectName.length - 4) + '...';
+        }
+        doc.text(projectName, colPositions.project, y);
+
+        doc.text(descLines, colPositions.description, y);
+
+        doc.setFont('helvetica', 'bold');
+        doc.text(formatHoursMinutes(entry.hours), colPositions.hours, y, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+
+        totalHours += entry.hours;
+        y += rowHeight;
+      }
+
+      // Total row
+      y += 5;
+      doc.setDrawColor(dark.r, dark.g, dark.b);
+      doc.setLineWidth(0.5);
+      doc.line(colPositions.hours - 50, y, pageWidth - margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('Gesamt:', colPositions.hours - 50, y);
+      doc.setFontSize(11);
+      doc.text(formatHoursMinutes(totalHours), colPositions.hours, y, { align: 'right' });
+
+      // Footer
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(`Seite ${pageNum}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+
+      // Generate filename and download
+      const dateStr = `${startDate.replace(/\./g, '-')}_${endDate.replace(/\./g, '-')}`;
+      const filename = `${report.report_title}_${report.customer_name.replace(/\s+/g, '_')}_${dateStr}.pdf`;
+      doc.save(filename);
+
+    } catch (error) {
+      console.error('Error downloading saved report:', error);
+      alert('Fehler beim Herunterladen des Reports');
+    }
+  };
+
   // Send report for approval
   const openSendApprovalDialog = async (report: SavedReport, revisionOfId?: string) => {
     setSendApprovalDialog({
@@ -2225,6 +2473,12 @@ ${companyInfo?.phone || ''}`;
                             </div>
                             {/* Actions */}
                             <div className="flex items-center gap-1 flex-shrink-0">
+                              {/* Download PDF */}
+                              <IconButton
+                                onClick={() => downloadSavedReport(report)}
+                                icon={<Download size={18} />}
+                                tooltip="PDF herunterladen"
+                              />
                               {/* Send for approval (only for saved reports) */}
                               {report.status === 'saved' && (
                                 <IconButton
