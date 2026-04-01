@@ -17,7 +17,7 @@ interface TimeEntriesListProps {
   onDelete: (id: string) => void;
   onEdit: (id: string, updates: Partial<TimeEntry>) => void;
   onRepeatEntry?: (entry: TimeEntry) => void;
-  onBulkUpdate?: (entryIds: string[], updates: { projectId?: string; description?: string }) => Promise<void>;
+  onBulkUpdate?: (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => Promise<void>;
 }
 
 export const TimeEntriesList = ({ entries, projects, customers, activities, onDelete, onEdit, onRepeatEntry, onBulkUpdate }: TimeEntriesListProps) => {
@@ -169,6 +169,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   const [bulkProjectId, setBulkProjectId] = useState<string>('');
   const [bulkDescription, setBulkDescription] = useState<string>('');
   const [bulkDescriptionMode, setBulkDescriptionMode] = useState<'keep' | 'replace' | 'append'>('keep');
+  const [bulkActivityId, setBulkActivityId] = useState<string>('');
   const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const getProjectById = (id: string) => projects.find(p => p.id === id);
@@ -359,6 +360,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     setBulkProjectId('');
     setBulkDescription('');
     setBulkDescriptionMode('keep');
+    setBulkActivityId('');
     setBulkEditModal(true);
   };
 
@@ -367,7 +369,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
     setBulkProcessing(true);
     try {
-      const updates: { projectId?: string; description?: string } = {};
+      const updates: { projectId?: string; description?: string; activityId?: string } = {};
 
       if (bulkProjectId) {
         updates.projectId = bulkProjectId;
@@ -378,6 +380,11 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       }
       // For 'append' mode, we handle it differently - we need to update each entry individually
       // For now, we'll just support replace mode in bulk
+
+      if (bulkActivityId) {
+        // Special value '__remove__' means remove the activity
+        updates.activityId = bulkActivityId === '__remove__' ? '' : bulkActivityId;
+      }
 
       await onBulkUpdate(Array.from(selectedEntries), updates);
 
@@ -1241,7 +1248,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
             </Button>
             <Button
               onClick={handleBulkEdit}
-              disabled={bulkProcessing || (!bulkProjectId && bulkDescriptionMode === 'keep')}
+              disabled={bulkProcessing || (!bulkProjectId && bulkDescriptionMode === 'keep' && !bulkActivityId)}
               loading={bulkProcessing}
               variant="primary"
               fullWidth
@@ -1314,6 +1321,25 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                 />
               )}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Tätigkeit zuweisen
+            </label>
+            <select
+              value={bulkActivityId}
+              onChange={(e) => setBulkActivityId(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+            >
+              <option value="">— Nicht ändern —</option>
+              <option value="__remove__">— Tätigkeit entfernen —</option>
+              {activities.filter(a => a.isActive).map(activity => (
+                <option key={activity.id} value={activity.id}>
+                  {activity.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </Modal>

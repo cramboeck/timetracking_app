@@ -805,7 +805,7 @@ function App() {
     }
   };
 
-  const handleBulkUpdateEntries = async (entryIds: string[], updates: { projectId?: string; description?: string }) => {
+  const handleBulkUpdateEntries = async (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => {
     try {
       console.log('📦 [ENTRY] Bulk updating entries:', entryIds.length);
       await entriesApi.bulkUpdate(entryIds, updates);

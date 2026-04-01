@@ -111,6 +111,11 @@ router.put('/bulk-update', authenticateToken, attachOrganization, requireOrgRole
       fields.push(`is_billable = $${paramCount++}`);
       values.push(updates.isBillable);
     }
+    if (updates.activityId !== undefined) {
+      // Empty string means remove the activity
+      fields.push(`activity_id = $${paramCount++}`);
+      values.push(updates.activityId || null);
+    }
 
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
