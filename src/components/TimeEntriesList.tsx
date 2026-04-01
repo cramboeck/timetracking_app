@@ -1335,7 +1335,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
             >
               <option value="">— Nicht ändern —</option>
               <option value="__remove__">— Tätigkeit entfernen —</option>
-              {activities.filter(a => a.isActive).map(activity => (
+              {activities.map(activity => (
                 <option key={activity.id} value={activity.id}>
                   {activity.name}
                 </option>
