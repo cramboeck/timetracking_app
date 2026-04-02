@@ -22,26 +22,53 @@ import { pdf } from 'pdf-to-img';
 
 // Interface for invoice line items (for MSP rebilling)
 export interface InvoiceLineItem {
+  position: number | null;        // Position number on invoice
   description: string;
-  customerName: string | null;  // Customer name extracted from invoice (e.g. "Mustermann GmbH")
+  articleNumber: string | null;   // Article/SKU number
+  customerName: string | null;    // End customer name (e.g. for MSP/reseller invoices)
   quantity: number | null;
+  unit: string | null;            // Unit (Stück, Monat, GB, etc.)
   unitPrice: number | null;
   totalPrice: number | null;
-  period: string | null;        // e.g. "01.12.2024 - 31.12.2024"
-  productType: string | null;   // e.g. "Microsoft 365", "Azure", "License"
+  vatRate: number | null;         // VAT rate for this line item if different
+  period: string | null;          // e.g. "01.12.2024 - 31.12.2024"
+  productType: string | null;     // e.g. "Microsoft 365", "Azure", "Cloud Server"
 }
 
 // Interface for extracted invoice data
 export interface ExtractedInvoiceData {
+  // Supplier/vendor info
   supplierName: string | null;
+  supplierAddress: string | null;
+  taxId: string | null;           // USt-IdNr. of supplier
+
+  // Recipient info
+  recipientName: string | null;   // Invoice recipient (your customer)
+  recipientAddress: string | null;
+  customerNumber: string | null;  // Customer number at supplier
+
+  // Invoice identifiers
   invoiceNumber: string | null;
+  orderNumber: string | null;     // Order/reference number
+
+  // Dates
   invoiceDate: string | null;
   dueDate: string | null;
+  deliveryDate: string | null;    // Delivery/service date or period
+
+  // Amounts
   netAmount: number | null;
   grossAmount: number | null;
   vatAmount: number | null;
   vatRate: number | null;
   currency: string;
+
+  // Payment info
+  paymentMethod: string | null;   // Bank transfer, direct debit, etc.
+  iban: string | null;
+  bic: string | null;
+
+  // Metadata
   confidence: number;
   rawText?: string;
   lineItems?: InvoiceLineItem[];  // Line items for MSP rebilling
@@ -236,10 +263,108 @@ class InvoiceProcessorService {
   }
 
   /**
-   * Find vendor by email address
+   * Known vendor patterns for automatic matching
+   * Maps email domain patterns to canonical vendor names
+   */
+  private static readonly KNOWN_VENDORS: Array<{
+    patterns: string[];           // Email domain patterns (lowercase)
+    canonicalName: string;        // Standard vendor name
+    aliases: string[];            // Alternative names to search for
+  }> = [
+    {
+      patterns: ['microsoft.com', 'microsoftonline.com', 'azure.com', 'office365.com'],
+      canonicalName: 'Microsoft',
+      aliases: ['Microsoft Ireland Operations', 'Microsoft Corporation', 'Microsoft Deutschland', 'MS'],
+    },
+    {
+      patterns: ['hetzner.com', 'hetzner.de', 'hetzner-cloud.de'],
+      canonicalName: 'Hetzner',
+      aliases: ['Hetzner Online', 'Hetzner Online GmbH'],
+    },
+    {
+      patterns: ['amazon.com', 'amazon.de', 'aws.amazon.com', 'amazonses.com'],
+      canonicalName: 'Amazon Web Services',
+      aliases: ['AWS', 'Amazon', 'Amazon.com'],
+    },
+    {
+      patterns: ['google.com', 'googlemail.com', 'cloud.google.com'],
+      canonicalName: 'Google',
+      aliases: ['Google Cloud', 'Google LLC', 'Google Ireland'],
+    },
+    {
+      patterns: ['ovh.com', 'ovh.de', 'ovhcloud.com'],
+      canonicalName: 'OVH',
+      aliases: ['OVHcloud', 'OVH GmbH'],
+    },
+    {
+      patterns: ['ionos.de', 'ionos.com', '1und1.de', '1and1.com'],
+      canonicalName: 'IONOS',
+      aliases: ['1&1 IONOS', '1und1', 'United Internet'],
+    },
+    {
+      patterns: ['strato.de', 'strato.com'],
+      canonicalName: 'STRATO',
+      aliases: ['STRATO AG'],
+    },
+    {
+      patterns: ['hosteurope.de', 'hosteurope.com'],
+      canonicalName: 'Host Europe',
+      aliases: ['Host Europe GmbH'],
+    },
+    {
+      patterns: ['cloudflare.com'],
+      canonicalName: 'Cloudflare',
+      aliases: ['Cloudflare Inc.', 'Cloudflare, Inc.'],
+    },
+    {
+      patterns: ['digitalocean.com'],
+      canonicalName: 'DigitalOcean',
+      aliases: ['DigitalOcean LLC'],
+    },
+  ];
+
+  /**
+   * Find vendor by email address with enhanced matching
    */
   async findVendorByEmail(organizationId: string, email: string): Promise<{ id: string; name: string } | null> {
     const domain = email.split('@')[1]?.toLowerCase();
+
+    // First check if this matches a known vendor pattern
+    const knownVendor = this.findKnownVendor(domain);
+    if (knownVendor) {
+      console.log(`Matched known vendor pattern: ${domain} -> ${knownVendor.canonicalName}`);
+
+      // Try to find this vendor in the database by any of its names
+      const allNames = [knownVendor.canonicalName, ...knownVendor.aliases];
+      for (const name of allNames) {
+        const result = await query(
+          `SELECT id, name FROM customers
+           WHERE organization_id = $1
+           AND (LOWER(name) LIKE $2 OR LOWER(display_name) LIKE $2)
+           LIMIT 1`,
+          [organizationId, `%${name.toLowerCase()}%`]
+        );
+
+        if (result.rows.length > 0) {
+          return { id: result.rows[0].id, name: result.rows[0].name };
+        }
+      }
+
+      // Also try vendor_domain for known vendors
+      for (const pattern of knownVendor.patterns) {
+        const result = await query(
+          `SELECT id, name FROM customers
+           WHERE organization_id = $1
+           AND LOWER(vendor_domain) = $2
+           LIMIT 1`,
+          [organizationId, pattern]
+        );
+
+        if (result.rows.length > 0) {
+          return { id: result.rows[0].id, name: result.rows[0].name };
+        }
+      }
+    }
 
     // First try exact match on vendor_domain (most reliable)
     if (domain) {
@@ -301,6 +426,33 @@ class InvoiceProcessorService {
     }
 
     return null;
+  }
+
+  /**
+   * Find known vendor by email domain pattern
+   */
+  private findKnownVendor(domain: string | undefined): typeof InvoiceProcessorService.KNOWN_VENDORS[0] | null {
+    if (!domain) return null;
+
+    for (const vendor of InvoiceProcessorService.KNOWN_VENDORS) {
+      for (const pattern of vendor.patterns) {
+        // Exact match or subdomain match (e.g., mail.hetzner.com matches hetzner.com)
+        if (domain === pattern || domain.endsWith(`.${pattern}`)) {
+          return vendor;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get canonical vendor name from email domain
+   * Useful for suggesting vendor names during invoice review
+   */
+  getCanonicalVendorName(email: string): string | null {
+    const domain = email.split('@')[1]?.toLowerCase();
+    const knownVendor = this.findKnownVendor(domain);
+    return knownVendor?.canonicalName || null;
   }
 
   /**
@@ -941,6 +1093,7 @@ class InvoiceProcessorService {
 
       // Merge regex extraction with email fallback (prefer regex if found)
       result = {
+        ...result,
         supplierName: regexExtraction.supplierName || result.supplierName,
         invoiceNumber: regexExtraction.invoiceNumber || result.invoiceNumber,
         invoiceDate: regexExtraction.invoiceDate || result.invoiceDate,
@@ -950,6 +1103,10 @@ class InvoiceProcessorService {
         vatAmount: regexExtraction.vatAmount ?? result.vatAmount,
         vatRate: regexExtraction.vatRate ?? result.vatRate,
         currency: regexExtraction.currency || result.currency,
+        iban: regexExtraction.iban || result.iban,
+        bic: regexExtraction.bic || result.bic,
+        taxId: regexExtraction.taxId || result.taxId,
+        customerNumber: regexExtraction.customerNumber || result.customerNumber,
         confidence: Math.max(regexExtraction.confidence, result.confidence),
         rawText: rawText.substring(0, 2000),
       };
@@ -977,19 +1134,14 @@ class InvoiceProcessorService {
           console.log('Vision extraction result:', visionExtraction);
 
           if (visionExtraction.confidence > 0) {
+            // Merge Vision extraction with existing data (Vision takes precedence)
             result = {
-              supplierName: visionExtraction.supplierName || result.supplierName,
-              invoiceNumber: visionExtraction.invoiceNumber || result.invoiceNumber,
-              invoiceDate: visionExtraction.invoiceDate || result.invoiceDate,
-              dueDate: visionExtraction.dueDate || result.dueDate,
-              netAmount: visionExtraction.netAmount ?? result.netAmount,
-              grossAmount: visionExtraction.grossAmount ?? result.grossAmount,
-              vatAmount: visionExtraction.vatAmount ?? result.vatAmount,
-              vatRate: visionExtraction.vatRate ?? result.vatRate,
-              currency: visionExtraction.currency || result.currency,
-              confidence: visionExtraction.confidence,
+              ...result,
+              ...visionExtraction,
+              // Keep rawText from PDF parsing
               rawText: result.rawText,
-              lineItems: visionExtraction.lineItems,
+              // Use higher confidence from Vision
+              confidence: visionExtraction.confidence,
             };
           }
         } else {
@@ -999,17 +1151,10 @@ class InvoiceProcessorService {
           console.log('AI extraction:', aiExtraction);
 
           result = {
-            supplierName: aiExtraction.supplierName || result.supplierName,
-            invoiceNumber: aiExtraction.invoiceNumber || result.invoiceNumber,
-            invoiceDate: aiExtraction.invoiceDate || result.invoiceDate,
-            dueDate: aiExtraction.dueDate || result.dueDate,
-            netAmount: aiExtraction.netAmount ?? result.netAmount,
-            grossAmount: aiExtraction.grossAmount ?? result.grossAmount,
-            vatAmount: aiExtraction.vatAmount ?? result.vatAmount,
-            vatRate: aiExtraction.vatRate ?? result.vatRate,
-            currency: aiExtraction.currency || result.currency,
-            confidence: aiExtraction.confidence > 0 ? aiExtraction.confidence : result.confidence,
+            ...result,
+            ...aiExtraction,
             rawText: rawText.substring(0, 2000),
+            confidence: aiExtraction.confidence > 0 ? aiExtraction.confidence : result.confidence,
           };
         }
       } else {
@@ -1031,14 +1176,24 @@ class InvoiceProcessorService {
   private extractFromEmailMetadata(invoice: any): ExtractedInvoiceData {
     const result: ExtractedInvoiceData = {
       supplierName: null,
+      supplierAddress: null,
+      taxId: null,
+      recipientName: null,
+      recipientAddress: null,
+      customerNumber: null,
       invoiceNumber: null,
+      orderNumber: null,
       invoiceDate: null,
       dueDate: null,
+      deliveryDate: null,
       netAmount: null,
       grossAmount: null,
       vatAmount: null,
       vatRate: 19,
       currency: 'EUR',
+      paymentMethod: null,
+      iban: null,
+      bic: null,
       confidence: 0.2,
     };
 
@@ -1116,14 +1271,24 @@ class InvoiceProcessorService {
   private createEmptyExtraction(reason: string): ExtractedInvoiceData {
     return {
       supplierName: null,
+      supplierAddress: null,
+      taxId: null,
+      recipientName: null,
+      recipientAddress: null,
+      customerNumber: null,
       invoiceNumber: null,
+      orderNumber: null,
       invoiceDate: null,
       dueDate: null,
+      deliveryDate: null,
       netAmount: null,
       grossAmount: null,
       vatAmount: null,
       vatRate: null,
       currency: 'EUR',
+      paymentMethod: null,
+      iban: null,
+      bic: null,
       confidence: 0,
       rawText: reason,
     };
@@ -1139,14 +1304,24 @@ class InvoiceProcessorService {
   private extractWithRegex(text: string): ExtractedInvoiceData {
     const result: ExtractedInvoiceData = {
       supplierName: null,
+      supplierAddress: null,
+      taxId: null,
+      recipientName: null,
+      recipientAddress: null,
+      customerNumber: null,
       invoiceNumber: null,
+      orderNumber: null,
       invoiceDate: null,
       dueDate: null,
+      deliveryDate: null,
       netAmount: null,
       grossAmount: null,
       vatAmount: null,
       vatRate: null,
       currency: 'EUR',
+      paymentMethod: null,
+      iban: null,
+      bic: null,
       confidence: 0.3, // Low confidence for regex-only extraction
     };
 
@@ -1253,6 +1428,30 @@ class InvoiceProcessorService {
       }
     }
 
+    // Extract IBAN (German format: DE followed by 20 characters)
+    const ibanMatch = cleanText.match(/IBAN[:\s]*([A-Z]{2}\d{2}[\s]?(?:\d{4}[\s]?){4}\d{2}|\b[A-Z]{2}\d{20,22}\b)/i);
+    if (ibanMatch) {
+      result.iban = ibanMatch[1].replace(/\s/g, '').toUpperCase();
+    }
+
+    // Extract BIC/SWIFT
+    const bicMatch = cleanText.match(/(?:BIC|SWIFT)[:\s]*([A-Z]{6}[A-Z0-9]{2,5})/i);
+    if (bicMatch) {
+      result.bic = bicMatch[1].toUpperCase();
+    }
+
+    // Extract Tax ID (USt-IdNr.)
+    const taxIdMatch = cleanText.match(/(?:USt[.-]?(?:Id)?Nr\.?|VAT[- ]?ID|Steuernummer)[:\s]*([A-Z]{2}\d{9,12}|\d{2,3}\/?\d{3}\/?\d{5})/i);
+    if (taxIdMatch) {
+      result.taxId = taxIdMatch[1];
+    }
+
+    // Extract customer number
+    const customerNoMatch = cleanText.match(/(?:Kunden(?:nummer|nr\.?)|Customer\s*(?:No\.?|Number))[:\s]*([A-Z0-9\-]+)/i);
+    if (customerNoMatch) {
+      result.customerNumber = customerNoMatch[1];
+    }
+
     // Calculate confidence based on what we found
     let fieldsFound = 0;
     if (result.supplierName) fieldsFound++;
@@ -1335,14 +1534,24 @@ Wichtig:
         const parsed = JSON.parse(jsonMatch[0]);
         return {
           supplierName: parsed.supplierName || null,
+          supplierAddress: parsed.supplierAddress || null,
+          taxId: parsed.taxId || null,
+          recipientName: parsed.recipientName || null,
+          recipientAddress: parsed.recipientAddress || null,
+          customerNumber: parsed.customerNumber || null,
           invoiceNumber: parsed.invoiceNumber || null,
+          orderNumber: parsed.orderNumber || null,
           invoiceDate: parsed.invoiceDate || null,
           dueDate: parsed.dueDate || null,
+          deliveryDate: parsed.deliveryDate || null,
           netAmount: typeof parsed.netAmount === 'number' ? parsed.netAmount : null,
           grossAmount: typeof parsed.grossAmount === 'number' ? parsed.grossAmount : null,
           vatAmount: typeof parsed.vatAmount === 'number' ? parsed.vatAmount : null,
           vatRate: typeof parsed.vatRate === 'number' ? parsed.vatRate : null,
           currency: parsed.currency || 'EUR',
+          paymentMethod: parsed.paymentMethod || null,
+          iban: parsed.iban || null,
+          bic: parsed.bic || null,
           confidence: 0.85, // Higher confidence for AI extraction
         };
       }
@@ -1375,8 +1584,8 @@ Wichtig:
     console.log('API key found, length:', apiKey.length);
 
     try {
-      // Convert first page of PDF to image
-      console.log('Converting PDF to image, buffer size:', pdfBuffer.length);
+      // Convert ALL pages of PDF to images (max 5 pages to avoid token limits)
+      console.log('Converting PDF to images, buffer size:', pdfBuffer.length);
       let document;
       try {
         document = await pdf(pdfBuffer, { scale: 2.0 });
@@ -1386,24 +1595,43 @@ Wichtig:
         return this.createEmptyExtraction(`PDF-Konvertierung fehlgeschlagen: ${pdfError.message}`);
       }
 
-      let firstPageImage: Buffer | null = null;
+      const pageImages: Buffer[] = [];
+      const MAX_PAGES = 5; // Limit to avoid token overflow
 
       for await (const image of document) {
-        firstPageImage = image;
-        console.log('Got first page image, size:', image.length);
-        break; // Only take first page
+        pageImages.push(image);
+        console.log(`Got page ${pageImages.length} image, size: ${image.length} bytes`);
+        if (pageImages.length >= MAX_PAGES) {
+          console.log(`Reached max pages limit (${MAX_PAGES})`);
+          break;
+        }
       }
 
-      if (!firstPageImage) {
+      if (pageImages.length === 0) {
         console.log('Failed to convert PDF to image - no pages extracted');
         return this.createEmptyExtraction('PDF konnte nicht in Bild konvertiert werden');
       }
 
-      // Convert to base64
-      const base64Image = firstPageImage.toString('base64');
-      console.log('PDF converted to image, size:', Math.round(base64Image.length / 1024), 'KB');
+      console.log(`Extracted ${pageImages.length} page(s) from PDF`);
 
-      // Call OpenAI Vision API
+      // Build image content array for all pages
+      const imageContents: Array<{ type: 'image_url'; image_url: { url: string; detail: string } }> = [];
+      for (let i = 0; i < pageImages.length; i++) {
+        const base64Image = pageImages[i].toString('base64');
+        console.log(`Page ${i + 1} converted to base64, size: ${Math.round(base64Image.length / 1024)} KB`);
+        imageContents.push({
+          type: 'image_url',
+          image_url: {
+            url: `data:image/png;base64,${base64Image}`,
+            detail: 'high',
+          },
+        });
+      }
+
+      // Build the prompt with improved field recognition
+      const extractionPrompt = this.buildExtractionPrompt(pageImages.length);
+
+      // Call OpenAI Vision API with all pages
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -1418,52 +1646,13 @@ Wichtig:
               content: [
                 {
                   type: 'text',
-                  text: `Analysiere diese Rechnung und extrahiere die folgenden Informationen.
-
-Antworte NUR im folgenden JSON-Format (keine anderen Texte):
-{
-  "supplierName": "Name des Lieferanten/Absenders (Firma die die Rechnung stellt)",
-  "invoiceNumber": "Rechnungsnummer",
-  "invoiceDate": "YYYY-MM-DD",
-  "dueDate": "YYYY-MM-DD oder null",
-  "netAmount": Nettobetrag als Zahl oder null,
-  "grossAmount": Bruttobetrag als Zahl oder null,
-  "vatAmount": MwSt-Betrag als Zahl oder null,
-  "vatRate": MwSt-Satz als Zahl (z.B. 19) oder null,
-  "currency": "EUR" oder andere Währung,
-  "lineItems": [
-    {
-      "description": "Beschreibung der Position",
-      "customerName": "Name des Endkunden falls angegeben oder null",
-      "quantity": Anzahl als Zahl oder null,
-      "unitPrice": Einzelpreis als Zahl oder null,
-      "totalPrice": Gesamtpreis der Position als Zahl oder null,
-      "period": "Abrechnungszeitraum z.B. 01.12.2024 - 31.12.2024 oder null",
-      "productType": "Produkttyp z.B. Microsoft 365, Azure, License, Hosting oder null"
-    }
-  ]
-}
-
-Wichtig:
-- Beträge als Zahlen ohne Währungssymbol (z.B. 119.00 nicht "119,00 €")
-- Daten im ISO-Format (YYYY-MM-DD)
-- Bei nicht gefundenen Werten: null
-- supplierName ist der ABSENDER/Lieferant, nicht der Empfänger der Rechnung
-- lineItems: Extrahiere ALLE Positionen/Zeilen der Rechnung
-- customerName in lineItems: Falls die Position einem bestimmten Kunden/Mandanten zugeordnet ist (z.B. bei Microsoft CSP Rechnungen), extrahiere den Kundennamen
-- Bei Sammelrechnungen für mehrere Kunden: Jede Position mit dem zugehörigen Kundennamen extrahieren`,
+                  text: extractionPrompt,
                 },
-                {
-                  type: 'image_url',
-                  image_url: {
-                    url: `data:image/png;base64,${base64Image}`,
-                    detail: 'high',
-                  },
-                },
+                ...imageContents,
               ],
             },
           ],
-          max_tokens: 4000,
+          max_tokens: 6000,
           temperature: 0.1,
         }),
       });
@@ -1490,29 +1679,56 @@ Wichtig:
         let lineItems: InvoiceLineItem[] | undefined = undefined;
         if (Array.isArray(parsed.lineItems) && parsed.lineItems.length > 0) {
           const parsedItems: InvoiceLineItem[] = parsed.lineItems.map((item: any) => ({
+            position: this.parseNumberFromAny(item.position),
             description: item.description || '',
+            articleNumber: item.articleNumber || null,
             customerName: item.customerName || null,
             quantity: this.parseNumberFromAny(item.quantity),
+            unit: item.unit || null,
             unitPrice: this.parseNumberFromAny(item.unitPrice),
             totalPrice: this.parseNumberFromAny(item.totalPrice),
+            vatRate: this.parseNumberFromAny(item.vatRate),
             period: item.period || null,
             productType: item.productType || null,
           }));
           lineItems = parsedItems;
-          console.log(`Extracted ${parsedItems.length} line items`);
+          console.log(`Extracted ${parsedItems.length} line items from ${pageImages.length} page(s)`);
         }
 
         return {
+          // Supplier info
           supplierName: parsed.supplierName || null,
+          supplierAddress: parsed.supplierAddress || null,
+          taxId: parsed.taxId || null,
+
+          // Recipient info
+          recipientName: parsed.recipientName || null,
+          recipientAddress: parsed.recipientAddress || null,
+          customerNumber: parsed.customerNumber || null,
+
+          // Invoice identifiers
           invoiceNumber: parsed.invoiceNumber || null,
+          orderNumber: parsed.orderNumber || null,
+
+          // Dates
           invoiceDate: parsed.invoiceDate || null,
           dueDate: parsed.dueDate || null,
+          deliveryDate: parsed.deliveryDate || null,
+
+          // Amounts
           netAmount: typeof parsed.netAmount === 'number' ? parsed.netAmount : this.parseNumberFromAny(parsed.netAmount),
           grossAmount: typeof parsed.grossAmount === 'number' ? parsed.grossAmount : this.parseNumberFromAny(parsed.grossAmount),
           vatAmount: typeof parsed.vatAmount === 'number' ? parsed.vatAmount : this.parseNumberFromAny(parsed.vatAmount),
-          vatRate: typeof parsed.vatRate === 'number' ? parsed.vatRate : null,
+          vatRate: typeof parsed.vatRate === 'number' ? parsed.vatRate : this.parseNumberFromAny(parsed.vatRate),
           currency: parsed.currency || 'EUR',
-          confidence: 0.9, // High confidence for Vision extraction
+
+          // Payment info
+          paymentMethod: parsed.paymentMethod || null,
+          iban: parsed.iban || null,
+          bic: parsed.bic || null,
+
+          // Metadata
+          confidence: 0.95, // High confidence for multi-page Vision extraction
           lineItems,
         };
       }
@@ -1525,6 +1741,82 @@ Wichtig:
       console.error('Error stack:', error.stack);
       return this.createEmptyExtraction(`Vision Fehler: ${error.message}`);
     }
+  }
+
+  /**
+   * Build extraction prompt optimized for various invoice types
+   */
+  private buildExtractionPrompt(pageCount: number): string {
+    const multiPageNote = pageCount > 1
+      ? `\n\nDies ist eine mehrseitige Rechnung mit ${pageCount} Seiten. Analysiere ALLE Seiten um die vollständigen Informationen zu extrahieren. Positionen/Line Items können auf Folgeseiten sein!`
+      : '';
+
+    return `Analysiere diese Rechnung und extrahiere die folgenden Informationen.${multiPageNote}
+
+Antworte NUR im folgenden JSON-Format (keine anderen Texte):
+{
+  "supplierName": "Name des Lieferanten/Rechnungsstellers",
+  "supplierAddress": "Vollständige Adresse des Lieferanten oder null",
+  "recipientName": "Name des Rechnungsempfängers (Kunde)",
+  "recipientAddress": "Adresse des Empfängers oder null",
+  "invoiceNumber": "Rechnungsnummer (auch: Belegnummer, RE-Nr., Invoice No.)",
+  "orderNumber": "Bestellnummer/Auftragsnummer falls vorhanden oder null",
+  "invoiceDate": "Rechnungsdatum im Format YYYY-MM-DD",
+  "dueDate": "Fälligkeitsdatum YYYY-MM-DD oder null",
+  "deliveryDate": "Lieferdatum/Leistungszeitraum oder null",
+  "netAmount": Nettobetrag als Zahl,
+  "grossAmount": Bruttobetrag/Gesamtbetrag als Zahl,
+  "vatAmount": MwSt-Betrag als Zahl oder null,
+  "vatRate": MwSt-Satz als Zahl (0, 7, oder 19) oder null,
+  "currency": "EUR",
+  "paymentMethod": "Zahlungsart (Überweisung, Lastschrift, etc.) oder null",
+  "iban": "IBAN falls angegeben oder null",
+  "bic": "BIC falls angegeben oder null",
+  "taxId": "USt-IdNr. des Lieferanten oder null",
+  "customerNumber": "Kundennummer beim Lieferanten oder null",
+  "lineItems": [
+    {
+      "position": Positionsnummer als Zahl oder null,
+      "description": "Beschreibung der Position/des Artikels",
+      "articleNumber": "Artikelnummer falls vorhanden oder null",
+      "customerName": "Endkunde falls MSP/Reseller-Rechnung oder null",
+      "quantity": Menge als Zahl,
+      "unit": "Einheit (Stück, Monat, GB, etc.) oder null",
+      "unitPrice": Einzelpreis als Zahl,
+      "totalPrice": Gesamtpreis dieser Position als Zahl,
+      "vatRate": MwSt-Satz dieser Position falls abweichend oder null,
+      "period": "Leistungszeitraum z.B. 01.03.2026 - 31.03.2026 oder null",
+      "productType": "Produktkategorie (Cloud Server, Microsoft 365, Hosting, Lizenz, etc.) oder null"
+    }
+  ]
+}
+
+WICHTIGE REGELN:
+1. Beträge als Dezimalzahlen OHNE Währungssymbol (z.B. 21.60 statt "21,60 €")
+2. Deutsche Zahlenformate umwandeln: "1.234,56" → 1234.56
+3. Daten im ISO-Format: YYYY-MM-DD
+4. Bei nicht gefundenen Werten: null (nicht "" oder 0)
+
+LIEFERANTEN-ERKENNUNG:
+- supplierName ist die RECHNUNGSSTELLENDE Firma (z.B. "Microsoft Ireland Operations Ltd", "Hetzner Online GmbH")
+- NICHT der Empfänger der Rechnung
+- Bei Microsoft Rechnungen: Microsoft ist der Lieferant, der "Rechnungsempfänger" ist dein Kunde
+
+RECHNUNGSNUMMER-MUSTER erkennen:
+- Hetzner: "Rechnung 086000699276" → "086000699276"
+- Microsoft: "Rechnungsnummer: E0300ZADA1" → "E0300ZADA1"
+- Allgemein: RE-12345, INV-2024-001, Belegnr. 123456
+
+LINE ITEMS - VOLLSTÄNDIG EXTRAHIEREN:
+- ALLE Positionen von ALLEN Seiten erfassen
+- Bei Cloud-Rechnungen (Hetzner, AWS, Azure): Server, IPs, Traffic, Storage einzeln
+- Bei Microsoft CSP: Jede Lizenz/Subscription als eigene Position
+- "Rechnungsempfänger" in der Kopfzeile kann der Endkunde sein → in customerName
+
+SPEZIELLE RECHNUNGSTYPEN:
+- Microsoft 365/CSP: "Dienstnutzungsadresse" enthält oft den Endkunden
+- Hetzner: Projektname kann Kundenreferenz sein (z.B. "Projekt Test")
+- Hosting-Rechnungen: Domain/Server als Beschreibung extrahieren`;
   }
 
   /**

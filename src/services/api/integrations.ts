@@ -975,25 +975,52 @@ export interface InvoiceDocument {
 }
 
 export interface InvoiceLineItem {
+  position: number | null;        // Position number on invoice
   description: string;
-  customerName: string | null;
+  articleNumber: string | null;   // Article/SKU number
+  customerName: string | null;    // End customer name (for MSP/reseller invoices)
   quantity: number | null;
+  unit: string | null;            // Unit (Stück, Monat, GB, etc.)
   unitPrice: number | null;
   totalPrice: number | null;
-  period: string | null;
-  productType: string | null;
+  vatRate: number | null;         // VAT rate for this line item if different
+  period: string | null;          // e.g. "01.12.2024 - 31.12.2024"
+  productType: string | null;     // e.g. "Microsoft 365", "Cloud Server"
 }
 
 export interface ExtractedInvoiceData {
+  // Supplier/vendor info
   supplierName: string | null;
+  supplierAddress: string | null;
+  taxId: string | null;           // USt-IdNr. of supplier
+
+  // Recipient info
+  recipientName: string | null;   // Invoice recipient
+  recipientAddress: string | null;
+  customerNumber: string | null;  // Customer number at supplier
+
+  // Invoice identifiers
   invoiceNumber: string | null;
+  orderNumber: string | null;     // Order/reference number
+
+  // Dates
   invoiceDate: string | null;
   dueDate: string | null;
+  deliveryDate: string | null;    // Delivery/service date
+
+  // Amounts
   netAmount: number | null;
   grossAmount: number | null;
   vatAmount: number | null;
   vatRate: number | null;
   currency: string;
+
+  // Payment info
+  paymentMethod: string | null;
+  iban: string | null;
+  bic: string | null;
+
+  // Metadata
   confidence: number;
   rawText?: string;
   lineItems?: InvoiceLineItem[];

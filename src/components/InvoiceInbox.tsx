@@ -844,7 +844,7 @@ export const InvoiceInbox = () => {
                       </div>
                     )}
 
-                    {/* Extracted Fields */}
+                    {/* Extracted Fields - Basic Info */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Supplier Name */}
                       <div className="col-span-2">
@@ -860,6 +860,22 @@ export const InvoiceInbox = () => {
                         />
                       </div>
 
+                      {/* Recipient Name (if extracted) */}
+                      {extractedData.recipientName && (
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Rechnungsempfänger
+                          </label>
+                          <input
+                            type="text"
+                            value={extractedData.recipientName || ''}
+                            onChange={(e) => updateExtractedField('recipientName', e.target.value || null)}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                            placeholder="Name des Empfängers"
+                          />
+                        </div>
+                      )}
+
                       {/* Invoice Number */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -871,6 +887,20 @@ export const InvoiceInbox = () => {
                           onChange={(e) => updateExtractedField('invoiceNumber', e.target.value || null)}
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                           placeholder="RE-12345"
+                        />
+                      </div>
+
+                      {/* Customer Number (if extracted) */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Kundennummer
+                        </label>
+                        <input
+                          type="text"
+                          value={extractedData.customerNumber || ''}
+                          onChange={(e) => updateExtractedField('customerNumber', e.target.value || null)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                          placeholder="K12345"
                         />
                       </div>
 
@@ -887,6 +917,19 @@ export const InvoiceInbox = () => {
                         />
                       </div>
 
+                      {/* Due Date */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Fälligkeitsdatum
+                        </label>
+                        <input
+                          type="date"
+                          value={extractedData.dueDate || ''}
+                          onChange={(e) => updateExtractedField('dueDate', e.target.value || null)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                        />
+                      </div>
+
                       {/* Net Amount */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -899,6 +942,22 @@ export const InvoiceInbox = () => {
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                           placeholder="0,00"
                         />
+                      </div>
+
+                      {/* VAT Rate */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          MwSt.-Satz (%)
+                        </label>
+                        <select
+                          value={extractedData.vatRate || 19}
+                          onChange={(e) => updateExtractedField('vatRate', parseInt(e.target.value, 10))}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                        >
+                          <option value={0}>0%</option>
+                          <option value={7}>7%</option>
+                          <option value={19}>19%</option>
+                        </select>
                       </div>
 
                       {/* VAT Amount */}
@@ -928,23 +987,70 @@ export const InvoiceInbox = () => {
                           placeholder="0,00"
                         />
                       </div>
-
-                      {/* VAT Rate */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          MwSt.-Satz (%)
-                        </label>
-                        <select
-                          value={extractedData.vatRate || 19}
-                          onChange={(e) => updateExtractedField('vatRate', parseInt(e.target.value, 10))}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
-                        >
-                          <option value={0}>0%</option>
-                          <option value={7}>7%</option>
-                          <option value={19}>19%</option>
-                        </select>
-                      </div>
                     </div>
+
+                    {/* Payment Details (collapsible) */}
+                    {(extractedData.iban || extractedData.bic || extractedData.taxId) && (
+                      <details className="mt-4 border border-gray-200 dark:border-dark-300 rounded-lg">
+                        <summary className="px-3 py-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-200 rounded-lg">
+                          Zahlungsdetails & Steuerdaten
+                        </summary>
+                        <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-200 dark:border-dark-300">
+                          {extractedData.iban && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                IBAN
+                              </label>
+                              <input
+                                type="text"
+                                value={extractedData.iban || ''}
+                                onChange={(e) => updateExtractedField('iban', e.target.value || null)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent font-mono text-sm"
+                              />
+                            </div>
+                          )}
+                          {extractedData.bic && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                BIC
+                              </label>
+                              <input
+                                type="text"
+                                value={extractedData.bic || ''}
+                                onChange={(e) => updateExtractedField('bic', e.target.value || null)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent font-mono text-sm"
+                              />
+                            </div>
+                          )}
+                          {extractedData.taxId && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                USt-IdNr.
+                              </label>
+                              <input
+                                type="text"
+                                value={extractedData.taxId || ''}
+                                onChange={(e) => updateExtractedField('taxId', e.target.value || null)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent font-mono text-sm"
+                              />
+                            </div>
+                          )}
+                          {extractedData.paymentMethod && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Zahlungsart
+                              </label>
+                              <input
+                                type="text"
+                                value={extractedData.paymentMethod || ''}
+                                onChange={(e) => updateExtractedField('paymentMethod', e.target.value || null)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    )}
 
                     {/* Validation Warnings */}
                     {validationWarnings.length > 0 && (
@@ -968,10 +1074,15 @@ export const InvoiceInbox = () => {
                     {/* Line Items Section */}
                     {extractedData.lineItems && extractedData.lineItems.length > 0 && (
                       <div className="mt-6 pt-4 border-t border-gray-200 dark:border-dark-300">
-                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                          Rechnungspositionen ({extractedData.lineItems.length})
+                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                          <span>Rechnungspositionen ({extractedData.lineItems.length})</span>
+                          {extractedData.lineItems.some(item => item.customerName) && (
+                            <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded">
+                              MSP/Reseller
+                            </span>
+                          )}
                         </h4>
-                        <div className="space-y-2 max-h-60 overflow-y-auto scroll-touch touch-manipulation">
+                        <div className="space-y-2 max-h-80 overflow-y-auto scroll-touch touch-manipulation">
                           {extractedData.lineItems.map((item, index) => (
                             <div
                               key={index}
@@ -979,34 +1090,53 @@ export const InvoiceInbox = () => {
                             >
                               <div className="flex justify-between items-start gap-2">
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-gray-900 dark:text-white truncate">
-                                    {item.description}
+                                  <div className="flex items-center gap-2">
+                                    {item.position !== null && (
+                                      <span className="text-xs bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded">
+                                        #{item.position}
+                                      </span>
+                                    )}
+                                    <span className="font-medium text-gray-900 dark:text-white truncate">
+                                      {item.description}
+                                    </span>
                                   </div>
+                                  {item.articleNumber && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono">
+                                      Art.-Nr.: {item.articleNumber}
+                                    </div>
+                                  )}
                                   {item.customerName && (
-                                    <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                      Kunde: {item.customerName}
+                                    <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
+                                      → Kunde: {item.customerName}
                                     </div>
                                   )}
-                                  {item.productType && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.productType}
-                                    </div>
-                                  )}
-                                  {item.period && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                                      Zeitraum: {item.period}
-                                    </div>
-                                  )}
+                                  <div className="flex flex-wrap gap-2 mt-1">
+                                    {item.productType && (
+                                      <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-1.5 py-0.5 rounded">
+                                        {item.productType}
+                                      </span>
+                                    )}
+                                    {item.period && (
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {item.period}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="text-right flex-shrink-0">
                                   {item.quantity !== null && (
                                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.quantity}x {item.unitPrice !== null ? `à ${formatAmount(item.unitPrice)} €` : ''}
+                                      {item.quantity} {item.unit || 'x'} {item.unitPrice !== null ? `à ${formatAmount(item.unitPrice)} €` : ''}
                                     </div>
                                   )}
                                   {item.totalPrice !== null && (
                                     <div className="font-medium text-gray-900 dark:text-white">
                                       {formatAmount(item.totalPrice)} €
+                                    </div>
+                                  )}
+                                  {item.vatRate !== null && item.vatRate !== extractedData.vatRate && (
+                                    <div className="text-xs text-amber-600 dark:text-amber-400">
+                                      {item.vatRate}% MwSt.
                                     </div>
                                   )}
                                 </div>
