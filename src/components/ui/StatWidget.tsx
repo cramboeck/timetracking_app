@@ -80,8 +80,8 @@ export const StatWidget = ({
   onClick,
   size = 'md',
 }: StatWidgetProps) => {
-  const colors = colorStyles[color];
-  const sizes = sizeStyles[size];
+  const colors = colorStyles[color] || colorStyles.blue;
+  const sizes = sizeStyles[size] || sizeStyles.md;
 
   return (
     <div
@@ -142,7 +142,7 @@ export const QuickAction = ({
   color = 'blue',
   disabled = false,
 }: QuickActionProps) => {
-  const colors = colorStyles[color];
+  const colors = colorStyles[color] || colorStyles.blue;
 
   return (
     <button
