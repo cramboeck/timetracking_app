@@ -1369,14 +1369,22 @@ class InvoiceProcessorService {
     // Extract amounts (German format with comma as decimal separator)
     const amountPatterns = {
       gross: [
-        /(?:Gesamt(?:betrag)?|Brutto|Total|Endbetrag|Rechnungsbetrag|Zu\s*zahlen)\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
-        /(?:EUR|€)\s*([\d\.,]+)\s*(?:Gesamt|Brutto|Total)/i,
+        /(?:Gesamt(?:betrag|summe)?|Brutto(?:betrag)?|Total|Endbetrag|Rechnungsbetrag|Zu\s*zahlen(?:der\s*Betrag)?|Zahlbar|Fälliger\s*Betrag|Summe\s*brutto|Gesamtpreis)\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+        /(?:EUR|€)\s*([\d\.,]+)\s*(?:Gesamt|Brutto|Total|Summe)/i,
+        // Amount before label (common in tables)
+        /([\d\.,]+)\s*(?:EUR|€)\s*(?:Gesamt|Brutto|Total|inkl\.?\s*MwSt)/i,
+        // Simple "Summe:" or "Betrag:" patterns
+        /(?:Summe|Betrag)\s*[:#]\s*(?:EUR|€)?\s*([\d\.,]+)/i,
       ],
       net: [
-        /(?:Netto(?:betrag)?|Zwischensumme|Subtotal)\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+        /(?:Netto(?:betrag|summe)?|Zwischensumme|Subtotal|Summe\s*netto|Warenwert)\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+        // Amount before label
+        /([\d\.,]+)\s*(?:EUR|€)\s*(?:Netto|netto|exkl\.?\s*MwSt)/i,
       ],
       vat: [
-        /(?:MwSt\.?|USt\.?|VAT|Mehrwertsteuer)\s*(?:\d+%?)?\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+        /(?:MwSt\.?|USt\.?|VAT|Mehrwertsteuer|Umsatzsteuer)\s*(?:\d+\s*%?)?\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+        // Amount before label
+        /([\d\.,]+)\s*(?:EUR|€)\s*(?:MwSt|USt|Steuer)/i,
       ],
     };
 
@@ -1411,6 +1419,41 @@ class InvoiceProcessorService {
     const vatRateMatch = cleanText.match(/(?:MwSt\.?|USt\.?|VAT)\s*(\d{1,2})\s*%/i);
     if (vatRateMatch) {
       result.vatRate = parseInt(vatRateMatch[1], 10);
+    }
+
+    // Fallback: If no amounts found, try to find EUR amounts in the text
+    if (!result.grossAmount && !result.netAmount) {
+      // Find all EUR amounts in the text (format: X,XX € or € X,XX or X.XXX,XX EUR)
+      const allAmounts: number[] = [];
+      const eurPattern = /(?:EUR|€)\s*([\d\.,]+)|([\d\.,]+)\s*(?:EUR|€)/gi;
+      let eurMatch;
+      while ((eurMatch = eurPattern.exec(cleanText)) !== null) {
+        const amountStr = eurMatch[1] || eurMatch[2];
+        if (amountStr) {
+          const amount = this.parseGermanNumber(amountStr);
+          if (amount && amount > 0 && amount < 1000000) {
+            allAmounts.push(amount);
+          }
+        }
+      }
+
+      // If we found amounts, use the largest as gross (likely total)
+      if (allAmounts.length > 0) {
+        allAmounts.sort((a, b) => b - a);
+        result.grossAmount = allAmounts[0];
+
+        // If we have multiple amounts and a VAT rate, try to calculate net
+        if (allAmounts.length > 1 && result.vatRate) {
+          const expectedNet = result.grossAmount / (1 + result.vatRate / 100);
+          // Find the closest amount to expected net
+          const closestNet = allAmounts.find(a =>
+            Math.abs(a - expectedNet) < expectedNet * 0.02 // Within 2%
+          );
+          if (closestNet && closestNet !== result.grossAmount) {
+            result.netAmount = closestNet;
+          }
+        }
+      }
     }
 
     // Try to extract supplier name (usually at the top of the invoice)
