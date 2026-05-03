@@ -291,7 +291,7 @@ export const CalendarView = ({
 
     onUpdateEntry(editingEntry.id, {
       projectId: editProjectId,
-      activityId: editActivityId || undefined,
+      activityId: editActivityId === '' ? null : editActivityId,
       description: editDescription,
       startTime: startDateTime,
       endTime: endDateTime,
@@ -397,7 +397,7 @@ export const CalendarView = ({
 
     const newEntry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'> = {
       projectId: createProjectId,
-      activityId: createActivityId || undefined,
+      activityId: createActivityId === '' ? null : createActivityId,
       startTime: startDateTime.toISOString(),
       endTime: endDateTime.toISOString(),
       duration,

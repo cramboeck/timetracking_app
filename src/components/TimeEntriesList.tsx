@@ -435,7 +435,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       endTime: endDateTime,
       duration,
       isBillable: editIsBillable,
-      activityId: editActivityId || undefined
+      activityId: editActivityId === '' ? null : editActivityId
     });
 
     setEditingEntry(null);

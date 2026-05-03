@@ -335,7 +335,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     }
     if (updates.activityId !== undefined) {
       fields.push(`activity_id = $${paramCount++}`);
-      values.push(updates.activityId);
+      values.push(updates.activityId || null);
     }
     if (updates.ticketId !== undefined) {
       fields.push(`ticket_id = $${paramCount++}`);
