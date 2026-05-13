@@ -29,7 +29,7 @@ const updateEntrySchema = z.object({
   endTime: z.string().datetime().optional(),
   duration: z.number().int().min(0).optional(),
   projectId: z.string().uuid().optional(),
-  activityId: z.string().uuid().optional(),
+  activityId: z.string().uuid().optional().nullable(),
   ticketId: z.string().uuid().optional().nullable(),
   description: z.string().max(1000).optional(),
   isRunning: z.boolean().optional(),
