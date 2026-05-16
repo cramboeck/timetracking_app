@@ -204,7 +204,7 @@ router.put('/users/:id/role', async (req: AuthRequest, res) => {
     }
 
     // Check if user exists
-    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    const userResult = await pool.query('SELECT id FROM users WHERE id = $1', [id]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }

@@ -5,6 +5,7 @@ import {
   ChevronDown, ChevronUp, AlertCircle
 } from 'lucide-react';
 import { microsoft365Api, SupportEmail } from '../services/api';
+import { sanitizeEmailHtml } from '../utils/sanitize';
 
 interface TicketInfo {
   linked: boolean;
@@ -415,7 +416,7 @@ export const SupportInbox = () => {
                   selectedEmail.body.contentType === 'html' ? (
                     <div
                       className="prose prose-sm dark:prose-invert max-w-none"
-                      dangerouslySetInnerHTML={{ __html: selectedEmail.body.content }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(selectedEmail.body.content) }}
                     />
                   ) : (
                     <pre className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-sans">

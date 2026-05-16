@@ -252,8 +252,14 @@ router.post('/export', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
-    // Gather all user data
-    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    // Gather all user data (exclude sensitive fields like password_hash and mfa_secret)
+    const userResult = await pool.query(
+      `SELECT id, username, email, account_type, role, organization_name, customer_number,
+              display_name, accent_color, gray_tone, dark_mode, time_rounding_interval,
+              time_format, created_at, last_login
+       FROM users WHERE id = $1`,
+      [userId]
+    );
     const user = transformRow(userResult.rows[0]);
 
     const customersResult = await pool.query('SELECT * FROM customers WHERE user_id = $1', [userId]);
