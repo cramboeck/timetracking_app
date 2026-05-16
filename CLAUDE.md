@@ -148,6 +148,62 @@ Neue idempotente Migration für Soft-Delete:
 
 ## Offene Aufgaben (Backlog)
 
+### 1. UI/UX & Design-System (Priorität: Hoch)
+
+#### 1.1 Farbschema & Branding (ramboeck-it.com)
+Die App muss das Corporate Design der Website übernehmen.
+- **Primärfarbe (Accent):** Orange `#FF6A00` (oklch 68% .2 38)
+- **Hintergrund (Dark Mode):** Navy-Blau `oklch(17% .07 295)`
+- **Sekundär/Cards (Dark Mode):** Helles Navy `oklch(22% .08 295)`
+- **Borders (Dark Mode):** `oklch(28% .09 295)`
+- **Task:** Die `tailwind.config.ts` und `src/index.css` müssen so angepasst werden, dass diese Farben als Standard-Dark-Mode (z.B. `tone-ramboeck`) verfügbar sind.
+
+#### 1.2 Mobile-Strategie (PWA)
+Die App leidet auf Mobile unter "Feature Creep".
+- **Fokus:** Zeiterfassung (Stoppuhr, Manuell) und Ticket-Listen müssen perfekt einhändig bedienbar sein.
+- **Reduktion:** Komplexe Editoren (QuoteEditor, ContractDetail) und tiefe Admin-Settings (NinjaRMM API-Keys) werden auf Mobile ausgeblendet oder "Read-Only".
+- **UI-Anpassungen:**
+  - `ManualEntry.tsx`: Native HTML5 `<input type="time">` und `<input type="date">` für Mobile nutzen (bessere iOS/Android Walzen-UI).
+  - `TicketKanban.tsx`: Auf Mobile deaktivieren, nur Listenansicht erlauben.
+  - `CalendarView.tsx`: Auf Mobile standardmäßig `agenda` oder `day` View erzwingen.
+  - Tabellen (z.B. Finanzen): Auf Mobile in ein "Card-Layout" umbauen (gestapelte Divs statt `<tr>`).
+
+#### 1.3 Desktop & Interaktionsmuster
+- **Globale Suche:** Implementierung einer `Cmd+K` (Command Palette) für schnelle Navigation zwischen Modulen, Tickets und Kunden.
+- **Dialoge:** Alle verbleibenden `window.alert()` und `window.confirm()` (ca. 100 Vorkommen) durch die bestehende `ConfirmDialog`-Komponente ersetzen.
+- **Ladezustände:** Skeleton-Loader für große Tabellen (Tickets, Finanzen) einführen.
+
+### 2. Datenbank-Konsistenz & Multi-Tenancy (Priorität: Kritisch)
+
+Die Datenbank hat 85 Tabellen, aber erhebliche Lücken in der Mandantenfähigkeit (Multi-Tenancy) und Indexierung.
+
+#### 2.1 Multi-Tenancy Lücken schließen
+Folgende Tabellen haben eine `user_id`, aber **keine** `organization_id`. Das bricht die Mandantenfähigkeit für Teams:
+- `trusted_devices`, `customers`, `projects`, `activities`, `time_entries`, `company_info`, `email_notifications`, `password_reset_tokens`, `audit_logs`, `notification_settings`, `report_approvals`, `ninjarmm_config`, `ninjarmm_organizations`, `ninjarmm_alerts`, `ninjarmm_webhook_events`, `ninjarmm_alert_exclusions`, `customer_portal_roles`, `customer_portal_users`, `customer_portal_user_roles`, `customer_portal_user_devices`, `customer_portal_sessions`, `customer_portal_activity_log`, `ticket_comments`, `ai_config`, `ticket_ai_suggestions`, `feature_packages`, `maintenance_announcements`, `maintenance_templates`, `organizations`, `lead_activities`, `task_comments`, `task_activity_log`, `contracts`, `contract_activity_log`, `sevdesk_config`, `sevdesk_documents`, `invoice_exports`, `clockodo_config`
+- **Task:** Migration schreiben, die `organization_id` zu diesen Tabellen hinzufügt und basierend auf der `user_id` befüllt.
+
+#### 2.2 Fehlende Indexes
+Für Performance-Optimierung fehlen Indexes auf `organization_id` in folgenden Tabellen:
+- `teams`, `ninjarmm_alerts`, `ninjarmm_webhook_events`, `ticket_comments`, `ticket_tag_assignments`, `ticket_sequences_new`, `lead_activities`, `task_checklist_items`, `contracts`, `sevdesk_config`, `clockodo_config`, `social_media_post_platforms`, `social_media_hashtag_groups`, `social_media_queue_settings`, `social_media_content_categories`, `social_media_autopilot_settings`, `social_media_engagement_settings`, `social_media_image_settings`, `ticket_email_attachments`
+- **Task:** `CREATE INDEX` Statements in `database.ts` ergänzen.
+
+### 3. Funktions-Review & Duplikate (Priorität: Mittel)
+
+#### 3.1 Tasks vs. Tickets
+Es gibt eine massive funktionale Überschneidung zwischen `tasks` und `tickets`.
+- Beide haben Status, Priorität, Zuweisung, Kunden-Verknüpfung.
+- Im Frontend gibt es `TaskHub.tsx` und `TasksOverview.tsx` (Duplikat-Gefahr).
+- **Strategie:** Klare Trennung definieren. Tickets = Externer Kunden-Support. Tasks = Interne Aufgaben (die optional an ein Ticket gehängt werden können). `TasksOverview.tsx` sollte in `TaskHub.tsx` integriert oder gelöscht werden.
+
+#### 3.2 Leads (CRM)
+- Die Datenbank hat eine vollständige `leads` Tabelle und eine `leads.ts` Route.
+- Im Frontend gibt es jedoch **keine** UI dafür (außer einer Erwähnung im Social Media Manager).
+- **Task:** Entweder das CRM-Modul (Leads) im Frontend bauen oder den toten Code entfernen.
+
+#### 3.3 Billing vs. BillingWidget
+- Es gibt `Billing.tsx` und `BillingWidget.tsx`.
+- **Task:** Prüfen, ob Code geteilt werden kann (DRY-Prinzip).
+
 ### Kurzfristig – nächster Sprint
 
 | Priorität | Task | Betroffene Dateien |
@@ -164,7 +220,6 @@ Neue idempotente Migration für Soft-Delete:
 | Priorität | Task | Beschreibung |
 |---|---|---|
 | Hoch | React Router einführen | `App.tsx` (1100+ Zeilen) auf URL-basiertes Routing umstellen |
-| Hoch | Globale Suche (Cmd+K) | `cmdk` Library, Suche über Tickets, Kunden, Projekte |
 | Hoch | Refresh-Token-Mechanismus | JWT läuft ab → Nutzer wird ausgeloggt, kein Auto-Refresh |
 | Mittel | Paginierung für Tickets | `server/src/routes/tickets.ts` + `src/components/Tickets.tsx` |
 | Mittel | Vertrags-Stunden-Automatisierung | Cron-Job der Zeiteinträge gegen Inklusivstunden rechnet |
@@ -182,15 +237,18 @@ Neue idempotente Migration für Soft-Delete:
 
 ## Verhaltensregeln für KI-Assistenten
 
-1. **Keine neuen `any`-Typen** – immer konkrete TypeScript-Typen oder `unknown` verwenden
-2. **Zod-Validierung ist Pflicht** – jede neue Route muss Eingaben mit Zod validieren
-3. **Kein `SELECT *`** – immer explizite Spaltenlisten in SQL-Queries
-4. **Soft-Delete beachten** – bei Queries auf `customers`, `projects`, `activities`, `contracts` immer `WHERE deleted_at IS NULL` hinzufügen (sobald Soft-Delete in Routes aktiviert ist)
-5. **Paginierung bevorzugen** – neue Listenendpunkte immer mit Paginierung implementieren
-6. **Datensicherheit** – Migrationen müssen idempotent sein (`IF NOT EXISTS`), niemals bestehende Daten löschen
-7. **`password_hash` niemals zurückgeben** – in keiner API-Antwort
-8. **Lazy Loading beibehalten** – neue schwere Komponenten in `App.tsx` als `lazy()` importieren
-9. **Rückwärtskompatibilität** – Legacy-Clients müssen weiterhin funktionieren (`?all=true` für entries)
+1. **Keine Datenverluste:** Bei Datenbank-Änderungen IMMER `IF NOT EXISTS` oder `DO $$ BEGIN ... EXCEPTION ... END $$;` verwenden. Keine Tabellen droppen.
+2. **Keine neuen `any`-Typen:** TypeScript strikt verwenden. Zod für API-Validierung nutzen.
+3. **Mobile First:** Bei neuen UI-Komponenten immer prüfen, wie sie auf einem Smartphone aussehen.
+4. **Keine nativen Alerts:** `window.alert` und `window.confirm` sind verboten. Nutze `Toast` und `ConfirmDialog`.
+5. **Farben:** Nutze die CSS-Variablen aus dem RamboFlow-Theme, keine hartcodierten Tailwind-Farben (`bg-blue-500`), es sei denn, es ist semantisch zwingend (z.B. Fehler = Rot).
+6. **Zod-Validierung ist Pflicht** – jede neue Route muss Eingaben mit Zod validieren
+7. **Kein `SELECT *`** – immer explizite Spaltenlisten in SQL-Queries
+8. **Soft-Delete beachten** – bei Queries auf `customers`, `projects`, `activities`, `contracts` immer `WHERE deleted_at IS NULL` hinzufügen (sobald Soft-Delete in Routes aktiviert ist)
+9. **Paginierung bevorzugen** – neue Listenendpunkte immer mit Paginierung implementieren
+10. **`password_hash` niemals zurückgeben** – in keiner API-Antwort
+11. **Lazy Loading beibehalten** – neue schwere Komponenten in `App.tsx` als `lazy()` importieren
+12. **Rückwärtskompatibilität** – Legacy-Clients müssen weiterhin funktionieren (`?all=true` für entries)
 
 ---
 
