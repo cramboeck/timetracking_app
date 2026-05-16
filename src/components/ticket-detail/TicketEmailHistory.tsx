@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Mail, ChevronRight, Paperclip } from 'lucide-react';
 import { TicketEmail, formatEmailDate } from './types';
-import { sanitizeHtml } from '../../utils/sanitize';
+import { sanitizeEmailHtml } from '../../utils/sanitize';
 
 interface TicketEmailHistoryProps {
   emails: TicketEmail[];
@@ -114,7 +114,7 @@ export const TicketEmailHistory = ({
                         {email.body_html ? (
                           <div
                             className="prose prose-sm dark:prose-invert max-w-none"
-                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(email.body_html) }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(email.body_html) }}
                           />
                         ) : (
                           <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300">

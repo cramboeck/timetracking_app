@@ -5,6 +5,9 @@ import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment
 import { ConfirmDialog } from './ConfirmDialog';
 import { TicketMergeDialog } from './TicketMergeDialog';
 import { Button } from './ui/Button';
+import { MarkdownEditor } from './MarkdownEditor';
+import { MarkdownRenderer } from './MarkdownRenderer';
+import { sanitizeEmailHtml } from '../utils/sanitize';
 
 // Import sub-components
 import {

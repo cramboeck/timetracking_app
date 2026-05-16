@@ -23,7 +23,7 @@ router.post('/request', validate(requestResetSchema), async (req, res) => {
     const { email } = req.body;
 
     // Find user by email
-    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const userResult = await pool.query('SELECT id, username, email FROM users WHERE email = $1', [email]);
 
     if (userResult.rows.length === 0) {
       // Don't reveal if email exists or not for security

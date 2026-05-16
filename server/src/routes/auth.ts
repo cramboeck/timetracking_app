@@ -8,6 +8,7 @@ import { auditLog } from '../services/auditLog';
 import { securityService } from '../services/securityService';
 import { authLimiter } from '../middleware/rateLimiter';
 import { validate, registerSchema, loginSchema } from '../middleware/validation';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { checkTrustedDevice } from './mfa';
 
 const router = Router();
@@ -32,7 +33,7 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
     const { username, email, password, accountType, organizationName, inviteCode } = req.body;
 
     // Check if user exists
-    const existingUsername = await client.query('SELECT * FROM users WHERE username = $1', [username]);
+    const existingUsername = await client.query('SELECT id FROM users WHERE username = $1', [username]);
     if (existingUsername.rows.length > 0) {
       // If registering via invitation, provide a more helpful message
       if (inviteCode) {
@@ -44,7 +45,7 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
       return res.status(400).json({ error: 'Username already exists' });
     }
 
-    const existingEmail = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+    const existingEmail = await client.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existingEmail.rows.length > 0) {
       // If registering via invitation, provide a more helpful message
       if (inviteCode) {
@@ -225,7 +226,9 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
 
     // Try to find user by email (case-insensitive) or username (case-insensitive)
     const userResult = await pool.query(
-      'SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)',
+      `SELECT id, username, email, password_hash, account_type, role, mfa_enabled, mfa_secret,
+              accent_color, gray_tone, dark_mode, time_rounding_interval, time_format
+       FROM users WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)`,
       [username]
     );
     const user = userResult.rows[0] as any;
@@ -319,22 +322,29 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
 });
 
 // Change password endpoint
-router.post('/change-password', async (req, res) => {
+router.post('/change-password', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const userId = req.userId!;
 
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'currentPassword and newPassword are required' });
     }
 
-    // Verify token and get user ID
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    const userId = decoded.userId;
+    // Validate new password strength
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      return res.status(400).json({ error: 'New password must contain uppercase, lowercase and a number' });
+    }
 
     // Get user
-    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-    const user = userResult.rows[0] as any;
+    const userResult = await pool.query(
+      'SELECT id, password_hash FROM users WHERE id = $1',
+      [userId]
+    );
+    const user = userResult.rows[0];
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -369,22 +379,17 @@ router.post('/change-password', async (req, res) => {
 });
 
 // Update profile endpoint (username and/or email)
-router.patch('/profile', async (req, res) => {
+router.patch('/profile', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { username, email } = req.body;
-    const token = req.headers.authorization?.replace('Bearer ', '');
-
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-
-    // Verify token and get user ID
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    const userId = decoded.userId;
+    const userId = req.userId!;
 
     // Get current user
-    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-    const user = userResult.rows[0] as any;
+    const userResult = await pool.query(
+      'SELECT id, username, email, account_type FROM users WHERE id = $1',
+      [userId]
+    );
+    const user = userResult.rows[0];
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -393,7 +398,7 @@ router.patch('/profile', async (req, res) => {
     // Check if new username is taken (case-insensitive)
     if (username && username.toLowerCase() !== (user.username || '').toLowerCase()) {
       const existingUsername = await pool.query(
-        'SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND id != $2',
+        'SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id != $2',
         [username, userId]
       );
       if (existingUsername.rows.length > 0) {
@@ -404,7 +409,7 @@ router.patch('/profile', async (req, res) => {
     // Check if new email is taken (case-insensitive)
     if (email && email.toLowerCase() !== (user.email || '').toLowerCase()) {
       const existingEmail = await pool.query(
-        'SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND id != $2',
+        'SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id != $2',
         [email, userId]
       );
       if (existingEmail.rows.length > 0) {
@@ -444,9 +449,12 @@ router.patch('/profile', async (req, res) => {
       userAgent: req.headers['user-agent']
     });
 
-    // Get updated user
-    const updatedUser = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-    const updated = updatedUser.rows[0] as any;
+    // Get updated user (only select needed fields, never expose password_hash)
+    const updatedUser = await pool.query(
+      'SELECT id, username, email, account_type FROM users WHERE id = $1',
+      [userId]
+    );
+    const updated = updatedUser.rows[0];
 
     res.json({
       success: true,

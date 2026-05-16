@@ -7,7 +7,7 @@ import {
 import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
 import { UnknownCustomerDialog } from './UnknownCustomerDialog';
 import { Button, IconButton } from './ui/Button';
-import { sanitizeHtml } from '../utils/sanitize';
+import { sanitizeEmailHtml } from '../utils/sanitize';
 
 interface TicketInfo {
   linked: boolean;
@@ -557,7 +557,7 @@ export const SupportInbox = () => {
                   selectedEmail.body.contentType === 'html' ? (
                     <div
                       className="prose prose-sm dark:prose-invert max-w-none"
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedEmail.body.content) }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(selectedEmail.body.content) }}
                     />
                   ) : (
                     <pre className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-sans">
