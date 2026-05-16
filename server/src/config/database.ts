@@ -2471,42 +2471,23 @@ export async function initializeDatabase() {
 
     console.log('✅ Customer interactions table created');
 
-    // CRM Interactions - For external email/calendar integration (Microsoft 365, etc.)
+    // CLEANUP: crm_interactions war ein ungenutztes Duplikat von customer_interactions.
+    // Alle Felder (external_id, external_source, updated_at) wurden in customer_interactions migriert.
+    // Die Tabelle wird sicher entfernt, da sie nie im Code referenziert wurde.
     await client.query(`
-      CREATE TABLE IF NOT EXISTS crm_interactions (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-
-        -- Interaction type
-        type TEXT NOT NULL CHECK(type IN ('email', 'call', 'meeting', 'note', 'chat')),
-        direction TEXT CHECK(direction IN ('inbound', 'outbound')),
-
-        -- Details
-        subject TEXT,
-        content TEXT,
-        summary TEXT,
-
-        -- Timing
-        occurred_at TIMESTAMP NOT NULL DEFAULT NOW(),
-
-        -- External source tracking (for email integration)
-        external_id TEXT,
-        external_source TEXT,
-
-        -- Timestamps
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
+      DO $$ BEGIN
+        IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'crm_interactions') THEN
+          -- Sicherheitscheck: Nur löschen wenn leer (keine Produktionsdaten)
+          IF (SELECT COUNT(*) FROM crm_interactions) = 0 THEN
+            DROP TABLE crm_interactions CASCADE;
+            RAISE NOTICE 'crm_interactions (leer, ungenutzt) wurde entfernt';
+          ELSE
+            RAISE NOTICE 'crm_interactions hat Daten – wird nicht gelöscht. Bitte manuell prüfen.';
+          END IF;
+        END IF;
+      END $$;
     `);
-
-    await client.query('CREATE INDEX IF NOT EXISTS idx_crm_interactions_org ON crm_interactions(organization_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_crm_interactions_customer ON crm_interactions(customer_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_crm_interactions_user ON crm_interactions(user_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_crm_interactions_date ON crm_interactions(occurred_at DESC)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_crm_interactions_external ON crm_interactions(organization_id, external_id, external_source)');
-    console.log('✅ CRM interactions table created');
+    console.log('✅ crm_interactions Cleanup abgeschlossen');
 
     // SLA Policies - Missing table that was referenced but not created
     await client.query(`
