@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
+// Detect if the user is on a touch/mobile device
+const isMobileDevice = () =>
+  typeof window !== 'undefined' &&
+  ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
 interface TimePickerProps {
   value: string; // Format: "HH:MM" (24h)
   onChange: (value: string) => void;
@@ -11,6 +16,7 @@ interface TimePickerProps {
 export const TimePicker = ({ value, onChange, className = '', required = false }: TimePickerProps) => {
   const { currentUser } = useAuth();
   const use24Hour = (currentUser?.timeFormat || '24h') === '24h';
+  const [isMobile] = useState(isMobileDevice);
 
   // Parse the 24h time value
   const [hours24, minutes] = value.split(':').map(Number);
@@ -53,6 +59,20 @@ export const TimePicker = ({ value, onChange, className = '', required = false }
     onChange(timeString);
   };
 
+  // On mobile: use native <input type="time"> for the best iOS/Android wheel-picker UX
+  if (isMobile) {
+    return (
+      <input
+        type="time"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        className={`w-full px-3 py-3 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary ${className}`}
+      />
+    );
+  }
+
+  // On desktop: keep the custom select-based picker
   const maxHours = use24Hour ? 23 : 12;
   const minHours = use24Hour ? 0 : 1;
 

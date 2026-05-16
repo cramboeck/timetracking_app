@@ -27,34 +27,12 @@ import AdminPortal from './components/AdminPortal';
 import { ReportsPage } from './components/ReportsPage';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
-import { FloatingActionButton } from './components/FloatingActionButton';
 import { OfflineBanner } from './components/OfflineBanner';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
-
-// Heavy feature modules loaded lazily to reduce initial bundle size
-const TimeEntriesList  = lazy(() => import('./components/TimeEntriesList').then(m => ({ default: m.TimeEntriesList })));
-const CalendarView     = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })));
-const Dashboard        = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
-const Settings         = lazy(() => import('./components/Settings').then(m => ({ default: m.Settings })));
-const Tickets          = lazy(() => import('./components/Tickets').then(m => ({ default: m.Tickets })));
-const Finanzen         = lazy(() => import('./components/Finanzen').then(m => ({ default: m.Finanzen })));
-const DevicesView      = lazy(() => import('./components/DevicesView').then(m => ({ default: m.DevicesView })));
-const AlertsView       = lazy(() => import('./components/AlertsView').then(m => ({ default: m.AlertsView })));
-const MaintenanceView  = lazy(() => import('./components/MaintenanceView'));
-const TaskHub          = lazy(() => import('./components/TaskHub'));
-const Contracts        = lazy(() => import('./components/Contracts'));
-const InvoiceInbox     = lazy(() => import('./components/InvoiceInbox').then(m => ({ default: m.InvoiceInbox })));
-const SupportInbox     = lazy(() => import('./components/SupportInbox').then(m => ({ default: m.SupportInbox })));
-const SocialMediaLayout = lazy(() => import('./features/social-media/SocialMediaLayout'));
-const AdminPortal      = lazy(() => import('./components/AdminPortal'));
-
-// SocialMediaProvider is a context wrapper – keep it eager so the lazy SocialMediaLayout can use it
-import { SocialMediaProvider } from './features/social-media/context';
-
-// Utilities and hooks (always needed)
+import { CommandPalette } from './components/CommandPalette';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
@@ -1109,6 +1087,9 @@ function App() {
         onDiscardFailed={handleDiscardFailedEntry}
         onRetryAll={syncPendingEntries}
       />
+
+      {/* Global Command Palette (Cmd+K / Ctrl+K) */}
+      <CommandPalette onNavigate={handleSubViewChange} />
 
       {/* Top Navigation Header */}
       <AreaNavigation

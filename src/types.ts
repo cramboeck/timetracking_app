@@ -59,9 +59,9 @@ export interface Activity {
 
 export type AccountType = 'personal' | 'business' | 'team';
 
-export type AccentColor = 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'pink';
+export type AccentColor = 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'pink' | 'ramboeck';
 
-export type GrayTone = 'light' | 'medium' | 'dark';
+export type GrayTone = 'light' | 'medium' | 'dark' | 'ramboeck';
 
 export type TimeRoundingInterval = 1 | 5 | 10 | 15 | 30 | 60; // minutes
 
