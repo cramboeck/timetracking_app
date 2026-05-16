@@ -5,7 +5,7 @@ const STORAGE_KEY_GRAY_TONE = 'timetracking_gray_tone';
 export const grayTone = {
   get: (): GrayTone => {
     const stored = localStorage.getItem(STORAGE_KEY_GRAY_TONE);
-    if (stored && ['light', 'medium', 'dark'].includes(stored)) {
+    if (stored && ['light', 'medium', 'dark', 'ramboeck'].includes(stored)) {
       return stored as GrayTone;
     }
     return 'medium'; // Default
@@ -28,7 +28,7 @@ const applyGrayTone = (tone: GrayTone): void => {
   const root = document.documentElement;
 
   // Remove all tone classes
-  root.classList.remove('tone-light', 'tone-medium', 'tone-dark');
+  root.classList.remove('tone-light', 'tone-medium', 'tone-dark', 'tone-ramboeck');
 
   // Add selected tone class
   root.classList.add(`tone-${tone}`);
@@ -36,7 +36,17 @@ const applyGrayTone = (tone: GrayTone): void => {
 
 // Get gray tone CSS classes for different levels
 export const getGrayClasses = (tone: GrayTone) => {
-  const tones = {
+  const tones: Record<string, ReturnType<typeof Object.assign>> = {
+    ramboeck: {
+      bg: 'bg-gray-50',
+      bgDark: 'dark:bg-[#161623]',
+      border: 'border-gray-200',
+      borderDark: 'dark:border-[#32324e]',
+      text: 'text-gray-900',
+      textDark: 'dark:text-white',
+      textMuted: 'text-gray-600',
+      textMutedDark: 'dark:text-[#8c8caf]',
+    },
     light: {
       bg: 'bg-gray-50',
       bgDark: 'dark:bg-gray-800',
@@ -69,5 +79,5 @@ export const getGrayClasses = (tone: GrayTone) => {
     },
   };
 
-  return tones[tone];
+  return tones[tone] ?? tones['medium'];
 };

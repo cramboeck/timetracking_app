@@ -26,6 +26,7 @@ import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { OfflineBanner } from './components/OfflineBanner';
+import { CommandPalette } from './components/CommandPalette';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
@@ -888,6 +889,9 @@ function App() {
         isSyncing={isSyncing}
         syncError={syncError}
       />
+
+      {/* Global Command Palette (Cmd+K / Ctrl+K) */}
+      <CommandPalette onNavigate={handleSubViewChange} />
 
       {/* Top Navigation Header */}
       <AreaNavigation

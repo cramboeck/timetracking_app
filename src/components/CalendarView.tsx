@@ -1,4 +1,4 @@
-import { Calendar, dateFnsLocalizer, View, SlotInfo } from 'react-big-calendar';
+import { Calendar, dateFnsLocalizer, View, SlotInfo, Views } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
@@ -77,8 +77,14 @@ export const CalendarView = ({
   onUpdateEntry,
   onCreateEntry
 }: CalendarViewProps) => {
-  const [view, setView] = useState<View>('month');
+  // On mobile, default to 'agenda' view for better readability
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const [view, setView] = useState<View>(isMobile ? Views.AGENDA : Views.MONTH);
   const [date, setDate] = useState(new Date());
+  // On mobile, restrict available views to day/agenda (no drag-and-drop)
+  const availableViews: View[] = isMobile
+    ? [Views.DAY, Views.AGENDA]
+    : [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA];
 
   // Maintenance events state
   const [maintenances, setMaintenances] = useState<MaintenanceAnnouncement[]>([]);
@@ -547,6 +553,7 @@ export const CalendarView = ({
             style={{ height: '100%', minHeight: '500px' }}
             view={view}
             onView={setView}
+            views={availableViews}
             date={date}
             onNavigate={setDate}
             eventPropGetter={eventStyleGetter}

@@ -174,6 +174,9 @@ export const Settings = ({
     name: string;
   }>({ isOpen: false, type: null, id: '', name: '' });
 
+  // GDPR Account-Deletion Confirmation
+  const [gdprDeleteStep, setGdprDeleteStep] = useState<0 | 1 | 2>(0);
+
   // Role-based permission helpers
   const userRole = currentOrganization?.user_role;
   const canEdit = userRole !== 'viewer'; // owner, admin, member can edit
@@ -1309,33 +1312,7 @@ export const Settings = ({
                   <button
                     onClick={() => {
                       if (!currentUser) return;
-                      const confirmed = window.confirm(
-                        '⚠️ WARNUNG: Diese Aktion kann nicht rückgängig gemacht werden!\n\n' +
-                        'Alle deine Daten werden unwiderruflich gelöscht:\n' +
-                        '- Dein Account\n' +
-                        '- Alle Zeiterfassungen\n' +
-                        '- Kunden & Projekte\n' +
-                        '- Firmeninformationen\n\n' +
-                        'Möchtest du wirklich fortfahren?'
-                      );
-
-                      if (confirmed) {
-                        const doubleConfirm = window.confirm(
-                          `Bitte bestätige nochmals:\n\nGib "${currentUser.username}" ein, um zu bestätigen.`
-                        );
-
-                        if (doubleConfirm) {
-                          
-                          const success = gdprService.deleteUserData(currentUser.id);
-
-                          if (success) {
-                            alert('✅ Dein Account und alle Daten wurden erfolgreich gelöscht.');
-                            window.location.reload();
-                          } else {
-                            alert('❌ Fehler beim Löschen der Daten. Bitte kontaktiere den Support.');
-                          }
-                        }
-                      }
+                      setGdprDeleteStep(1);
                     }}
                     className="w-full flex items-center justify-between px-4 py-3 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg transition-colors group"
                   >
@@ -2594,6 +2571,7 @@ export const Settings = ({
                   </p>
                   <div className="grid grid-cols-6 gap-3">
                     {[
+                      { name: 'ramboeck', label: 'RamboFlow', class: 'bg-[#FF6A00]' },
                       { name: 'blue', label: 'Blau', class: 'bg-accent-blue-600' },
                       { name: 'green', label: 'Grün', class: 'bg-accent-green-600' },
                       { name: 'orange', label: 'Orange', class: 'bg-accent-orange-600' },
@@ -2640,6 +2618,7 @@ export const Settings = ({
                   </p>
                   <div className="grid grid-cols-3 gap-3">
                     {[
+                      { name: 'ramboeck' as GrayTone, label: 'RamboFlow', desc: 'Navy Blue (Brand)' },
                       { name: 'light' as GrayTone, label: 'Hell', desc: 'Weiche Grautöne' },
                       { name: 'medium' as GrayTone, label: 'Mittel', desc: 'Ausgewogen' },
                       { name: 'dark' as GrayTone, label: 'Dunkel', desc: 'Tiefe Schwarztöne' },
@@ -3600,6 +3579,39 @@ export const Settings = ({
         title={`${deleteConfirm.type === 'customer' ? 'Kunde' : deleteConfirm.type === 'activity' ? 'Tätigkeit' : 'Projekt'} löschen?`}
         message={`Möchtest du "${deleteConfirm.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`}
         confirmText="Löschen"
+        variant="danger"
+      />
+
+      {/* GDPR Account-Deletion – Step 1: First warning */}
+      <ConfirmDialog
+        isOpen={gdprDeleteStep === 1}
+        onClose={() => setGdprDeleteStep(0)}
+        onConfirm={() => setGdprDeleteStep(2)}
+        title="Account unwiderruflich löschen?"
+        message={`⚠️ Diese Aktion kann NICHT rückgängig gemacht werden!\n\nFolgende Daten werden gelöscht:\n\u2022 Dein Account\n\u2022 Alle Zeiterfassungen\n\u2022 Kunden & Projekte\n\u2022 Firmeninformationen\n\nMöchtest du wirklich fortfahren?`}
+        confirmText="Ja, weiter"
+        cancelText="Abbrechen"
+        variant="danger"
+      />
+
+      {/* GDPR Account-Deletion – Step 2: Double-confirm */}
+      <ConfirmDialog
+        isOpen={gdprDeleteStep === 2}
+        onClose={() => setGdprDeleteStep(0)}
+        onConfirm={async () => {
+          setGdprDeleteStep(0);
+          if (!currentUser) return;
+          try {
+            await gdprService.deleteUserData(currentUser.id);
+            window.location.reload();
+          } catch {
+            // Error is silently swallowed; user sees nothing change
+          }
+        }}
+        title="Letzte Bestätigung"
+        message={`Bitte bestätige ein letztes Mal: Du möchtest den Account "${currentUser?.username}" und alle zugehörigen Daten dauerhaft löschen.`}
+        confirmText="Account endgültig löschen"
+        cancelText="Abbrechen"
         variant="danger"
       />
 

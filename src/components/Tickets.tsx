@@ -21,6 +21,7 @@ interface TicketsProps {
 }
 
 export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, onTicketIdHandled }: TicketsProps) => {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(initialTicketId || null);
 
   // Handle initial ticket ID from URL
@@ -33,7 +34,10 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    return (localStorage.getItem('ticketViewMode') as ViewMode) || 'dashboard';
+    const saved = (localStorage.getItem('ticketViewMode') as ViewMode) || 'dashboard';
+    // Kanban is not usable on mobile – fall back to list
+    if (isMobile && saved === 'kanban') return 'list';
+    return saved;
   });
 
   // Reference to TicketList for keyboard navigation
@@ -231,7 +235,8 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
               <List size={16} />
               <span className="hidden sm:inline">Liste</span>
             </button>
-            <button
+            {/* Kanban is hidden on mobile – not touch-friendly */}
+            {!isMobile && <button
               onClick={() => handleViewModeChange('kanban')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                 viewMode === 'kanban'
@@ -241,7 +246,7 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
             >
               <Columns size={16} />
               <span className="hidden sm:inline">Kanban</span>
-            </button>
+            </button>}
             <button
               onClick={() => handleViewModeChange('tasks')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
