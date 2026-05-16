@@ -35,18 +35,80 @@ const updateEntrySchema = z.object({
   isBillable: z.boolean().optional()
 });
 
-// GET /api/entries - Get all entries for current organization
+// GET /api/entries - Get entries for current organization
+// Supports pagination (?page=1&limit=100) and filters (?startDate=ISO&endDate=ISO&projectId=...)
+// Backward-compatible: ?all=true returns all entries without pagination (legacy behaviour)
 router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
 
-    const result = await pool.query('SELECT * FROM time_entries WHERE organization_id = $1', [organizationId]);
-    const entries = transformRows(result.rows);
+    // Legacy support: ?all=true bypasses pagination for existing clients
+    const returnAll = req.query.all === 'true';
+
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit as string) || 100));
+    const offset = (page - 1) * limit;
+
+    const startDate = req.query.startDate as string | undefined;
+    const endDate   = req.query.endDate   as string | undefined;
+    const projectId = req.query.projectId as string | undefined;
+
+    const params: unknown[] = [organizationId];
+    let whereClause = 'WHERE organization_id = $1';
+
+    if (startDate) {
+      params.push(startDate);
+      whereClause += ` AND start_time >= $${params.length}`;
+    }
+    if (endDate) {
+      params.push(endDate);
+      whereClause += ` AND start_time <= $${params.length}`;
+    }
+    if (projectId) {
+      params.push(projectId);
+      whereClause += ` AND project_id = $${params.length}`;
+    }
+
+    // Explicit column list – never expose internal fields accidentally
+    const baseQuery = `
+      SELECT id, organization_id, user_id, project_id, activity_id, ticket_id,
+             start_time, end_time, duration, description, is_running, is_billable,
+             created_at
+      FROM time_entries
+      ${whereClause}
+      ORDER BY start_time DESC`;
+
+    if (returnAll) {
+      // Legacy path: return all matching entries without pagination
+      const result = await pool.query(baseQuery, params);
+      return res.json({ success: true, data: transformRows(result.rows) });
+    }
+
+    // Count total for pagination metadata
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM time_entries ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    // Fetch page
+    params.push(limit, offset);
+    const result = await pool.query(
+      `${baseQuery} LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
 
     res.json({
       success: true,
-      data: entries
+      data: transformRows(result.rows),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total
+      }
     });
   } catch (error) {
     console.error('Get entries error:', error);

@@ -20,10 +20,45 @@ import {
 } from '../../types';
 import { authFetch } from './base';
 
+// Pagination metadata returned by the backend
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+export interface EntryFilters {
+  page?: number;
+  limit?: number;
+  startDate?: string; // ISO date string
+  endDate?: string;   // ISO date string
+  projectId?: string;
+}
+
 // Time Entries API
 export const entriesApi = {
+  // Legacy: fetch ALL entries without pagination (used by Dashboard, Calendar, etc.)
+  // Internally passes ?all=true to the backend for backward compatibility.
   getAll: async (): Promise<{ success: boolean; data: TimeEntry[] }> => {
-    return authFetch('/entries');
+    return authFetch('/entries?all=true');
+  },
+
+  // Paginated fetch – use this for list views to avoid loading thousands of rows
+  getPaginated: async (filters: EntryFilters = {}): Promise<{
+    success: boolean;
+    data: TimeEntry[];
+    pagination: PaginationMeta;
+  }> => {
+    const params = new URLSearchParams();
+    if (filters.page)      params.set('page',      String(filters.page));
+    if (filters.limit)     params.set('limit',     String(filters.limit));
+    if (filters.startDate) params.set('startDate', filters.startDate);
+    if (filters.endDate)   params.set('endDate',   filters.endDate);
+    if (filters.projectId) params.set('projectId', filters.projectId);
+    const qs = params.toString();
+    return authFetch(`/entries${qs ? `?${qs}` : ''}`);
   },
 
   getById: async (id: string): Promise<{ success: boolean; data: TimeEntry }> => {

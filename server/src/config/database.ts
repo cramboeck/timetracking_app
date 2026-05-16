@@ -3309,6 +3309,62 @@ export async function initializeDatabase() {
     `);
     console.log('✅ NinjaRMM alert timestamps fixed');
 
+    // =========================================================================
+    // MIGRATION: Add updated_at to core tables that were missing it.
+    // Uses DO $$ ... IF NOT EXISTS to be fully idempotent – safe to run
+    // on existing databases without touching any existing data.
+    // Back-fills updated_at = created_at for existing rows.
+    // =========================================================================
+    console.log('🔄 Running updated_at migration...');
+    const tablesNeedingUpdatedAt: string[] = [
+      'teams', 'customers', 'projects', 'activities', 'time_entries',
+      'ticket_comments', 'ticket_tasks', 'lead_activities',
+      'task_checklist_items', 'contract_positions', 'invoice_exports',
+      'social_media_post_platforms', 'social_media_templates',
+      'social_media_hashtag_groups', 'ticket_emails',
+    ];
+    for (const tbl of tablesNeedingUpdatedAt) {
+      await client.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${tbl}' AND column_name = 'updated_at'
+          ) THEN
+            ALTER TABLE ${tbl} ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+            UPDATE ${tbl} SET updated_at = COALESCE(created_at, NOW());
+          END IF;
+        END $$;
+      `);
+    }
+    console.log('✅ updated_at migration complete');
+
+    // =========================================================================
+    // MIGRATION: Soft-delete for critical entities.
+    // Adds deleted_at TIMESTAMP DEFAULT NULL.
+    // NULL  → record is active (all existing rows stay active).
+    // NOT NULL → record is soft-deleted (hidden from normal queries).
+    // Application code must filter WHERE deleted_at IS NULL.
+    // =========================================================================
+    console.log('🔄 Running soft-delete migration...');
+    const tablesNeedingSoftDelete: string[] = [
+      'customers', 'projects', 'activities', 'contracts',
+    ];
+    for (const tbl of tablesNeedingSoftDelete) {
+      await client.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${tbl}' AND column_name = 'deleted_at'
+          ) THEN
+            ALTER TABLE ${tbl} ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL;
+            CREATE INDEX IF NOT EXISTS idx_${tbl}_not_deleted
+              ON ${tbl}(id) WHERE deleted_at IS NULL;
+          END IF;
+        END $$;
+      `);
+    }
+    console.log('✅ Soft-delete migration complete');
+
     await client.query('COMMIT');
     console.log('✅ Database schema initialized successfully');
   } catch (error) {

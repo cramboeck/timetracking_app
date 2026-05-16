@@ -32,20 +32,18 @@ export default function ContentStudioPage() {
         return <BatchGenerator />;
       case 'carousel':
         return (
-          <div className="flex items-center justify-center py-20 text-gray-500 dark:text-gray-400">
-            <div className="text-center">
-              <LayoutGrid size={48} className="mx-auto mb-4 opacity-50" />
-              <p>Carousel Creator kommt bald...</p>
-            </div>
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400 dark:text-gray-500">
+            <LayoutGrid size={48} className="opacity-40" />
+            <h3 className="text-lg font-semibold text-gray-600 dark:text-gray-400">Carousel Creator</h3>
+            <p className="text-sm text-center max-w-xs">Dieser Bereich befindet sich in Entwicklung und wird in Kürze verfügbar sein.</p>
           </div>
         );
       case 'stories':
         return (
-          <div className="flex items-center justify-center py-20 text-gray-500 dark:text-gray-400">
-            <div className="text-center">
-              <Film size={48} className="mx-auto mb-4 opacity-50" />
-              <p>Story Creator kommt bald...</p>
-            </div>
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400 dark:text-gray-500">
+            <Film size={48} className="opacity-40" />
+            <h3 className="text-lg font-semibold text-gray-600 dark:text-gray-400">Story Creator</h3>
+            <p className="text-sm text-center max-w-xs">Dieser Bereich befindet sich in Entwicklung und wird in Kürze verfügbar sein.</p>
           </div>
         );
       default:

@@ -16,6 +16,7 @@ import {
   Bot,
 } from 'lucide-react';
 import { sevdeskApi, PositionSearchResult, CreateQuoteInput, aiApi } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SevdeskContact {
   id: string;
@@ -96,6 +97,7 @@ const FOOT_TEXT_TEMPLATES = [
 
 export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) => {
   const isEditing = !!quoteId;
+  const { currentUser } = useAuth();
 
   // Contact selection
   const [contacts, setContacts] = useState<SevdeskContact[]>([]);
@@ -129,9 +131,9 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
       .replace(/{firma}/g, selectedContact.name)
       .replace(/{vorname}/g, vorname)
       .replace(/{nachname}/g, nachname)
-      .replace(/{ansprechpartner}/g, 'Christoph Ramböck') // TODO: Get from user settings
+      .replace(/{ansprechpartner}/g, currentUser?.displayName || currentUser?.username || 'Ihr Ansprechpartner')
       .replace(/{anrede}/g, 'Herr/Frau');
-  }, [selectedContact]);
+  }, [selectedContact, currentUser]);
 
   // Apply templates when selection changes
   useEffect(() => {
