@@ -91,10 +91,10 @@ create_backup() {
 
     if docker exec "$CONTAINER_NAME" pg_dump -U "$DB_USER" -d "$DB_NAME" --clean --if-exists 2>/dev/null | gzip > "$backup_file"; then
         local size=$(du -h "$backup_file" | cut -f1)
-        log_success "Backup erstellt: $backup_file ($size)"
+        log_success "Backup erstellt: $backup_file ($size)" >&2
         echo "$backup_file"
     else
-        log_error "Backup fehlgeschlagen: $backup_file"
+        log_error "Backup fehlgeschlagen: $backup_file" >&2
         rm -f "$backup_file"
         return 1
     fi
