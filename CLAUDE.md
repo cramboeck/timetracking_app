@@ -187,6 +187,34 @@ Für Performance-Optimierung fehlen Indexes auf `organization_id` in folgenden T
 - `teams`, `ninjarmm_alerts`, `ninjarmm_webhook_events`, `ticket_comments`, `ticket_tag_assignments`, `ticket_sequences_new`, `lead_activities`, `task_checklist_items`, `contracts`, `sevdesk_config`, `clockodo_config`, `social_media_post_platforms`, `social_media_hashtag_groups`, `social_media_queue_settings`, `social_media_content_categories`, `social_media_autopilot_settings`, `social_media_engagement_settings`, `social_media_image_settings`, `ticket_email_attachments`
 - **Task:** `CREATE INDEX` Statements in `database.ts` ergänzen.
 
+## Epic 4: UX & Usability Optimierungen (Geplant)
+
+### 4.1 Zeiterfassung – Stabilität & Usability
+- **Überlappende Timer verhindern:** Backend-Validierung in `entries.ts`, die prüft, ob bereits ein Timer für den User läuft (`is_running = true`). Falls ja, wird der alte Timer automatisch gestoppt oder der Start des neuen blockiert.
+- **Heartbeat-Intervall konfigurierbar:** Das 5-Minuten-Intervall in `App.tsx` (Zeile 773) sollte über die User-Preferences einstellbar sein (z.B. 1, 5, 15 Minuten).
+- **"Vergessener Timer"-Warnung:** Wenn ein Timer >8h läuft, sollte eine Push-Notification oder ein auffälliges App-Banner erscheinen.
+- **Schnell-Wiederholung:** In `TimeEntriesList.tsx` gibt es bereits einen "Wiederholen"-Button (Zeile 848). Dieser sollte den Timer direkt mit Projekt, Aktivität und Beschreibung des alten Eintrags starten.
+- **Wochenziel-Anzeige:** Ein Fortschrittsbalken "X von 40h diese Woche" direkt auf der Stoppuhr-Seite (Daten aus `ReportsPage.tsx` wiederverwenden).
+- **Manuelle Eingabe (Dauer):** In `ManualEntryModern.tsx` sollte man neben Start/End-Zeit auch direkt "2h 30min" eingeben können.
+
+### 4.2 Navigation & Routing
+- **React Router einführen:** `App.tsx` ist mit 1100+ Zeilen zu groß und steuert die Navigation über State (`currentArea`, `currentSubView`). Dies verhindert Deep-Links (z.B. direkter Link zu einem Ticket) und macht den Browser-Back-Button nutzlos.
+- **Command Palette Historie:** In `CommandPalette.tsx` (Cmd+K) sollte eine "Zuletzt verwendet"-Sektion hinzugefügt werden, die die letzten 3-5 Aktionen speichert.
+
+### 4.3 UI-Konsistenz & Duplikate
+- **ManualEntry vs ManualEntryModern:** `ManualEntry.tsx` wird nicht mehr genutzt (nur noch `ManualEntryModern.tsx` in `App.tsx` importiert). Das alte File sollte gelöscht werden.
+- **Dashboard vs DashboardOverview:** `Dashboard.tsx` (1683 Zeilen) und `DashboardOverview.tsx` (484 Zeilen) überschneiden sich.
+- **Billing vs BillingOverview vs BillingWidget:** `Billing.tsx` (632 Zeilen), `BillingOverview.tsx` (189 Zeilen) und `BillingWidget.tsx` (159 Zeilen) sollten konsolidiert werden.
+- **TaskHub vs TasksOverview:** `TaskHub.tsx` (563 Zeilen) und `TasksOverview.tsx` (253 Zeilen) überschneiden sich.
+
+### 4.4 Datenbank-Bereinigung
+- **Tickets vs Tasks:** Funktionale Überschneidung. Tickets = Externer Kunden-Support, Tasks = Interne Aufgaben. `ticket_tasks` Tabelle klären.
+- **Leads:** `leads`, `lead_activities`, `opportunities`, `pipeline_stages` existieren in der DB und als Backend-Routen, haben aber **kein Frontend**. Entweder CRM-Modul bauen oder Code entfernen.
+- **Social Media:** 13 Tabellen (`social_media_*`) existieren, aber das Frontend postet nicht wirklich an Plattformen.
+- **Push Subscriptions:** `push_subscriptions` und `portal_push_subscriptions` zusammenführen.
+
+---
+
 ### 3. Funktions-Review & Duplikate (Priorität: Mittel)
 
 #### 3.1 Tasks vs. Tickets
