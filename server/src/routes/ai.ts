@@ -1,8 +1,61 @@
 import express, { Response } from 'express';
+import { z } from 'zod';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 import * as aiService from '../services/aiService';
 
 const router = express.Router();
+
+// ============================================================================
+// Zod validation schemas
+// ============================================================================
+
+const aiProviderSchema = z.enum(['openai', 'anthropic', 'gemini', 'mistral', 'local']);
+
+const aiConfigSchema = z.object({
+  provider: aiProviderSchema,
+  apiKey: z.string().min(1).max(500),
+  model: z.string().trim().min(1).max(200),
+  enabled: z.boolean().optional(),
+  maxTokens: z.number().int().positive().max(200_000).optional(),
+  temperature: z.number().min(0).max(2).optional(),
+});
+
+const testConnectionSchema = z.object({
+  provider: aiProviderSchema,
+  apiKey: z.string().min(1).max(500),
+});
+
+const ticketSuggestParamsSchema = z.object({
+  // Free-form context object — keep loose, the AI service decides what to use
+  context: z.record(z.unknown()).optional(),
+}).passthrough();
+
+const suggestionFeedbackSchema = z.object({
+  helpful: z.boolean(),
+  feedback: z.string().max(2_000).optional(),
+});
+
+const generateQuoteTextSchema = z.object({
+  type: z.enum(['head', 'foot', 'header', 'footer']),
+  context: z.string().max(10_000).optional(),
+});
+
+const researchPriceSchema = z.object({
+  productName: z.string().trim().min(1).max(500),
+  context: z.string().max(2_000).optional(),
+});
+
+const generatePositionDescriptionSchema = z.object({
+  positionName: z.string().trim().min(1).max(500),
+  context: z.string().max(2_000).optional(),
+});
+
+const kbFromTicketSchema = z.object({
+  ticketId: z.string().uuid(),
+});
+
+const timeEntryDescriptionSchema = z.record(z.unknown());
 
 // ============================================
 // AI Configuration Routes
@@ -31,7 +84,7 @@ router.get('/config', authenticateToken, async (req: AuthRequest, res: Response)
 });
 
 // PUT /api/ai/config - Save AI configuration
-router.put('/config', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.put('/config', authenticateToken, validate(aiConfigSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { provider, apiKey, model, enabled, maxTokens, temperature } = req.body;
@@ -60,7 +113,7 @@ router.put('/config', authenticateToken, async (req: AuthRequest, res: Response)
 });
 
 // POST /api/ai/test-connection - Test AI API connection
-router.post('/test-connection', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/test-connection', authenticateToken, validate(testConnectionSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { provider, apiKey } = req.body;
 
@@ -91,6 +144,7 @@ router.post('/test-connection', authenticateToken, async (req: AuthRequest, res:
 router.post(
   '/tickets/:ticketId/suggest',
   authenticateToken,
+  validate(ticketSuggestParamsSchema),
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user!.id;
@@ -140,6 +194,7 @@ router.get(
 router.post(
   '/suggestions/:suggestionId/feedback',
   authenticateToken,
+  validate(suggestionFeedbackSchema),
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user!.id;
@@ -190,6 +245,7 @@ router.post(
 router.post(
   '/quote/generate-text',
   authenticateToken,
+  validate(generateQuoteTextSchema),
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user!.id;
@@ -219,6 +275,7 @@ router.post(
 router.post(
   '/quote/research-price',
   authenticateToken,
+  validate(researchPriceSchema),
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user!.id;
@@ -248,6 +305,7 @@ router.post(
 router.post(
   '/quote/generate-position-description',
   authenticateToken,
+  validate(generatePositionDescriptionSchema),
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user!.id;
@@ -281,6 +339,7 @@ router.post(
 router.post(
   '/kb/generate-from-ticket',
   authenticateToken,
+  validate(kbFromTicketSchema),
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user!.id;
@@ -314,6 +373,7 @@ router.post(
 router.post(
   '/time-entry/suggest-description',
   authenticateToken,
+  validate(timeEntryDescriptionSchema),
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user!.id;
