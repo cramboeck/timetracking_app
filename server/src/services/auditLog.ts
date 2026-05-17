@@ -15,6 +15,7 @@ export type AuditAction =
   | 'time_entry.update'
   | 'time_entry.delete'
   | 'time_entry.bulk_update'
+  | 'time_entry.auto_stop'
   // Customer actions
   | 'customer.create'
   | 'customer.update'
