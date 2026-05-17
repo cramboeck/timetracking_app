@@ -251,17 +251,17 @@ export const Auth = () => {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
               Team beitreten
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-600 dark:text-dark-400">
               Du wurdest eingeladen, einem Team beizutreten
             </p>
           </div>
 
           {/* Invitation Card */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+          <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-xl p-8">
             {invitationLoading && (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary mx-auto mb-4"></div>
-                <p className="text-gray-600 dark:text-gray-400">Einladung wird geladen...</p>
+                <p className="text-gray-600 dark:text-dark-400">Einladung wird geladen...</p>
               </div>
             )}
 
@@ -273,7 +273,7 @@ export const Auth = () => {
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                   Einladung ungültig
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                <p className="text-gray-600 dark:text-dark-400 mb-6">
                   {invitationError}
                 </p>
                 <Button
@@ -291,7 +291,7 @@ export const Auth = () => {
             {invitationInfo && (
               <div>
                 {/* Organization Info */}
-                <div className="text-center mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="text-center mb-6 pb-6 border-b border-gray-200 dark:border-dark-border">
                   {invitationInfo.logo ? (
                     <img src={invitationInfo.logo} alt="" className="w-20 h-20 rounded-xl mx-auto mb-4 object-contain" />
                   ) : (
@@ -302,26 +302,26 @@ export const Auth = () => {
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                     {invitationInfo.organizationName}
                   </h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-gray-600 dark:text-dark-400 mt-1">
                     Eingeladen von {invitationInfo.invitedBy}
                   </p>
                 </div>
 
                 {/* Role Info */}
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-6">
+                <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-4 mb-6">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Deine Rolle:</span>
+                    <span className="text-sm text-gray-600 dark:text-dark-400">Deine Rolle:</span>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                       invitationInfo.role === 'admin'
                         ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary'
                         : invitationInfo.role === 'viewer'
-                        ? 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                        ? 'bg-gray-100 dark:bg-dark-300 text-gray-600 dark:text-dark-500'
                         : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
                     }`}>
                       {invitationInfo.role === 'admin' ? 'Admin' : invitationInfo.role === 'viewer' ? 'Viewer' : 'Mitglied'}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  <p className="text-xs text-gray-500 dark:text-dark-400 mt-2">
                     Gültig bis {new Date(invitationInfo.expiresAt).toLocaleDateString('de-DE', {
                       day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                     })}
@@ -352,10 +352,10 @@ export const Auth = () => {
                     </>
                   ) : (
                     <>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                      <p className="text-sm text-gray-600 dark:text-dark-400 text-center">
                         Du wurdest eingeladen für: <strong>{invitationInfo.invitedEmail}</strong>
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-500 text-center">
+                      <p className="text-xs text-gray-500 dark:text-dark-400 text-center">
                         Falls du bereits ein Konto hast, melde dich an. Ansonsten registriere dich mit einem neuen Account.
                       </p>
                       <div className="grid grid-cols-2 gap-3">
@@ -427,15 +427,15 @@ export const Auth = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
             RamboFlow
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-dark-400">
             Zeiterfassung & Projektmanagement
           </p>
         </div>
 
         {/* Auth Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-xl border border-gray-200 dark:border-dark-border overflow-hidden">
           {/* Tabs */}
-          <div className="flex border-b border-gray-200 dark:border-gray-700">
+          <div className="flex border-b border-gray-200 dark:border-dark-border">
             <button
               onClick={() => {
                 setAuthView('login');
@@ -443,8 +443,8 @@ export const Auth = () => {
               }}
               className={`flex-1 px-6 py-4 font-semibold transition-colors ${
                 isLogin
-                  ? 'bg-white dark:bg-gray-800 text-accent-primary border-b-2 border-accent-primary'
-                  : 'bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-400'
+                  ? 'bg-white dark:bg-dark-100 text-accent-primary border-b-2 border-accent-primary'
+                  : 'bg-gray-50 dark:bg-dark-50 text-gray-600 dark:text-dark-400'
               }`}
             >
               Anmelden
@@ -456,8 +456,8 @@ export const Auth = () => {
               }}
               className={`flex-1 px-6 py-4 font-semibold transition-colors ${
                 !isLogin
-                  ? 'bg-white dark:bg-gray-800 text-accent-primary border-b-2 border-accent-primary'
-                  : 'bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-400'
+                  ? 'bg-white dark:bg-dark-100 text-accent-primary border-b-2 border-accent-primary'
+                  : 'bg-gray-50 dark:bg-dark-50 text-gray-600 dark:text-dark-400'
               }`}
             >
               Registrieren
@@ -483,14 +483,14 @@ export const Auth = () => {
                       <p className="font-medium text-gray-900 dark:text-white">
                         Zwei-Faktor-Authentifizierung
                       </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className="text-sm text-gray-600 dark:text-dark-400">
                         Gib den Code aus deiner Authenticator-App ein
                       </p>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                       6-stelliger Code
                     </label>
                     <input
@@ -498,16 +498,16 @@ export const Auth = () => {
                       value={loginMfaCode}
                       onChange={(e) => setLoginMfaCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
                       placeholder="000000"
-                      className={`w-full px-4 py-3 text-center text-2xl font-mono tracking-widest border rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary ${
+                      className={`w-full px-4 py-3 text-center text-2xl font-mono tracking-widest border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary ${
                         mfaAttemptsLeft !== undefined && mfaAttemptsLeft <= 2
                           ? 'border-amber-500 dark:border-amber-400'
-                          : 'border-gray-300 dark:border-gray-600'
+                          : 'border-gray-300 dark:border-dark-border'
                       }`}
                       autoFocus
                       autoComplete="one-time-code"
                       disabled={mfaLockedUntil !== undefined && mfaLockedUntil > new Date()}
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    <p className="text-xs text-gray-500 dark:text-dark-400 mt-2">
                       Du kannst auch einen 8-stelligen Wiederherstellungscode verwenden
                     </p>
                     {mfaAttemptsLeft !== undefined && mfaAttemptsLeft > 0 && mfaAttemptsLeft <= 3 && (
@@ -518,18 +518,18 @@ export const Auth = () => {
                   </div>
 
                   {/* Trust this device checkbox */}
-                  <label className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <label className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-dark-200/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors">
                     <input
                       type="checkbox"
                       checked={trustDevice}
                       onChange={(e) => setTrustDevice(e.target.checked)}
-                      className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-accent-primary focus:ring-accent-primary"
+                      className="w-5 h-5 rounded border-gray-300 dark:border-dark-border text-accent-primary focus:ring-accent-primary"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <span className="text-sm font-medium text-gray-700 dark:text-dark-500">
                         Diesem Gerät vertrauen
                       </span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         30 Tage ohne MFA-Abfrage auf diesem Browser
                       </p>
                     </div>
@@ -560,7 +560,7 @@ export const Auth = () => {
                 /* Normal Login Form */
                 <form onSubmit={handleLogin} className="space-y-4" autoComplete="on">
                   <div>
-                    <label htmlFor="login-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label htmlFor="login-username" className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                       Benutzername
                     </label>
                     <div className="relative">
@@ -572,7 +572,7 @@ export const Auth = () => {
                         value={loginUsername}
                         onChange={(e) => setLoginUsername(e.target.value)}
                         placeholder="Benutzername eingeben"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                         required
                         autoFocus
                         autoComplete="username"
@@ -582,7 +582,7 @@ export const Auth = () => {
 
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 dark:text-dark-500">
                         Passwort
                       </label>
                       <Button
@@ -603,7 +603,7 @@ export const Auth = () => {
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
                         placeholder="Passwort eingeben"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                         required
                         autoComplete="current-password"
                       />
@@ -643,7 +643,7 @@ export const Auth = () => {
                 {/* Account Type Selection - only show when NOT registering via invitation */}
                 {!registeringViaInvitation && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                       Account-Typ *
                     </label>
                     <div className="grid grid-cols-3 gap-2">
@@ -653,11 +653,11 @@ export const Auth = () => {
                         className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
                           registerAccountType === 'personal'
                             ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
-                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                            : 'border-gray-300 dark:border-dark-border hover:border-gray-400'
                         }`}
                       >
                         <User size={24} className={registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-400'} />
-                        <span className={`text-xs font-medium ${registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
+                        <span className={`text-xs font-medium ${registerAccountType === 'personal' ? 'text-accent-primary' : 'text-gray-600 dark:text-dark-400'}`}>
                           Freelancer
                         </span>
                       </button>
@@ -667,11 +667,11 @@ export const Auth = () => {
                         className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
                           registerAccountType === 'business'
                             ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
-                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                            : 'border-gray-300 dark:border-dark-border hover:border-gray-400'
                         }`}
                       >
                         <Building2 size={24} className={registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-400'} />
-                        <span className={`text-xs font-medium ${registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
+                        <span className={`text-xs font-medium ${registerAccountType === 'business' ? 'text-accent-primary' : 'text-gray-600 dark:text-dark-400'}`}>
                           Unternehmen
                         </span>
                       </button>
@@ -681,11 +681,11 @@ export const Auth = () => {
                         className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
                           registerAccountType === 'team'
                             ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10'
-                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                            : 'border-gray-300 dark:border-dark-border hover:border-gray-400'
                         }`}
                       >
                         <Users size={24} className={registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-400'} />
-                        <span className={`text-xs font-medium ${registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-600 dark:text-gray-400'}`}>
+                        <span className={`text-xs font-medium ${registerAccountType === 'team' ? 'text-accent-primary' : 'text-gray-600 dark:text-dark-400'}`}>
                           Team
                         </span>
                       </button>
@@ -696,7 +696,7 @@ export const Auth = () => {
                 {/* Organization Name - only for business/team AND not registering via invitation */}
                 {!registeringViaInvitation && (registerAccountType === 'business' || registerAccountType === 'team') && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                       {registerAccountType === 'business' ? 'Firmenname' : 'Team-Name'} *
                     </label>
                     <div className="relative">
@@ -706,7 +706,7 @@ export const Auth = () => {
                         value={registerOrganizationName}
                         onChange={(e) => setRegisterOrganizationName(e.target.value)}
                         placeholder={registerAccountType === 'business' ? 'z.B. Musterfirma GmbH' : 'z.B. Design Team Alpha'}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                         required
                       />
                     </div>
@@ -714,7 +714,7 @@ export const Auth = () => {
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Benutzername *
                   </label>
                   <div className="relative">
@@ -724,7 +724,7 @@ export const Auth = () => {
                       value={registerUsername}
                       onChange={(e) => setRegisterUsername(e.target.value)}
                       placeholder="3-20 Zeichen, nur a-z, 0-9, _, -"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                       required
                       autoFocus={registerAccountType === 'personal'}
                     />
@@ -732,7 +732,7 @@ export const Auth = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     E-Mail-Adresse *
                   </label>
                   <div className="relative">
@@ -742,14 +742,14 @@ export const Auth = () => {
                       value={registerEmail}
                       onChange={(e) => setRegisterEmail(e.target.value)}
                       placeholder="deine@email.de"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                       required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Passwort *
                   </label>
                   <div className="relative">
@@ -759,14 +759,14 @@ export const Auth = () => {
                       value={registerPassword}
                       onChange={(e) => setRegisterPassword(e.target.value)}
                       placeholder="Min. 8 Zeichen, Groß-/Kleinbuchstaben, Zahl"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                       required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Passwort bestätigen *
                   </label>
                   <div className="relative">
@@ -776,7 +776,7 @@ export const Auth = () => {
                       value={registerPasswordConfirm}
                       onChange={(e) => setRegisterPasswordConfirm(e.target.value)}
                       placeholder="Passwort wiederholen"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                       required
                     />
                   </div>
@@ -784,10 +784,10 @@ export const Auth = () => {
 
                 {/* Invite Code - Optional - only show when NOT registering via invitation */}
                 {!registeringViaInvitation && (
-                  <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <div className="border-t border-gray-200 dark:border-dark-border pt-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <Ticket size={18} className="text-gray-500 dark:text-gray-400" />
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <Ticket size={18} className="text-gray-500 dark:text-dark-400" />
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500">
                         Einladungscode (optional)
                       </label>
                     </div>
@@ -796,9 +796,9 @@ export const Auth = () => {
                       value={registerInviteCode}
                       onChange={(e) => setRegisterInviteCode(e.target.value.toUpperCase())}
                       placeholder="INVITE-XXXXXXXXX"
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono text-sm"
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono text-sm"
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    <p className="text-xs text-gray-500 dark:text-dark-400 mt-2">
                       💡 Du hast einen Einladungscode? Gib ihn hier ein, um einem bestehenden Team beizutreten
                     </p>
                   </div>
@@ -813,7 +813,7 @@ export const Auth = () => {
                   {isLoading ? 'Registrieren...' : 'Registrieren'}
                 </Button>
 
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                <p className="text-xs text-gray-500 dark:text-dark-400 text-center">
                   Mit der Registrierung akzeptierst du unsere Datenschutzbestimmungen
                 </p>
               </form>
@@ -823,7 +823,7 @@ export const Auth = () => {
 
         {/* Footer Note */}
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-dark-400">
             🔐 Sicher verschlüsselt • MFA-ready • Multi-User Support
           </p>
         </div>

@@ -422,7 +422,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
         <div>
           {importMode === 'api' ? (
             <div className="space-y-4">
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-gray-600 dark:text-dark-400">
                 Importieren Sie Zeiteinträge direkt über die Clockodo API.
                 Schneller und einfacher als CSV-Export.
               </p>
@@ -430,7 +430,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
               {/* API Credentials */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Clockodo E-Mail
                   </label>
                   <input
@@ -447,7 +447,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     API Key
                   </label>
                   <div className="relative">
@@ -486,7 +486,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                   </span>
                 )}
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              <p className="text-xs text-gray-500 dark:text-dark-400 mt-2">
                 Die API-Zugangsdaten werden beim erfolgreichen Verbindungstest gespeichert.
               </p>
 
@@ -499,7 +499,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Von</label>
+                      <label className="block text-sm text-gray-600 dark:text-dark-400 mb-1">Von</label>
                       <input
                         type="date"
                         value={timeSince}
@@ -508,7 +508,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Bis</label>
+                      <label className="block text-sm text-gray-600 dark:text-dark-400 mb-1">Bis</label>
                       <input
                         type="date"
                         value={timeUntil}
@@ -534,7 +534,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
             </div>
           ) : (
             <div>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
+              <p className="text-gray-600 dark:text-dark-400 mb-4">
                 Exportieren Sie Ihre Zeiteinträge aus Clockodo als CSV und laden Sie die Datei hier hoch.
               </p>
 
@@ -545,15 +545,15 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                 {loading ? (
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 size={32} className="animate-spin text-accent-primary" />
-                    <span className="text-gray-600 dark:text-gray-400">Analysiere CSV...</span>
+                    <span className="text-gray-600 dark:text-dark-400">Analysiere CSV...</span>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
-                    <Upload size={32} className="text-gray-400 dark:text-gray-500" />
-                    <span className="text-gray-600 dark:text-gray-400">
+                    <Upload size={32} className="text-gray-400 dark:text-dark-400" />
+                    <span className="text-gray-600 dark:text-dark-400">
                       Klicken zum Hochladen oder Datei hierher ziehen
                     </span>
-                    <span className="text-sm text-gray-400 dark:text-gray-500">.csv Dateien</span>
+                    <span className="text-sm text-gray-400 dark:text-dark-400">.csv Dateien</span>
                   </div>
                 )}
               </div>
@@ -599,7 +599,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
             <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3">
               <div className="text-2xl font-bold text-accent-primary">{previewData.rowCount}</div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">Gültige Einträge</div>
+              <div className="text-sm text-gray-500 dark:text-dark-400">Gültige Einträge</div>
             </div>
             {previewData.skippedCount > 0 && (
               <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
@@ -609,15 +609,15 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
             )}
             <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3">
               <div className="text-2xl font-bold text-accent-primary">{previewData.totalHours}h</div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">Stunden gesamt</div>
+              <div className="text-sm text-gray-500 dark:text-dark-400">Stunden gesamt</div>
             </div>
             <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3">
               <div className="text-2xl font-bold text-accent-primary">{previewData.customers.length}</div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">Kunden</div>
+              <div className="text-sm text-gray-500 dark:text-dark-400">Kunden</div>
             </div>
             <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3">
               <div className="text-2xl font-bold text-accent-primary">{previewData.projects.length}</div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">Projekte</div>
+              <div className="text-sm text-gray-500 dark:text-dark-400">Projekte</div>
             </div>
           </div>
 
@@ -632,9 +632,9 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                   ) : (
                     <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
                   )}
-                  <span className="dark:text-gray-300">{customer.name}</span>
+                  <span className="dark:text-dark-500">{customer.name}</span>
                   {customer.nummer && (
-                    <span className="text-gray-400 dark:text-gray-500 text-xs">(Nr. {customer.nummer})</span>
+                    <span className="text-gray-400 dark:text-dark-400 text-xs">(Nr. {customer.nummer})</span>
                   )}
                   {customer.matchedId ? (
                     <span className="text-green-600 dark:text-green-400 text-xs flex items-center gap-1">
@@ -662,7 +662,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
             <div className="overflow-x-auto max-h-80 overflow-y-auto border dark:border-dark-200 rounded-lg">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-gray-50 dark:bg-dark-200">
-                  <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-dark-200">
+                  <tr className="text-left text-gray-500 dark:text-dark-400 border-b dark:border-dark-200">
                     <th className="py-2 px-2">#</th>
                     <th className="py-2 px-2">Datum</th>
                     <th className="py-2 px-2">Kunde</th>
@@ -674,12 +674,12 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                 <tbody>
                   {previewData.sampleRows.map((row, idx) => (
                     <tr key={idx} className="border-b dark:border-dark-200 hover:bg-gray-50 dark:hover:bg-dark-200">
-                      <td className="py-2 px-2 text-gray-400 dark:text-gray-500 text-xs">{idx + 1}</td>
-                      <td className="py-2 px-2 dark:text-gray-300">{row.tag}</td>
-                      <td className="py-2 px-2 dark:text-gray-300">{row.kunde}</td>
-                      <td className="py-2 px-2 dark:text-gray-300 text-gray-500">{row.projekt || '-'}</td>
-                      <td className="py-2 px-2 dark:text-gray-300 truncate max-w-[200px]">{row.beschreibung}</td>
-                      <td className="py-2 px-2 dark:text-gray-300">{row.stunden}</td>
+                      <td className="py-2 px-2 text-gray-400 dark:text-dark-400 text-xs">{idx + 1}</td>
+                      <td className="py-2 px-2 dark:text-dark-500">{row.tag}</td>
+                      <td className="py-2 px-2 dark:text-dark-500">{row.kunde}</td>
+                      <td className="py-2 px-2 dark:text-dark-500 text-gray-500">{row.projekt || '-'}</td>
+                      <td className="py-2 px-2 dark:text-dark-500 truncate max-w-[200px]">{row.beschreibung}</td>
+                      <td className="py-2 px-2 dark:text-dark-500">{row.stunden}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -721,7 +721,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                 onChange={(e) => setCreateMissingProjects(e.target.checked)}
                 className="w-5 h-5 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
               />
-              <span className="dark:text-gray-300">
+              <span className="dark:text-dark-500">
                 Fehlende Kunden und Projekte automatisch erstellen
               </span>
             </label>
@@ -734,7 +734,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
                 onChange={(e) => setSkipDuplicates(e.target.checked)}
                 className="w-5 h-5 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
               />
-              <span className="dark:text-gray-300">
+              <span className="dark:text-dark-500">
                 Duplikate überspringen (bereits importierte Einträge werden erkannt)
               </span>
             </label>
@@ -742,13 +742,13 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
             {/* Manual project mapping for unmatched */}
             {previewData.projects.filter(p => !p.matchedId).length > 0 && !createMissingProjects && (
               <div>
-                <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <h5 className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Nicht zugeordnete Projekte manuell zuordnen:
                 </h5>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {previewData.projects.filter(p => !p.matchedId).map((project, idx) => (
                     <div key={idx} className="flex items-center gap-2">
-                      <span className="text-sm dark:text-gray-300 min-w-[200px]">
+                      <span className="text-sm dark:text-dark-500 min-w-[200px]">
                         {project.customerName} - {project.name}
                       </span>
                       <ArrowRight size={16} className="text-gray-400" />
@@ -807,8 +807,8 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
       {step === 'importing' && (
         <div className="text-center py-8">
           <Loader2 size={48} className="animate-spin text-accent-primary mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Importiere Zeiteinträge...</p>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+          <p className="text-gray-600 dark:text-dark-400">Importiere Zeiteinträge...</p>
+          <p className="text-sm text-gray-400 dark:text-dark-400 mt-2">
             Dies kann bei vielen Einträgen etwas dauern.
           </p>
         </div>
@@ -836,10 +836,10 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
               <div className="text-sm text-amber-700 dark:text-amber-300">Duplikate</div>
             </div>
             <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-gray-600 dark:text-gray-400">
+              <div className="text-2xl font-bold text-gray-600 dark:text-dark-400">
                 {importResult.skippedCount}
               </div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">Übersprungen</div>
+              <div className="text-sm text-gray-500 dark:text-dark-400">Übersprungen</div>
             </div>
           </div>
 

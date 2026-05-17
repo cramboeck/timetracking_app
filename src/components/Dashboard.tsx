@@ -960,10 +960,10 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
 
   if (entries.length === 0) {
     return (
-      <div className="flex flex-col h-full p-6 dark:bg-gray-900">
+      <div className="flex flex-col h-full p-6 dark:bg-dark-50">
         <h1 className="text-2xl font-bold mb-6 dark:text-white">Dashboard</h1>
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-gray-500 dark:text-gray-400">
+          <div className="text-center text-gray-500 dark:text-dark-400">
             <TrendingUp size={48} className="mx-auto mb-4 opacity-50" />
             <p>Noch keine Daten vorhanden</p>
             <p className="text-sm mt-2">Erfasse Zeit um Statistiken zu sehen</p>
@@ -981,7 +981,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
   const showMonthEndNotification = daysRemaining <= 3;
 
   return (
-    <div className="flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col bg-gray-50 dark:bg-dark-50">
       {/* Month-End Notification Banner */}
       {showMonthEndNotification && entries.length > 0 && (
         <div className="bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-700 px-6 py-3">
@@ -1010,7 +1010,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
       )}
 
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
+      <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Dashboard & Reports</h1>
           <div className="flex flex-wrap gap-2">
@@ -1047,17 +1047,17 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
       </div>
 
       {/* Advanced Filters */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+      <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-6 py-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Timeframe Type */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            <label className="block text-xs font-medium text-gray-600 dark:text-dark-400 mb-1">
               Zeitraum
             </label>
             <select
               value={timeframeType}
               onChange={(e) => setTimeframeType(e.target.value as TimeframeType)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="month">Monat</option>
               <option value="quarter">Quartal</option>
@@ -1069,13 +1069,13 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
           {/* Month Selector (shown for month) */}
           {timeframeType === 'month' && (
             <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-dark-400 mb-1">
                 Monat/Jahr
               </label>
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 {availableMonths.map(month => {
                   const [year, m] = month.split('-');
@@ -1093,13 +1093,13 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
           {/* Quarter Selector (shown for quarter) */}
           {timeframeType === 'quarter' && (
             <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-dark-400 mb-1">
                 Quartal
               </label>
               <select
                 value={selectedQuarter}
                 onChange={(e) => setSelectedQuarter(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 {availableQuarters.map(q => {
                   const match = q.match(/^(\d{4})-Q(\d)$/);
@@ -1117,13 +1117,13 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
           {/* Year Selector (shown for year) */}
           {timeframeType === 'year' && (
             <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-dark-400 mb-1">
                 Jahr
               </label>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 {availableYears.map(year => (
                   <option key={year} value={year}>
@@ -1138,25 +1138,25 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
           {timeframeType === 'custom' && (
             <>
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                <label className="block text-xs font-medium text-gray-600 dark:text-dark-400 mb-1">
                   Von
                 </label>
                 <input
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                <label className="block text-xs font-medium text-gray-600 dark:text-dark-400 mb-1">
                   Bis
                 </label>
                 <input
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               </div>
             </>
@@ -1164,7 +1164,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
 
           {/* Customer Filter */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            <label className="block text-xs font-medium text-gray-600 dark:text-dark-400 mb-1">
               Kunde
             </label>
             <select
@@ -1173,7 +1173,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                 setSelectedCustomer(e.target.value);
                 setSelectedProject('all'); // Reset project filter when customer changes
               }}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="all">Alle Kunden</option>
               {customers.map(customer => (
@@ -1186,13 +1186,13 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
 
           {/* Project Filter */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            <label className="block text-xs font-medium text-gray-600 dark:text-dark-400 mb-1">
               Projekt
             </label>
             <select
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="all">Alle Projekte</option>
               {projects
@@ -1213,26 +1213,26 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
       {/* Stats Cards */}
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-6">
             <div className="flex items-center gap-3 mb-2">
               <Clock className="text-accent-primary" size={24} />
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Gesamtstunden</h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-dark-400">Gesamtstunden</h3>
             </div>
             <p className="text-3xl font-bold dark:text-white">{totalHours.toFixed(2)} h</p>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-6">
             <div className="flex items-center gap-3 mb-2">
               <DollarSign className="text-green-600" size={24} />
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Gesamtumsatz</h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-dark-400">Gesamtumsatz</h3>
             </div>
             <p className="text-3xl font-bold dark:text-white">{totalAmount.toFixed(2)} €</p>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-6">
             <div className="flex items-center gap-3 mb-2">
               <TrendingUp className="text-purple-600" size={24} />
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Projekte</h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-dark-400">Projekte</h3>
             </div>
             <p className="text-3xl font-bold dark:text-white">{stats.length}</p>
           </div>
@@ -1247,7 +1247,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
 
         {/* Pie Chart - Hours by Customer */}
         {pieChartData.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
+          <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-6 mb-6">
             <div className="flex items-center gap-3 mb-4">
               <PieChartIcon className="text-accent-primary" size={24} />
               <h2 className="text-lg font-semibold dark:text-white">Stundenverteilung nach Kunde</h2>
@@ -1295,10 +1295,10 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                           className="w-3 h-3 rounded-full flex-shrink-0"
                           style={{ backgroundColor: entry.color }}
                         />
-                        <span className="flex-1 truncate text-gray-700 dark:text-gray-300" title={entry.name}>
+                        <span className="flex-1 truncate text-gray-700 dark:text-dark-500" title={entry.name}>
                           {entry.name}
                         </span>
-                        <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        <span className="text-gray-500 dark:text-dark-400 whitespace-nowrap">
                           {entry.hours.toFixed(1)}h ({percentage}%)
                         </span>
                       </div>
@@ -1312,12 +1312,12 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
 
         {/* Project Breakdown */}
         {filteredEntries.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
+          <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-12 text-center">
             <Calendar size={48} className="mx-auto mb-4 text-gray-400 opacity-50" />
-            <p className="text-gray-500 dark:text-gray-400">Keine Einträge für diesen Monat</p>
+            <p className="text-gray-500 dark:text-dark-400">Keine Einträge für diesen Monat</p>
           </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6">
+          <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-3 sm:p-6">
             <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 dark:text-white">Aufschlüsselung nach Projekt</h2>
             <div className="space-y-3 sm:space-y-4">
               {stats.map((stat) => {
@@ -1333,7 +1333,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                 return (
                   <div key={stat.projectId} className="space-y-2">
                     <div
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors"
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-200 p-2 rounded-lg transition-colors"
                       onClick={() => {
                         const newExpanded = new Set(expandedProjects);
                         if (newExpanded.has(stat.projectId)) {
@@ -1346,9 +1346,9 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                     >
                       <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                         {isExpanded ? (
-                          <ChevronDown size={18} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                          <ChevronDown size={18} className="text-gray-500 dark:text-dark-400 flex-shrink-0" />
                         ) : (
-                          <ChevronRight size={18} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                          <ChevronRight size={18} className="text-gray-500 dark:text-dark-400 flex-shrink-0" />
                         )}
                         <div
                           className="w-3 h-3 sm:w-4 sm:h-4 rounded flex-shrink-0"
@@ -1356,20 +1356,20 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                         />
                         <div className="flex-1 min-w-0">
                           <p className="font-medium dark:text-white truncate text-sm sm:text-base">{stat.projectName}</p>
-                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">{stat.customerName}</p>
+                          <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 truncate">{stat.customerName}</p>
                         </div>
                       </div>
                       <div className="flex items-center justify-between sm:justify-end sm:text-right mt-2 sm:mt-0 pl-7 sm:pl-0 sm:ml-4 flex-shrink-0">
-                        <div className="sm:hidden text-xs text-gray-500 dark:text-gray-400">
+                        <div className="sm:hidden text-xs text-gray-500 dark:text-dark-400">
                           {stat.entryCount} Einträge • {percentage.toFixed(1)}%
                         </div>
                         <div>
                           <p className="font-semibold dark:text-white text-sm sm:text-base">{hours.toFixed(2)} h</p>
-                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{stat.totalAmount.toFixed(2)} €</p>
+                          <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400">{stat.totalAmount.toFixed(2)} €</p>
                         </div>
                       </div>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 sm:h-2">
+                    <div className="w-full bg-gray-200 dark:bg-dark-200 rounded-full h-1.5 sm:h-2">
                       <div
                         className="h-1.5 sm:h-2 rounded-full transition-all"
                         style={{
@@ -1378,15 +1378,15 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                         }}
                       />
                     </div>
-                    <div className="hidden sm:flex justify-between text-xs text-gray-500 dark:text-gray-400 px-2">
+                    <div className="hidden sm:flex justify-between text-xs text-gray-500 dark:text-dark-400 px-2">
                       <span>{stat.entryCount} Einträge</span>
                       <span>{percentage.toFixed(1)}% der Gesamtzeit</span>
                     </div>
 
                     {/* Expanded entries list */}
                     {isExpanded && projectEntries.length > 0 && (
-                      <div className="ml-4 sm:ml-8 mt-3 space-y-2 border-l-2 border-gray-200 dark:border-gray-700 pl-3 sm:pl-4">
-                        <h3 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <div className="ml-4 sm:ml-8 mt-3 space-y-2 border-l-2 border-gray-200 dark:border-dark-border pl-3 sm:pl-4">
+                        <h3 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                           Zeiteinträge:
                         </h3>
                         {projectEntries.map(entry => {
@@ -1397,7 +1397,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                           return (
                             <div
                               key={entry.id}
-                              className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2 sm:p-3 text-xs sm:text-sm"
+                              className="bg-gray-50 dark:bg-dark-200 rounded-lg p-2 sm:p-3 text-xs sm:text-sm"
                             >
                               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2">
                                 <div className="flex-1 min-w-0">
@@ -1414,17 +1414,17 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                                         {activity.name}
                                       </span>
                                     )}
-                                    <span className="sm:hidden text-gray-700 dark:text-gray-300 font-medium ml-auto">
+                                    <span className="sm:hidden text-gray-700 dark:text-dark-500 font-medium ml-auto">
                                       {entryHours.toFixed(2)} h • {entryAmount.toFixed(2)} €
                                     </span>
                                   </div>
                                   {entry.description && (
-                                    <p className="text-gray-600 dark:text-gray-400 break-words text-xs sm:text-sm">
+                                    <p className="text-gray-600 dark:text-dark-400 break-words text-xs sm:text-sm">
                                       {entry.description}
                                     </p>
                                   )}
                                   {!entry.description && (
-                                    <p className="text-gray-400 dark:text-gray-500 italic text-xs sm:text-sm">
+                                    <p className="text-gray-400 dark:text-dark-400 italic text-xs sm:text-sm">
                                       (keine Beschreibung)
                                     </p>
                                   )}
@@ -1433,7 +1433,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                                   <p className="text-gray-900 dark:text-white font-medium">
                                     {entryHours.toFixed(2)} h
                                   </p>
-                                  <p className="text-gray-500 dark:text-gray-400">
+                                  <p className="text-gray-500 dark:text-dark-400">
                                     {entryAmount.toFixed(2)} €
                                   </p>
                                 </div>
@@ -1464,9 +1464,9 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
       {/* Saved Reports Modal */}
       {showSavedReports && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[85vh] flex flex-col">
+          <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[85vh] flex flex-col">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Archive size={24} className="text-accent-primary" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -1483,13 +1483,13 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
 
             {/* Filter */}
             {savedReportCustomers.length > 0 && (
-              <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+              <div className="px-6 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-50">
                 <div className="flex items-center gap-3">
-                  <label className="text-sm text-gray-600 dark:text-gray-400">Kunde:</label>
+                  <label className="text-sm text-gray-600 dark:text-dark-400">Kunde:</label>
                   <select
                     value={savedReportsFilter}
                     onChange={(e) => setSavedReportsFilter(e.target.value)}
-                    className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
                   >
                     <option value="all">Alle Kunden</option>
                     {savedReportCustomers.map(([id, name]) => (
@@ -1507,7 +1507,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                   <Loader2 size={32} className="animate-spin text-accent-primary" />
                 </div>
               ) : filteredSavedReports.length === 0 ? (
-                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                <div className="text-center py-12 text-gray-500 dark:text-dark-400">
                   <Archive size={48} className="mx-auto mb-4 opacity-50" />
                   <p>{savedReportsFilter === 'all' ? 'Keine gespeicherten Reports vorhanden' : 'Keine Reports für diesen Kunden'}</p>
                 </div>
@@ -1516,7 +1516,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                   {filteredSavedReports.map((report) => (
                     <div
                       key={report.id}
-                      className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 flex items-center justify-between"
+                      className="bg-gray-50 dark:bg-dark-200 rounded-lg p-4 flex items-center justify-between"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-1">
@@ -1527,7 +1527,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                             {report.report_title}
                           </span>
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-dark-400">
                           <span className="flex items-center gap-1">
                             <Calendar size={14} />
                             {new Date(report.start_date).toLocaleDateString('de-DE')} - {new Date(report.end_date).toLocaleDateString('de-DE')}
@@ -1538,7 +1538,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                           </span>
                           <span>{report.entry_count} Einträge</span>
                         </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                        <div className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                           Gespeichert am {new Date(report.created_at).toLocaleDateString('de-DE', {
                             day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                           })}
@@ -1566,8 +1566,8 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <span className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-border flex justify-between items-center">
+              <span className="text-sm text-gray-500 dark:text-dark-400">
                 {filteredSavedReports.length} von {savedReports.length} Report(s)
               </span>
               <Button
@@ -1584,16 +1584,16 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
       {/* PDF Preview Modal for Saved Reports */}
       {savedReportPreview.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[95vw] h-[95vh] max-w-7xl flex flex-col">
+          <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[95vw] h-[95vh] max-w-7xl flex flex-col">
             {/* Preview Header */}
-            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <FileText size={20} className="text-accent-primary" />
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-white">
                     {savedReportPreview.reportName}
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-gray-500 dark:text-dark-400">
                     PDF Vorschau
                   </p>
                 </div>
@@ -1609,7 +1609,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                       variant="default"
                       tooltip="Vorherige"
                     />
-                    <span className="text-sm text-gray-600 dark:text-gray-300 min-w-[60px] text-center">
+                    <span className="text-sm text-gray-600 dark:text-dark-500 min-w-[60px] text-center">
                       {savedReportPreview.currentIndex + 1} / {savedReportPreview.totalCount}
                     </span>
                     <IconButton
@@ -1631,12 +1631,12 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
             </div>
 
             {/* PDF Viewer */}
-            <div className="flex-1 bg-gray-100 dark:bg-gray-900 overflow-hidden relative">
+            <div className="flex-1 bg-gray-100 dark:bg-dark-50 overflow-hidden relative">
               {isGeneratingSavedPreview ? (
                 <div className="w-full h-full flex items-center justify-center">
                   <div className="flex flex-col items-center gap-3">
                     <Loader2 size={40} className="animate-spin text-accent-primary" />
-                    <span className="text-gray-600 dark:text-gray-400">PDF wird generiert...</span>
+                    <span className="text-gray-600 dark:text-dark-400">PDF wird generiert...</span>
                   </div>
                 </div>
               ) : savedReportPreview.pdfUrl ? (
@@ -1648,8 +1648,8 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                   >
                     {/* Fallback message - buttons are below */}
                     <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
-                      <p className="text-gray-600 dark:text-gray-400 mb-2">PDF-Vorschau nicht verfügbar</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-500">Bitte Buttons unten verwenden</p>
+                      <p className="text-gray-600 dark:text-dark-400 mb-2">PDF-Vorschau nicht verfügbar</p>
+                      <p className="text-sm text-gray-500 dark:text-dark-400">Bitte Buttons unten verwenden</p>
                     </div>
                   </object>
                   {/* Action buttons - responsive for mobile */}

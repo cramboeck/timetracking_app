@@ -176,21 +176,21 @@ export const AccountSettings = ({
       </div>
 
       {/* Account Details */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-md">
+      <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6 shadow-md">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-3 bg-accent-light dark:bg-accent-primary/20 rounded-xl">
             <UserIcon size={24} className="text-accent-primary dark:text-accent-primary" />
           </div>
           <div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white">Mein Account</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Persönliche Informationen und Einstellungen</p>
+            <p className="text-sm text-gray-500 dark:text-dark-400">Persönliche Informationen und Einstellungen</p>
           </div>
         </div>
 
         <div className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Account-Typ</p>
+            <div className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg border border-gray-200 dark:border-dark-border">
+              <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">Account-Typ</p>
               <p className="text-lg font-bold text-gray-900 dark:text-white">
                 {currentUser?.accountType === 'personal' && '🚀 Freelancer'}
                 {currentUser?.accountType === 'freelancer' && '🚀 Freelancer'}
@@ -199,8 +199,8 @@ export const AccountSettings = ({
               </p>
             </div>
             {currentUser?.organizationName && (
-              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+              <div className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg border border-gray-200 dark:border-dark-border">
+                <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">
                   {currentUser?.accountType === 'business' ? 'Firmenname' : 'Team-Name'}
                 </p>
                 <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser.organizationName}</p>
@@ -209,19 +209,19 @@ export const AccountSettings = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Benutzername</p>
+            <div className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg border border-gray-200 dark:border-dark-border">
+              <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">Benutzername</p>
               <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser?.username}</p>
             </div>
-            <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">E-Mail</p>
+            <div className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg border border-gray-200 dark:border-dark-border">
+              <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">E-Mail</p>
               <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser?.email}</p>
             </div>
           </div>
 
           {currentUser?.displayName && (
-            <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Anzeigename</p>
+            <div className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg border border-gray-200 dark:border-dark-border">
+              <p className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider mb-1">Anzeigename</p>
               <p className="text-lg font-bold text-gray-900 dark:text-white">{currentUser.displayName}</p>
             </div>
           )}
@@ -238,7 +238,7 @@ export const AccountSettings = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-5 border-t border-gray-200 dark:border-gray-600">
+          <div className="pt-5 border-t border-gray-200 dark:border-dark-border">
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleOpenEditProfile}
@@ -249,7 +249,7 @@ export const AccountSettings = ({
               </button>
               <button
                 onClick={handleOpenChangePassword}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
+                className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
               >
                 <Key size={18} />
                 Passwort ändern
@@ -263,14 +263,14 @@ export const AccountSettings = ({
       <MFASettings />
 
       {/* GDPR / Data Protection */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-md">
+      <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6 shadow-md">
         <div className="flex items-center gap-3 mb-5">
           <div className="p-3 bg-accent-light dark:bg-accent-primary/20 rounded-xl">
             <Shield size={24} className="text-accent-primary dark:text-accent-primary" />
           </div>
           <div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white">Datenschutz (DSGVO)</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Deine Daten verwalten</p>
+            <p className="text-sm text-gray-500 dark:text-dark-400">Deine Daten verwalten</p>
           </div>
         </div>
 
@@ -278,14 +278,14 @@ export const AccountSettings = ({
           <button
             onClick={handleExportData}
             disabled={gdprExporting}
-            className="w-full flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left"
+            className="w-full flex items-center gap-3 p-4 bg-gray-50 dark:bg-dark-200 rounded-lg border border-gray-200 dark:border-dark-border hover:bg-gray-100 dark:hover:bg-dark-300 transition-colors text-left"
           >
             <Download size={20} className="text-accent-primary dark:text-accent-primary" />
             <div>
               <p className="font-medium text-gray-900 dark:text-white">
                 {gdprExporting ? 'Exportiere...' : 'Daten exportieren'}
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 Alle deine Daten als JSON herunterladen
               </p>
             </div>
@@ -317,25 +317,25 @@ export const AccountSettings = ({
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Anzeigename
             </label>
             <input
               type="text"
               value={editDisplayName}
               onChange={(e) => setEditDisplayName(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               E-Mail
             </label>
             <input
               type="email"
               value={editEmail}
               onChange={(e) => setEditEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
             />
           </div>
           {profileError && (
@@ -344,7 +344,7 @@ export const AccountSettings = ({
           <div className="flex gap-3 pt-4">
             <button
               onClick={() => setEditProfileOpen(false)}
-              className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+              className="flex-1 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
             >
               Abbrechen
             </button>
@@ -367,36 +367,36 @@ export const AccountSettings = ({
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Aktuelles Passwort
             </label>
             <input
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Neues Passwort
             </label>
             <input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Passwort bestätigen
             </label>
             <input
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
             />
           </div>
           {passwordError && (
@@ -405,7 +405,7 @@ export const AccountSettings = ({
           <div className="flex gap-3 pt-4">
             <button
               onClick={() => setChangePasswordOpen(false)}
-              className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+              className="flex-1 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
             >
               Abbrechen
             </button>

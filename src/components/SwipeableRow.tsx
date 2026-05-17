@@ -114,7 +114,7 @@ export const SwipeableRow = ({
 
       {/* Main content (swipeable) */}
       <div
-        className={`relative bg-white dark:bg-gray-800 ${
+        className={`relative bg-white dark:bg-dark-100 ${
           isDragging ? '' : 'transition-transform duration-200'
         }`}
         style={{ transform: `translateX(${translateX}px)` }}

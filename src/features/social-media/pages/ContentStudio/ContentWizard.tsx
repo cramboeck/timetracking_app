@@ -278,7 +278,7 @@ export default function ContentWizard() {
             className={`w-10 h-10 rounded-full flex items-center justify-center font-medium transition-colors ${
               step >= s
                 ? 'bg-pink-600 text-white'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                : 'bg-gray-200 dark:bg-dark-200 text-gray-500 dark:text-dark-400'
             }`}
           >
             {s}
@@ -288,20 +288,20 @@ export default function ContentWizard() {
 
       {/* Step 1: Topic & Platforms */}
       {step === 1 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="text-center mb-6">
             <Wand2 size={48} className="mx-auto text-pink-600 mb-4" />
             <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
               Content Wizard
             </h2>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-600 dark:text-dark-400">
               Erstelle optimierten Content für deine Marketing-Ziele
             </p>
           </div>
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Worüber soll dein Content handeln?
               </label>
               <textarea
@@ -309,12 +309,12 @@ export default function ContentWizard() {
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder="z.B. Launch unseres neuen Produkts, Tipps für Remote-Arbeit, Kundenreferenz..."
                 rows={3}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Für welche Plattformen?
               </label>
               <div className="flex flex-wrap gap-2">
@@ -325,7 +325,7 @@ export default function ContentWizard() {
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                       platforms.includes(platform)
                         ? `${PLATFORM_COLORS[platform]} text-white`
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                        : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                     }`}
                   >
                     {PLATFORM_ICONS[platform]}
@@ -351,14 +351,14 @@ export default function ContentWizard() {
 
       {/* Step 2: Marketing Settings */}
       {step === 2 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
           <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6">
             Marketing-Einstellungen
           </h2>
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Marketing-Ziel
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -369,7 +369,7 @@ export default function ContentWizard() {
                     className={`flex items-center gap-2 px-4 py-3 rounded-lg border transition-colors ${
                       goal === g.value
                         ? 'border-pink-600 bg-pink-50 dark:bg-pink-900/20 text-pink-600'
-                        : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        : 'border-gray-200 dark:border-dark-border text-gray-700 dark:text-dark-500 hover:bg-gray-50 dark:hover:bg-dark-200'
                     }`}
                   >
                     {g.icon}
@@ -380,13 +380,13 @@ export default function ContentWizard() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Customer Journey Stage
               </label>
               <select
                 value={journeyStage}
                 onChange={(e) => setJourneyStage(e.target.value as JourneyStage)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               >
                 {JOURNEY_STAGES.map((stage) => (
                   <option key={stage.value} value={stage.value}>
@@ -398,13 +398,13 @@ export default function ContentWizard() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Tonalität
                 </label>
                 <select
                   value={tone}
                   onChange={(e) => setTone(e.target.value as WizardTone)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 >
                   {WIZARD_TONES.map((t) => (
                     <option key={t.value} value={t.value}>
@@ -414,13 +414,13 @@ export default function ContentWizard() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Content-Länge
                 </label>
                 <select
                   value={contentLength}
                   onChange={(e) => setContentLength(e.target.value as ContentLength)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 >
                   {CONTENT_LENGTHS.map((length) => (
                     <option key={length.value} value={length.value}>
@@ -435,7 +435,7 @@ export default function ContentWizard() {
           <div className="flex justify-between mt-6">
             <button
               onClick={() => setStep(1)}
-              className="px-6 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+              className="px-6 py-2 text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white"
             >
               Zurück
             </button>
@@ -452,14 +452,14 @@ export default function ContentWizard() {
 
       {/* Step 3: Additional Details */}
       {step === 3 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
           <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6">
             Weitere Details (optional)
           </h2>
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Zielgruppe
               </label>
               <input
@@ -467,12 +467,12 @@ export default function ContentWizard() {
                 value={targetAudience}
                 onChange={(e) => setTargetAudience(e.target.value)}
                 placeholder="z.B. Marketing Manager, kleine Unternehmen, Tech-Startups..."
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Kernbotschaften (eine pro Zeile)
               </label>
               <textarea
@@ -480,12 +480,12 @@ export default function ContentWizard() {
                 onChange={(e) => setKeyMessages(e.target.value)}
                 placeholder="z.B.&#10;Zeitersparnis von 50%&#10;Einfache Integration&#10;Kostenloser Support"
                 rows={3}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Call-to-Action
               </label>
               <input
@@ -493,7 +493,7 @@ export default function ContentWizard() {
                 value={callToAction}
                 onChange={(e) => setCallToAction(e.target.value)}
                 placeholder="z.B. Jetzt Demo buchen, Link in Bio, Kommentar hinterlassen..."
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
             </div>
           </div>
@@ -501,7 +501,7 @@ export default function ContentWizard() {
           <div className="flex justify-between mt-6">
             <button
               onClick={() => setStep(2)}
-              className="px-6 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+              className="px-6 py-2 text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white"
             >
               Zurück
             </button>
@@ -545,7 +545,7 @@ export default function ContentWizard() {
               )}
               <button
                 onClick={resetWizard}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+                className="text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white"
               >
                 Neu erstellen
               </button>
@@ -555,10 +555,10 @@ export default function ContentWizard() {
           {results.map((result, index) => (
             <div
               key={index}
-              className={`bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border ${
+              className={`bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border ${
                 savedIndices.has(index)
                   ? 'border-green-300 dark:border-green-700'
-                  : 'border-gray-200 dark:border-gray-700'
+                  : 'border-gray-200 dark:border-dark-border'
               }`}
             >
               <div className="flex items-center justify-between mb-3">
@@ -580,7 +580,7 @@ export default function ContentWizard() {
                 </div>
                 <button
                   onClick={() => copyToClipboard(result.content, index)}
-                  className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white bg-gray-100 dark:bg-gray-700 rounded-lg"
+                  className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white bg-gray-100 dark:bg-dark-200 rounded-lg"
                 >
                   {copiedIndex === index ? (
                     <>
@@ -605,7 +605,7 @@ export default function ContentWizard() {
                   {result.hashtags.map((tag, i) => (
                     <span
                       key={i}
-                      className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded text-sm"
+                      className="px-2 py-0.5 bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-500 rounded text-sm"
                     >
                       #{tag}
                     </span>
@@ -615,11 +615,11 @@ export default function ContentWizard() {
 
               {/* Save/Schedule Actions */}
               {!savedIndices.has(index) && (
-                <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-dark-border">
                   <button
                     onClick={() => saveAsDraft(result, index)}
                     disabled={savingIndex === index}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50"
                   >
                     {savingIndex === index ? (
                       <>
@@ -655,23 +655,23 @@ export default function ContentWizard() {
           onClick={() => setScheduleModal(null)}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full"
+            className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-md w-full"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
                 Post planen
               </h3>
               <button
                 onClick={() => setScheduleModal(null)}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                className="text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
               >
                 <X size={20} />
               </button>
             </div>
 
             <div className="p-4 space-y-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400">
                 <span className={`p-1 rounded ${PLATFORM_COLORS[scheduleModal.result.platform]} text-white`}>
                   {PLATFORM_ICONS[scheduleModal.result.platform]}
                 </span>
@@ -683,7 +683,7 @@ export default function ContentWizard() {
               </p>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   <Calendar size={16} className="inline mr-1" />
                   Datum und Uhrzeit
                 </label>
@@ -692,15 +692,15 @@ export default function ContentWizard() {
                   value={scheduleDate}
                   onChange={(e) => setScheduleDate(e.target.value)}
                   min={new Date().toISOString().slice(0, 16)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-dark-border">
               <button
                 onClick={() => setScheduleModal(null)}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+                className="px-4 py-2 text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white"
               >
                 Abbrechen
               </button>

@@ -465,7 +465,7 @@ export const CalendarView = ({
     const timeStr = `${format(event.start, 'HH:mm')} - ${format(event.end, 'HH:mm')}`;
     return (
       <div className="agenda-time-cell">
-        <span className="text-sm text-gray-600 dark:text-gray-400">{timeStr}</span>
+        <span className="text-sm text-gray-600 dark:text-dark-400">{timeStr}</span>
       </div>
     );
   };
@@ -495,9 +495,9 @@ export const CalendarView = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-accent-light dark:from-gray-900 dark:to-gray-800">
+    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-accent-light dark:from-dark-50 dark:to-dark-100">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
+      <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
           <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Kalender</h1>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
@@ -508,7 +508,7 @@ export const CalendarView = ({
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                   showTimeEntries
                     ? 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/50 dark:text-accent-primary'
-                    : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                    : 'bg-gray-100 text-gray-500 dark:bg-dark-200 dark:text-dark-400'
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
@@ -519,7 +519,7 @@ export const CalendarView = ({
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                   showMaintenances
                     ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
-                    : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                    : 'bg-gray-100 text-gray-500 dark:bg-dark-200 dark:text-dark-400'
                 }`}
               >
                 <Wrench className="w-3.5 h-3.5" />
@@ -545,7 +545,7 @@ export const CalendarView = ({
 
       {/* Calendar */}
       <div className="flex-1 p-4 sm:p-6 overflow-auto">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 h-full calendar-container">
+        <div className="bg-white dark:bg-dark-100 rounded-lg shadow-lg p-4 h-full calendar-container">
           <DnDCalendar
             localizer={localizer}
             events={events}
@@ -579,13 +579,13 @@ export const CalendarView = ({
         <Modal isOpen={true} onClose={() => setEditingEntry(null)} title="Zeiteintrag bearbeiten">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Projekt *
               </label>
               <select
                 value={editProjectId}
                 onChange={(e) => setEditProjectId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-dark-200 dark:text-white"
                 required
               >
                 <option value="">Projekt wählen...</option>
@@ -601,13 +601,13 @@ export const CalendarView = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Tätigkeit
               </label>
               <select
                 value={editActivityId}
                 onChange={(e) => setEditActivityId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-dark-200 dark:text-white"
               >
                 <option value="">Keine Tätigkeit</option>
                 {activities.map(activity => (
@@ -619,21 +619,21 @@ export const CalendarView = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Datum *
               </label>
               <input
                 type="date"
                 value={editDate}
                 onChange={(e) => setEditDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-dark-200 dark:text-white"
                 required
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Startzeit *
                 </label>
                 <TimePicker
@@ -644,7 +644,7 @@ export const CalendarView = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Endzeit *
                 </label>
                 <TimePicker
@@ -656,14 +656,14 @@ export const CalendarView = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Beschreibung
               </label>
               <textarea
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-dark-200 dark:text-white"
                 placeholder="Optional: Details zur Tätigkeit..."
               />
             </div>
@@ -707,7 +707,7 @@ export const CalendarView = ({
             {/* Time selection */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Von *
                 </label>
                 <TimePicker
@@ -717,7 +717,7 @@ export const CalendarView = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Bis *
                 </label>
                 <TimePicker
@@ -732,7 +732,7 @@ export const CalendarView = ({
             <div className={`flex items-center justify-center gap-2 py-2 px-4 rounded-lg ${
               createDuration > 0
                 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                : 'bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400'
             }`}>
               <Clock size={18} />
               <span className="font-medium">
@@ -747,13 +747,13 @@ export const CalendarView = ({
 
             {/* Project selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Projekt *
               </label>
               <select
                 value={createProjectId}
                 onChange={(e) => setCreateProjectId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-dark-200 dark:text-white"
                 required
               >
                 <option value="">Projekt wählen...</option>
@@ -770,13 +770,13 @@ export const CalendarView = ({
 
             {/* Activity selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Tätigkeit
               </label>
               <select
                 value={createActivityId}
                 onChange={(e) => setCreateActivityId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-dark-200 dark:text-white"
               >
                 <option value="">Keine Tätigkeit</option>
                 {activities.map(activity => (
@@ -789,14 +789,14 @@ export const CalendarView = ({
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Beschreibung
               </label>
               <textarea
                 value={createDescription}
                 onChange={(e) => setCreateDescription(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-dark-200 dark:text-white"
                 placeholder="Was wurde gemacht?"
               />
             </div>

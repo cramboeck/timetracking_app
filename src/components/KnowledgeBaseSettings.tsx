@@ -343,7 +343,7 @@ export const KnowledgeBaseSettings = () => {
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
             activeKbTab === 'categories'
               ? 'bg-accent-light dark:bg-accent-lighter/10 text-accent-primary'
-              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+              : 'text-gray-600 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-50'
           }`}
         >
           <FolderOpen size={18} />
@@ -354,7 +354,7 @@ export const KnowledgeBaseSettings = () => {
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
             activeKbTab === 'articles'
               ? 'bg-accent-light dark:bg-accent-lighter/10 text-accent-primary'
-              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+              : 'text-gray-600 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-50'
           }`}
         >
           <FileText size={18} />
@@ -368,7 +368,7 @@ export const KnowledgeBaseSettings = () => {
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
             activeKbTab === 'branding'
               ? 'bg-accent-light dark:bg-accent-lighter/10 text-accent-primary'
-              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+              : 'text-gray-600 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-50'
           }`}
         >
           <Palette size={18} />
@@ -563,7 +563,7 @@ export const KnowledgeBaseSettings = () => {
           <div className="grid gap-6">
             {/* Company Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Firmenname im Portal
               </label>
               <input
@@ -577,7 +577,7 @@ export const KnowledgeBaseSettings = () => {
 
             {/* Welcome Message */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Begrüßungstext
               </label>
               <textarea
@@ -591,7 +591,7 @@ export const KnowledgeBaseSettings = () => {
 
             {/* Logo URL */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Logo URL
               </label>
               <div className="flex gap-2">
@@ -617,7 +617,7 @@ export const KnowledgeBaseSettings = () => {
 
             {/* Primary Color */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Primärfarbe
               </label>
               <div className="flex items-center gap-3">
@@ -706,7 +706,7 @@ export const KnowledgeBaseSettings = () => {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Name *
             </label>
             <input
@@ -720,7 +720,7 @@ export const KnowledgeBaseSettings = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Beschreibung
             </label>
             <textarea
@@ -733,7 +733,7 @@ export const KnowledgeBaseSettings = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Sortierung
             </label>
             <input
@@ -751,7 +751,7 @@ export const KnowledgeBaseSettings = () => {
               onChange={(e) => setCategoryForm({ ...categoryForm, isPublic: e.target.checked })}
               className="w-5 h-5 text-accent-primary rounded focus:ring-accent-primary"
             />
-            <span className="text-gray-700 dark:text-gray-300">Öffentlich sichtbar</span>
+            <span className="text-gray-700 dark:text-dark-500">Öffentlich sichtbar</span>
           </label>
 
           <div className="flex justify-end gap-2 pt-4">
@@ -888,7 +888,7 @@ export const KnowledgeBaseSettings = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Titel *
               </label>
               <input
@@ -902,7 +902,7 @@ export const KnowledgeBaseSettings = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Kategorie
               </label>
               <select
@@ -925,7 +925,7 @@ export const KnowledgeBaseSettings = () => {
                   onChange={(e) => setArticleForm({ ...articleForm, isPublished: e.target.checked })}
                   className="w-5 h-5 text-accent-primary rounded focus:ring-accent-primary"
                 />
-                <span className="text-gray-700 dark:text-gray-300">Veröffentlicht</span>
+                <span className="text-gray-700 dark:text-dark-500">Veröffentlicht</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -934,13 +934,13 @@ export const KnowledgeBaseSettings = () => {
                   onChange={(e) => setArticleForm({ ...articleForm, isFeatured: e.target.checked })}
                   className="w-5 h-5 text-accent-primary rounded focus:ring-accent-primary"
                 />
-                <span className="text-gray-700 dark:text-gray-300">Hervorgehoben</span>
+                <span className="text-gray-700 dark:text-dark-500">Hervorgehoben</span>
               </label>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Kurzfassung
             </label>
             <textarea
@@ -954,7 +954,7 @@ export const KnowledgeBaseSettings = () => {
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500">
                 Inhalt *
               </label>
               <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-100 rounded-lg p-1">

@@ -143,7 +143,7 @@ export const AlertsView = () => {
       case 'MAJOR': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300';
       case 'MODERATE': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300';
       case 'MINOR': return 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary';
-      default: return 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300';
+      default: return 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500';
     }
   };
 
@@ -278,7 +278,7 @@ export const AlertsView = () => {
                   )}
                 </td>
                 <td className="px-4 py-3 hidden md:table-cell">
-                  <p className="text-gray-700 dark:text-gray-300 max-w-md truncate" title={alert.message}>
+                  <p className="text-gray-700 dark:text-dark-500 max-w-md truncate" title={alert.message}>
                     {alert.message}
                   </p>
                 </td>
@@ -333,7 +333,7 @@ export const AlertsView = () => {
               {/* Message */}
               <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4">
                 <h4 className="font-medium text-gray-900 dark:text-white mb-2">Nachricht</h4>
-                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{selectedAlert.message}</p>
+                <p className="text-gray-700 dark:text-dark-500 whitespace-pre-wrap">{selectedAlert.message}</p>
               </div>
 
               {/* Details */}

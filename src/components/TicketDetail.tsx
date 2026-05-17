@@ -554,7 +554,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   // Error state
   if (error || !ticket) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+      <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-dark-400">
         <p>{error || 'Ticket nicht gefunden'}</p>
         <button onClick={onBack} className="mt-2 text-accent-primary hover:underline">
           Zurueck zur Liste

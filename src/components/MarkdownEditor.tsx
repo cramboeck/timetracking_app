@@ -142,9 +142,9 @@ export const MarkdownEditor = ({
   }, [onImagePaste, insertImageMarkdown]);
 
   return (
-    <div className={`border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden ${className}`}>
+    <div className={`border border-gray-300 dark:border-dark-border rounded-lg overflow-hidden ${className}`}>
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-50 dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border">
         {tools.map((tool, index) => {
           const Icon = tool.icon;
           return (
@@ -154,15 +154,15 @@ export const MarkdownEditor = ({
               onClick={() => handleToolClick(tool)}
               disabled={disabled}
               title={tool.title}
-              className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-dark-200 text-gray-600 dark:text-dark-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Icon size={16} />
             </button>
           );
         })}
         {onImagePaste && (
-          <div className="flex items-center gap-1 ml-2 pl-2 border-l border-gray-200 dark:border-gray-700">
-            <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:inline">
+          <div className="flex items-center gap-1 ml-2 pl-2 border-l border-gray-200 dark:border-dark-border">
+            <span className="text-xs text-gray-400 dark:text-dark-400 hidden sm:inline">
               <Image size={14} className="inline mr-1" />
               Strg+V für Screenshots
             </span>
@@ -174,7 +174,7 @@ export const MarkdownEditor = ({
             <span className="text-xs">Hochladen...</span>
           </div>
         )}
-        <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 hidden sm:inline">
+        <span className="ml-auto text-xs text-gray-400 dark:text-dark-400 hidden sm:inline">
           Markdown unterstützt
         </span>
       </div>
@@ -189,7 +189,7 @@ export const MarkdownEditor = ({
         placeholder={placeholder}
         rows={rows}
         disabled={disabled || isUploading}
-        className="w-full px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white resize-none focus:outline-none"
+        className="w-full px-3 py-2 bg-white dark:bg-dark-50 text-gray-900 dark:text-white resize-none focus:outline-none"
       />
     </div>
   );

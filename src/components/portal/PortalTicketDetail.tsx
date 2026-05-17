@@ -30,12 +30,12 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
   in_progress: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300', icon: Clock },
   waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300', icon: Pause },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300', icon: CheckCircle },
-  closed: { label: 'Geschlossen', color: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300', icon: X },
-  archived: { label: 'Archiviert', color: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', icon: Archive },
+  closed: { label: 'Geschlossen', color: 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-500', icon: X },
+  archived: { label: 'Archiviert', color: 'bg-gray-100 text-gray-500 dark:bg-dark-100 dark:text-dark-400', icon: Archive },
 };
 
 const priorityConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-  low: { label: 'Niedrig', color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-100 dark:bg-gray-700' },
+  low: { label: 'Niedrig', color: 'text-gray-600 dark:text-dark-400', bgColor: 'bg-gray-100 dark:bg-dark-200' },
   normal: { label: 'Normal', color: 'text-accent-primary dark:text-accent-primary', bgColor: 'bg-accent-light dark:bg-accent-primary/30' },
   high: { label: 'Hoch', color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/30' },
   critical: { label: 'Kritisch', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/30' },
@@ -226,7 +226,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
 
   if (error || !ticket) {
     return (
-      <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+      <div className="text-center text-gray-500 dark:text-dark-400 py-12">
         <AlertCircle className="mx-auto mb-3" size={48} />
         <p className="text-lg font-medium mb-2">{error || 'Ticket nicht gefunden'}</p>
         <Button onClick={onBack} variant="ghost" className="text-accent-primary">
@@ -246,7 +246,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+      <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
         <div className="flex items-start gap-4">
           <IconButton
             icon={<ArrowLeft size={24} />}
@@ -255,7 +255,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
           />
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="text-sm font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+              <span className="text-sm font-mono text-gray-500 dark:text-dark-400 bg-gray-100 dark:bg-dark-200 px-2 py-0.5 rounded">
                 {ticket.ticketNumber}
               </span>
               <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${status.color}`}>
@@ -269,14 +269,14 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
             <h1 className="text-xl font-bold text-gray-900 dark:text-white break-words">
               {ticket.title}
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
               Erstellt am {formatDate(ticket.createdAt)}
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-dark-border">
           {canClose && (
             <Button
               onClick={handleCloseTicket}
@@ -307,7 +307,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
             Wie zufrieden waren Sie mit unserem Support?
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          <p className="text-sm text-gray-600 dark:text-dark-400 mb-4">
             Ihre Bewertung hilft uns, unseren Service zu verbessern.
           </p>
 
@@ -319,10 +319,10 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                 onClick={() => setRating(star)}
                 variant={star <= rating ? 'warning' : 'default'}
                 tooltip={['', 'Sehr schlecht', 'Schlecht', 'OK', 'Gut', 'Sehr gut'][star]}
-                className={star <= rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600 hover:text-yellow-300'}
+                className={star <= rating ? 'text-yellow-400' : 'text-gray-300 dark:text-dark-400 hover:text-yellow-300'}
               />
             ))}
-            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+            <span className="ml-2 text-sm text-gray-500 dark:text-dark-400">
               {rating > 0 && ['', 'Sehr schlecht', 'Schlecht', 'OK', 'Gut', 'Sehr gut'][rating]}
             </span>
           </div>
@@ -332,7 +332,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
             onChange={(e) => setRatingFeedback(e.target.value)}
             placeholder="Optionales Feedback..."
             rows={2}
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary mb-3"
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary mb-3"
           />
 
           <div className="flex gap-2">
@@ -356,8 +356,8 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
 
       {/* Description */}
       {ticket.description && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wide mb-3">
             Beschreibung
           </h3>
           <div className="text-gray-900 dark:text-white leading-relaxed">
@@ -367,9 +367,9 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
       )}
 
       {/* Attachments */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+      <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wide">
             Anhänge ({attachments.length})
           </h3>
           {canComment && (
@@ -390,7 +390,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
         </div>
 
         {attachments.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+          <p className="text-gray-500 dark:text-dark-400 text-center py-4">
             Keine Anhänge vorhanden
           </p>
         ) : (
@@ -398,7 +398,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
             {/* Image attachments with preview */}
             {attachments.filter(a => a.mimeType?.startsWith('image/')).length > 0 && (
               <div className="mb-4">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Bilder</p>
+                <p className="text-xs text-gray-500 dark:text-dark-400 mb-2">Bilder</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {attachments.filter(a => a.mimeType?.startsWith('image/')).map((attachment) => (
                     <div key={attachment.id} className="relative group">
@@ -406,7 +406,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                         href={getAbsoluteFileUrl(attachment.fileUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700"
+                        className="block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-dark-200"
                       >
                         <img
                           src={getAbsoluteFileUrl(attachment.fileUrl)}
@@ -432,7 +432,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                           className="p-2 bg-white/20 hover:bg-red-500/50 rounded-full text-white"
                         />
                       </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
+                      <p className="mt-1 text-xs text-gray-500 dark:text-dark-400 truncate">
                         {attachment.filename}
                       </p>
                     </div>
@@ -445,7 +445,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
             {attachments.filter(a => !a.mimeType?.startsWith('image/')).length > 0 && (
               <div>
                 {attachments.filter(a => a.mimeType?.startsWith('image/')).length > 0 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Dokumente</p>
+                  <p className="text-xs text-gray-500 dark:text-dark-400 mb-2">Dokumente</p>
                 )}
                 <div className="grid gap-2">
                   {attachments.filter(a => !a.mimeType?.startsWith('image/')).map((attachment) => {
@@ -453,14 +453,14 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                     return (
                       <div
                         key={attachment.id}
-                        className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg group"
+                        className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-200/50 rounded-lg group"
                       >
                         <FileIcon size={20} className="text-gray-400 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                             {attachment.filename}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-gray-500 dark:text-dark-400">
                             {formatFileSize(attachment.fileSize)} • {attachment.uploadedByName}
                           </p>
                         </div>
@@ -493,14 +493,14 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
       </div>
 
       {/* Comments / Communication */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
-        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
+      <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
+        <h3 className="text-sm font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wide mb-4">
           Kommunikation ({(ticket.comments || []).length})
         </h3>
 
         <div className="space-y-4 mb-6">
           {(ticket.comments || []).length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+            <p className="text-gray-500 dark:text-dark-400 text-center py-8">
               Noch keine Nachrichten vorhanden
             </p>
           ) : (
@@ -513,11 +513,11 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                   className={`max-w-[85%] p-4 rounded-2xl ${
                     comment.isFromCustomer
                       ? 'bg-accent-primary text-white rounded-br-md'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-md'
+                      : 'bg-gray-100 dark:bg-dark-200 text-gray-900 dark:text-white rounded-bl-md'
                   }`}
                 >
                   <div className={`flex items-center gap-2 mb-1 ${
-                    comment.isFromCustomer ? 'text-accent-primary' : 'text-gray-500 dark:text-gray-400'
+                    comment.isFromCustomer ? 'text-accent-primary' : 'text-gray-500 dark:text-dark-400'
                   }`}>
                     <User size={12} />
                     <span className="text-xs font-medium">{comment.authorName}</span>
@@ -535,7 +535,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
 
         {/* Add Comment */}
         {canComment ? (
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-3">
+          <div className="border-t border-gray-200 dark:border-dark-border pt-4 space-y-3">
             <MarkdownEditor
               value={newComment}
               onChange={setNewComment}
@@ -543,7 +543,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
               rows={3}
             />
             <div className="flex items-center justify-between">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500 dark:text-dark-400">
                 Markdown unterstützt • Strg+Enter zum Senden
               </p>
               <Button
@@ -559,8 +559,8 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
             </div>
           </div>
         ) : (
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 text-center">
-            <p className="text-gray-500 dark:text-gray-400">
+          <div className="border-t border-gray-200 dark:border-dark-border pt-4 text-center">
+            <p className="text-gray-500 dark:text-dark-400">
               {ticket.status === 'closed'
                 ? 'Dieses Ticket ist geschlossen. Öffnen Sie es erneut, um zu antworten.'
                 : 'Keine weiteren Nachrichten möglich.'}

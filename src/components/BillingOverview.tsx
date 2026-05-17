@@ -79,7 +79,7 @@ export const BillingOverview = ({
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Abrechnungsübersicht
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-dark-400">
             {periodName}
           </p>
         </div>
@@ -125,17 +125,17 @@ export const BillingOverview = ({
       {/* Top Customers Quick List */}
       {stats.topCustomers.length > 0 && (
         <Card className="rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
             <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <TrendingUp size={18} className="text-orange-500" />
               Top offene Abrechnungen
             </h3>
           </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          <div className="divide-y divide-gray-100 dark:divide-dark-border">
             {stats.topCustomers.map(customer => (
               <div
                 key={customer.customerId}
-                className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-2 h-10 rounded-full ${
@@ -145,7 +145,7 @@ export const BillingOverview = ({
                     <p className="font-medium text-gray-900 dark:text-white">
                       {customer.customerName}
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500 dark:text-dark-400">
                       {formatHours(customer.roundedHours || customer.totalHours)} • {customer.entryCount} Einträge
                     </p>
                   </div>

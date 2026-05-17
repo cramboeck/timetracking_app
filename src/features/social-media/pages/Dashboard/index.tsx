@@ -92,58 +92,58 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
               <Send size={20} className="text-accent-primary dark:text-accent-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.total}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Gesamt Posts</p>
+              <p className="text-sm text-gray-500 dark:text-dark-400">Gesamt Posts</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
               <Clock size={20} className="text-yellow-600 dark:text-yellow-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.scheduled}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Geplant</p>
+              <p className="text-sm text-gray-500 dark:text-dark-400">Geplant</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
               <CheckCircle size={20} className="text-green-600 dark:text-green-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.published}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Veröffentlicht</p>
+              <p className="text-sm text-gray-500 dark:text-dark-400">Veröffentlicht</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
               <TrendingUp size={20} className="text-purple-600 dark:text-purple-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.upcoming}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Diese Woche</p>
+              <p className="text-sm text-gray-500 dark:text-dark-400">Diese Woche</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Recent Posts */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
           <h2 className="font-semibold text-gray-800 dark:text-white">Letzte Posts</h2>
           <button
             onClick={() => setViewMode('library')}
@@ -152,9 +152,9 @@ export default function DashboardPage() {
             Alle anzeigen
           </button>
         </div>
-        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+        <div className="divide-y divide-gray-200 dark:divide-dark-border">
           {recentPosts.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+            <div className="p-8 text-center text-gray-500 dark:text-dark-400">
               <p>Noch keine Posts vorhanden.</p>
               <button
                 onClick={handleNewPost}
@@ -165,7 +165,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             recentPosts.map((post) => (
-              <div key={post.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <div key={post.id} className="p-4 hover:bg-gray-50 dark:hover:bg-dark-200/50">
                 <div className="flex items-start gap-3">
                   <div className="flex gap-1 mt-1">
                     {(post.platforms || []).map((platform) => (
@@ -181,13 +181,13 @@ export default function DashboardPage() {
                     <p className="text-gray-800 dark:text-white line-clamp-2">
                       {post.content}
                     </p>
-                    <div className="flex items-center gap-3 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center gap-3 mt-2 text-sm text-gray-500 dark:text-dark-400">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                         post.status === 'published'
                           ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                           : post.status === 'scheduled'
                           ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                          : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                          : 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500'
                       }`}>
                         {post.status === 'published' ? 'Veröffentlicht' :
                          post.status === 'scheduled' ? 'Geplant' : 'Entwurf'}

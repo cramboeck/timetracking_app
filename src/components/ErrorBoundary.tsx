@@ -110,14 +110,14 @@ Time: ${new Date().toISOString()}
               <h1 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                 Etwas ist schiefgelaufen
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
+              <p className="text-gray-600 dark:text-dark-400 text-sm">
                 Ein unerwarteter Fehler ist aufgetreten. Keine Sorge, Ihre Daten sind sicher.
               </p>
             </div>
 
             {/* Error Details (collapsible) */}
             <details className="group">
-              <summary className="px-6 py-3 bg-gray-50 dark:bg-dark-50 cursor-pointer flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+              <summary className="px-6 py-3 bg-gray-50 dark:bg-dark-50 cursor-pointer flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                 <Bug size={16} />
                 <span>Technische Details anzeigen</span>
               </summary>
@@ -181,7 +181,7 @@ Time: ${new Date().toISOString()}
 
             {/* Footer hint */}
             <div className="px-6 py-4 bg-gray-50 dark:bg-dark-50 border-t border-gray-100 dark:border-dark-200">
-              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+              <p className="text-xs text-gray-500 dark:text-dark-400 text-center">
                 Wenn das Problem weiterhin besteht, kontaktieren Sie bitte den Support.
               </p>
             </div>

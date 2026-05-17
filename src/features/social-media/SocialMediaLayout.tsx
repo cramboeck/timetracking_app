@@ -92,17 +92,17 @@ export default function SocialMediaLayout() {
   // Loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-dark-50">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="animate-spin text-pink-600" size={48} />
-          <p className="text-gray-600 dark:text-gray-400">Social Media Manager wird geladen...</p>
+          <p className="text-gray-600 dark:text-dark-400">Social Media Manager wird geladen...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-dark-50">
       {/* Error Banner */}
       {error && (
         <div className="bg-red-100 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800 px-4 py-3 flex items-center gap-2">
@@ -118,7 +118,7 @@ export default function SocialMediaLayout() {
       )}
 
       {/* Navigation */}
-      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4">
+      <nav className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-4">
         <div className="flex items-center gap-1 overflow-x-auto">
           {NAV_ITEMS.map((item) => (
             <button
@@ -127,7 +127,7 @@ export default function SocialMediaLayout() {
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                 viewMode === item.id
                   ? 'border-pink-600 text-pink-600'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-300'
+                  : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500 hover:border-gray-300'
               }`}
               title={item.description}
             >

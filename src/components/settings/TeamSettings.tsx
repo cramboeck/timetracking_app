@@ -111,7 +111,7 @@ export const TeamSettings = () => {
                       <select
                         value={member.role}
                         onChange={(e) => updateMemberRole(member.id, e.target.value as 'admin' | 'member' | 'viewer')}
-                        className="text-xs px-2 py-1 border border-gray-300 dark:border-dark-200 rounded bg-white dark:bg-dark-100 text-gray-700 dark:text-gray-300"
+                        className="text-xs px-2 py-1 border border-gray-300 dark:border-dark-200 rounded bg-white dark:bg-dark-100 text-gray-700 dark:text-dark-500"
                       >
                         <option value="admin">Admin</option>
                         <option value="member">Mitglied</option>

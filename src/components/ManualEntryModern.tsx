@@ -251,7 +251,7 @@ export const ManualEntryModern = ({
 
         {/* Time Range */}
         <Card className="rounded-2xl p-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-3">
             Zeitraum
           </label>
 
@@ -278,7 +278,7 @@ export const ManualEntryModern = ({
           {/* Duration: editable H:MM input, bidirectionally synced with time pickers */}
           <div className="mt-4">
             <div className="flex justify-between items-center mb-2 gap-3">
-              <span className="text-sm text-gray-500 dark:text-gray-400">Dauer</span>
+              <span className="text-sm text-gray-500 dark:text-dark-400">Dauer</span>
               <div className="flex items-baseline gap-2">
                 <input
                   type="text"
@@ -293,23 +293,23 @@ export const ManualEntryModern = ({
                     durationInputInvalid
                       ? 'border-red-500 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
                       : calculatedDuration > 0
-                      ? 'border-gray-300 dark:border-gray-600 text-green-600 dark:text-green-400 bg-white dark:bg-gray-800'
-                      : 'border-gray-300 dark:border-gray-600 text-gray-400 bg-white dark:bg-gray-800'
+                      ? 'border-gray-300 dark:border-dark-border text-green-600 dark:text-green-400 bg-white dark:bg-dark-100'
+                      : 'border-gray-300 dark:border-dark-border text-gray-400 bg-white dark:bg-dark-100'
                   }`}
                 />
                 {!durationInputInvalid && calculatedDuration > 0 && (
-                  <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                  <span className="text-xs text-gray-400 dark:text-dark-400 whitespace-nowrap">
                     ({formatDurationHuman(calculatedDuration)})
                   </span>
                 )}
               </div>
             </div>
-            <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div className="h-3 bg-gray-100 dark:bg-dark-200 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${
                   calculatedDuration > 0
                     ? 'bg-gradient-to-r from-green-400 to-green-600'
-                    : 'bg-gray-300 dark:bg-gray-600'
+                    : 'bg-gray-300 dark:bg-dark-300'
                 }`}
                 style={{ width: `${durationPercent}%` }}
               />
@@ -320,7 +320,7 @@ export const ManualEntryModern = ({
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
               <Zap size={14} className="text-amber-500" />
-              <span className="text-xs text-gray-500 dark:text-gray-400">Schnellauswahl</span>
+              <span className="text-xs text-gray-500 dark:text-dark-400">Schnellauswahl</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {durationPresets.map(preset => (
@@ -328,7 +328,7 @@ export const ManualEntryModern = ({
                   key={preset.label}
                   type="button"
                   onClick={() => applyDurationPreset(preset.minutes)}
-                  className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
                 >
                   {preset.label}
                 </button>
@@ -340,7 +340,7 @@ export const ManualEntryModern = ({
         {/* Project Selection */}
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Kunde
             </label>
             <SearchableSelect
@@ -354,7 +354,7 @@ export const ManualEntryModern = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Projekt *
             </label>
             <SearchableSelect
@@ -370,13 +370,13 @@ export const ManualEntryModern = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Tätigkeit
             </label>
             <select
               value={activityId}
               onChange={(e) => setActivityId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 transition-all"
+              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 transition-all"
             >
               <option value="">Keine Tätigkeit</option>
               {activities.map(activity => (
@@ -388,7 +388,7 @@ export const ManualEntryModern = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Beschreibung
             </label>
             <textarea
@@ -396,7 +396,7 @@ export const ManualEntryModern = ({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Was wurde gemacht?"
               rows={3}
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 resize-none transition-all"
+              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 resize-none transition-all"
             />
           </div>
         </div>

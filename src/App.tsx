@@ -1083,10 +1083,10 @@ function App() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Lädt...</p>
+          <p className="text-gray-600 dark:text-dark-400">Lädt...</p>
         </div>
       </div>
     );
@@ -1099,7 +1099,7 @@ function App() {
 
   // Authenticated - show main app
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 overflow-x-hidden">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-dark-50 overflow-x-hidden">
       {/* Offline Banner */}
       <OfflineBanner
         isOnline={isOnline}

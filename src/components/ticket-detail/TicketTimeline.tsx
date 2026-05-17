@@ -92,14 +92,14 @@ export const TicketTimeline = ({
   };
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
+    <div className="border border-gray-200 dark:border-dark-border rounded-lg">
       <button
         onClick={toggleExpanded}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-100/50 transition-colors"
       >
         <div className="flex items-center gap-2">
           <History size={16} className="text-gray-500" />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <span className="text-sm font-medium text-gray-700 dark:text-dark-500">
             Aktivitatsverlauf
           </span>
         </div>
@@ -109,31 +109,31 @@ export const TicketTimeline = ({
         />
       </button>
       {expanded && (
-        <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3">
+        <div className="border-t border-gray-200 dark:border-dark-border px-4 py-3">
           {loading ? (
             <div className="flex items-center justify-center py-4">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
             </div>
           ) : activities.length === 0 ? (
-            <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+            <div className="text-sm text-gray-500 dark:text-dark-400 text-center py-4">
               Keine Aktivitaten vorhanden
             </div>
           ) : (
             <div className="relative">
               {/* Timeline line */}
-              <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-gray-700" />
+              <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-dark-200" />
               <div className="space-y-3">
                 {activities.map((activity) => (
                   <div key={activity.id} className="relative flex items-start gap-3 pl-6">
                     {/* Timeline dot */}
-                    <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center">
+                    <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-gray-100 dark:bg-dark-200 border-2 border-gray-300 dark:border-dark-border flex items-center justify-center">
                       {getActivityIcon(activity.actionType)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-900 dark:text-white">
                         {getActivityLabel(activity)}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         {formatDate(activity.createdAt)}
                       </p>
                     </div>

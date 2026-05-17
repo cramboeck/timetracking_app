@@ -213,13 +213,13 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
       {/* View Mode Toggle */}
       <div className="flex-shrink-0 px-4 sm:px-6 pt-4 sm:pt-6">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-x-auto">
+          <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-dark-100 rounded-lg overflow-x-auto">
             <button
               onClick={() => handleViewModeChange('dashboard')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                 viewMode === 'dashboard'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <LayoutDashboard size={16} />
@@ -229,8 +229,8 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
               onClick={() => handleViewModeChange('list')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                 viewMode === 'list'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <List size={16} />
@@ -241,8 +241,8 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
               onClick={() => handleViewModeChange('kanban')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                 viewMode === 'kanban'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <Columns size={16} />
@@ -252,8 +252,8 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
               onClick={() => handleViewModeChange('tasks')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                 viewMode === 'tasks'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <CheckSquare size={16} />

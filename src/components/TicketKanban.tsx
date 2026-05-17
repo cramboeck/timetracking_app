@@ -40,7 +40,7 @@ const priorityConfig: Record<TicketPriority, { label: string; color: string; bor
   critical: { label: 'Kritisch', color: 'text-red-600', borderColor: 'border-l-red-500', bgColor: 'bg-red-50 dark:bg-red-900/20' },
   high: { label: 'Hoch', color: 'text-orange-500', borderColor: 'border-l-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/20' },
   normal: { label: 'Normal', color: 'text-accent-primary', borderColor: 'border-l-blue-400', bgColor: 'bg-accent-light dark:bg-accent-primary/20' },
-  low: { label: 'Niedrig', color: 'text-gray-500', borderColor: 'border-l-gray-400', bgColor: 'bg-gray-50 dark:bg-gray-800/50' },
+  low: { label: 'Niedrig', color: 'text-gray-500', borderColor: 'border-l-gray-400', bgColor: 'bg-gray-50 dark:bg-dark-100/50' },
 };
 
 const priorityOrder: TicketPriority[] = ['critical', 'high', 'normal', 'low'];
@@ -94,7 +94,7 @@ const TicketCard = memo(({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`p-3 bg-white dark:bg-gray-800 rounded-lg border-l-4 ${
+      className={`p-3 bg-white dark:bg-dark-100 rounded-lg border-l-4 ${
         priorityConfig[ticket.priority].borderColor
       } shadow-sm hover:shadow-md cursor-pointer transition-all ${
         isDragging ? 'opacity-50 scale-95 rotate-2' : ''
@@ -102,7 +102,7 @@ const TicketCard = memo(({
     >
       {/* Header: Ticket Number, Priority Icon, Assignee */}
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
+        <span className="text-xs font-mono text-gray-500 dark:text-dark-400">
           {ticket.ticketNumber}
         </span>
         <div className="flex items-center gap-1.5">
@@ -147,7 +147,7 @@ const TicketCard = memo(({
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-400">
+      <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-dark-400">
         <div className="flex items-center gap-1 min-w-0">
           <div
             className="w-2 h-2 rounded-full flex-shrink-0"
@@ -494,10 +494,10 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex-shrink-0 px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex-shrink-0 px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-dark-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500 dark:text-gray-400">
+            <span className="text-sm text-gray-500 dark:text-dark-400">
               {filteredTickets.length} Tickets
             </span>
             {hasActiveFilters && (
@@ -517,7 +517,7 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
               className={`p-2 rounded-lg transition-colors ${
                 groupByPriority
                   ? 'bg-accent-primary/10 text-accent-primary'
-                  : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-100'
               }`}
               title="Nach Priorität gruppieren"
             >
@@ -528,7 +528,7 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
               className={`p-2 rounded-lg transition-colors ${
                 showFilters || hasActiveFilters
                   ? 'bg-accent-primary/10 text-accent-primary'
-                  : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-100'
               }`}
               title="Filter"
             >
@@ -545,13 +545,13 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
 
         {/* Filters */}
         {showFilters && (
-          <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
             <div className="flex items-center gap-2">
               <Building2 size={14} className="text-gray-400" />
               <select
                 value={customerFilter}
                 onChange={(e) => setCustomerFilter(e.target.value)}
-                className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white"
+                className="px-2 py-1 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 text-xs text-gray-900 dark:text-white"
               >
                 <option value="">Alle Kunden</option>
                 {customers.map((customer) => (
@@ -567,7 +567,7 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
               <select
                 value={assigneeFilter}
                 onChange={(e) => setAssigneeFilter(e.target.value)}
-                className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white"
+                className="px-2 py-1 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 text-xs text-gray-900 dark:text-white"
               >
                 <option value="">Alle Bearbeiter</option>
                 {teamMembers.map((member) => (
@@ -583,7 +583,7 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
               <select
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value)}
-                className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white"
+                className="px-2 py-1 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 text-xs text-gray-900 dark:text-white"
               >
                 <option value="">Alle Prioritäten</option>
                 {priorityOrder.map((p) => (
@@ -616,7 +616,7 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
                   <span className="font-medium text-gray-900 dark:text-white">
                     {column.label}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white dark:bg-dark-100 text-gray-600 dark:text-dark-400">
                     {getColumnTickets(column.status).length}
                   </span>
                 </div>
@@ -625,10 +625,10 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
                 <div
                   ref={(el) => setColumnRef(column.status, el)}
                   onScroll={(e) => handleColumnScroll(column.status, e)}
-                  className={`flex-1 overflow-y-auto p-2 rounded-b-lg border border-t-0 border-gray-200 dark:border-gray-700 transition-colors ${
+                  className={`flex-1 overflow-y-auto p-2 rounded-b-lg border border-t-0 border-gray-200 dark:border-dark-border transition-colors ${
                     isDropTarget
                       ? 'bg-accent-primary/10 border-accent-primary ring-2 ring-accent-primary/20'
-                      : 'bg-gray-50 dark:bg-gray-800/50'
+                      : 'bg-gray-50 dark:bg-dark-100/50'
                   }`}
                 >
                   {groupByPriority ? (
@@ -656,7 +656,7 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
                             );
                           })}
                           {visibleData.total === 0 && (
-                            <div className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
+                            <div className="text-center py-8 text-gray-400 dark:text-dark-400 text-sm">
                               Keine Tickets
                             </div>
                           )}
@@ -693,7 +693,7 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
                         <div className="space-y-2">
                           {visibleData.tickets.map(renderTicketCard)}
                           {visibleData.total === 0 && (
-                            <div className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
+                            <div className="text-center py-8 text-gray-400 dark:text-dark-400 text-sm">
                               Keine Tickets
                             </div>
                           )}

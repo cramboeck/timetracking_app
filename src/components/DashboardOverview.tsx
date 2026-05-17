@@ -206,7 +206,7 @@ export const DashboardOverview = ({
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {greeting}
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-gray-500 dark:text-dark-400 mt-1">
             {new Date().toLocaleDateString('de-DE', {
               weekday: 'long',
               day: 'numeric',
@@ -300,8 +300,8 @@ export const DashboardOverview = ({
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Time Entries */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
             <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Clock size={18} className="text-accent-primary dark:text-accent-primary" />
               Letzte Zeiteinträge
@@ -314,15 +314,15 @@ export const DashboardOverview = ({
               <ArrowRight size={14} />
             </button>
           </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          <div className="divide-y divide-gray-100 dark:divide-dark-border">
             {recentEntries.length === 0 ? (
-              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+              <div className="p-8 text-center text-gray-500 dark:text-dark-400">
                 <Clock size={32} className="mx-auto mb-2 opacity-50" />
                 <p>Noch keine Zeiteinträge</p>
               </div>
             ) : (
               recentEntries.map(entry => (
-                <div key={entry.id} className="p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                <div key={entry.id} className="p-3 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors">
                   <div className="flex items-center gap-3">
                     <div
                       className="w-2 h-10 rounded-full"
@@ -332,7 +332,7 @@ export const DashboardOverview = ({
                       <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                         {entry.description || entry.projectName}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         {entry.customerName} • {entry.formattedDate}
                       </p>
                     </div>
@@ -340,7 +340,7 @@ export const DashboardOverview = ({
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">
                         {formatDuration(entry)}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         {entry.formattedStartTime} - {entry.formattedEndTime}
                       </p>
                     </div>
@@ -352,8 +352,8 @@ export const DashboardOverview = ({
         </div>
 
         {/* Open Tickets / Tasks */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
             <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Ticket size={18} className="text-orange-600 dark:text-orange-400" />
               Offene Tickets
@@ -366,9 +366,9 @@ export const DashboardOverview = ({
               <ArrowRight size={14} />
             </button>
           </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          <div className="divide-y divide-gray-100 dark:divide-dark-border">
             {tickets.filter(t => t.status !== 'resolved').length === 0 ? (
-              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+              <div className="p-8 text-center text-gray-500 dark:text-dark-400">
                 <CheckCircle2 size={32} className="mx-auto mb-2 text-green-500" />
                 <p>Alle Tickets erledigt!</p>
               </div>
@@ -386,7 +386,7 @@ export const DashboardOverview = ({
                     critical: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
                     high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
                     normal: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary',
-                    low: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+                    low: 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400',
                   };
                   const statusColors = {
                     open: 'bg-blue-500',
@@ -396,14 +396,14 @@ export const DashboardOverview = ({
                   };
 
                   return (
-                    <div key={ticket.id} className="p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div key={ticket.id} className="p-3 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className={`w-2 h-10 rounded-full ${statusColors[ticket.status]}`} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                             {ticket.title}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-gray-500 dark:text-dark-400">
                             {customer?.name || 'Unbekannt'} • {ticket.ticketNumber}
                           </p>
                         </div>
@@ -430,7 +430,7 @@ export const DashboardOverview = ({
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{weekStats.hours}h</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Diese Woche</p>
+              <p className="text-xs text-gray-500 dark:text-dark-400">Diese Woche</p>
             </div>
           </div>
         </Card>
@@ -442,7 +442,7 @@ export const DashboardOverview = ({
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{projects.filter(p => p.isActive).length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Aktive Projekte</p>
+              <p className="text-xs text-gray-500 dark:text-dark-400">Aktive Projekte</p>
             </div>
           </div>
         </Card>
@@ -454,7 +454,7 @@ export const DashboardOverview = ({
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{unbilledStats.count}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Offene Einträge</p>
+              <p className="text-xs text-gray-500 dark:text-dark-400">Offene Einträge</p>
             </div>
           </div>
         </Card>
@@ -464,7 +464,7 @@ export const DashboardOverview = ({
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
               ticketStats.critical > 0
                 ? 'bg-red-50 dark:bg-red-900/20'
-                : 'bg-gray-50 dark:bg-gray-700'
+                : 'bg-gray-50 dark:bg-dark-200'
             }`}>
               <AlertCircle size={20} className={
                 ticketStats.critical > 0
@@ -474,7 +474,7 @@ export const DashboardOverview = ({
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{ticketStats.critical}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Kritische Tickets</p>
+              <p className="text-xs text-gray-500 dark:text-dark-400">Kritische Tickets</p>
             </div>
           </div>
         </Card>

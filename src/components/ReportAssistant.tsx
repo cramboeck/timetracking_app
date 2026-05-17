@@ -1762,7 +1762,7 @@ export const ReportAssistant = ({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'saved':
-        return { label: 'Gespeichert', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', icon: Save };
+        return { label: 'Gespeichert', color: 'bg-gray-100 text-gray-700 dark:bg-dark-100 dark:text-dark-500', icon: Save };
       case 'pending':
         return { label: 'Wartet', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock };
       case 'approved':
@@ -1772,7 +1772,7 @@ export const ReportAssistant = ({
       case 'revision_requested':
         return { label: 'Änderung gewünscht', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400', icon: AlertCircle };
       case 'superseded':
-        return { label: 'Ersetzt', color: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500', icon: Archive };
+        return { label: 'Ersetzt', color: 'bg-gray-100 text-gray-500 dark:bg-dark-100 dark:text-dark-400', icon: Archive };
       default:
         return { label: status, color: 'bg-gray-100 text-gray-700', icon: AlertCircle };
     }
@@ -1871,7 +1871,7 @@ ${companyInfo?.phone || ''}`;
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 Report-Assistent
               </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 Professionelle Tätigkeitsnachweise erstellen
               </p>
             </div>
@@ -1888,7 +1888,7 @@ ${companyInfo?.phone || ''}`;
           <div className="flex flex-wrap gap-4 items-end">
             {/* Date Range Type */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">
                 Zeitraum
               </label>
               <div className="flex gap-1 flex-wrap">
@@ -1897,7 +1897,7 @@ ${companyInfo?.phone || ''}`;
                   className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
                     dateRangeType === 'month'
                       ? 'bg-accent-primary text-white border-accent-primary'
-                      : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-gray-300'
+                      : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-dark-500'
                   }`}
                 >
                   Monat
@@ -1907,7 +1907,7 @@ ${companyInfo?.phone || ''}`;
                   className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
                     dateRangeType === 'quarter'
                       ? 'bg-accent-primary text-white border-accent-primary'
-                      : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-gray-300'
+                      : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-dark-500'
                   }`}
                 >
                   Quartal
@@ -1917,7 +1917,7 @@ ${companyInfo?.phone || ''}`;
                   className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
                     dateRangeType === 'year'
                       ? 'bg-accent-primary text-white border-accent-primary'
-                      : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-gray-300'
+                      : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-dark-500'
                   }`}
                 >
                   Jahr
@@ -1927,7 +1927,7 @@ ${companyInfo?.phone || ''}`;
                   className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
                     dateRangeType === 'custom'
                       ? 'bg-accent-primary text-white border-accent-primary'
-                      : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-gray-300'
+                      : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-dark-500'
                   }`}
                 >
                   Frei
@@ -1938,7 +1938,7 @@ ${companyInfo?.phone || ''}`;
             {/* Date Range Selector based on type */}
             {dateRangeType === 'month' && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">
                   Monat wählen
                 </label>
                 <select
@@ -1955,7 +1955,7 @@ ${companyInfo?.phone || ''}`;
 
             {dateRangeType === 'quarter' && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">
                   Quartal wählen
                 </label>
                 <select
@@ -1972,7 +1972,7 @@ ${companyInfo?.phone || ''}`;
 
             {dateRangeType === 'year' && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">
                   Jahr wählen
                 </label>
                 <select
@@ -1990,7 +1990,7 @@ ${companyInfo?.phone || ''}`;
             {dateRangeType === 'custom' && (
               <>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">
                     Von
                   </label>
                   <input
@@ -2001,7 +2001,7 @@ ${companyInfo?.phone || ''}`;
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">
                     Bis
                   </label>
                   <input
@@ -2021,7 +2021,7 @@ ${companyInfo?.phone || ''}`;
                 className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors ${
                   showAmounts
                     ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700'
-                    : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-gray-300'
+                    : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-dark-500'
                 }`}
               >
                 <Euro size={14} />
@@ -2085,7 +2085,7 @@ ${companyInfo?.phone || ''}`;
                           <h3 className="font-semibold text-gray-900 dark:text-white">
                             {data.customer.name}
                           </h3>
-                          <div className="flex gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
+                          <div className="flex gap-4 mt-1 text-sm text-gray-600 dark:text-dark-400">
                             <span className="flex items-center gap-1">
                               <Clock size={14} />
                               {formatHoursMinutes(data.totalHours)}
@@ -2125,7 +2125,7 @@ ${companyInfo?.phone || ''}`;
                       Kopieren
                     </Button>
                   </div>
-                  <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono bg-white dark:bg-dark-100 p-3 rounded border border-gray-200 dark:border-dark-200">
+                  <pre className="text-sm text-gray-700 dark:text-dark-500 whitespace-pre-wrap font-mono bg-white dark:bg-dark-100 p-3 rounded border border-gray-200 dark:border-dark-200">
                     {emailTemplate}
                   </pre>
                 </div>
@@ -2146,7 +2146,7 @@ ${companyInfo?.phone || ''}`;
                     <h3 className="font-semibold text-gray-900 dark:text-white">
                       {pdfPreview.customerName}
                     </h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-500 dark:text-dark-400">
                       {formatDateRange(dateRange.start, dateRange.end)}
                     </p>
                   </div>
@@ -2161,7 +2161,7 @@ ${companyInfo?.phone || ''}`;
                         icon={<ChevronLeft size={20} />}
                         tooltip="Vorheriger"
                       />
-                      <span className="text-sm text-gray-600 dark:text-gray-300 min-w-[60px] text-center">
+                      <span className="text-sm text-gray-600 dark:text-dark-500 min-w-[60px] text-center">
                         {pdfPreview.currentIndex + 1} / {pdfPreview.totalCount}
                       </span>
                       <IconButton
@@ -2186,7 +2186,7 @@ ${companyInfo?.phone || ''}`;
                   <div className="w-full h-full flex items-center justify-center">
                     <div className="flex flex-col items-center gap-3">
                       <Loader2 size={40} className="animate-spin text-accent-primary" />
-                      <span className="text-gray-600 dark:text-gray-300">PDF wird generiert...</span>
+                      <span className="text-gray-600 dark:text-dark-500">PDF wird generiert...</span>
                     </div>
                   </div>
                 ) : pdfPreview.pdfUrl ? (
@@ -2198,8 +2198,8 @@ ${companyInfo?.phone || ''}`;
                     >
                       {/* Fallback message - buttons are below */}
                       <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
-                        <p className="text-gray-600 dark:text-gray-400 mb-2">PDF-Vorschau nicht verfügbar</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-500">Bitte Buttons unten verwenden</p>
+                        <p className="text-gray-600 dark:text-dark-400 mb-2">PDF-Vorschau nicht verfügbar</p>
+                        <p className="text-sm text-gray-500 dark:text-dark-400">Bitte Buttons unten verwenden</p>
                       </div>
                     </object>
                     {/* Action buttons - responsive for mobile */}
@@ -2388,7 +2388,7 @@ ${companyInfo?.phone || ''}`;
                       setSavedReportsFilter(newFilter);
                       loadSavedReports(newFilter);
                     }}
-                    className="px-3 py-1.5 text-sm border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-200 text-gray-700 dark:text-gray-300"
+                    className="px-3 py-1.5 text-sm border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-200 text-gray-700 dark:text-dark-500"
                   >
                     <option value="all">Alle Status</option>
                     <option value="saved">Gespeichert</option>
@@ -2411,7 +2411,7 @@ ${companyInfo?.phone || ''}`;
                     <Loader2 size={32} className="animate-spin text-accent-primary" />
                   </div>
                 ) : savedReports.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  <div className="text-center py-12 text-gray-500 dark:text-dark-400">
                     <Archive size={48} className="mx-auto mb-4 opacity-50" />
                     <p>Keine Reports für diesen Filter vorhanden</p>
                   </div>
@@ -2441,7 +2441,7 @@ ${companyInfo?.phone || ''}`;
                                 </span>
                               </div>
                               {/* Details row */}
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-dark-400">
                                 <span className="flex items-center gap-1">
                                   <Calendar size={14} />
                                   {new Date(report.start_date).toLocaleDateString('de-DE')} - {new Date(report.end_date).toLocaleDateString('de-DE')}
@@ -2453,7 +2453,7 @@ ${companyInfo?.phone || ''}`;
                                 <span>{report.entry_count} Einträge</span>
                               </div>
                               {/* Meta info */}
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-500 mt-1">
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-dark-400 mt-1">
                                 <span>
                                   Erstellt: {new Date(report.created_at).toLocaleDateString('de-DE', {
                                     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -2537,7 +2537,7 @@ ${companyInfo?.phone || ''}`;
 
               {/* Footer */}
               <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-200 flex justify-between items-center">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
+                <span className="text-sm text-gray-500 dark:text-dark-400">
                   {savedReports.length} Report(s)
                 </span>
                 <Button
@@ -2563,7 +2563,7 @@ ${companyInfo?.phone || ''}`;
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       PDF erstellen
                     </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500 dark:text-dark-400">
                       {pdfConfigModal.customerName}
                     </p>
                   </div>
@@ -2579,7 +2579,7 @@ ${companyInfo?.phone || ''}`;
               <div className="flex-1 overflow-auto p-6 space-y-6">
                 {/* Report Title */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Berichtstitel
                   </label>
                   <input
@@ -2593,7 +2593,7 @@ ${companyInfo?.phone || ''}`;
 
                 {/* Page Options */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Seiten erstellen
                   </label>
                   <div className="space-y-2">
@@ -2606,7 +2606,7 @@ ${companyInfo?.phone || ''}`;
                       />
                       <div>
                         <span className="text-gray-900 dark:text-white font-medium">Deckblatt</span>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Mit Zusammenfassung und Unterschriftsfeld</p>
+                        <p className="text-xs text-gray-500 dark:text-dark-400">Mit Zusammenfassung und Unterschriftsfeld</p>
                       </div>
                     </label>
                     <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-300 transition-colors">
@@ -2618,7 +2618,7 @@ ${companyInfo?.phone || ''}`;
                       />
                       <div>
                         <span className="text-gray-900 dark:text-white font-medium">Liste der Zeiteinträge</span>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Detaillierte Auflistung aller Einträge</p>
+                        <p className="text-xs text-gray-500 dark:text-dark-400">Detaillierte Auflistung aller Einträge</p>
                       </div>
                     </label>
                   </div>
@@ -2627,7 +2627,7 @@ ${companyInfo?.phone || ''}`;
                 {/* Column Selection - only show if time entries are included */}
                 {pdfConfig.includeTimeEntries && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                       Spalten anzeigen
                     </label>
                     <div className="grid grid-cols-2 gap-2">
@@ -2653,7 +2653,7 @@ ${companyInfo?.phone || ''}`;
                             }))}
                             className="w-4 h-4 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
                           />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                          <span className="text-sm text-gray-700 dark:text-dark-500">{label}</span>
                         </label>
                       ))}
                     </div>
@@ -2702,10 +2702,10 @@ ${companyInfo?.phone || ''}`;
               )}
 
               <div className="mb-4 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-gray-600 dark:text-dark-400">
                   <strong>{sendApprovalDialog.report.customer_name}</strong>
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-dark-400">
                   {new Date(sendApprovalDialog.report.start_date).toLocaleDateString('de-DE')} - {new Date(sendApprovalDialog.report.end_date).toLocaleDateString('de-DE')} | {sendApprovalDialog.report.total_hours.toFixed(2)}h
                 </p>
               </div>
@@ -2713,13 +2713,13 @@ ${companyInfo?.phone || ''}`;
               <div className="space-y-4">
                 {/* Contact Selection */}
                 {sendApprovalDialog.loadingContacts ? (
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                  <div className="text-sm text-gray-500 dark:text-dark-400">
                     <Loader2 size={16} className="inline animate-spin mr-2" />
                     Lade Kontakte...
                   </div>
                 ) : sendApprovalDialog.contacts.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       Kontakt auswählen
                     </label>
                     <select
@@ -2745,7 +2745,7 @@ ${companyInfo?.phone || ''}`;
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     E-Mail Adresse des Empfängers *
                   </label>
                   <input
@@ -2758,7 +2758,7 @@ ${companyInfo?.phone || ''}`;
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Name des Empfängers (optional)
                   </label>
                   <input
@@ -2780,7 +2780,7 @@ ${companyInfo?.phone || ''}`;
                     type="button"
                     onClick={() => setSendApprovalDialog(prev => ({ ...prev, testMode: !prev.testMode }))}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      sendApprovalDialog.testMode ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
+                      sendApprovalDialog.testMode ? 'bg-amber-500' : 'bg-gray-300 dark:bg-dark-300'
                     }`}
                   >
                     <span

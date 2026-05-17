@@ -28,8 +28,8 @@ const variantClasses: Record<ButtonVariant, string> = {
     bg-gray-100 hover:bg-gray-200 active:bg-gray-300
     text-gray-700 font-medium
     disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed
-    dark:bg-gray-700 dark:hover:bg-gray-600 dark:active:bg-gray-500
-    dark:text-gray-200 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-500
+    dark:bg-dark-200 dark:hover:bg-dark-300 dark:active:bg-dark-400
+    dark:text-dark-500 dark:disabled:bg-dark-200/50 dark:disabled:text-dark-400
   `,
   danger: `
     bg-red-600 hover:bg-red-700 active:bg-red-800
@@ -56,17 +56,17 @@ const variantClasses: Record<ButtonVariant, string> = {
     bg-transparent hover:bg-gray-100 active:bg-gray-200
     text-gray-700 font-medium
     disabled:text-gray-400 disabled:cursor-not-allowed
-    dark:hover:bg-gray-700 dark:active:bg-gray-600
-    dark:text-gray-300 dark:disabled:text-gray-500
+    dark:hover:bg-dark-200 dark:active:bg-dark-300
+    dark:text-dark-500 dark:disabled:text-dark-400
   `,
   outline: `
     bg-transparent hover:bg-gray-50 active:bg-gray-100
     text-gray-700 font-medium
     border border-gray-300
     disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed
-    dark:hover:bg-gray-800 dark:active:bg-gray-700
-    dark:text-gray-300 dark:border-gray-600
-    dark:disabled:text-gray-500 dark:disabled:border-gray-700
+    dark:hover:bg-dark-100 dark:active:bg-dark-200
+    dark:text-dark-500 dark:border-dark-border
+    dark:disabled:text-dark-400 dark:disabled:border-dark-border
   `,
 };
 
@@ -155,7 +155,7 @@ export const IconButton = ({
   const variantStyles: Record<IconButtonVariant, string> = {
     default: `
       text-gray-500 hover:text-gray-700 hover:bg-gray-100
-      dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700
+      dark:text-dark-400 dark:hover:text-dark-500 dark:hover:bg-dark-200
     `,
     primary: `
       text-accent-primary hover:bg-accent-primary/10
@@ -163,15 +163,15 @@ export const IconButton = ({
     `,
     danger: `
       text-gray-500 hover:text-red-600 hover:bg-red-50
-      dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-900/30
+      dark:text-dark-400 dark:hover:text-red-400 dark:hover:bg-red-900/30
     `,
     success: `
       text-gray-500 hover:text-green-600 hover:bg-green-50
-      dark:text-gray-400 dark:hover:text-green-400 dark:hover:bg-green-900/30
+      dark:text-dark-400 dark:hover:text-green-400 dark:hover:bg-green-900/30
     `,
     warning: `
       text-gray-500 hover:text-orange-600 hover:bg-orange-50
-      dark:text-gray-400 dark:hover:text-orange-400 dark:hover:bg-orange-900/30
+      dark:text-dark-400 dark:hover:text-orange-400 dark:hover:bg-orange-900/30
     `,
   };
 

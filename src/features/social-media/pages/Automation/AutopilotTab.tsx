@@ -189,7 +189,7 @@ export default function AutopilotTab() {
       {/* Settings */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* General Settings */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-4">
             <Settings size={20} className="text-pink-600" />
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -199,7 +199,7 @@ export default function AutopilotTab() {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Posts pro Woche
               </label>
               <input
@@ -213,12 +213,12 @@ export default function AutopilotTab() {
                     postsPerWeek: parseInt(e.target.value) || 1,
                   })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Freigabe-Modus
               </label>
               <select
@@ -229,7 +229,7 @@ export default function AutopilotTab() {
                     approvalMode: e.target.value as 'auto' | 'review',
                   })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               >
                 <option value="review">Zur Überprüfung</option>
                 <option value="auto">Automatisch veröffentlichen</option>
@@ -237,7 +237,7 @@ export default function AutopilotTab() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Plattformen
               </label>
               <div className="flex flex-wrap gap-2">
@@ -248,7 +248,7 @@ export default function AutopilotTab() {
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       settings.platforms.includes(platform)
                         ? `${PLATFORM_COLORS[platform]} text-white`
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                        : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                     }`}
                   >
                     {PLATFORM_ICONS[platform]}
@@ -261,7 +261,7 @@ export default function AutopilotTab() {
         </div>
 
         {/* Content Settings */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-4">
             <Target size={20} className="text-pink-600" />
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -271,7 +271,7 @@ export default function AutopilotTab() {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Zielgruppe
               </label>
               <input
@@ -281,12 +281,12 @@ export default function AutopilotTab() {
                   setSettings({ ...settings, targetAudience: e.target.value })
                 }
                 placeholder="z.B. Marketing Manager, Startups..."
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Markenstimme
               </label>
               <input
@@ -296,12 +296,12 @@ export default function AutopilotTab() {
                   setSettings({ ...settings, brandVoice: e.target.value })
                 }
                 placeholder="z.B. professionell, freundlich, innovativ..."
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Content-Themen
               </label>
               <div className="flex flex-wrap gap-2 mb-2">
@@ -327,12 +327,12 @@ export default function AutopilotTab() {
                   onChange={(e) => setNewTheme(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addTheme()}
                   placeholder="Neues Thema..."
-                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
                 <button
                   onClick={addTheme}
                   disabled={!newTheme.trim()}
-                  className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                  className="px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50"
                 >
                   <Plus size={18} />
                 </button>
@@ -342,7 +342,7 @@ export default function AutopilotTab() {
         </div>
 
         {/* Content Mix */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-4">
             <Users size={20} className="text-pink-600" />
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -362,8 +362,8 @@ export default function AutopilotTab() {
                 return (
                   <div key={key}>
                     <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-gray-700 dark:text-gray-300">{labels[key]}</span>
-                      <span className="text-gray-500 dark:text-gray-400">
+                      <span className="text-gray-700 dark:text-dark-500">{labels[key]}</span>
+                      <span className="text-gray-500 dark:text-dark-400">
                         {settings.contentMix[key]}%
                       </span>
                     </div>
@@ -391,7 +391,7 @@ export default function AutopilotTab() {
         </div>
 
         {/* Generate Now */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles size={20} className="text-pink-600" />
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -399,12 +399,12 @@ export default function AutopilotTab() {
             </h3>
           </div>
 
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
+          <p className="text-gray-600 dark:text-dark-400 mb-4">
             Generiere sofort neuen Content basierend auf deinen Einstellungen.
           </p>
 
           {settings.lastGenerated && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 flex items-center gap-1">
+            <p className="text-sm text-gray-500 dark:text-dark-400 mb-4 flex items-center gap-1">
               <Calendar size={14} />
               Zuletzt generiert:{' '}
               {new Date(settings.lastGenerated).toLocaleDateString('de-DE', {

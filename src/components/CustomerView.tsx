@@ -145,17 +145,17 @@ export const CustomerView = ({
       {/* Customer List - Left Panel */}
       <div className={`
         ${selectedCustomerId ? 'hidden lg:block lg:w-1/3 xl:w-1/4' : 'w-full'}
-        border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800
+        border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100
         flex flex-col
       `}>
         {/* Search Header */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-3">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <Building2 size={24} className="text-accent-primary dark:text-accent-primary" />
               Kunden
             </h1>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
+            <span className="text-sm text-gray-500 dark:text-dark-400">
               ({filteredCustomers.length})
             </span>
             {onCreateCustomer && (
@@ -177,8 +177,8 @@ export const CustomerView = ({
               placeholder="Suchen..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600
-                bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-dark-border
+                bg-gray-50 dark:bg-dark-200 text-gray-900 dark:text-white
                 focus:ring-2 focus:ring-accent-primary focus:border-transparent"
             />
           </div>
@@ -201,12 +201,12 @@ export const CustomerView = ({
         {/* Customer List */}
         <div className="flex-1 overflow-y-auto">
           {filteredCustomers.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+            <div className="p-8 text-center text-gray-500 dark:text-dark-400">
               <Users size={48} className="mx-auto mb-3 opacity-50" />
               <p>Keine Kunden gefunden</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            <div className="divide-y divide-gray-100 dark:divide-dark-border">
               {filteredCustomers.map(customer => {
                 const stats = getCustomerStats(customer.id);
                 const isSelected = selectedCustomerId === customer.id;
@@ -221,7 +221,7 @@ export const CustomerView = ({
                     className={`w-full p-4 text-left transition-colors ${
                       isSelected
                         ? 'bg-accent-light dark:bg-accent-primary/20 border-l-4 border-accent-primary'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 border-l-4 border-transparent'
+                        : 'hover:bg-gray-50 dark:hover:bg-dark-200/50 border-l-4 border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -235,7 +235,7 @@ export const CustomerView = ({
                         <p className="font-medium text-gray-900 dark:text-white truncate">
                           {customer.name}
                         </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-gray-500 dark:text-dark-400">
                           {stats.activeProjects} Projekte • {stats.totalHours}h
                         </p>
                       </div>
@@ -256,7 +256,7 @@ export const CustomerView = ({
 
       {/* Customer Detail - Right Panel */}
       {selectedCustomer && selectedStats ? (
-        <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+        <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-dark-50">
           {/* Back Button (Mobile) */}
           <Button
             onClick={() => setSelectedCustomerId(null)}
@@ -268,7 +268,7 @@ export const CustomerView = ({
           </Button>
 
           {/* Customer Header */}
-          <div className="bg-white dark:bg-gray-800 p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-dark-100 p-6 border-b border-gray-200 dark:border-dark-border">
             <div className="flex items-start gap-4">
               <div
                 className="w-16 h-16 rounded-xl flex items-center justify-center text-white font-bold text-2xl"
@@ -280,7 +280,7 @@ export const CustomerView = ({
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                   {selectedCustomer.name}
                 </h2>
-                <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-500 dark:text-dark-400">
                   {selectedCustomer.email && (
                     <span className="flex items-center gap-1">
                       <Mail size={14} />
@@ -344,16 +344,16 @@ export const CustomerView = ({
             {/* Two Column Content */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Recent Time Entries */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border">
+                <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
                   <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <Clock size={18} className="text-accent-primary dark:text-accent-primary" />
                     Letzte Zeiteinträge
                   </h3>
                 </div>
-                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                <div className="divide-y divide-gray-100 dark:divide-dark-border">
                   {recentEntries.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+                    <div className="p-6 text-center text-gray-500 dark:text-dark-400">
                       <Clock size={24} className="mx-auto mb-2 opacity-50" />
                       <p className="text-sm">Keine Einträge</p>
                     </div>
@@ -365,7 +365,7 @@ export const CustomerView = ({
                             <p className="text-sm font-medium text-gray-900 dark:text-white">
                               {entry.description || entry.projectName}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <p className="text-xs text-gray-500 dark:text-dark-400">
                               {new Date(entry.date).toLocaleDateString('de-DE')} • {entry.projectName}
                             </p>
                           </div>
@@ -380,16 +380,16 @@ export const CustomerView = ({
               </div>
 
               {/* Recent Tickets */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border">
+                <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
                   <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <Ticket size={18} className="text-orange-600 dark:text-orange-400" />
                     Tickets
                   </h3>
                 </div>
-                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                <div className="divide-y divide-gray-100 dark:divide-dark-border">
                   {recentTickets.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+                    <div className="p-6 text-center text-gray-500 dark:text-dark-400">
                       <CheckCircle2 size={24} className="mx-auto mb-2 text-green-500" />
                       <p className="text-sm">Keine Tickets</p>
                     </div>
@@ -415,11 +415,11 @@ export const CustomerView = ({
                             <p className="text-sm font-medium text-gray-900 dark:text-white flex-1 truncate">
                               {ticket.title}
                             </p>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                            <span className="text-xs text-gray-500 dark:text-dark-400">
                               {priorityLabels[ticket.priority]}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-4">
+                          <p className="text-xs text-gray-500 dark:text-dark-400 mt-1 ml-4">
                             {ticket.ticketNumber}
                           </p>
                         </div>
@@ -430,8 +430,8 @@ export const CustomerView = ({
               </div>
 
               {/* Projects List */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 lg:col-span-2">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border lg:col-span-2">
+                <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
                   <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <Target size={18} className="text-indigo-600 dark:text-indigo-400" />
                     Projekte
@@ -444,9 +444,9 @@ export const CustomerView = ({
                     Alle anzeigen
                   </Button>
                 </div>
-                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                <div className="divide-y divide-gray-100 dark:divide-dark-border">
                   {projects.filter(p => p.customerId === selectedCustomerId).length === 0 ? (
-                    <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+                    <div className="p-6 text-center text-gray-500 dark:text-dark-400">
                       <Target size={24} className="mx-auto mb-2 opacity-50" />
                       <p className="text-sm">Keine Projekte</p>
                     </div>
@@ -462,7 +462,7 @@ export const CustomerView = ({
                                 {project.name}
                               </p>
                               {project.hourlyRate && (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <p className="text-xs text-gray-500 dark:text-dark-400">
                                   {project.hourlyRate}€/h
                                 </p>
                               )}
@@ -471,7 +471,7 @@ export const CustomerView = ({
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             project.isActive
                               ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                              : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                           }`}>
                             {project.isActive ? 'Aktiv' : 'Inaktiv'}
                           </span>
@@ -485,8 +485,8 @@ export const CustomerView = ({
         </div>
       ) : (
         !selectedCustomerId && (
-          <div className="hidden lg:flex flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900">
-            <div className="text-center text-gray-500 dark:text-gray-400">
+          <div className="hidden lg:flex flex-1 items-center justify-center bg-gray-50 dark:bg-dark-50">
+            <div className="text-center text-gray-500 dark:text-dark-400">
               <Building2 size={64} className="mx-auto mb-4 opacity-30" />
               <p className="text-lg">Wählen Sie einen Kunden</p>
               <p className="text-sm mt-1">um Details anzuzeigen</p>

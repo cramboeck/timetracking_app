@@ -117,7 +117,7 @@ export const SlaStatus = ({
 
   // Full version for detail view
   return (
-    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-3">
+    <div className="bg-gray-50 dark:bg-dark-100 rounded-lg p-4 space-y-3">
       <h4 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
         <Clock size={16} />
         SLA-Status
@@ -126,7 +126,7 @@ export const SlaStatus = ({
       {/* First Response SLA */}
       {firstResponseDue && (
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600 dark:text-gray-400">Erste Antwort:</span>
+          <span className="text-sm text-gray-600 dark:text-dark-400">Erste Antwort:</span>
           {firstResponseDone ? (
             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
               slaFirstResponseBreached ? colorClasses.breached : colorClasses.ok
@@ -182,7 +182,7 @@ export const SlaStatus = ({
       {/* Resolution SLA */}
       {resolutionDue && (
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600 dark:text-gray-400">Lösung:</span>
+          <span className="text-sm text-gray-600 dark:text-dark-400">Lösung:</span>
           {isResolved ? (
             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
               slaResolutionBreached ? colorClasses.breached : colorClasses.ok
@@ -220,7 +220,7 @@ export const SlaStatus = ({
       )}
 
       {/* Due dates */}
-      <div className="text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700">
+      <div className="text-xs text-gray-500 dark:text-dark-400 pt-2 border-t border-gray-200 dark:border-dark-border">
         {firstResponseDue && (
           <div>Antwort fällig: {firstResponseDue.toLocaleString('de-DE')}</div>
         )}

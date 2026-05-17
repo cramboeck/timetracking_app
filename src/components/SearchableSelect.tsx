@@ -194,7 +194,7 @@ export const SearchableSelect = ({
       {isOpen && (
         <div className="absolute z-50 w-full mt-1 bg-white dark:bg-dark-100 border border-gray-300 dark:border-dark-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
           {filteredOptions.length === 0 ? (
-            <div className="px-4 py-3 text-gray-500 dark:text-gray-400 text-center">
+            <div className="px-4 py-3 text-gray-500 dark:text-dark-400 text-center">
               {emptyMessage}
             </div>
           ) : (
@@ -219,7 +219,7 @@ export const SearchableSelect = ({
                   {option.label}
                 </div>
                 {option.sublabel && (
-                  <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                  <div className="text-sm text-gray-500 dark:text-dark-400 truncate">
                     {option.sublabel}
                   </div>
                 )}

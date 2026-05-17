@@ -41,10 +41,10 @@ export const ReportsPage = ({
   ).size;
 
   return (
-    <div className="h-full overflow-auto bg-gray-50 dark:bg-gray-900">
+    <div className="h-full overflow-auto bg-gray-50 dark:bg-dark-50">
       <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
         {/* Header */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-3 bg-accent-lighter dark:bg-accent-primary/30 rounded-xl">
               <FileText className="w-6 h-6 text-accent-primary dark:text-accent-primary" />
@@ -53,7 +53,7 @@ export const ReportsPage = ({
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                 Berichte & Reports
               </h1>
-              <p className="text-gray-500 dark:text-gray-400">
+              <p className="text-gray-500 dark:text-dark-400">
                 Erstelle professionelle Tatigkeitsnachweise und Abrechnungen
               </p>
             </div>
@@ -72,8 +72,8 @@ export const ReportsPage = ({
 
         {/* Quick Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
+          <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400 mb-1">
               <Calendar size={16} />
               <span className="text-sm">Dieser Monat</span>
             </div>
@@ -82,8 +82,8 @@ export const ReportsPage = ({
             </p>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
+          <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400 mb-1">
               <TrendingUp size={16} />
               <span className="text-sm">Eintrage</span>
             </div>
@@ -92,8 +92,8 @@ export const ReportsPage = ({
             </p>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
+          <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400 mb-1">
               <Users size={16} />
               <span className="text-sm">Aktive Projekte</span>
             </div>
@@ -102,8 +102,8 @@ export const ReportsPage = ({
             </p>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
+          <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400 mb-1">
               <PieChart size={16} />
               <span className="text-sm">Kunden</span>
             </div>
@@ -114,11 +114,11 @@ export const ReportsPage = ({
         </div>
 
         {/* Features */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Report-Funktionen
           </h2>
-          <ul className="space-y-3 text-gray-600 dark:text-gray-300">
+          <ul className="space-y-3 text-gray-600 dark:text-dark-500">
             <li className="flex items-start gap-2">
               <span className="text-green-500 mt-0.5">&#10003;</span>
               PDF-Tatigkeitsnachweise pro Kunde erstellen

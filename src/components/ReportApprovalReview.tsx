@@ -158,7 +158,7 @@ export const ReportApprovalReview = () => {
           {approval.comment && (
             <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-4 mb-6">
               <h3 className="font-medium text-gray-900 dark:text-white mb-2">Kommentar:</h3>
-              <p className="text-gray-700 dark:text-gray-300">{approval.comment}</p>
+              <p className="text-gray-700 dark:text-dark-500">{approval.comment}</p>
             </div>
           )}
 
@@ -296,7 +296,7 @@ export const ReportApprovalReview = () => {
                       <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">
                         {new Date(entry.startTime || entry.date).toLocaleDateString('de-DE')}
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-700 dark:text-gray-300">
+                      <td className="py-3 px-4 text-sm text-gray-700 dark:text-dark-500">
                         {entry.description || entry.activityName || '-'}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-900 dark:text-white text-right">
@@ -326,7 +326,7 @@ export const ReportApprovalReview = () => {
         {showRevisionForm && (
           <div className="bg-white dark:bg-dark-100 rounded-lg shadow-lg p-8 mb-6">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Änderungswünsche</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-sm text-gray-600 dark:text-dark-400 mb-4">
               Beschreiben Sie, welche Änderungen am Report vorgenommen werden sollen:
             </p>
             <textarea
@@ -339,7 +339,7 @@ export const ReportApprovalReview = () => {
             <div className="flex gap-3 mt-4">
               <button
                 onClick={() => setShowRevisionForm(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors"
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg text-gray-700 dark:text-dark-500 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors"
               >
                 Abbrechen
               </button>

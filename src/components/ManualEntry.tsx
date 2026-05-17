@@ -197,7 +197,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Datum
             </label>
             <div className="relative">
@@ -221,7 +221,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Von
               </label>
               <TimePicker
@@ -231,7 +231,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Bis
               </label>
               <TimePicker
@@ -246,7 +246,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
           <div className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg ${
             calculatedDuration > 0
               ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-              : 'bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-gray-400'
+              : 'bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400'
           }`}>
             <Clock size={18} />
             <span className="font-medium">
@@ -261,7 +261,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
 
           {/* Customer Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Kunde
             </label>
             <SearchableSelect
@@ -276,7 +276,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
 
           {/* Project Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Projekt *
             </label>
             <SearchableSelect
@@ -290,7 +290,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
               allowClear={false}
             />
             {activeProjects.length === 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+              <p className="text-sm text-gray-500 dark:text-dark-400 mt-2">
                 Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
               </p>
             )}

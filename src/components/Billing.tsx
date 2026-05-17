@@ -255,22 +255,22 @@ export const Billing = ({ onBack }: BillingProps) => {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
             Abrechnung & Rechnungen
           </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+          <p className="text-gray-600 dark:text-dark-400 mb-6 max-w-md mx-auto">
             Mit dem Billing-Modul kannst du Zeiteinträge direkt in Rechnungen umwandeln,
             sevDesk-Integration nutzen und deine Abrechnungen professionell verwalten.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 max-w-lg mx-auto text-left">
-            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-dark-100/50 rounded-lg">
               <CreditCard size={20} className="text-accent-primary flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-700 dark:text-gray-300">Direkte Rechnungserstellung</span>
+              <span className="text-sm text-gray-700 dark:text-dark-500">Direkte Rechnungserstellung</span>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-dark-100/50 rounded-lg">
               <FileText size={20} className="text-accent-primary flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-700 dark:text-gray-300">sevDesk Integration</span>
+              <span className="text-sm text-gray-700 dark:text-dark-500">sevDesk Integration</span>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-dark-100/50 rounded-lg">
               <Clock size={20} className="text-accent-primary flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-700 dark:text-gray-300">Abrechnungs-übersicht</span>
+              <span className="text-sm text-gray-700 dark:text-dark-500">Abrechnungs-übersicht</span>
             </div>
           </div>
           <a
@@ -314,7 +314,7 @@ export const Billing = ({ onBack }: BillingProps) => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Abrechnung</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 Zeiteinträge exportieren und Rechnungen erstellen
               </p>
             </div>
@@ -356,7 +356,7 @@ export const Billing = ({ onBack }: BillingProps) => {
       )}
 
       {/* Month Selector */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg p-4">
         <div className="flex items-center justify-between">
           <IconButton
             onClick={handlePrevMonth}
@@ -365,7 +365,7 @@ export const Billing = ({ onBack }: BillingProps) => {
             tooltip="Vorheriger Monat"
           />
           <div className="flex items-center gap-2">
-            <Calendar size={20} className="text-gray-500 dark:text-gray-400" />
+            <Calendar size={20} className="text-gray-500 dark:text-dark-400" />
             <span className="text-lg font-semibold text-gray-900 dark:text-white">
               {monthName}
             </span>
@@ -380,8 +380,8 @@ export const Billing = ({ onBack }: BillingProps) => {
       </div>
 
       {/* Billing Summary */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
           <h3 className="font-semibold text-gray-900 dark:text-white">
             Nicht abgerechnete Zeiten
           </h3>
@@ -406,12 +406,12 @@ export const Billing = ({ onBack }: BillingProps) => {
         </div>
 
         {billingSummary.length === 0 ? (
-          <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          <div className="p-8 text-center text-gray-500 dark:text-dark-400">
             <Clock size={48} className="mx-auto mb-4 opacity-50" />
             <p>Keine nicht abgerechneten Zeiten für {monthName}</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="divide-y divide-gray-200 dark:divide-dark-border">
             {billingSummary.map((customer) => (
               <div
                 key={customer.customerId}
@@ -452,12 +452,12 @@ export const Billing = ({ onBack }: BillingProps) => {
                     </div>
 
                     {/* Entries Summary */}
-                    <div className="text-sm text-gray-500 dark:text-gray-400 space-y-1">
+                    <div className="text-sm text-gray-500 dark:text-dark-400 space-y-1">
                       {customer.entries.slice(0, 3).map((entry, idx) => (
                         <div key={idx} className="flex items-center gap-2">
                           <span className="text-gray-400">•</span>
                           {entry.ticketNumber && (
-                            <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">
+                            <span className="font-mono text-xs bg-gray-100 dark:bg-dark-200 px-1 rounded">
                               {entry.ticketNumber}
                             </span>
                           )}
@@ -521,9 +521,9 @@ export const Billing = ({ onBack }: BillingProps) => {
 
         {/* Selection Summary */}
         {selectedCustomers.size > 0 && (
-          <div className="p-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
+          <div className="p-4 bg-gray-50 dark:bg-dark-50 border-t border-gray-200 dark:border-dark-border">
             <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="text-sm text-gray-600 dark:text-dark-400">
                 {selectedCustomers.size} Kunde(n) ausgewählt
               </div>
               <div className="text-right">
@@ -540,8 +540,8 @@ export const Billing = ({ onBack }: BillingProps) => {
       </div>
 
       {/* Recent Exports - Toggle to show/hide */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
           <h3 className="font-semibold text-gray-900 dark:text-white">
             Erledigte Abrechnungen ({invoiceExports.length})
           </h3>
@@ -558,15 +558,15 @@ export const Billing = ({ onBack }: BillingProps) => {
 
         {showCompleted && (
           invoiceExports.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+            <div className="p-8 text-center text-gray-500 dark:text-dark-400">
               <FileText size={48} className="mx-auto mb-4 opacity-50" />
               <p>Keine erledigten Abrechnungen für {monthName}</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            <div className="divide-y divide-gray-200 dark:divide-dark-border">
               {invoiceExports.map((exp) => (
                 <div key={exp.id} className="p-4 flex items-center gap-4">
-                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                  <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg">
                     <FileText size={20} className="text-gray-500" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -591,7 +591,7 @@ export const Billing = ({ onBack }: BillingProps) => {
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                         : exp.status === 'sent'
                         ? 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary'
-                        : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400'
+                        : 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-400'
                     }`}>
                       {exp.status === 'paid' ? 'Bezahlt' : exp.status === 'sent' ? 'Versendet' : 'Entwurf'}
                     </span>

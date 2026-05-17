@@ -114,7 +114,7 @@ export const TicketComments = ({
 
   return (
     <div>
-      <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+      <h2 className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
         Kommentare ({comments.length})
       </h2>
       <div className="space-y-3">
@@ -124,7 +124,7 @@ export const TicketComments = ({
             className={`p-3 rounded-lg ${
               comment.isInternal
                 ? 'bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800'
-                : 'bg-gray-50 dark:bg-gray-800'
+                : 'bg-gray-50 dark:bg-dark-100'
             }`}
           >
             <div className="flex items-center gap-2 mb-1">
@@ -132,7 +132,7 @@ export const TicketComments = ({
               <span className="text-sm font-medium text-gray-900 dark:text-white">
                 {comment.authorName || 'Unbekannt'}
               </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+              <span className="text-xs text-gray-500 dark:text-dark-400">
                 {formatDate(comment.createdAt)}
               </span>
               {comment.isInternal && (
@@ -158,7 +158,7 @@ export const TicketComments = ({
           />
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-3 flex-wrap">
-              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400">
                 <input
                   type="checkbox"
                   checked={isInternal}
@@ -170,7 +170,7 @@ export const TicketComments = ({
               {/* Email notification options - show when ticket has contact, email address, or customer */}
               {!isInternal && (ticket.contactId || ticket.emailFrom || ticket.customerId) && (
                 <>
-                  <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400">
                     <input
                       type="checkbox"
                       checked={notifyCustomer}
@@ -199,7 +199,7 @@ export const TicketComments = ({
                 <div className="relative" ref={cannedDropdownRef}>
                   <button
                     onClick={() => setShowCannedDropdown(!showCannedDropdown)}
-                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded"
                     title="Textbaustein einfugen"
                   >
                     <MessageSquare size={14} />
@@ -207,12 +207,12 @@ export const TicketComments = ({
                     <ChevronDown size={12} />
                   </button>
                   {showCannedDropdown && (
-                    <div className="absolute left-0 bottom-full mb-1 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-60 overflow-y-auto">
+                    <div className="absolute left-0 bottom-full mb-1 w-64 bg-white dark:bg-dark-100 rounded-lg shadow-lg border border-gray-200 dark:border-dark-border z-50 max-h-60 overflow-y-auto">
                       {cannedResponses.map(response => (
                         <button
                           key={response.id}
                           onClick={() => handleUseCannedResponse(response)}
-                          className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-0"
+                          className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-dark-200 border-b border-gray-100 dark:border-dark-border last:border-0"
                         >
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -224,7 +224,7 @@ export const TicketComments = ({
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                          <p className="text-xs text-gray-500 dark:text-dark-400 mt-0.5 line-clamp-2">
                             {response.content}
                           </p>
                         </button>

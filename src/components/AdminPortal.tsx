@@ -693,7 +693,7 @@ export default function AdminPortal() {
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
           Zugriff verweigert
         </h1>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600 dark:text-dark-400">
           Du hast keine Berechtigung für den Admin-Bereich.
         </p>
       </div>
@@ -701,9 +701,9 @@ export default function AdminPortal() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-dark-50">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
+      <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-4 sm:px-6 py-4">
         <div className="flex items-center gap-3">
           <Shield className="text-purple-600" size={28} />
           <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Admin Portal</h1>
@@ -727,14 +727,14 @@ export default function AdminPortal() {
       )}
 
       {/* Tabs */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+      <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border overflow-x-auto">
         <div className="flex gap-1 px-4 min-w-max">
           <button
             onClick={() => setActiveTab('dashboard')}
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'dashboard'
                 ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
             <BarChart3 size={18} />
@@ -745,7 +745,7 @@ export default function AdminPortal() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'users'
                 ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
             <Users size={18} />
@@ -756,7 +756,7 @@ export default function AdminPortal() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'features'
                 ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
             <Package size={18} />
@@ -767,7 +767,7 @@ export default function AdminPortal() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'audit'
                 ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
             <Clock size={18} />
@@ -778,7 +778,7 @@ export default function AdminPortal() {
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'backup'
                 ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
             <HardDrive size={18} />
@@ -789,7 +789,7 @@ export default function AdminPortal() {
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'system'
                 ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
             <Activity size={18} />
@@ -800,7 +800,7 @@ export default function AdminPortal() {
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'database'
                 ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
             <Database size={18} />
@@ -811,7 +811,7 @@ export default function AdminPortal() {
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'security'
                 ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
             <Lock size={18} />
@@ -822,7 +822,7 @@ export default function AdminPortal() {
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'logs'
                 ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
             <Terminal size={18} />
@@ -833,7 +833,7 @@ export default function AdminPortal() {
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'notifications'
                 ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
             <Bell size={18} />
@@ -844,7 +844,7 @@ export default function AdminPortal() {
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'email'
                 ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
             <Mail size={18} />
@@ -864,49 +864,49 @@ export default function AdminPortal() {
               </div>
             ) : stats ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                   <div className="flex items-center gap-3">
                     <div className="p-3 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
                       <Users className="text-accent-primary dark:text-accent-primary" size={24} />
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Benutzer gesamt</p>
+                      <p className="text-sm text-gray-500 dark:text-dark-400">Benutzer gesamt</p>
                       <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.totalUsers}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                   <div className="flex items-center gap-3">
                     <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
                       <CheckCircle className="text-green-600 dark:text-green-400" size={24} />
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Aktive Benutzer</p>
+                      <p className="text-sm text-gray-500 dark:text-dark-400">Aktive Benutzer</p>
                       <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.activeUsers}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                   <div className="flex items-center gap-3">
                     <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
                       <Clock className="text-purple-600 dark:text-purple-400" size={24} />
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Zeiteinträge</p>
+                      <p className="text-sm text-gray-500 dark:text-dark-400">Zeiteinträge</p>
                       <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.totalEntries.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                   <div className="flex items-center gap-3">
                     <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
                       <Database className="text-orange-600 dark:text-orange-400" size={24} />
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Projekte</p>
+                      <p className="text-sm text-gray-500 dark:text-dark-400">Projekte</p>
                       <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.totalProjects}</p>
                     </div>
                   </div>
@@ -930,12 +930,12 @@ export default function AdminPortal() {
                   setUsersSearch(e.target.value);
                   setUsersPage(1);
                 }}
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
             </div>
 
             {/* Users Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
               {usersLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="animate-spin text-purple-600" size={32} />
@@ -943,23 +943,23 @@ export default function AdminPortal() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
+                    <thead className="bg-gray-50 dark:bg-dark-200">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Benutzer</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Rolle</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Einträge</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Letzter Login</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Erstellt</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Aktionen</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Benutzer</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Rolle</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Einträge</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Letzter Login</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Erstellt</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Aktionen</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                       {users.map(user => (
-                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-dark-200/50">
                           <td className="px-4 py-3">
                             <div>
                               <p className="font-medium text-gray-800 dark:text-white">{user.username}</p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
+                              <p className="text-sm text-gray-500 dark:text-dark-400">{user.email}</p>
                             </div>
                           </td>
                           <td className="px-4 py-3">
@@ -970,20 +970,20 @@ export default function AdminPortal() {
                               className={`px-2 py-1 rounded text-xs font-medium ${
                                 user.role === 'admin'
                                   ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
-                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                  : 'bg-gray-100 text-gray-800 dark:bg-dark-200 dark:text-dark-500'
                               } ${user.id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                             >
                               <option value="user">User</option>
                               <option value="admin">Admin</option>
                             </select>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-400">
                             {user.entriesCount.toLocaleString()}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-400">
                             {formatDate(user.lastLoginAt)}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-400">
                             {formatDate(user.createdAt)}
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -1004,7 +1004,7 @@ export default function AdminPortal() {
 
               {/* Pagination */}
               {usersTotalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-dark-border">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1014,7 +1014,7 @@ export default function AdminPortal() {
                   >
                     Zurück
                   </Button>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="text-sm text-gray-600 dark:text-dark-400">
                     Seite {usersPage} von {usersTotalPages}
                   </span>
                   <Button
@@ -1037,8 +1037,8 @@ export default function AdminPortal() {
         {activeTab === 'features' && (
           <div className="space-y-4">
             {/* Package Legend */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Verfügbare Pakete:</h3>
+            <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-3">Verfügbare Pakete:</h3>
               <div className="flex flex-wrap gap-4">
                 {packageDefinitions.map(pkg => (
                   <div key={pkg.name} className="flex items-start gap-2">
@@ -1047,7 +1047,7 @@ export default function AdminPortal() {
                     }`} />
                     <div>
                       <p className="text-sm font-medium text-gray-800 dark:text-white">{pkg.label}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{pkg.description}</p>
+                      <p className="text-xs text-gray-500 dark:text-dark-400">{pkg.description}</p>
                     </div>
                   </div>
                 ))}
@@ -1065,12 +1065,12 @@ export default function AdminPortal() {
                   setFeaturesSearch(e.target.value);
                   setFeaturesPage(1);
                 }}
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
             </div>
 
             {/* Features Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
               {featuresLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="animate-spin text-purple-600" size={32} />
@@ -1078,24 +1078,24 @@ export default function AdminPortal() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
+                    <thead className="bg-gray-50 dark:bg-dark-200">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Benutzer</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account-Typ</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Benutzer</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Account-Typ</th>
                         {packageDefinitions.map(pkg => (
-                          <th key={pkg.name} className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          <th key={pkg.name} className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">
                             {pkg.label}
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                       {featureUsers.map(user => (
-                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-dark-200/50">
                           <td className="px-4 py-3">
                             <div>
                               <p className="font-medium text-gray-800 dark:text-white">{user.username}</p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
+                              <p className="text-sm text-gray-500 dark:text-dark-400">{user.email}</p>
                             </div>
                           </td>
                           <td className="px-4 py-3">
@@ -1104,7 +1104,7 @@ export default function AdminPortal() {
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                                 : user.account_type === 'team'
                                 ? 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary'
-                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                : 'bg-gray-100 text-gray-800 dark:bg-dark-200 dark:text-dark-500'
                             }`}>
                               {user.account_type}
                             </span>
@@ -1128,7 +1128,7 @@ export default function AdminPortal() {
 
               {/* Pagination */}
               {featuresTotalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-dark-border">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1138,7 +1138,7 @@ export default function AdminPortal() {
                   >
                     Zurück
                   </Button>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="text-sm text-gray-600 dark:text-dark-400">
                     Seite {featuresPage} von {featuresTotalPages}
                   </span>
                   <Button
@@ -1160,7 +1160,7 @@ export default function AdminPortal() {
         {/* Audit Log Tab */}
         {activeTab === 'audit' && (
           <div className="space-y-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
               {auditLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="animate-spin text-purple-600" size={32} />
@@ -1168,19 +1168,19 @@ export default function AdminPortal() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
+                    <thead className="bg-gray-50 dark:bg-dark-200">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Zeit</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Benutzer</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Aktion</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Details</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">IP</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Zeit</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Benutzer</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Aktion</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Details</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">IP</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                       {auditLogs.map(log => (
-                        <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                        <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-dark-200/50">
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-400 whitespace-nowrap">
                             {formatDate(log.createdAt)}
                           </td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-800 dark:text-white">
@@ -1191,10 +1191,10 @@ export default function AdminPortal() {
                               {log.action}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-400 max-w-xs truncate">
                             {log.details}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-500 font-mono">
+                          <td className="px-4 py-3 text-sm text-gray-500 dark:text-dark-400 font-mono">
                             {log.ipAddress}
                           </td>
                         </tr>
@@ -1206,7 +1206,7 @@ export default function AdminPortal() {
 
               {/* Pagination */}
               {auditTotalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-dark-border">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1216,7 +1216,7 @@ export default function AdminPortal() {
                   >
                     Zurück
                   </Button>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="text-sm text-gray-600 dark:text-dark-400">
                     Seite {auditPage} von {auditTotalPages}
                   </span>
                   <Button
@@ -1242,7 +1242,7 @@ export default function AdminPortal() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold dark:text-white">Datenbank-Backups</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-gray-500 dark:text-dark-400">
                   Verzeichnis: {backupDir}
                 </p>
               </div>
@@ -1271,13 +1271,13 @@ export default function AdminPortal() {
             </div>
 
             {/* Backup List */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
               {backupsLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="animate-spin text-purple-600" size={32} />
                 </div>
               ) : backups.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-dark-400">
                   <FileArchive size={48} className="mb-3 opacity-50" />
                   <p>Keine Backups vorhanden</p>
                   <p className="text-sm">Erstelle ein neues Backup um zu beginnen</p>
@@ -1285,18 +1285,18 @@ export default function AdminPortal() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
+                    <thead className="bg-gray-50 dark:bg-dark-200">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Dateiname</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Größe</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Erstellt</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Komprimiert</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Aktionen</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Dateiname</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Größe</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Erstellt</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Komprimiert</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-dark-400 uppercase tracking-wider">Aktionen</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                       {backups.map(backup => (
-                        <tr key={backup.filename} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <tr key={backup.filename} className="hover:bg-gray-50 dark:hover:bg-dark-200/50">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <FileArchive size={18} className="text-gray-400" />
@@ -1305,10 +1305,10 @@ export default function AdminPortal() {
                               </span>
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-400">
                             {backup.size}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-400">
                             {formatDate(backup.createdAt)}
                           </td>
                           <td className="px-4 py-3">
@@ -1317,7 +1317,7 @@ export default function AdminPortal() {
                                 Ja (.gz)
                               </span>
                             ) : (
-                              <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 rounded">
+                              <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-dark-200 dark:text-dark-500 rounded">
                                 Nein
                               </span>
                             )}
@@ -1410,7 +1410,7 @@ export default function AdminPortal() {
             ) : systemStatus ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Database Status */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
                   <div className="flex items-center gap-3 mb-4">
                     <div className={`p-2 rounded-lg ${systemStatus.database.status === 'connected' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
                       <Database className={systemStatus.database.status === 'connected' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} size={20} />
@@ -1422,57 +1422,57 @@ export default function AdminPortal() {
                       </p>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
                     Latenz: {systemStatus.database.latency}ms
                   </p>
                 </div>
 
                 {/* Memory Usage */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
                       <Cpu className="text-accent-primary dark:text-accent-primary" size={20} />
                     </div>
                     <div>
                       <p className="font-medium dark:text-white">Arbeitsspeicher</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                      <p className="text-sm text-gray-500 dark:text-dark-400">
                         {systemStatus.memory.used} / {systemStatus.memory.total}
                       </p>
                     </div>
                   </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div className="w-full bg-gray-200 dark:bg-dark-200 rounded-full h-2">
                     <div
                       className={`h-2 rounded-full ${systemStatus.memory.percentage > 90 ? 'bg-red-500' : systemStatus.memory.percentage > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
                       style={{ width: `${systemStatus.memory.percentage}%` }}
                     />
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{systemStatus.memory.percentage}% belegt</p>
+                  <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">{systemStatus.memory.percentage}% belegt</p>
                 </div>
 
                 {/* Disk Usage */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
                       <HardDrive className="text-purple-600 dark:text-purple-400" size={20} />
                     </div>
                     <div>
                       <p className="font-medium dark:text-white">Festplatte</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                      <p className="text-sm text-gray-500 dark:text-dark-400">
                         {systemStatus.disk.used} / {systemStatus.disk.total}
                       </p>
                     </div>
                   </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div className="w-full bg-gray-200 dark:bg-dark-200 rounded-full h-2">
                     <div
                       className={`h-2 rounded-full ${systemStatus.disk.percentage > 90 ? 'bg-red-500' : systemStatus.disk.percentage > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
                       style={{ width: `${systemStatus.disk.percentage}%` }}
                     />
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{systemStatus.disk.percentage}% belegt</p>
+                  <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">{systemStatus.disk.percentage}% belegt</p>
                 </div>
 
                 {/* Uptime */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
                       <Clock className="text-orange-600 dark:text-orange-400" size={20} />
@@ -1487,7 +1487,7 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Docker Containers */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700 md:col-span-2">
+                <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border md:col-span-2">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
                       <Server className="text-cyan-600 dark:text-cyan-400" size={20} />
@@ -1495,18 +1495,18 @@ export default function AdminPortal() {
                     <p className="font-medium dark:text-white">Docker Container</p>
                   </div>
                   {systemStatus.docker.error ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{systemStatus.docker.error}</p>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">{systemStatus.docker.error}</p>
                   ) : systemStatus.docker.containers.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Keine Container gefunden</p>
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Keine Container gefunden</p>
                   ) : (
                     <div className="space-y-2">
                       {systemStatus.docker.containers.map((container, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-200/50 rounded-lg">
                           <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${container.status.includes('Up') ? 'bg-green-500' : 'bg-red-500'}`} />
                             <span className="text-sm font-medium dark:text-white">{container.name}</span>
                           </div>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">{container.status}</span>
+                          <span className="text-xs text-gray-500 dark:text-dark-400">{container.status}</span>
                         </div>
                       ))}
                     </div>
@@ -1514,7 +1514,7 @@ export default function AdminPortal() {
                 </div>
               </div>
             ) : (
-              <p className="text-gray-500 dark:text-gray-400">Keine Daten verfügbar</p>
+              <p className="text-gray-500 dark:text-dark-400">Keine Daten verfügbar</p>
             )}
           </div>
         )}
@@ -1556,42 +1556,42 @@ export default function AdminPortal() {
               <div className="space-y-4">
                 {/* Overview Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Datenbankgröße</p>
+                  <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Datenbankgröße</p>
                     <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{databaseStats.databaseSize}</p>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Verbindungen</p>
+                  <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Verbindungen</p>
                     <p className="text-2xl font-bold text-accent-primary dark:text-accent-primary">
                       {databaseStats.connections.active} <span className="text-sm font-normal text-gray-500">aktiv</span> / {databaseStats.connections.total} <span className="text-sm font-normal text-gray-500">gesamt</span>
                     </p>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Cache Hit Ratio</p>
+                  <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Cache Hit Ratio</p>
                     <p className="text-2xl font-bold text-green-600 dark:text-green-400">{databaseStats.cacheHitRatio}%</p>
                   </div>
                 </div>
 
                 {/* Tables */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border">
                     <h3 className="font-medium dark:text-white">Tabellen</h3>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead className="bg-gray-50 dark:bg-gray-700">
+                      <thead className="bg-gray-50 dark:bg-dark-200">
                         <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Tabelle</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Zeilen</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Größe</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-dark-400">Tabelle</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-dark-400">Zeilen</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-dark-400">Größe</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                         {databaseStats.tables.map((table) => (
-                          <tr key={table.table_name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <tr key={table.table_name} className="hover:bg-gray-50 dark:hover:bg-dark-200/50">
                             <td className="px-4 py-2 text-sm font-mono dark:text-white">{table.table_name}</td>
-                            <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-gray-400">{table.row_count.toLocaleString()}</td>
-                            <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-gray-400">{table.total_size}</td>
+                            <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-dark-400">{table.row_count.toLocaleString()}</td>
+                            <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-dark-400">{table.total_size}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1600,7 +1600,7 @@ export default function AdminPortal() {
                 </div>
               </div>
             ) : (
-              <p className="text-gray-500 dark:text-gray-400">Keine Daten verfügbar</p>
+              <p className="text-gray-500 dark:text-dark-400">Keine Daten verfügbar</p>
             )}
           </div>
         )}
@@ -1630,33 +1630,33 @@ export default function AdminPortal() {
               <div className="space-y-4">
                 {/* Login Stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
                     <div className="flex items-center gap-3">
                       <CheckCircle className="text-green-600 dark:text-green-400" size={24} />
                       <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Erfolgreiche Logins (24h)</p>
+                        <p className="text-sm text-gray-500 dark:text-dark-400">Erfolgreiche Logins (24h)</p>
                         <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                           {securityData.loginStats.attempts['login.success'] || 0}
                         </p>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
                     <div className="flex items-center gap-3">
                       <AlertCircle className="text-red-600 dark:text-red-400" size={24} />
                       <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Fehlgeschlagene Logins (24h)</p>
+                        <p className="text-sm text-gray-500 dark:text-dark-400">Fehlgeschlagene Logins (24h)</p>
                         <p className="text-2xl font-bold text-red-600 dark:text-red-400">
                           {securityData.loginStats.attempts['login.failed'] || 0}
                         </p>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
                     <div className="flex items-center gap-3">
                       <Lock className="text-orange-600 dark:text-orange-400" size={24} />
                       <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">MFA-Fehler (24h)</p>
+                        <p className="text-sm text-gray-500 dark:text-dark-400">MFA-Fehler (24h)</p>
                         <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                           {securityData.loginStats.attempts['login.mfa_failed'] || 0}
                         </p>
@@ -1667,25 +1667,25 @@ export default function AdminPortal() {
 
                 {/* Failed by IP */}
                 {securityData.loginStats.failedByIp.length > 0 && (
-                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                  <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border">
                       <h3 className="font-medium dark:text-white">Fehlgeschlagene Logins nach IP (24h)</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full">
-                        <thead className="bg-gray-50 dark:bg-gray-700">
+                        <thead className="bg-gray-50 dark:bg-dark-200">
                           <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">IP-Adresse</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Versuche</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Letzter Versuch</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-dark-400">IP-Adresse</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-dark-400">Versuche</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-dark-400">Letzter Versuch</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                           {securityData.loginStats.failedByIp.map((item) => (
-                            <tr key={item.ip_address} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <tr key={item.ip_address} className="hover:bg-gray-50 dark:hover:bg-dark-200/50">
                               <td className="px-4 py-2 text-sm font-mono dark:text-white">{item.ip_address}</td>
                               <td className="px-4 py-2 text-sm text-right text-red-600 dark:text-red-400 font-bold">{item.attempts}</td>
-                              <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-gray-400">{formatDate(item.last_attempt)}</td>
+                              <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-dark-400">{formatDate(item.last_attempt)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1696,27 +1696,27 @@ export default function AdminPortal() {
 
                 {/* Active Sessions */}
                 {securityData.sessions.length > 0 && (
-                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                  <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border">
                       <h3 className="font-medium dark:text-white">Aktive Sessions</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full">
-                        <thead className="bg-gray-50 dark:bg-gray-700">
+                        <thead className="bg-gray-50 dark:bg-dark-200">
                           <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Benutzer</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Erstellt</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Aktion</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-dark-400">Benutzer</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-dark-400">Erstellt</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-dark-400">Aktion</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                           {securityData.sessions.map((session) => (
-                            <tr key={session.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <tr key={session.id} className="hover:bg-gray-50 dark:hover:bg-dark-200/50">
                               <td className="px-4 py-2">
                                 <p className="text-sm font-medium dark:text-white">{session.username}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">{session.email}</p>
+                                <p className="text-xs text-gray-500 dark:text-dark-400">{session.email}</p>
                               </td>
-                              <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{formatDate(session.created_at)}</td>
+                              <td className="px-4 py-2 text-sm text-gray-600 dark:text-dark-400">{formatDate(session.created_at)}</td>
                               <td className="px-4 py-2 text-right">
                                 <IconButton
                                   icon={<UserX size={18} />}
@@ -1734,7 +1734,7 @@ export default function AdminPortal() {
                 )}
               </div>
             ) : (
-              <p className="text-gray-500 dark:text-gray-400">Keine Daten verfügbar</p>
+              <p className="text-gray-500 dark:text-dark-400">Keine Daten verfügbar</p>
             )}
           </div>
         )}
@@ -1748,7 +1748,7 @@ export default function AdminPortal() {
                 <select
                   value={logType}
                   onChange={(e) => setLogType(e.target.value)}
-                  className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                  className="px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white"
                 >
                   <option value="app">Application</option>
                   <option value="error">Error</option>
@@ -1806,26 +1806,26 @@ export default function AdminPortal() {
 
             {/* Create Form */}
             {showNotificationForm && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 space-y-4">
+              <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border space-y-4">
                 <input
                   type="text"
                   placeholder="Titel"
                   value={newNotification.title}
                   onChange={(e) => setNewNotification(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white"
                 />
                 <textarea
                   placeholder="Nachricht"
                   value={newNotification.message}
                   onChange={(e) => setNewNotification(prev => ({ ...prev, message: e.target.value }))}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white"
                 />
                 <div className="flex gap-2">
                   <select
                     value={newNotification.type}
                     onChange={(e) => setNewNotification(prev => ({ ...prev, type: e.target.value }))}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                    className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white"
                   >
                     <option value="info">Info</option>
                     <option value="warning">Warnung</option>
@@ -1849,18 +1849,18 @@ export default function AdminPortal() {
             )}
 
             {/* Notifications List */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
               {notificationsLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="animate-spin text-purple-600" size={32} />
                 </div>
               ) : notifications.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-dark-400">
                   <Bell size={48} className="mb-3 opacity-50" />
                   <p>Keine Benachrichtigungen</p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                <div className="divide-y divide-gray-200 dark:divide-dark-border">
                   {notifications.map((notification) => (
                     <div key={notification.id} className={`p-4 ${!notification.is_active ? 'opacity-50' : ''}`}>
                       <div className="flex items-start justify-between gap-4">
@@ -1876,8 +1876,8 @@ export default function AdminPortal() {
                             </span>
                             <h3 className="font-medium dark:text-white">{notification.title}</h3>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{notification.message}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">{formatDate(notification.created_at)}</p>
+                          <p className="text-sm text-gray-600 dark:text-dark-400 mt-1">{notification.message}</p>
+                          <p className="text-xs text-gray-500 dark:text-dark-400 mt-2">{formatDate(notification.created_at)}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <IconButton
@@ -1929,7 +1929,7 @@ export default function AdminPortal() {
                           <p className="font-medium dark:text-white">
                             Provider: {emailConfig.provider}
                           </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                          <p className="text-sm text-gray-600 dark:text-dark-400">
                             {emailConfig.config.fromAddress}
                             {emailConfig.config.testMode && (
                               <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 rounded text-xs">
@@ -1953,7 +1953,7 @@ export default function AdminPortal() {
                 )}
 
                 {/* Test Email Section */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                   <h3 className="font-semibold dark:text-white mb-4">Test-Email senden</h3>
                   <div className="flex gap-3">
                     <input
@@ -1961,7 +1961,7 @@ export default function AdminPortal() {
                       value={testEmailAddress}
                       onChange={(e) => setTestEmailAddress(e.target.value)}
                       placeholder="Email-Adresse (leer = eigene Email)"
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:ring-2 focus:ring-purple-500"
                     />
                     <Button
                       variant="primary"
@@ -1987,12 +1987,12 @@ export default function AdminPortal() {
                 {/* Stats Cards */}
                 {emailStats && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                       <div className="flex items-center gap-3 mb-2">
                         <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
                           <Mail className="text-accent-primary dark:text-accent-primary" size={20} />
                         </div>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Heute</span>
+                        <span className="text-sm text-gray-500 dark:text-dark-400">Heute</span>
                       </div>
                       <p className="text-2xl font-bold dark:text-white">{emailStats.today.total}</p>
                       <div className="flex gap-4 mt-2 text-sm">
@@ -2002,12 +2002,12 @@ export default function AdminPortal() {
                         )}
                       </div>
                     </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                       <div className="flex items-center gap-3 mb-2">
                         <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
                           <Mail className="text-green-600 dark:text-green-400" size={20} />
                         </div>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Diese Woche</span>
+                        <span className="text-sm text-gray-500 dark:text-dark-400">Diese Woche</span>
                       </div>
                       <p className="text-2xl font-bold dark:text-white">{emailStats.week.total}</p>
                       <div className="flex gap-4 mt-2 text-sm">
@@ -2017,12 +2017,12 @@ export default function AdminPortal() {
                         )}
                       </div>
                     </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                       <div className="flex items-center gap-3 mb-2">
                         <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
                           <Mail className="text-purple-600 dark:text-purple-400" size={20} />
                         </div>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Dieser Monat</span>
+                        <span className="text-sm text-gray-500 dark:text-dark-400">Dieser Monat</span>
                       </div>
                       <p className="text-2xl font-bold dark:text-white">{emailStats.month.total}</p>
                       <div className="flex gap-4 mt-2 text-sm">
@@ -2039,12 +2039,12 @@ export default function AdminPortal() {
                 {emailStats && (emailStats.byProvider.length > 0 || emailStats.byType.length > 0) && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {emailStats.byProvider.length > 0 && (
-                      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                      <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                         <h3 className="font-semibold dark:text-white mb-4">Nach Provider</h3>
                         <div className="space-y-3">
                           {emailStats.byProvider.map((p) => (
                             <div key={p.provider} className="flex items-center justify-between">
-                              <span className="text-gray-600 dark:text-gray-400 capitalize">{p.provider}</span>
+                              <span className="text-gray-600 dark:text-dark-400 capitalize">{p.provider}</span>
                               <div className="flex gap-4 text-sm">
                                 <span className="text-green-600">{p.sent} OK</span>
                                 <span className="text-red-600">{p.failed} Fehler</span>
@@ -2055,12 +2055,12 @@ export default function AdminPortal() {
                       </div>
                     )}
                     {emailStats.byType.length > 0 && (
-                      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                      <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                         <h3 className="font-semibold dark:text-white mb-4">Nach Typ</h3>
                         <div className="space-y-3">
                           {emailStats.byType.slice(0, 5).map((t) => (
                             <div key={t.type} className="flex items-center justify-between">
-                              <span className="text-gray-600 dark:text-gray-400">{t.type}</span>
+                              <span className="text-gray-600 dark:text-dark-400">{t.type}</span>
                               <div className="flex gap-4 text-sm">
                                 <span className="text-green-600">{t.sent} OK</span>
                                 <span className="text-red-600">{t.failed} Fehler</span>
@@ -2075,7 +2075,7 @@ export default function AdminPortal() {
 
                 {/* Recent Failures */}
                 {emailStats && emailStats.recentFailures.length > 0 && (
-                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-red-200 dark:border-red-800">
+                  <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-red-200 dark:border-red-800">
                     <h3 className="font-semibold dark:text-white mb-4 flex items-center gap-2">
                       <AlertCircle className="text-red-600" size={20} />
                       Letzte Fehler
@@ -2085,9 +2085,9 @@ export default function AdminPortal() {
                         <div key={f.id} className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
                           <div className="flex justify-between">
                             <span className="font-medium text-red-800 dark:text-red-400">{f.email_type}</span>
-                            <span className="text-sm text-gray-500 dark:text-gray-400">{formatDate(f.created_at)}</span>
+                            <span className="text-sm text-gray-500 dark:text-dark-400">{formatDate(f.created_at)}</span>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{f.recipient_email}</p>
+                          <p className="text-sm text-gray-600 dark:text-dark-400">{f.recipient_email}</p>
                           <p className="text-sm text-red-600 dark:text-red-400 mt-1">{f.error_message}</p>
                         </div>
                       ))}
@@ -2096,8 +2096,8 @@ export default function AdminPortal() {
                 )}
 
                 {/* Email Logs */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-                  <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border">
+                  <div className="p-4 border-b border-gray-200 dark:border-dark-border">
                     <div className="flex flex-col sm:flex-row gap-4">
                       <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -2109,7 +2109,7 @@ export default function AdminPortal() {
                             setEmailLogsPage(1);
                           }}
                           placeholder="Suchen..."
-                          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500"
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:ring-2 focus:ring-purple-500"
                         />
                       </div>
                       <select
@@ -2118,7 +2118,7 @@ export default function AdminPortal() {
                           setEmailStatusFilter(e.target.value);
                           setEmailLogsPage(1);
                         }}
-                        className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500"
+                        className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:ring-2 focus:ring-purple-500"
                       >
                         <option value="">Alle Status</option>
                         <option value="sent">Gesendet</option>
@@ -2128,35 +2128,35 @@ export default function AdminPortal() {
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead className="bg-gray-50 dark:bg-gray-700/50">
+                      <thead className="bg-gray-50 dark:bg-dark-200/50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Zeitpunkt</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Typ</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Empfänger</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Provider</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase">Zeitpunkt</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase">Typ</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase">Empfänger</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase">Provider</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                         {emailLogs.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                            <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-dark-400">
                               Keine E-Mails gefunden
                             </td>
                           </tr>
                         ) : (
                           emailLogs.map((log) => (
-                            <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                            <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-dark-200/30">
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-400 whitespace-nowrap">
                                 {formatDate(log.created_at)}
                               </td>
                               <td className="px-4 py-3 text-sm dark:text-white">
                                 {log.email_type}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-400">
                                 {log.recipient_email}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 capitalize">
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-400 capitalize">
                                 {log.provider}
                               </td>
                               <td className="px-4 py-3">
@@ -2181,7 +2181,7 @@ export default function AdminPortal() {
                   </div>
                   {/* Pagination */}
                   {emailLogsTotalPages > 1 && (
-                    <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <div className="p-4 border-t border-gray-200 dark:border-dark-border flex items-center justify-between">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -2191,7 +2191,7 @@ export default function AdminPortal() {
                       >
                         Zurück
                       </Button>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                      <span className="text-sm text-gray-600 dark:text-dark-400">
                         Seite {emailLogsPage} von {emailLogsTotalPages}
                       </span>
                       <Button

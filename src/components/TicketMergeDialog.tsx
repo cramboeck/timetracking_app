@@ -97,16 +97,16 @@ export const TicketMergeDialog = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+      <div className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
             <Merge className="text-accent-primary" size={24} />
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Tickets zusammenführen
               </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 in {targetTicket.ticketNumber}: {targetTicket.title}
               </p>
             </div>
@@ -136,7 +136,7 @@ export const TicketMergeDialog = ({
 
           {/* Search */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Tickets zum Zusammenführen suchen
             </label>
             <div className="relative">
@@ -146,7 +146,7 @@ export const TicketMergeDialog = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Ticket-Nummer oder Titel eingeben..."
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               />
               {searching && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -158,8 +158,8 @@ export const TicketMergeDialog = ({
 
           {/* Search Results */}
           {searchResults.length > 0 && (
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-              <div className="text-xs font-medium text-gray-500 dark:text-gray-400 px-3 py-1.5 bg-gray-50 dark:bg-gray-900">
+            <div className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+              <div className="text-xs font-medium text-gray-500 dark:text-dark-400 px-3 py-1.5 bg-gray-50 dark:bg-dark-50">
                 Suchergebnisse
               </div>
               <div className="max-h-40 overflow-y-auto">
@@ -167,14 +167,14 @@ export const TicketMergeDialog = ({
                   <button
                     key={ticket.id}
                     onClick={() => handleSelectTicket(ticket)}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 border-t border-gray-100 dark:border-gray-700 first:border-t-0"
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-200 border-t border-gray-100 dark:border-dark-border first:border-t-0"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+                        <span className="text-sm font-mono text-gray-500 dark:text-dark-400">
                           {ticket.ticketNumber}
                         </span>
-                        <span className="mx-2 text-gray-300 dark:text-gray-600">|</span>
+                        <span className="mx-2 text-gray-300 dark:text-dark-400">|</span>
                         <span className="text-sm text-gray-900 dark:text-white">
                           {ticket.title}
                         </span>
@@ -190,7 +190,7 @@ export const TicketMergeDialog = ({
           {/* Selected Tickets */}
           {selectedTickets.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Ausgewählte Tickets ({selectedTickets.length})
               </label>
               <div className="space-y-2">
@@ -201,7 +201,7 @@ export const TicketMergeDialog = ({
                   >
                     <div className="flex items-center gap-2">
                       <Check size={16} className="text-accent-primary" />
-                      <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+                      <span className="text-sm font-mono text-gray-500 dark:text-dark-400">
                         {ticket.ticketNumber}
                       </span>
                       <span className="text-sm text-gray-900 dark:text-white">
@@ -229,7 +229,7 @@ export const TicketMergeDialog = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+        <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-50/50">
           <Button
             variant="secondary"
             onClick={onClose}

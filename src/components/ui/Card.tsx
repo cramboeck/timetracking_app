@@ -29,17 +29,17 @@ export const Card = ({
 
   const variantStyles = {
     default: `
-      bg-white dark:bg-gray-800
-      border-gray-200 dark:border-gray-700
+      bg-white dark:bg-dark-100
+      border-gray-200 dark:border-dark-border
     `,
     elevated: `
-      bg-white dark:bg-gray-800
-      border-gray-200 dark:border-gray-700
+      bg-white dark:bg-dark-100
+      border-gray-200 dark:border-dark-border
       shadow-sm
     `,
     outline: `
       bg-transparent
-      border-gray-200 dark:border-gray-700
+      border-gray-200 dark:border-dark-border
     `,
   };
 
@@ -47,7 +47,7 @@ export const Card = ({
     ? `
       cursor-pointer
       hover:border-accent-primary/40 dark:hover:border-accent-primary
-      hover:shadow-md dark:hover:shadow-gray-900/50
+      hover:shadow-md dark:hover:shadow-dark-50/50
       focus-within:ring-2 focus-within:ring-accent-primary focus-within:ring-offset-2
       dark:focus-within:ring-offset-gray-900
     `
@@ -89,7 +89,7 @@ interface CardHeaderProps {
 }
 
 export const CardHeader = ({ children, className = '', actions }: CardHeaderProps) => (
-  <div className={`flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 ${className}`}>
+  <div className={`flex items-center justify-between p-3 border-b border-gray-200 dark:border-dark-border ${className}`}>
     <div className="font-medium text-gray-900 dark:text-white">{children}</div>
     {actions && <div className="flex items-center gap-2">{actions}</div>}
   </div>
@@ -115,7 +115,7 @@ interface CardFooterProps {
 }
 
 export const CardFooter = ({ children, className = '' }: CardFooterProps) => (
-  <div className={`p-3 border-t border-gray-200 dark:border-gray-700 ${className}`}>
+  <div className={`p-3 border-t border-gray-200 dark:border-dark-border ${className}`}>
     {children}
   </div>
 );
@@ -135,11 +135,11 @@ export const KanbanCard = ({
   <div
     className={`
       group
-      bg-white dark:bg-gray-800
-      rounded-lg border border-gray-200 dark:border-gray-700
+      bg-white dark:bg-dark-100
+      rounded-lg border border-gray-200 dark:border-dark-border
       p-3
       cursor-grab active:cursor-grabbing
-      hover:shadow-md dark:hover:shadow-gray-900/50
+      hover:shadow-md dark:hover:shadow-dark-50/50
       hover:border-accent-primary/40 dark:hover:border-accent-primary
       transition-all duration-150
       ${isDragging ? 'opacity-50 shadow-lg' : ''}
@@ -167,7 +167,7 @@ export const StatCard = ({ label, value, icon, trend, className = '' }: StatCard
   <Card variant="elevated" className={`p-4 ${className}`}>
     <div className="flex items-start justify-between">
       <div>
-        <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="text-sm text-gray-500 dark:text-dark-400">{label}</p>
         <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{value}</p>
         {trend && (
           <p className={`text-sm mt-1 ${trend.positive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
