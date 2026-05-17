@@ -1,8 +1,61 @@
 import express, { Response } from 'express';
+import { z } from 'zod';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 import * as contractService from '../services/contractService';
 
 const router = express.Router();
+
+// ============================================================================
+// Zod validation schemas
+// ============================================================================
+
+const contractStatusSchema = z.enum(['draft', 'active', 'expiring', 'expired', 'cancelled', 'paused']);
+const contractTypeSchema = z.enum(['service', 'maintenance', 'support', 'license', 'subscription', 'project', 'other']);
+const billingCycleSchema = z.enum(['monthly', 'quarterly', 'yearly', 'one_time']);
+
+const createContractSchema = z.object({
+  customerId: z.string().uuid(),
+  name: z.string().trim().min(1).max(500),
+  startDate: z.string().min(1), // ISO date or 'YYYY-MM-DD'
+  contractNumber: z.string().max(100).optional().nullable(),
+  description: z.string().max(10_000).optional().nullable(),
+  contractType: contractTypeSchema.optional(),
+  status: contractStatusSchema.optional(),
+  endDate: z.string().optional().nullable(),
+  isIndefinite: z.boolean().optional(),
+  noticePeriodDays: z.number().int().nonnegative().optional().nullable(),
+  autoRenew: z.boolean().optional(),
+  renewalPeriodMonths: z.number().int().positive().optional().nullable(),
+  billingCycle: billingCycleSchema.optional(),
+  basePrice: z.number().nonnegative().optional().nullable(),
+  currency: z.string().length(3).optional(),
+  includedHoursMonthly: z.number().nonnegative().optional().nullable(),
+  hourlyRate: z.number().nonnegative().optional().nullable(),
+  overageRate: z.number().nonnegative().optional().nullable(),
+  slaResponseHours: z.number().nonnegative().optional().nullable(),
+  slaResolutionHours: z.number().nonnegative().optional().nullable(),
+  supportHours: z.string().max(500).optional().nullable(),
+  documentUrl: z.string().url().optional().nullable(),
+  internalNotes: z.string().max(10_000).optional().nullable(),
+  projectId: z.string().uuid().optional().nullable(),
+});
+
+const updateContractSchema = createContractSchema.partial();
+
+const contractPositionSchema = z.object({
+  name: z.string().trim().min(1).max(500),
+  description: z.string().max(5_000).optional().nullable(),
+  quantity: z.number().nonnegative().optional(),
+  unitPrice: z.number().nonnegative().optional(),
+  unit: z.string().max(50).optional(),
+}).passthrough();
+
+const updateContractHoursSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+  month: z.number().int().min(1).max(12),
+  usedHours: z.number().nonnegative(),
+});
 
 // ============================================
 // Contract Routes
@@ -98,7 +151,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
 });
 
 // POST /api/contracts - Create new contract
-router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/', authenticateToken, validate(createContractSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
 
@@ -171,7 +224,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
 });
 
 // PUT /api/contracts/:id - Update contract
-router.put('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticateToken, validate(updateContractSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
 
@@ -225,7 +278,7 @@ router.get('/:id/positions', authenticateToken, async (req: AuthRequest, res: Re
 });
 
 // POST /api/contracts/:id/positions - Create contract position
-router.post('/:id/positions', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:id/positions', authenticateToken, validate(contractPositionSchema), async (req: AuthRequest, res: Response) => {
   try {
     const position = await contractService.createContractPosition(req.params.id, req.body);
     res.status(201).json({ success: true, data: position });
@@ -239,6 +292,7 @@ router.post('/:id/positions', authenticateToken, async (req: AuthRequest, res: R
 router.put(
   '/:id/positions/:positionId',
   authenticateToken,
+  validate(contractPositionSchema.partial()),
   async (req: AuthRequest, res: Response) => {
     try {
       const position = await contractService.updateContractPosition(
@@ -297,7 +351,7 @@ router.get('/:id/hours', authenticateToken, async (req: AuthRequest, res: Respon
 });
 
 // PUT /api/contracts/:id/hours - Update hourly tracking
-router.put('/:id/hours', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.put('/:id/hours', authenticateToken, validate(updateContractHoursSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { year, month, usedHours } = req.body;
 
