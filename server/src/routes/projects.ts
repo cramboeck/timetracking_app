@@ -32,7 +32,7 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
 
-    const result = await pool.query('SELECT * FROM projects WHERE organization_id = $1 ORDER BY name', [organizationId]);
+    const result = await pool.query('SELECT * FROM projects WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY name', [organizationId]);
     const projects = transformRows(result.rows);
 
     res.json({
@@ -68,7 +68,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       [id, userId, organizationId, customerId, name, rateType, hourlyRate, isActive, createdAt]
     );
 
-    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1', [id]);
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND deleted_at IS NULL', [id]);
     const newProject = transformRow(projectResult.rows[0]);
 
     auditLog.log({
@@ -99,7 +99,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const updates = req.body;
 
     // Verify project belongs to organization
-    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
     if (projectResult.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -143,10 +143,10 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     }
 
     values.push(id);
-    const query = `UPDATE projects SET ${fields.join(', ')} WHERE id = $${paramCount}`;
+    const query = `UPDATE projects SET ${fields.join(', ')} WHERE id = $${paramCount} AND deleted_at IS NULL`;
     await pool.query(query, values);
 
-    const updatedResult = await pool.query('SELECT * FROM projects WHERE id = $1', [id]);
+    const updatedResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND deleted_at IS NULL', [id]);
     const updatedProject = transformRow(updatedResult.rows[0]);
 
     auditLog.log({
@@ -176,7 +176,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
     const { id } = req.params;
 
     // Verify project belongs to organization
-    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
     if (projectResult.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -188,7 +188,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
       return res.status(400).json({ error: 'Cannot delete project with existing time entries. Please delete entries first or mark project as inactive.' });
     }
 
-    await pool.query('DELETE FROM projects WHERE id = $1', [id]);
+    await pool.query('UPDATE projects SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL', [id]);
 
     auditLog.log({
       userId,

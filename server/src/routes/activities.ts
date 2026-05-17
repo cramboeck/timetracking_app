@@ -32,7 +32,7 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
 
-    const result = await pool.query('SELECT * FROM activities WHERE organization_id = $1 ORDER BY name', [organizationId]);
+    const result = await pool.query('SELECT * FROM activities WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY name', [organizationId]);
     const activities = transformRows(result.rows);
 
     res.json({
@@ -62,7 +62,7 @@ router.post('/', authenticateToken, attachOrganization, validate(createActivityS
       [id, userId, organizationId, name, description || null, isBillable, pricingType, flatRate || null, createdAt]
     );
 
-    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1', [id]);
+    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND deleted_at IS NULL', [id]);
     const newActivity = transformRow(activityResult.rows[0]);
 
     auditLog.log({
@@ -93,7 +93,7 @@ router.put('/:id', authenticateToken, attachOrganization, validate(updateActivit
     const updates = req.body;
 
     // Verify activity belongs to organization
-    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
     if (activityResult.rows.length === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
@@ -129,10 +129,10 @@ router.put('/:id', authenticateToken, attachOrganization, validate(updateActivit
     }
 
     values.push(id);
-    const query = `UPDATE activities SET ${fields.join(', ')} WHERE id = $${paramCount}`;
+    const query = `UPDATE activities SET ${fields.join(', ')} WHERE id = $${paramCount} AND deleted_at IS NULL`;
     await pool.query(query, values);
 
-    const updatedResult = await pool.query('SELECT * FROM activities WHERE id = $1', [id]);
+    const updatedResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND deleted_at IS NULL', [id]);
     const updatedActivity = transformRow(updatedResult.rows[0]);
 
     auditLog.log({
@@ -162,7 +162,7 @@ router.delete('/:id', authenticateToken, attachOrganization, async (req: AuthReq
     const { id } = req.params;
 
     // Verify activity belongs to organization
-    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
     if (activityResult.rows.length === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
@@ -174,7 +174,7 @@ router.delete('/:id', authenticateToken, attachOrganization, async (req: AuthReq
       return res.status(400).json({ error: 'Cannot delete activity with existing time entries. Time entries will be updated to have no activity.' });
     }
 
-    await pool.query('DELETE FROM activities WHERE id = $1', [id]);
+    await pool.query('UPDATE activities SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL', [id]);
 
     auditLog.log({
       userId,
