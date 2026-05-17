@@ -104,7 +104,7 @@ export default function MaintenanceApproval() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <RefreshCw className="w-10 h-10 animate-spin text-accent-primary mx-auto" />
           <p className="text-gray-600 mt-4">Wird geladen...</p>
@@ -201,7 +201,7 @@ export default function MaintenanceApproval() {
   if (!details) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 text-white">
@@ -366,8 +366,8 @@ export default function MaintenanceApproval() {
           )}
 
           {!details.requireApproval && (
-            <div className="p-4 bg-accent-light border border-blue-200 rounded-xl text-center">
-              <p className="text-blue-800">
+            <div className="p-4 bg-accent-light border border-accent-primary/30 rounded-xl text-center">
+              <p className="text-accent-dark">
                 Dies ist eine reine Information. Es ist keine Freigabe erforderlich.
               </p>
             </div>

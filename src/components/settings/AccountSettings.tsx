@@ -135,14 +135,14 @@ export const AccountSettings = ({
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800 p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div className="bg-gradient-to-br from-accent-light to-accent-lighter dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl border border-accent-primary/30 dark:border-accent-primary/40 p-5 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-500 rounded-lg">
+            <div className="p-2 bg-accent-primary rounded-lg">
               <ActivityIcon size={20} className="text-white" />
             </div>
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-200">Zeiteinträge</p>
+            <p className="text-sm font-medium text-accent-dark dark:text-accent-primary">Zeiteinträge</p>
           </div>
-          <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
+          <p className="text-3xl font-bold text-accent-dark dark:text-accent-primary">
             {entries.length}
           </p>
           <p className="text-xs text-accent-dark dark:text-accent-primary mt-1">Gesamt erfasst</p>
@@ -226,7 +226,7 @@ export const AccountSettings = ({
             </div>
           )}
 
-          <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <div className="p-4 bg-gradient-to-r from-accent-light to-accent-lighter dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-lg border border-accent-primary/30 dark:border-accent-primary/40">
             <p className="text-xs font-semibold text-accent-primary dark:text-accent-primary uppercase tracking-wider mb-1">Mitglied seit</p>
             <p className="text-lg font-bold text-gray-900 dark:text-white">
               {currentUser?.createdAt && new Date(currentUser.createdAt).toLocaleDateString('de-DE', {

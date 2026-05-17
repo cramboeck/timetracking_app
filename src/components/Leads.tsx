@@ -114,7 +114,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onCon
         e.dataTransfer.setData('leadId', lead.id);
         e.dataTransfer.effectAllowed = 'move';
       }}
-      className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 dark:hover:border-accent-primary transition-all"
+      className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-accent-primary/40 dark:hover:border-accent-primary transition-all"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">

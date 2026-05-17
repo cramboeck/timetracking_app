@@ -831,9 +831,9 @@ export const NinjaRMMSettings = () => {
           </div>
 
           {/* Help */}
-          <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-xl p-6">
-            <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2">Einrichtung</h3>
-            <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800 dark:text-blue-300">
+          <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-xl p-6">
+            <h3 className="font-medium text-accent-dark dark:text-accent-primary mb-2">Einrichtung</h3>
+            <ol className="list-decimal list-inside space-y-2 text-sm text-accent-dark dark:text-accent-primary">
               <li>Erstelle eine API Application in NinjaRMM unter Administration &gt; Apps &gt; API</li>
               <li>Wähle "Authorization Code" als Grant Type</li>
               <li>Füge diese Redirect URI hinzu: <code className="bg-accent-lighter dark:bg-accent-primary/60 px-1 rounded">{window.location.origin}/api/ninjarmm/callback</code></li>
@@ -1677,9 +1677,9 @@ export const NinjaRMMSettings = () => {
               </div>
 
               {/* Help */}
-              <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-xl p-6">
-                <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2">NinjaRMM Webhook einrichten</h3>
-                <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800 dark:text-blue-300">
+              <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-xl p-6">
+                <h3 className="font-medium text-accent-dark dark:text-accent-primary mb-2">NinjaRMM Webhook einrichten</h3>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-accent-dark dark:text-accent-primary">
                   <li><strong>Secret generieren</strong> (oben) - das Secret wird automatisch in die URL eingebettet</li>
                   <li><strong>URL kopieren</strong> - die vollständige URL inkl. Secret</li>
                   <li>In NinjaRMM: <strong>Administration → Benachrichtigungen → Kanäle</strong></li>

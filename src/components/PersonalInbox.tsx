@@ -380,11 +380,11 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
       </div>
 
       {/* Info */}
-      <div className="bg-accent-light dark:bg-accent-primary/20 rounded-lg p-4 border border-blue-200 dark:border-accent-primary/40">
+      <div className="bg-accent-light dark:bg-accent-primary/20 rounded-lg p-4 border border-accent-primary/30 dark:border-accent-primary/40">
         <div className="flex items-start gap-3">
           <MessageSquare className="text-accent-primary dark:text-accent-primary flex-shrink-0 mt-0.5" size={20} />
           <div>
-            <h4 className="font-medium text-blue-800 dark:text-blue-200">
+            <h4 className="font-medium text-accent-dark dark:text-accent-primary">
               E-Mails als Interaktionen speichern
             </h4>
             <p className="text-sm text-accent-dark dark:text-accent-primary mt-1">

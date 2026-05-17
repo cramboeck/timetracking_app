@@ -1075,14 +1075,14 @@ export const Settings = ({
           <div className="max-w-5xl mx-auto space-y-6">
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800 p-5 shadow-sm hover:shadow-md transition-shadow">
+              <div className="bg-gradient-to-br from-accent-light to-accent-lighter dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl border border-accent-primary/30 dark:border-accent-primary/40 p-5 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-blue-500 rounded-lg">
+                  <div className="p-2 bg-accent-primary rounded-lg">
                     <ActivityIcon size={20} className="text-white" />
                   </div>
-                  <p className="text-sm font-medium text-blue-900 dark:text-blue-200">Zeiteinträge</p>
+                  <p className="text-sm font-medium text-accent-dark dark:text-accent-primary">Zeiteinträge</p>
                 </div>
-                <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
+                <p className="text-3xl font-bold text-accent-dark dark:text-accent-primary">
                   {entries.length}
                 </p>
                 <p className="text-xs text-accent-dark dark:text-accent-primary mt-1">Gesamt erfasst</p>
@@ -1370,10 +1370,10 @@ export const Settings = ({
 
                 {/* Migration result notification */}
                 {migrationResult && (
-                  <div className="mb-4 p-4 rounded-lg bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40">
+                  <div className="mb-4 p-4 rounded-lg bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <p className="font-semibold text-blue-800 dark:text-blue-200">
+                        <p className="font-semibold text-accent-dark dark:text-accent-primary">
                           Migration abgeschlossen
                         </p>
                         <div className="text-sm mt-2 text-gray-700 dark:text-gray-300 space-y-1">
@@ -1623,7 +1623,7 @@ export const Settings = ({
                         placeholder="Projekte oder Kunden suchen..."
                         value={projectSearchQuery}
                         onChange={(e) => setProjectSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-600 rounded-lg bg-white dark:bg-dark-800 text-gray-900 dark:text-dark-100 placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-blue-400"
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-600 rounded-lg bg-white dark:bg-dark-800 text-gray-900 dark:text-dark-100 placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-accent-primary"
                       />
                       {projectSearchQuery && (
                         <button
@@ -2048,11 +2048,11 @@ export const Settings = ({
         <div className="space-y-6">
           {/* Hint from Support Inbox navigation */}
           {pendingDomain && !editingCustomer && (
-            <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-4">
+            <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-4">
               <div className="flex gap-3">
                 <Globe className="w-5 h-5 text-accent-primary dark:text-accent-primary flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                  <p className="text-sm font-medium text-accent-dark dark:text-accent-primary">
                     Domain @{pendingDomain} zuordnen
                   </p>
                   <p className="text-sm text-accent-primary dark:text-accent-primary mt-1">
@@ -2637,11 +2637,11 @@ export const Settings = ({
                     <button
                       key={idx}
                       onClick={() => handleUseTemplate(template)}
-                      className="w-full text-left p-4 rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-accent-primary dark:hover:border-blue-400 hover:bg-accent-light dark:hover:bg-accent-primary/30 transition-all group shadow-sm hover:shadow-md"
+                      className="w-full text-left p-4 rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-accent-primary dark:hover:border-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/30 transition-all group shadow-sm hover:shadow-md"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="text-base font-semibold text-gray-900 dark:text-white group-hover:text-accent-primary dark:group-hover:text-blue-300 mb-1">
+                          <p className="text-base font-semibold text-gray-900 dark:text-white group-hover:text-accent-primary dark:group-hover:text-accent-primary mb-1">
                             {template.name}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">
@@ -2753,11 +2753,11 @@ export const Settings = ({
               </div>
 
               {/* Preview Section */}
-              <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">
+              <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-accent-dark dark:text-accent-primary mb-2">
                   Datenvorschau ({csvPreviewData.allData.length} Zeilen)
                 </h4>
-                <div className="text-xs text-blue-800 dark:text-blue-400 space-y-1">
+                <div className="text-xs text-accent-dark dark:text-accent-primary space-y-1">
                   {csvPreviewData.rows.slice(0, 2).map((row, idx) => {
                     const fieldToColumn: Record<string, string> = {};
                     Object.entries(columnMappings).forEach(([csvCol, field]) => {

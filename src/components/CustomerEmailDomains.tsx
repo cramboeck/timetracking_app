@@ -164,7 +164,7 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
           {/* Content */}
           <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
             {/* Info Box */}
-            <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-3 mb-4">
+            <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-3 mb-4">
               <div className="flex gap-2">
                 <Info className="w-5 h-5 text-accent-primary dark:text-accent-primary flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-accent-dark dark:text-accent-primary">

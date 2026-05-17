@@ -409,7 +409,7 @@ export const ManualEntryModern = ({
           size="lg"
           icon={<Save size={22} />}
           className={projectId && calculatedDuration > 0
-            ? 'py-4 text-lg shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40'
+            ? 'py-4 text-lg shadow-lg shadow-accent-primary/30 hover:shadow-xl hover:shadow-accent-primary/40'
             : 'py-4 text-lg'
           }
         >

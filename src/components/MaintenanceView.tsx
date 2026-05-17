@@ -43,7 +43,7 @@ const STATUS_LABELS: Record<MaintenanceStatus, string> = {
 
 const STATUS_COLORS: Record<MaintenanceStatus, string> = {
   draft: 'bg-gray-100 text-gray-800',
-  scheduled: 'bg-accent-lighter text-blue-800',
+  scheduled: 'bg-accent-lighter text-accent-dark',
   sent: 'bg-yellow-100 text-yellow-800',
   in_progress: 'bg-purple-100 text-purple-800',
   completed: 'bg-green-100 text-green-800',
@@ -393,7 +393,7 @@ function AnnouncementDialog({
 
           {/* Ticket creation option - only shown when exactly one customer is selected */}
           {formData.customerIds.length === 1 && !announcement && (
-            <div className="p-4 bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg">
+            <div className="p-4 bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg">
               <label className="flex items-center gap-3">
                 <input
                   type="checkbox"
@@ -402,7 +402,7 @@ function AnnouncementDialog({
                   className="w-4 h-4 text-accent-primary rounded"
                 />
                 <div>
-                  <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                  <span className="text-sm font-medium text-accent-dark dark:text-accent-primary">
                     Ticket für Zeiterfassung erstellen
                   </span>
                   <p className="text-xs text-accent-primary dark:text-accent-primary mt-0.5">

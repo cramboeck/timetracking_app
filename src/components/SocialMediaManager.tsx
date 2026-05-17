@@ -1192,7 +1192,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               </button>
               <button
                 onClick={() => { setViewMode('create'); setCreateSubView('post'); setShowPostEditor(true); }}
-                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl hover:opacity-90"
+                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-accent-primary to-accent-dark text-white rounded-xl hover:opacity-90"
               >
                 <Plus size={24} />
                 <span className="text-sm font-medium">Neuer Post</span>
@@ -1319,7 +1319,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           </div>
 
           {/* Workflow Suggestions */}
-          <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-6 border border-purple-200 dark:border-purple-800">
+          <div className="bg-gradient-to-r from-purple-50 to-accent-light dark:from-purple-900/20 dark:to-accent-primary/20 rounded-xl p-6 border border-purple-200 dark:border-purple-800">
             <h3 className="font-semibold dark:text-white mb-3 flex items-center gap-2">
               <Lightbulb size={20} className="text-amber-500" />
               Empfehlungen
@@ -1965,7 +1965,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       {/* Canva Instructions */}
                       {carouselContent.canvaInstructions && (
                         <div className="p-4 bg-accent-light dark:bg-accent-primary/20 rounded-lg">
-                          <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-2">
+                          <h4 className="text-sm font-medium text-accent-dark dark:text-accent-primary mb-2 flex items-center gap-2">
                             <Lightbulb size={16} />
                             Canva-Anleitung
                           </h4>
@@ -1994,7 +1994,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           {/* Batch Sub-View - Uses existing batch content */}
           {createSubView === 'batch' && (
             <div className="space-y-6">
-              <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
+              <div className="bg-gradient-to-r from-accent-primary to-purple-600 rounded-xl p-6 text-white">
                 <div className="flex items-center gap-3 mb-2">
                   <Layers size={28} />
                   <h2 className="text-xl font-bold">Batch-Generierung</h2>
@@ -2071,7 +2071,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <button
                     onClick={generateBatch}
                     disabled={batchGenerating || !batchTopics.trim()}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-primary to-purple-600 text-white rounded-lg disabled:opacity-50"
                   >
                     {batchGenerating ? <Loader2 size={20} className="animate-spin" /> : <Zap size={20} />}
                     {batchGenerating ? 'Generiere...' : 'Batch generieren'}
@@ -2796,7 +2796,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       {/* Accounts View */}
       {viewMode === 'accounts' && (
         <div className="space-y-4">
-          <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-4">
+          <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-4">
             <p className="text-sm text-accent-dark dark:text-accent-primary">
               <strong>Hinweis:</strong> Die direkte Verbindung zu Social Media Plattformen wird in einer zukünftigen Version verfügbar sein.
               Aktuell können Sie Posts planen und den Content dann manuell auf den Plattformen veröffentlichen.
@@ -3488,7 +3488,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       {/* Trends View */}
       {viewMode === 'trends' && (
         <div className="space-y-6">
-          <div className="bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl p-6 text-white">
+          <div className="bg-gradient-to-r from-cyan-500 to-accent-dark rounded-xl p-6 text-white">
             <div className="flex items-center gap-3 mb-2">
               <Globe size={28} />
               <h2 className="text-xl font-bold">Trend-Surfer</h2>
@@ -5145,7 +5145,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         size="lg"
       >
         <div className="space-y-4">
-          <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-3">
+          <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-3">
             <p className="text-sm text-accent-dark dark:text-accent-primary">
               Format: <code className="bg-accent-lighter dark:bg-accent-primary/50 px-1 rounded">Inhalt;Datum (YYYY-MM-DD HH:MM)</code>
               <br />
@@ -5556,7 +5556,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
               {/* Theme Strategy Preview */}
               {(wizardPlatform === 'linkedin' || wizardPlatform === 'instagram') && (
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                <div className="bg-gradient-to-r from-purple-50 to-accent-light dark:from-purple-900/20 dark:to-accent-primary/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-medium text-purple-800 dark:text-purple-200 flex items-center gap-2">
                       <Lightbulb size={16} />
@@ -5818,7 +5818,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               {/* RIGHT SIDE: Marketing Analysis */}
               <div className="space-y-4">
                 {wizardAnalyzing ? (
-                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-8 text-center">
+                  <div className="bg-gradient-to-r from-purple-50 to-accent-light dark:from-purple-900/20 dark:to-accent-primary/20 rounded-xl p-8 text-center">
                     <Loader2 size={40} className="animate-spin text-purple-500 mx-auto mb-4" />
                     <p className="font-medium dark:text-white">Marketing-Experte analysiert...</p>
                     <p className="text-sm text-gray-500 mt-1">Prüft Hook, Mehrwert, CTA und Plattform-Fit</p>
@@ -5826,7 +5826,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 ) : wizardAnalysis && (
                   <>
                     {/* Score Header */}
-                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-5">
+                    <div className="bg-gradient-to-r from-purple-50 to-accent-light dark:from-purple-900/20 dark:to-accent-primary/20 rounded-xl p-5">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="font-semibold dark:text-white flex items-center gap-2">
                           <Bot size={18} className="text-purple-600" />
@@ -5931,7 +5931,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                             }
                           }}
                           disabled={wizardAutoImproving || wizardImproving}
-                          className="text-xs bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-1.5 rounded-full flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 font-medium"
+                          className="text-xs bg-gradient-to-r from-purple-600 to-accent-dark text-white px-4 py-1.5 rounded-full flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 font-medium"
                         >
                           {wizardAutoImproving ? (
                             <Loader2 size={12} className="animate-spin" />

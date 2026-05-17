@@ -710,7 +710,7 @@ export const Microsoft365Settings = () => {
 
           {/* Processing Result */}
           {invoiceProcessResult && (
-            <div className="mb-4 p-3 bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg">
+            <div className="mb-4 p-3 bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg">
               <div className="flex gap-4 text-sm">
                 <span className="text-green-600 dark:text-green-400">
                   ✓ {invoiceProcessResult.processedCount} verarbeitet
@@ -859,7 +859,7 @@ export const Microsoft365Settings = () => {
                       {expandedInvoiceId === invoice.id && (
                         <tr className="bg-gray-50 dark:bg-dark-200">
                           <td colSpan={6} className="py-3 px-4">
-                            <div className="pl-4 border-l-2 border-blue-300 dark:border-accent-primary">
+                            <div className="pl-4 border-l-2 border-accent-primary/40 dark:border-accent-primary">
                               <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Anhänge
                               </div>

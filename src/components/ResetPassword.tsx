@@ -82,7 +82,7 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
 
   if (isVerifying) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary dark:border-accent-primary mx-auto"></div>
           <p className="mt-4 text-gray-600 dark:text-gray-400">Token wird überprüft...</p>
@@ -93,7 +93,7 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
 
   if (!tokenValid) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
         <div className="max-w-md w-full">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
             <div className="text-center mb-6">
@@ -121,7 +121,7 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           <Button
@@ -166,7 +166,7 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
                   placeholder="Mindestens 8 Zeichen"
                   required
                   minLength={8}
-                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-blue-400 transition-colors"
+                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-accent-primary transition-colors"
                 />
                 <button
                   type="button"
@@ -190,7 +190,7 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Passwort wiederholen"
                   required
-                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-blue-400 transition-colors"
+                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-accent-primary transition-colors"
                 />
                 <button
                   type="button"

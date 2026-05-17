@@ -511,7 +511,7 @@ export const SupportInbox = () => {
                       </p>
                     </div>
                   ) : selectedTicketInfo.suggestedTicket ? (
-                    <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-3">
+                    <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-3">
                       <div className="flex items-center gap-2 text-accent-dark dark:text-accent-primary">
                         <Link2 size={16} />
                         <span className="text-sm font-medium">Passendes Ticket gefunden</span>

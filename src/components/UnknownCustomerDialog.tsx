@@ -166,7 +166,7 @@ export const UnknownCustomerDialog = ({
                   onClick={() => setView('select')}
                   className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/20 transition-all group"
                 >
-                  <div className="w-12 h-12 rounded-lg bg-accent-lighter dark:bg-accent-primary/30 flex items-center justify-center group-hover:bg-accent-lighter dark:group-hover:bg-blue-800/30 transition-colors">
+                  <div className="w-12 h-12 rounded-lg bg-accent-lighter dark:bg-accent-primary/30 flex items-center justify-center group-hover:bg-accent-lighter dark:group-hover:bg-accent-primary/30 transition-colors">
                     <Building2 className="w-6 h-6 text-accent-primary dark:text-accent-primary" />
                   </div>
                   <div className="flex-1 text-left">

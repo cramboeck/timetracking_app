@@ -332,7 +332,7 @@ export const Auth = () => {
                 <div className="space-y-4">
                   {invitationInfo.userAlreadyExists ? (
                     <>
-                      <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-3">
+                      <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-3">
                         <p className="text-sm text-accent-dark dark:text-accent-primary text-center">
                           <strong>Du hast bereits ein Konto</strong> mit der E-Mail-Adresse {invitationInfo.invitedEmail}. Bitte melde dich an, um der Organisation beizutreten.
                         </p>

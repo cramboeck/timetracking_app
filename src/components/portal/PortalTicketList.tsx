@@ -9,7 +9,7 @@ interface PortalTicketListProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
-  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-accent-primary/40 dark:text-accent-primary', icon: AlertCircle },
+  open: { label: 'Offen', color: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/40 dark:text-accent-primary', icon: AlertCircle },
   in_progress: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200', icon: Clock },
   waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', icon: Pause },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', icon: CheckCircle },
@@ -143,7 +143,7 @@ export const PortalTicketList = ({ contact, onTicketSelect, onCreateTicket }: Po
               <button
                 key={ticket.id}
                 onClick={() => onTicketSelect(ticket)}
-                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-400 dark:hover:border-accent-primary transition-colors"
+                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-accent-primary dark:hover:border-accent-primary transition-colors"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">

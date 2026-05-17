@@ -556,7 +556,7 @@ interface StatusCardProps {
 
 const StatusCard = ({ label, count, icon: Icon, color, onClick }: StatusCardProps) => {
   const colorClasses = {
-    blue: 'bg-accent-light dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary border-blue-200 dark:border-accent-primary/40',
+    blue: 'bg-accent-light dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary border-accent-primary/30 dark:border-accent-primary/40',
     yellow: 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800',
     purple: 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800',
     green: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800',

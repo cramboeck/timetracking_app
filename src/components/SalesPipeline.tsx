@@ -98,7 +98,7 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({
         e.dataTransfer.setData('opportunityId', opportunity.id);
         e.dataTransfer.effectAllowed = 'move';
       }}
-      className={`group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 dark:hover:border-accent-primary transition-all ${
+      className={`group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-accent-primary/40 dark:hover:border-accent-primary transition-all ${
         isDragging ? 'opacity-50 rotate-2 scale-105' : ''
       }`}
     >

@@ -414,7 +414,7 @@ export const InvoiceInbox = () => {
 
       {/* Processing Result */}
       {invoiceProcessResult && (
-        <div className="p-3 bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg">
+        <div className="p-3 bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg">
           <div className="flex gap-4 text-sm">
             <span className="text-green-600 dark:text-green-400">
               ✓ {invoiceProcessResult.processedCount} verarbeitet
@@ -512,7 +512,7 @@ export const InvoiceInbox = () => {
 
                       {/* Expanded Documents */}
                       {expandedInvoiceId === invoice.id && (
-                        <div className="mt-2 pl-3 border-l-2 border-blue-300 dark:border-accent-primary space-y-2">
+                        <div className="mt-2 pl-3 border-l-2 border-accent-primary/40 dark:border-accent-primary space-y-2">
                           {loadingDocuments === invoice.id ? (
                             <div className="flex items-center gap-2 text-gray-500 text-sm">
                               <Loader2 size={14} className="animate-spin" />
@@ -723,7 +723,7 @@ export const InvoiceInbox = () => {
                       {expandedInvoiceId === invoice.id && (
                         <tr className="bg-gray-50 dark:bg-dark-200">
                           <td colSpan={6} className="py-3 px-4">
-                            <div className="pl-4 border-l-2 border-blue-300 dark:border-accent-primary">
+                            <div className="pl-4 border-l-2 border-accent-primary/40 dark:border-accent-primary">
                               <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Anhänge
                               </div>

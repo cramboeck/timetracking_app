@@ -41,7 +41,7 @@ export const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           <Button
@@ -98,7 +98,7 @@ export const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="deine@email.de"
                 required
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-blue-400 transition-colors"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-accent-primary transition-colors"
               />
             </div>
 

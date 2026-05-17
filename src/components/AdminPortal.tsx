@@ -1103,7 +1103,7 @@ export default function AdminPortal() {
                               user.account_type === 'business'
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                                 : user.account_type === 'team'
-                                ? 'bg-accent-lighter text-blue-800 dark:bg-accent-primary/30 dark:text-accent-primary'
+                                ? 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary'
                                 : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                             }`}>
                               {user.account_type}
@@ -1187,7 +1187,7 @@ export default function AdminPortal() {
                             {log.username}
                           </td>
                           <td className="px-4 py-3">
-                            <span className="px-2 py-1 text-xs font-medium bg-accent-lighter text-blue-800 dark:bg-accent-primary/30 dark:text-accent-primary rounded">
+                            <span className="px-2 py-1 text-xs font-medium bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary rounded">
                               {log.action}
                             </span>
                           </td>
@@ -1870,7 +1870,7 @@ export default function AdminPortal() {
                               notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
                               notification.type === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
                               notification.type === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                              'bg-accent-lighter text-blue-800 dark:bg-accent-primary/30 dark:text-accent-primary'
+                              'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary'
                             }`}>
                               {notification.type}
                             </span>
