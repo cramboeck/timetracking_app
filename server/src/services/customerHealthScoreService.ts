@@ -14,6 +14,7 @@
 import { pool, getClient } from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 import { auditLog } from './auditLog';
+import { logger } from '../utils/logger';
 
 export interface HealthScoreMetrics {
   ticketsCreated: number;
@@ -504,7 +505,7 @@ class CustomerHealthScoreService {
           warnings.push(result.warning);
         }
       } catch (error: any) {
-        console.error(`Error calculating health score for customer ${customer.id}:`, error);
+        logger.error(`Error calculating health score for customer ${customer.id}:`, error);
         errors.push({
           customerId: customer.id,
           error: error.message
@@ -523,7 +524,7 @@ class CustomerHealthScoreService {
     periodType: 'monthly' | 'quarterly' | 'yearly' = 'monthly'
   ): Promise<JobExecutionResult> {
     const startedAt = new Date();
-    console.log(`[HealthScoreJob] Starting health score calculation for all organizations...`);
+    logger.info(`[HealthScoreJob] Starting health score calculation for all organizations...`);
 
     const allWarnings: ChurnWarning[] = [];
     const allErrors: Array<{ customerId: string; error: string }> = [];
@@ -536,7 +537,7 @@ class CustomerHealthScoreService {
       const orgsResult = await pool.query('SELECT id, name FROM organizations');
 
       for (const org of orgsResult.rows) {
-        console.log(`[HealthScoreJob] Processing organization: ${org.name} (${org.id})`);
+        logger.info(`[HealthScoreJob] Processing organization: ${org.name} (${org.id})`);
 
         try {
           const { results, warnings, errors } = await this.calculateForOrganization(org.id, periodType);
@@ -548,9 +549,9 @@ class CustomerHealthScoreService {
           allWarnings.push(...warnings);
           allErrors.push(...errors);
 
-          console.log(`[HealthScoreJob] Organization ${org.name}: ${results.length} customers updated, ${warnings.length} warnings`);
+          logger.info(`[HealthScoreJob] Organization ${org.name}: ${results.length} customers updated, ${warnings.length} warnings`);
         } catch (error: any) {
-          console.error(`[HealthScoreJob] Error processing organization ${org.name}:`, error);
+          logger.error(`[HealthScoreJob] Error processing organization ${org.name}:`, error);
         }
       }
 
@@ -562,7 +563,7 @@ class CustomerHealthScoreService {
       const completedAt = new Date();
       const durationMs = completedAt.getTime() - startedAt.getTime();
 
-      console.log(`[HealthScoreJob] Completed in ${durationMs}ms. Processed: ${customersProcessed}, Updated: ${customersUpdated}, Warnings: ${allWarnings.length}`);
+      logger.info(`[HealthScoreJob] Completed in ${durationMs}ms. Processed: ${customersProcessed}, Updated: ${customersUpdated}, Warnings: ${allWarnings.length}`);
 
       return {
         success: true,
@@ -577,7 +578,7 @@ class CustomerHealthScoreService {
       };
     } catch (error: any) {
       const completedAt = new Date();
-      console.error('[HealthScoreJob] Fatal error:', error);
+      logger.error('[HealthScoreJob] Fatal error:', error);
 
       return {
         success: false,
@@ -623,7 +624,7 @@ class CustomerHealthScoreService {
         ]);
       } catch (error) {
         // Table might not exist yet, log and continue
-        console.warn('[HealthScoreJob] Could not store churn warning:', error);
+        logger.warn('[HealthScoreJob] Could not store churn warning:', error);
       }
     }
   }
@@ -681,7 +682,7 @@ class CustomerHealthScoreService {
         generatedAt: row.generated_at
       }));
     } catch (error) {
-      console.error('Error fetching churn warnings:', error);
+      logger.error('Error fetching churn warnings:', error);
       return [];
     }
   }
@@ -699,7 +700,7 @@ class CustomerHealthScoreService {
 
       return (result.rowCount || 0) > 0;
     } catch (error) {
-      console.error('Error acknowledging warning:', error);
+      logger.error('Error acknowledging warning:', error);
       return false;
     }
   }
@@ -748,7 +749,7 @@ class CustomerHealthScoreService {
       ]);
     } catch (error) {
       // Table might not exist, log and continue
-      console.warn('[HealthScoreJob] Could not record job execution:', error);
+      logger.warn('[HealthScoreJob] Could not record job execution:', error);
     }
   }
 }

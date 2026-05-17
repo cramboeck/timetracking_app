@@ -8,6 +8,7 @@ import * as microsoft365Service from '../services/microsoft365ConfigService';
 import { mailboxMonitorService } from '../services/mailboxMonitorService';
 import { invoiceProcessorService } from '../services/invoiceProcessorService';
 import { query } from '../config/database';
+import { logger } from '../utils/logger';
 
 interface OrganizationRequest extends AuthRequest {
   organization: {
@@ -63,7 +64,7 @@ router.get('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Res
       },
     });
   } catch (error) {
-    console.error('Get Microsoft 365 config error:', error);
+    logger.error('Get Microsoft 365 config error:', error);
     res.status(500).json({ error: 'Failed to get config' });
   }
 });
@@ -99,7 +100,7 @@ router.post('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Re
       },
     });
   } catch (error) {
-    console.error('Save Microsoft 365 config error:', error);
+    logger.error('Save Microsoft 365 config error:', error);
     res.status(500).json({ error: 'Failed to save config' });
   }
 });
@@ -116,7 +117,7 @@ router.post('/test', requireOrgRole('admin'), async (req: AuthRequest, res: Resp
       const storedConfig = await microsoft365Service.getConfig(organizationId);
       if (storedConfig?.clientSecret) {
         clientSecret = storedConfig.clientSecret;
-        console.log('Using stored client secret from database');
+        logger.info('Using stored client secret from database');
       } else {
         return res.status(400).json({
           success: false,
@@ -126,13 +127,13 @@ router.post('/test', requireOrgRole('admin'), async (req: AuthRequest, res: Resp
     }
 
     // Debug logging
-    console.log('=== Microsoft 365 Test Debug ===');
-    console.log('Tenant ID:', tenantId);
-    console.log('Client ID:', clientId);
-    console.log('Client Secret Length:', clientSecret?.length);
-    console.log('Client Secret First 4:', clientSecret?.substring(0, 4));
-    console.log('Client Secret Last 4:', clientSecret?.substring(clientSecret.length - 4));
-    console.log('================================');
+    logger.info('=== Microsoft 365 Test Debug ===');
+    logger.info('Tenant ID:', tenantId);
+    logger.info('Client ID:', clientId);
+    logger.info('Client Secret Length:', clientSecret?.length);
+    logger.info('Client Secret First 4:', clientSecret?.substring(0, 4));
+    logger.info('Client Secret Last 4:', clientSecret?.substring(clientSecret.length - 4));
+    logger.info('================================');
 
     if (!tenantId || !clientId || !clientSecret) {
       return res.status(400).json({
@@ -167,7 +168,7 @@ router.post('/test', requireOrgRole('admin'), async (req: AuthRequest, res: Resp
       });
     }
   } catch (error: any) {
-    console.error('Microsoft 365 connection test error:', error);
+    logger.error('Microsoft 365 connection test error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Connection test failed',
@@ -185,7 +186,7 @@ router.delete('/config', requireOrgRole('admin'), async (req: AuthRequest, res: 
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete Microsoft 365 config error:', error);
+    logger.error('Delete Microsoft 365 config error:', error);
     res.status(500).json({ error: 'Failed to delete config' });
   }
 });
@@ -215,7 +216,7 @@ router.post('/mailbox/test', requireOrgRole('admin'), async (req: AuthRequest, r
       });
     }
   } catch (error: any) {
-    console.error('Mailbox test error:', error);
+    logger.error('Mailbox test error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Mailbox test failed',
@@ -248,7 +249,7 @@ router.get('/mailbox/emails', requireOrgRole('member'), async (req: AuthRequest,
       });
     }
   } catch (error: any) {
-    console.error('Get emails error:', error);
+    logger.error('Get emails error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get emails',
@@ -278,7 +279,7 @@ router.get('/mailbox/emails/:id', requireOrgRole('member'), async (req: AuthRequ
       });
     }
   } catch (error: any) {
-    console.error('Get email error:', error);
+    logger.error('Get email error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get email',
@@ -301,7 +302,7 @@ router.get('/mailbox/emails/:id/attachments', requireOrgRole('member'), async (r
       data: attachments,
     });
   } catch (error: any) {
-    console.error('Get attachments error:', error);
+    logger.error('Get attachments error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get attachments',
@@ -328,7 +329,7 @@ router.post('/mailbox/emails/:id/read', requireOrgRole('member'), async (req: Au
       });
     }
   } catch (error: any) {
-    console.error('Mark as read error:', error);
+    logger.error('Mark as read error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to mark email as read',
@@ -368,7 +369,7 @@ router.post('/mailbox/emails/:id/reply', requireOrgRole('member'), async (req: A
       });
     }
   } catch (error: any) {
-    console.error('Reply to email error:', error);
+    logger.error('Reply to email error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to send reply',
@@ -577,7 +578,7 @@ router.get('/support/emails/:id/customer-lookup', requireOrgRole('member'), asyn
       },
     });
   } catch (error) {
-    console.error('Customer lookup error:', error);
+    logger.error('Customer lookup error:', error);
     res.status(500).json({
       success: false,
       error: 'Interner Serverfehler',
@@ -713,7 +714,7 @@ router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), async
               { id: ticketId, ticketNumber, title: email.subject || '(Kein Betreff)' },
               'push_on_new_ticket',
               `Neues Ticket von ${senderName}${customerName ? ` (${customerName})` : ''}`
-            ).catch(err => console.error('Push notification error (new ticket):', err));
+            ).catch(err => logger.error('Push notification error (new ticket):', err));
           }
 
           // Send email notification if enabled
@@ -727,11 +728,11 @@ router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), async
               ticketDescription: description.substring(0, 500),
               priority,
               adminUrl: ticketUrl,
-            }).catch(err => console.error('Email notification error (new ticket):', err));
+            }).catch(err => logger.error('Email notification error (new ticket):', err));
           }
         }
       } catch (notifyErr) {
-        console.error('Error sending new ticket notifications:', notifyErr);
+        logger.error('Error sending new ticket notifications:', notifyErr);
       }
     })();
 
@@ -747,7 +748,7 @@ router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), async
       },
     });
   } catch (error: any) {
-    console.error('Create ticket from email error:', error);
+    logger.error('Create ticket from email error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to create ticket from email',
@@ -763,7 +764,7 @@ router.get('/support/emails', requireOrgRole('member'), async (req: AuthRequest,
     const includeRead = req.query.includeRead === 'true';
     const maxResults = parseInt(req.query.limit as string) || 50;
 
-    console.log(`📧 Fetching support emails for org ${organizationId}, includeRead=${includeRead}, limit=${maxResults}`);
+    logger.info(`📧 Fetching support emails for org ${organizationId}, includeRead=${includeRead}, limit=${maxResults}`);
 
     const result = await mailboxMonitorService.getUnreadEmails(organizationId, {
       mailboxType: 'support',
@@ -771,7 +772,7 @@ router.get('/support/emails', requireOrgRole('member'), async (req: AuthRequest,
       maxResults,
     });
 
-    console.log(`📧 Support emails result: success=${result.success}, count=${result.emails?.length || 0}, error=${result.error || 'none'}`);
+    logger.info(`📧 Support emails result: success=${result.success}, count=${result.emails?.length || 0}, error=${result.error || 'none'}`);
 
     if (result.success) {
       res.json({
@@ -785,7 +786,7 @@ router.get('/support/emails', requireOrgRole('member'), async (req: AuthRequest,
       });
     }
   } catch (error: any) {
-    console.error('Get support emails error:', error);
+    logger.error('Get support emails error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get support emails',
@@ -857,7 +858,7 @@ router.post('/support/emails/:id/link-ticket', requireOrgRole('member'), async (
       },
     });
   } catch (error: any) {
-    console.error('Link email to ticket error:', error);
+    logger.error('Link email to ticket error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to link email to ticket',
@@ -919,7 +920,7 @@ router.get('/support/emails/:id/ticket-info', requireOrgRole('member'), async (r
       },
     });
   } catch (error: any) {
-    console.error('Get email ticket info error:', error);
+    logger.error('Get email ticket info error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get email ticket info',
@@ -964,7 +965,7 @@ router.get('/tickets/:id/emails', requireOrgRole('member'), async (req: AuthRequ
       data: result.rows,
     });
   } catch (error: any) {
-    console.error('Get ticket emails error:', error);
+    logger.error('Get ticket emails error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get ticket emails',
@@ -996,7 +997,7 @@ router.post('/invoices/process', requireOrgRole('admin'), async (req: AuthReques
       },
     });
   } catch (error: any) {
-    console.error('Process invoice mailbox error:', error);
+    logger.error('Process invoice mailbox error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to process invoice mailbox',
@@ -1025,7 +1026,7 @@ router.get('/invoices', requireOrgRole('member'), async (req: AuthRequest, res: 
       total: result.total,
     });
   } catch (error: any) {
-    console.error('Get processed invoices error:', error);
+    logger.error('Get processed invoices error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get processed invoices',
@@ -1045,7 +1046,7 @@ router.get('/invoices/:id/documents', requireOrgRole('member'), async (req: Auth
       data: documents,
     });
   } catch (error: any) {
-    console.error('Get invoice documents error:', error);
+    logger.error('Get invoice documents error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get invoice documents',
@@ -1071,7 +1072,7 @@ router.get('/documents/:id/download', requireOrgRole('member'), async (req: Auth
 
     // Check if file exists
     if (!fs.existsSync(document.storagePath)) {
-      console.error(`Document file not found: ${document.storagePath}`);
+      logger.error(`Document file not found: ${document.storagePath}`);
       return res.status(404).json({
         success: false,
         error: 'Datei nicht gefunden',
@@ -1096,7 +1097,7 @@ router.get('/documents/:id/download', requireOrgRole('member'), async (req: Auth
     // Send the entire file at once
     res.send(fileBuffer);
   } catch (error: any) {
-    console.error('Download document error:', error);
+    logger.error('Download document error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to download document',
@@ -1122,7 +1123,7 @@ router.post('/invoices/:id/retry', requireOrgRole('admin'), async (req: AuthRequ
       });
     }
   } catch (error: any) {
-    console.error('Retry invoice processing error:', error);
+    logger.error('Retry invoice processing error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to retry invoice processing',
@@ -1144,7 +1145,7 @@ router.delete('/invoices/failed', requireOrgRole('admin'), async (req: AuthReque
       deletedCount,
     });
   } catch (error: any) {
-    console.error('Clear failed entries error:', error);
+    logger.error('Clear failed entries error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to clear failed entries',
@@ -1165,7 +1166,7 @@ router.delete('/invoices/all', requireOrgRole('admin'), async (req: AuthRequest,
       deletedCount,
     });
   } catch (error: any) {
-    console.error('Clear all entries error:', error);
+    logger.error('Clear all entries error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to clear all entries',
@@ -1194,7 +1195,7 @@ router.get('/invoices/:id/extract', requireOrgRole('admin'), async (req: AuthReq
       });
     }
   } catch (error: any) {
-    console.error('Extract invoice data error:', error);
+    logger.error('Extract invoice data error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to extract invoice data',
@@ -1227,7 +1228,7 @@ router.post('/invoices/:id/approve', requireOrgRole('admin'), async (req: AuthRe
       });
     }
   } catch (error: any) {
-    console.error('Approve draft error:', error);
+    logger.error('Approve draft error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to approve draft',
@@ -1253,7 +1254,7 @@ router.post('/invoices/:id/revert', requireOrgRole('admin'), async (req: AuthReq
       });
     }
   } catch (error: any) {
-    console.error('Revert to draft error:', error);
+    logger.error('Revert to draft error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to revert to draft',
@@ -1279,7 +1280,7 @@ router.delete('/invoices/:id', requireOrgRole('admin'), async (req: AuthRequest,
       });
     }
   } catch (error: any) {
-    console.error('Delete draft error:', error);
+    logger.error('Delete draft error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to delete draft',
@@ -1408,7 +1409,7 @@ router.post('/support/emails/:id/save-as-interaction', requireOrgRole('member'),
     });
 
   } catch (error: any) {
-    console.error('Save email as interaction error:', error);
+    logger.error('Save email as interaction error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Fehler beim Speichern der Interaktion',
@@ -1479,7 +1480,7 @@ router.get('/personal/emails', requireOrgRole('member'), async (req: AuthRequest
       });
     }
   } catch (error: any) {
-    console.error('Get personal emails error:', error);
+    logger.error('Get personal emails error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Fehler beim Abrufen der E-Mails',
@@ -1633,7 +1634,7 @@ router.post('/personal/emails/:id/save-as-interaction', requireOrgRole('member')
     });
 
   } catch (error: any) {
-    console.error('Save personal email as interaction error:', error);
+    logger.error('Save personal email as interaction error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Fehler beim Speichern der Interaktion',
@@ -1711,7 +1712,7 @@ router.get('/personal/emails/:id/customer-lookup', requireOrgRole('member'), asy
     });
 
   } catch (error: any) {
-    console.error('Personal email customer lookup error:', error);
+    logger.error('Personal email customer lookup error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Fehler bei der Kundensuche',

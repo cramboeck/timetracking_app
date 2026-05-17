@@ -922,7 +922,7 @@ export async function initializeDatabase() {
       END $$;
     `);
 
-    console.log('✅ Device IP history table created with 30-day retention');
+    logger.info('✅ Device IP history table created with 30-day retention');
 
     // ============================================
     // NinjaRMM Device Software Inventory
@@ -945,7 +945,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_device_software_device ON ninjarmm_device_software(device_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_device_software_name ON ninjarmm_device_software(name)');
 
-    console.log('✅ Device software inventory table created');
+    logger.info('✅ Device software inventory table created');
 
     // ============================================
     // NinjaRMM Device OS Patches (Windows Updates)
@@ -974,7 +974,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_device_os_patches_type ON ninjarmm_device_os_patches(device_id, patch_type)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_device_os_patches_kb ON ninjarmm_device_os_patches(kb_number)');
 
-    console.log('✅ Device OS patches table created');
+    logger.info('✅ Device OS patches table created');
 
     // ============================================
     // Feature Flags System
@@ -1613,7 +1613,7 @@ export async function initializeDatabase() {
         END IF;
       END $$;
     `);
-    console.log('✅ Customer contact portal authentication columns added');
+    logger.info('✅ Customer contact portal authentication columns added');
 
     // Migration: Add email notification preferences to customer_contacts
     await client.query(`
@@ -1639,7 +1639,7 @@ export async function initializeDatabase() {
         END IF;
       END $$;
     `);
-    console.log('✅ Customer contact notification preferences added');
+    logger.info('✅ Customer contact notification preferences added');
 
     // Portal trusted devices table
     await client.query(`
@@ -1705,7 +1705,7 @@ export async function initializeDatabase() {
       END $$;
     `);
 
-    console.log('✅ Portal push subscriptions table created');
+    logger.info('✅ Portal push subscriptions table created');
 
     // ============================================
     // Internal User Push Subscriptions & Notification Preferences
@@ -1766,7 +1766,7 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_notif_prefs_user ON notification_preferences(user_id)');
 
-    console.log('✅ Internal user push subscriptions and notification preferences tables created');
+    logger.info('✅ Internal user push subscriptions and notification preferences tables created');
 
     // ============================================
     // Security Alerts Table
@@ -2151,7 +2151,7 @@ export async function initializeDatabase() {
       END $$;
     `);
 
-    console.log('✅ Multi-tenant organization migration completed');
+    logger.info('✅ Multi-tenant organization migration completed');
 
     // Migration: Add organization_id to sla_policies if not exists
     await client.query(`
@@ -2205,7 +2205,7 @@ export async function initializeDatabase() {
         END IF;
       END $$;
     `);
-    console.log('✅ Ticket sequences migrated to organization-based');
+    logger.info('✅ Ticket sequences migrated to organization-based');
 
     // ============================================
     // Add assigned_to to ticket_tasks (migration)
@@ -2235,7 +2235,7 @@ export async function initializeDatabase() {
         END IF;
       END $$;
     `);
-    console.log('✅ Ticket tasks extended with assigned_to, due_date, description');
+    logger.info('✅ Ticket tasks extended with assigned_to, due_date, description');
 
     // ============================================
     // Lead Management System
@@ -2297,7 +2297,7 @@ export async function initializeDatabase() {
       END $$;
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_to)');
-    console.log('✅ Leads table created');
+    logger.info('✅ Leads table created');
 
     // Lead activities/interactions
     await client.query(`
@@ -2325,7 +2325,7 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_lead_activities_lead ON lead_activities(lead_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_lead_activities_user ON lead_activities(user_id)');
-    console.log('✅ Lead activities table created');
+    logger.info('✅ Lead activities table created');
 
     // ============================================
     // CRM - Customer Contacts & Interactions
@@ -2397,7 +2397,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_contacts_org ON customer_contacts(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_contacts_customer ON customer_contacts(customer_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_contacts_email ON customer_contacts(email)');
-    console.log('✅ Customer contacts table created');
+    logger.info('✅ Customer contacts table created');
 
     // Customer Interactions - Communication log
     await client.query(`
@@ -2470,7 +2470,7 @@ export async function initializeDatabase() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_external ON customer_interactions(organization_id, external_id, external_source) WHERE external_id IS NOT NULL');
 
-    console.log('✅ Customer interactions table created');
+    logger.info('✅ Customer interactions table created');
 
     // CLEANUP: crm_interactions war ein ungenutztes Duplikat von customer_interactions.
     // Alle Felder (external_id, external_source, updated_at) wurden in customer_interactions migriert.
@@ -2488,7 +2488,7 @@ export async function initializeDatabase() {
         END IF;
       END $$;
     `);
-    console.log('✅ crm_interactions Cleanup abgeschlossen');
+    logger.info('✅ crm_interactions Cleanup abgeschlossen');
 
     // SLA Policies - Missing table that was referenced but not created
     await client.query(`
@@ -2531,7 +2531,7 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_sla_policies_org ON sla_policies(organization_id)');
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_sla_policies_default ON sla_policies(organization_id) WHERE is_default = true');
-    console.log('✅ SLA policies table created');
+    logger.info('✅ SLA policies table created');
 
     // Link SLA policies to customers
     await client.query(`
@@ -2594,7 +2594,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_metrics_org ON customer_metrics(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_metrics_customer ON customer_metrics(customer_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_metrics_period ON customer_metrics(period_start, period_end)');
-    console.log('✅ Customer metrics table created');
+    logger.info('✅ Customer metrics table created');
 
     // Churn Risk Warnings - Generated by health score job
     await client.query(`
@@ -2624,7 +2624,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_churn_warnings_customer ON churn_risk_warnings(customer_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_churn_warnings_unack ON churn_risk_warnings(organization_id, acknowledged) WHERE acknowledged = false');
     await client.query('CREATE INDEX IF NOT EXISTS idx_churn_warnings_risk ON churn_risk_warnings(organization_id, churn_risk)');
-    console.log('✅ Churn risk warnings table created');
+    logger.info('✅ Churn risk warnings table created');
 
     // Health Score Job Runs - Track job execution history
     await client.query(`
@@ -2649,7 +2649,7 @@ export async function initializeDatabase() {
     `);
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_job_runs_date ON health_score_job_runs(started_at DESC)');
-    console.log('✅ Health score job runs table created');
+    logger.info('✅ Health score job runs table created');
 
     // ============================================
     // Sales Pipeline - Opportunities
@@ -2679,7 +2679,7 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_pipeline_stages_org ON pipeline_stages(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pipeline_stages_order ON pipeline_stages(organization_id, sort_order)');
-    console.log('✅ Pipeline stages table created');
+    logger.info('✅ Pipeline stages table created');
 
     // Opportunities - Sales deals
     await client.query(`
@@ -2739,7 +2739,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_opportunities_assigned ON opportunities(assigned_to)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(organization_id, status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_opportunities_close_date ON opportunities(expected_close_date) WHERE status = \'open\'');
-    console.log('✅ Opportunities table created');
+    logger.info('✅ Opportunities table created');
 
     // Opportunity activities
     await client.query(`
@@ -2771,7 +2771,7 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_opportunity_activities_opp ON opportunity_activities(opportunity_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_opportunity_activities_user ON opportunity_activities(user_id)');
-    console.log('✅ Opportunity activities table created');
+    logger.info('✅ Opportunity activities table created');
 
     // ============================================
     // Unified Task Hub - Standalone Tasks System
@@ -2921,7 +2921,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_task_templates_org ON task_templates(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_task ON time_entries(task_id)');
 
-    console.log('✅ Unified Task Hub tables created');
+    logger.info('✅ Unified Task Hub tables created');
 
     // ============================================
     // Contract Management System
@@ -3099,7 +3099,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_contract_activity_contract ON contract_activity_log(contract_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_contract ON time_entries(contract_id)');
 
-    console.log('✅ Contract Management tables created');
+    logger.info('✅ Contract Management tables created');
 
     // Add FK from customer_interactions to contracts (contracts created after interactions)
     await client.query(`
@@ -3227,7 +3227,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_search ON sevdesk_documents USING GIN(search_vector)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customers_sevdesk ON customers(sevdesk_customer_id)');
 
-    console.log('✅ sevDesk Integration tables created');
+    logger.info('✅ sevDesk Integration tables created');
 
     // ============================================
     // Invoice Export System (for Billing/Finanzen)
@@ -3269,7 +3269,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_exports_period ON invoice_exports(period_start, period_end)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_export ON time_entries(invoice_export_id)');
 
-    console.log('✅ Invoice Export tables created');
+    logger.info('✅ Invoice Export tables created');
 
     // Add is_billable column to time_entries (defaults to true for backward compatibility)
     await client.query(`
@@ -3333,7 +3333,7 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_clockodo_config_user ON clockodo_config(user_id)');
 
-    console.log('✅ Clockodo Integration tables created');
+    logger.info('✅ Clockodo Integration tables created');
 
     // ============================================
     // Microsoft 365 Integration
@@ -3375,7 +3375,7 @@ export async function initializeDatabase() {
       END $$
     `);
 
-    console.log('✅ Microsoft 365 Integration tables created');
+    logger.info('✅ Microsoft 365 Integration tables created');
 
     // ============================================
     // Social Media Manager
@@ -3695,7 +3695,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_generated_images_org ON social_media_generated_images(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_story_templates_org ON social_media_story_templates(organization_id)');
 
-    console.log('✅ Social Media Manager tables created');
+    logger.info('✅ Social Media Manager tables created');
 
     // Processed Invoices table - tracks emails processed from invoice mailbox
     await client.query(`
@@ -3740,7 +3740,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_org ON invoice_documents(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_invoice ON invoice_documents(processed_invoice_id)');
 
-    console.log('✅ Invoice processing tables created');
+    logger.info('✅ Invoice processing tables created');
 
     // Migration: Update processed_invoices status check constraint to include 'draft'
     await client.query(`
@@ -3764,7 +3764,7 @@ export async function initializeDatabase() {
           NULL;
       END $$;
     `);
-    console.log('✅ processed_invoices status constraint updated');
+    logger.info('✅ processed_invoices status constraint updated');
 
     // Migration: Add sevdesk_voucher_id to processed_invoices for linking to sevDesk vouchers
     await client.query(`
@@ -3882,7 +3882,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_emails_received ON ticket_emails(received_at DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_email_attachments_email ON ticket_email_attachments(ticket_email_id)');
 
-    console.log('✅ Ticket email integration tables created');
+    logger.info('✅ Ticket email integration tables created');
 
     // Fix NinjaRMM alert timestamps that were incorrectly stored (Unix seconds instead of milliseconds)
     // This updates alerts where activity_time is before 1980 (indicating a seconds-based timestamp was used)
@@ -3914,7 +3914,7 @@ export async function initializeDatabase() {
         AND created_at IS NOT NULL
         AND created_at > '1980-01-01'
     `);
-    console.log('✅ NinjaRMM alert timestamps fixed');
+    logger.info('✅ NinjaRMM alert timestamps fixed');
 
     // ============================================
     // Extended Email Logs Table
@@ -3988,7 +3988,7 @@ export async function initializeDatabase() {
       END $$;
     `);
 
-    console.log('✅ Email logs tables created');
+    logger.info('✅ Email logs tables created');
 
     // ============================================
     // Customer Email Domains Table
@@ -4014,7 +4014,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_email_domains_org ON customer_email_domains(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customer_email_domains_domain ON customer_email_domains(domain)');
 
-    console.log('✅ Customer email domains table created');
+    logger.info('✅ Customer email domains table created');
 
     // ============================================
     // Portal Settings Table
@@ -4052,7 +4052,7 @@ export async function initializeDatabase() {
       END $$;
     `);
 
-    console.log('✅ Portal settings table created');
+    logger.info('✅ Portal settings table created');
 
     // Migration: Extend report_approvals with reminder_sent_at and additional status values
     await client.query(`
@@ -4072,7 +4072,7 @@ export async function initializeDatabase() {
           CHECK(status IN ('pending', 'approved', 'rejected', 'saved', 'revision_requested', 'superseded'));
       END $$;
     `);
-    console.log('✅ Report approvals reminder support added');
+    logger.info('✅ Report approvals reminder support added');
 
     // =========================================================================
     // MIGRATION: Add updated_at to core tables that were missing it.
@@ -4080,7 +4080,7 @@ export async function initializeDatabase() {
     // on existing databases without touching any existing data.
     // Back-fills updated_at = created_at for existing rows.
     // =========================================================================
-    console.log('🔄 Running updated_at migration...');
+    logger.info('🔄 Running updated_at migration...');
     const tablesNeedingUpdatedAt: string[] = [
       'teams', 'customers', 'projects', 'activities', 'time_entries',
       'ticket_comments', 'ticket_tasks', 'lead_activities',
@@ -4101,7 +4101,7 @@ export async function initializeDatabase() {
         END $$;
       `);
     }
-    console.log('✅ updated_at migration complete');
+    logger.info('✅ updated_at migration complete');
 
     // =========================================================================
     // MIGRATION: Soft-delete for critical entities.
@@ -4110,7 +4110,7 @@ export async function initializeDatabase() {
     // NOT NULL → record is soft-deleted (hidden from normal queries).
     // Application code must filter WHERE deleted_at IS NULL.
     // =========================================================================
-    console.log('🔄 Running soft-delete migration...');
+    logger.info('🔄 Running soft-delete migration...');
     const tablesNeedingSoftDelete: string[] = [
       'customers', 'projects', 'activities', 'contracts',
     ];
@@ -4128,13 +4128,13 @@ export async function initializeDatabase() {
         END $$;
       `);
     }
-    console.log('✅ Soft-delete migration complete');
+    logger.info('✅ Soft-delete migration complete');
 
     await client.query('COMMIT');
-    console.log('✅ Database schema initialized successfully');
+    logger.info('✅ Database schema initialized successfully');
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('❌ Error initializing database:', error);
+    logger.error('❌ Error initializing database:', error);
     throw error;
   } finally {
     client.release();
@@ -4144,6 +4144,6 @@ export async function initializeDatabase() {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   pool.end(() => {
-    console.log('Database pool has ended');
+    logger.info('Database pool has ended');
   });
 });

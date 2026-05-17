@@ -13,6 +13,7 @@ import { getUserOrganizationId, requireOrgRole } from '../middleware/organizatio
 import { runHealthScoreJob, runHealthScoreJobForOrganization, getJobStatus } from '../jobs/healthScoreJobs';
 import { customerHealthScoreService } from '../services/customerHealthScoreService';
 import { auditLog } from '../services/auditLog';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -311,7 +312,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
       offset
     });
   } catch (error) {
-    console.error('Error fetching customer metrics dashboard:', error);
+    logger.error('Error fetching customer metrics dashboard:', error);
     res.status(500).json({ error: 'Failed to fetch customer metrics dashboard' });
   }
 });
@@ -400,7 +401,7 @@ router.get('/:customerId', async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching customer metrics:', error);
+    logger.error('Error fetching customer metrics:', error);
     res.status(500).json({ error: 'Failed to fetch customer metrics' });
   }
 });
@@ -481,7 +482,7 @@ router.get('/:customerId/history', async (req: Request, res: Response) => {
       }))
     });
   } catch (error) {
-    console.error('Error fetching customer metrics history:', error);
+    logger.error('Error fetching customer metrics history:', error);
     res.status(500).json({ error: 'Failed to fetch customer metrics history' });
   }
 });
@@ -805,7 +806,7 @@ router.post('/calculate/:customerId', async (req: Request, res: Response) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error calculating customer metrics:', error);
+    logger.error('Error calculating customer metrics:', error);
     res.status(500).json({ error: 'Failed to calculate customer metrics' });
   } finally {
     client.release();
@@ -902,7 +903,7 @@ router.post('/admin/trigger-job', requireOrgRole('admin'), async (req: Request, 
       });
     }
   } catch (error) {
-    console.error('Error triggering health score job:', error);
+    logger.error('Error triggering health score job:', error);
     res.status(500).json({ error: 'Failed to trigger health score calculation' });
   }
 });
@@ -943,7 +944,7 @@ router.get('/admin/job-status', requireOrgRole('admin'), async (req: Request, re
       }))
     });
   } catch (error) {
-    console.error('Error getting job status:', error);
+    logger.error('Error getting job status:', error);
     res.status(500).json({ error: 'Failed to get job status' });
   }
 });
@@ -978,7 +979,7 @@ router.get('/admin/churn-warnings', requireOrgRole('admin'), async (req: Request
       unacknowledgedMediumRisk: warnings.filter(w => w.churnRisk === 'medium').length
     });
   } catch (error) {
-    console.error('Error getting churn warnings:', error);
+    logger.error('Error getting churn warnings:', error);
     res.status(500).json({ error: 'Failed to get churn warnings' });
   }
 });
@@ -1008,7 +1009,7 @@ router.post('/admin/acknowledge-warning/:warningId', requireOrgRole('admin'), as
       res.status(404).json({ error: 'Warning not found' });
     }
   } catch (error) {
-    console.error('Error acknowledging warning:', error);
+    logger.error('Error acknowledging warning:', error);
     res.status(500).json({ error: 'Failed to acknowledge warning' });
   }
 });
@@ -1063,7 +1064,7 @@ router.post('/calculate-all', requireOrgRole('admin'), async (req: Request, res:
       errors: result.errors
     });
   } catch (error) {
-    console.error('Error calculating all customer metrics:', error);
+    logger.error('Error calculating all customer metrics:', error);
     res.status(500).json({ error: 'Failed to calculate customer metrics' });
   }
 });

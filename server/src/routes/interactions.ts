@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { query } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
 import { getUserOrganizationId } from '../middleware/organization';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -136,7 +137,7 @@ router.get('/', async (req: Request, res: Response) => {
       offset: parseInt(offset as string)
     });
   } catch (error) {
-    console.error('Error fetching interactions:', error);
+    logger.error('Error fetching interactions:', error);
     res.status(500).json({ error: 'Failed to fetch interactions' });
   }
 });
@@ -203,7 +204,7 @@ router.get('/follow-ups', async (req: Request, res: Response) => {
       total: result.rows.length
     });
   } catch (error) {
-    console.error('Error fetching follow-ups:', error);
+    logger.error('Error fetching follow-ups:', error);
     res.status(500).json({ error: 'Failed to fetch follow-ups' });
   }
 });
@@ -251,7 +252,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error fetching interaction:', error);
+    logger.error('Error fetching interaction:', error);
     res.status(500).json({ error: 'Failed to fetch interaction' });
   }
 });
@@ -344,7 +345,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error creating interaction:', error);
+    logger.error('Error creating interaction:', error);
     res.status(500).json({ error: 'Failed to create interaction' });
   }
 });
@@ -409,7 +410,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error updating interaction:', error);
+    logger.error('Error updating interaction:', error);
     res.status(500).json({ error: 'Failed to update interaction' });
   }
 });
@@ -459,7 +460,7 @@ router.post('/:id/complete-follow-up', async (req: Request, res: Response) => {
 
     res.json({ success: true, interaction: result.rows[0] });
   } catch (error) {
-    console.error('Error completing follow-up:', error);
+    logger.error('Error completing follow-up:', error);
     res.status(500).json({ error: 'Failed to complete follow-up' });
   }
 });
@@ -494,7 +495,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     res.json({ success: true, deleted: id });
   } catch (error) {
-    console.error('Error deleting interaction:', error);
+    logger.error('Error deleting interaction:', error);
     res.status(500).json({ error: 'Failed to delete interaction' });
   }
 });
@@ -578,7 +579,7 @@ router.get('/customer/:customerId/timeline', async (req: Request, res: Response)
       total: timeline.length
     });
   } catch (error) {
-    console.error('Error fetching customer timeline:', error);
+    logger.error('Error fetching customer timeline:', error);
     res.status(500).json({ error: 'Failed to fetch customer timeline' });
   }
 });
@@ -642,7 +643,7 @@ router.get('/stats/overview', async (req: Request, res: Response) => {
       period_days: days
     });
   } catch (error) {
-    console.error('Error fetching interaction stats:', error);
+    logger.error('Error fetching interaction stats:', error);
     res.status(500).json({ error: 'Failed to fetch interaction stats' });
   }
 });

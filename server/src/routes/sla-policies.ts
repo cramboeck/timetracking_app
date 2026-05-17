@@ -5,6 +5,7 @@ import { query, getClient } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
 import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { validate } from '../middleware/validation';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -123,7 +124,7 @@ router.get('/', authenticateToken, attachOrganization, async (req, res: Response
 
     res.json({ success: true, data: policies });
   } catch (error) {
-    console.error('Error fetching SLA policies:', error);
+    logger.error('Error fetching SLA policies:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch SLA policies' });
   }
 });
@@ -154,7 +155,7 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res: Respo
 
     res.json({ success: true, data: policy });
   } catch (error) {
-    console.error('Error fetching SLA policy:', error);
+    logger.error('Error fetching SLA policy:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch SLA policy' });
   }
 });
@@ -223,7 +224,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('admin'),
 
     res.status(201).json({ success: true, data: transformPolicy(result.rows[0]) });
   } catch (error) {
-    console.error('Error creating SLA policy:', error);
+    logger.error('Error creating SLA policy:', error);
     res.status(500).json({ success: false, error: 'Failed to create SLA policy' });
   }
 });
@@ -316,7 +317,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('admin'
 
     res.json({ success: true, data: transformPolicy(result.rows[0]) });
   } catch (error) {
-    console.error('Error updating SLA policy:', error);
+    logger.error('Error updating SLA policy:', error);
     res.status(500).json({ success: false, error: 'Failed to update SLA policy' });
   }
 });
@@ -368,7 +369,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
 
     res.json({ success: true, message: 'SLA policy deleted successfully' });
   } catch (error) {
-    console.error('Error deleting SLA policy:', error);
+    logger.error('Error deleting SLA policy:', error);
     res.status(500).json({ success: false, error: 'Failed to delete SLA policy' });
   }
 });
@@ -421,7 +422,7 @@ router.put('/:id/set-default', authenticateToken, attachOrganization, requireOrg
     res.json({ success: true, data: transformPolicy(result.rows[0]) });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error setting default SLA policy:', error);
+    logger.error('Error setting default SLA policy:', error);
     res.status(500).json({ success: false, error: 'Failed to set default SLA policy' });
   } finally {
     client.release();

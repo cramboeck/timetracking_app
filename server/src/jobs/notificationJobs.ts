@@ -1,16 +1,17 @@
 import cron from 'node-cron';
 import { pool } from '../config/database';
 import { emailService } from '../services/emailService';
+import { logger } from '../utils/logger';
 
 export function startNotificationJobs() {
   if (process.env.NOTIFICATIONS_ENABLED !== 'true') {
-    console.log('📭 Notifications disabled');
+    logger.info('📭 Notifications disabled');
     return;
   }
 
   // Run every hour
   cron.schedule('0 * * * *', async () => {
-    console.log('🔔 Running notification checks...');
+    logger.info('🔔 Running notification checks...');
 
     try {
       const usersResult = await pool.query('SELECT * FROM users');
@@ -99,15 +100,15 @@ export function startNotificationJobs() {
         }
       }
 
-      console.log('✅ Notification checks complete');
+      logger.info('✅ Notification checks complete');
     } catch (error) {
-      console.error('❌ Error running notification jobs:', error);
+      logger.error('❌ Error running notification jobs:', error);
     }
   });
 
   // Report approval reminders - run twice daily at 9:00 and 15:00
   cron.schedule('0 9,15 * * *', async () => {
-    console.log('🔔 Running report approval reminder checks...');
+    logger.info('🔔 Running report approval reminder checks...');
 
     try {
       // Get pending approvals that expire in 2 days or less and haven't had a reminder sent recently
@@ -149,15 +150,15 @@ export function startNotificationJobs() {
             remindersSent++;
           }
         } catch (err) {
-          console.error(`Failed to send reminder for approval ${approval.id}:`, err);
+          logger.error(`Failed to send reminder for approval ${approval.id}:`, err);
         }
       }
 
-      console.log(`✅ Report approval reminders: ${remindersSent} sent`);
+      logger.info(`✅ Report approval reminders: ${remindersSent} sent`);
     } catch (error) {
-      console.error('❌ Error running report approval reminder jobs:', error);
+      logger.error('❌ Error running report approval reminder jobs:', error);
     }
   });
 
-  console.log('✅ Notification jobs started');
+  logger.info('✅ Notification jobs started');
 }

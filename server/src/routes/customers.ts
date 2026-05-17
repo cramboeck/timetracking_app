@@ -9,6 +9,7 @@ import { mailboxMonitorService } from '../services/mailboxMonitorService';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { transformRow, transformRows } from '../utils/dbTransform';
+import { logger } from '../utils/logger';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
@@ -65,7 +66,7 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
       data: customers
     });
   } catch (error) {
-    console.error('Get customers error:', error);
+    logger.error('Get customers error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -103,7 +104,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       data: newCustomer
     });
   } catch (error) {
-    console.error('Create customer error:', error);
+    logger.error('Create customer error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -226,7 +227,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       data: updatedCustomer
     });
   } catch (error) {
-    console.error('Update customer error:', error);
+    logger.error('Update customer error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -267,7 +268,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
       message: 'Customer deleted successfully'
     });
   } catch (error) {
-    console.error('Delete customer error:', error);
+    logger.error('Delete customer error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -355,7 +356,7 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
       data: contacts
     });
   } catch (error) {
-    console.error('Get contacts error:', error);
+    logger.error('Get contacts error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -438,7 +439,7 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
       }
     });
   } catch (error) {
-    console.error('Create contact error:', error);
+    logger.error('Create contact error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -569,7 +570,7 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
       }
     });
   } catch (error) {
-    console.error('Update contact error:', error);
+    logger.error('Update contact error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -609,7 +610,7 @@ router.delete('/:customerId/contacts/:contactId', authenticateToken, attachOrgan
       message: 'Contact deleted successfully'
     });
   } catch (error) {
-    console.error('Delete contact error:', error);
+    logger.error('Delete contact error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -692,7 +693,7 @@ router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, a
       message: 'Invitation sent successfully'
     });
   } catch (error) {
-    console.error('Send invite error:', error);
+    logger.error('Send invite error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -729,7 +730,7 @@ router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, 
 
     // Hash password and update
     const passwordHash = await bcrypt.hash(password, 10);
-    console.log(`🔑 Setting password for portal user "${contact.email}" (id: ${contactId}), hash length: ${passwordHash.length}`);
+    logger.info(`🔑 Setting password for portal user "${contact.email}" (id: ${contactId}), hash length: ${passwordHash.length}`);
 
     const updateResult = await pool.query(
       'UPDATE customer_portal_users SET password_hash = $1, updated_at = NOW() WHERE id = $2 RETURNING id, password_hash IS NOT NULL AND password_hash != \'\' as has_password',
@@ -743,7 +744,7 @@ router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, 
       [passwordHash, contactId]
     );
 
-    console.log(`🔑 Password set result:`, updateResult.rows[0]);
+    logger.info(`🔑 Password set result:`, updateResult.rows[0]);
 
     auditLog.log({
       userId,
@@ -758,7 +759,7 @@ router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, 
       message: 'Password set successfully'
     });
   } catch (error) {
-    console.error('Set password error:', error);
+    logger.error('Set password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -789,7 +790,7 @@ router.get('/vendors/list', authenticateToken, attachOrganization, async (req: A
       data: vendors
     });
   } catch (error) {
-    console.error('Get vendors error:', error);
+    logger.error('Get vendors error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -894,7 +895,7 @@ router.get('/:id/hub', authenticateToken, attachOrganization, async (req: AuthRe
       }
     });
   } catch (error) {
-    console.error('Get vendor hub error:', error);
+    logger.error('Get vendor hub error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -946,7 +947,7 @@ router.get('/:id/emails', authenticateToken, attachOrganization, async (req: Aut
         allEmails.push(...filtered.map(e => ({ ...e, mailboxType: 'support' })));
       }
     } catch (err) {
-      console.log('Support mailbox not configured or error:', err);
+      logger.info('Support mailbox not configured or error:', err);
     }
 
     // Invoice mailbox
@@ -963,7 +964,7 @@ router.get('/:id/emails', authenticateToken, attachOrganization, async (req: Aut
         allEmails.push(...filtered.map(e => ({ ...e, mailboxType: 'invoice' })));
       }
     } catch (err) {
-      console.log('Invoice mailbox not configured or error:', err);
+      logger.info('Invoice mailbox not configured or error:', err);
     }
 
     // Sort by date descending
@@ -980,7 +981,7 @@ router.get('/:id/emails', authenticateToken, attachOrganization, async (req: Aut
       }
     });
   } catch (error) {
-    console.error('Get vendor emails error:', error);
+    logger.error('Get vendor emails error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1025,7 +1026,7 @@ router.get('/:customerId/email-domains', authenticateToken, attachOrganization, 
       data: transformRows(domainsResult.rows)
     });
   } catch (error) {
-    console.error('Get email domains error:', error);
+    logger.error('Get email domains error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1092,7 +1093,7 @@ router.post('/:customerId/email-domains', authenticateToken, attachOrganization,
       }
     });
   } catch (error) {
-    console.error('Add email domain error:', error);
+    logger.error('Add email domain error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1138,7 +1139,7 @@ router.delete('/:customerId/email-domains/:domainId', authenticateToken, attachO
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete email domain error:', error);
+    logger.error('Delete email domain error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1203,7 +1204,7 @@ router.get('/email-domains/lookup', authenticateToken, attachOrganization, async
       message: 'Kein Kunde für diese Domain gefunden'
     });
   } catch (error) {
-    console.error('Domain lookup error:', error);
+    logger.error('Domain lookup error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1228,7 +1229,7 @@ router.get('/email-domains/all', authenticateToken, attachOrganization, async (r
       data: transformRows(result.rows)
     });
   } catch (error) {
-    console.error('Get all domains error:', error);
+    logger.error('Get all domains error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1429,7 +1430,7 @@ router.post('/migrate-contacts', authenticateToken, attachOrganization, requireO
       }
     } catch (err: any) {
       // Ticket tables might not exist - ignore
-      console.log('Note: Ticket contacts migration skipped (table may not exist)');
+      logger.info('Note: Ticket contacts migration skipped (table may not exist)');
     }
 
     auditLog.log({
@@ -1446,7 +1447,7 @@ router.post('/migrate-contacts', authenticateToken, attachOrganization, requireO
       stats
     });
   } catch (error) {
-    console.error('Migrate contacts error:', error);
+    logger.error('Migrate contacts error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -9,6 +9,7 @@
  */
 
 import { query } from '../config/database';
+import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { mailboxMonitorService, EmailMessage, EmailAttachment } from './mailboxMonitorService';
 import { getConfig } from './microsoft365ConfigService';
@@ -332,7 +333,7 @@ class InvoiceProcessorService {
     // First check if this matches a known vendor pattern
     const knownVendor = this.findKnownVendor(domain);
     if (knownVendor) {
-      console.log(`Matched known vendor pattern: ${domain} -> ${knownVendor.canonicalName}`);
+      logger.info(`Matched known vendor pattern: ${domain} -> ${knownVendor.canonicalName}`);
 
       // Try to find this vendor in the database by any of its names
       const allNames = [knownVendor.canonicalName, ...knownVendor.aliases];
@@ -464,7 +465,7 @@ class InvoiceProcessorService {
     emailId: string
   ): Promise<{ path: string; filename: string } | null> {
     if (!attachment.contentBytes) {
-      console.log(`No content bytes for attachment: ${attachment.name}`);
+      logger.info(`No content bytes for attachment: ${attachment.name}`);
       return null;
     }
 
@@ -481,10 +482,10 @@ class InvoiceProcessorService {
       const buffer = Buffer.from(attachment.contentBytes, 'base64');
       await fs.promises.writeFile(filePath, buffer);
 
-      console.log(`Saved attachment: ${filePath} (${buffer.length} bytes)`);
+      logger.info(`Saved attachment: ${filePath} (${buffer.length} bytes)`);
       return { path: filePath, filename };
     } catch (error: any) {
-      console.error(`Failed to save attachment ${attachment.name}:`, error.message);
+      logger.error(`Failed to save attachment ${attachment.name}:`, error.message);
       return null;
     }
   }
@@ -595,11 +596,11 @@ class InvoiceProcessorService {
       // Mark email as read
       await mailboxMonitorService.markAsRead(organizationId, email.id, 'invoice');
 
-      console.log(`Created invoice draft: ${email.subject} (${documentIds.length} documents)`);
+      logger.info(`Created invoice draft: ${email.subject} (${documentIds.length} documents)`);
       return { status: 'draft', documentsCreated: documentIds.length };
 
     } catch (error: any) {
-      console.error(`Failed to process email ${email.id}:`, error.message);
+      logger.error(`Failed to process email ${email.id}:`, error.message);
       await this.recordProcessedEmail(organizationId, email, [], 'failed', error.message);
       return { status: 'failed', documentsCreated: 0, error: error.message };
     }
@@ -657,7 +658,7 @@ class InvoiceProcessorService {
     options: { includeRead?: boolean } = {}
   ): Promise<ProcessingResult> {
     const { includeRead = false } = options;
-    console.log(`Starting invoice mailbox processing for organization: ${organizationId} (includeRead: ${includeRead})`);
+    logger.info(`Starting invoice mailbox processing for organization: ${organizationId} (includeRead: ${includeRead})`);
 
     // Check if invoice mailbox is configured
     const config = await getConfig(organizationId);
@@ -679,7 +680,7 @@ class InvoiceProcessorService {
     });
 
     if (!emailResult.success) {
-      console.error('Failed to get emails:', emailResult.error);
+      logger.error('Failed to get emails:', emailResult.error);
       return {
         success: false,
         processedCount: 0,
@@ -719,7 +720,7 @@ class InvoiceProcessorService {
       }
     }
 
-    console.log(`Invoice processing complete: ${processedCount} processed, ${skippedCount} skipped, ${failedCount} failed`);
+    logger.info(`Invoice processing complete: ${processedCount} processed, ${skippedCount} skipped, ${failedCount} failed`);
 
     return {
       success: true,
@@ -902,10 +903,10 @@ class InvoiceProcessorService {
           );
 
           sevdeskVoucherId = voucherResult.voucherId;
-          console.log(`Created sevDesk voucher ${sevdeskVoucherId} for invoice ${processedInvoiceId}`);
+          logger.info(`Created sevDesk voucher ${sevdeskVoucherId} for invoice ${processedInvoiceId}`);
         }
       } catch (err) {
-        console.error(`Failed to create sevDesk voucher for invoice ${processedInvoiceId}:`, err);
+        logger.error(`Failed to create sevDesk voucher for invoice ${processedInvoiceId}:`, err);
         // Continue anyway - we still mark as processed even if sevDesk fails
       }
     }
@@ -952,7 +953,7 @@ class InvoiceProcessorService {
       try {
         await fs.promises.unlink(doc.storage_path);
       } catch (err) {
-        console.error(`Failed to delete file: ${doc.storage_path}`);
+        logger.error(`Failed to delete file: ${doc.storage_path}`);
       }
     }
 
@@ -1005,7 +1006,7 @@ class InvoiceProcessorService {
           await fs.promises.unlink(doc.storage_path);
         }
       } catch (err) {
-        console.error(`Failed to delete file: ${doc.storage_path}`);
+        logger.error(`Failed to delete file: ${doc.storage_path}`);
       }
     }
 
@@ -1039,7 +1040,7 @@ class InvoiceProcessorService {
     );
 
     if (invoiceResult.rows.length === 0) {
-      console.log('Invoice not found:', processedInvoiceId);
+      logger.info('Invoice not found:', processedInvoiceId);
       return null;
     }
 
@@ -1056,10 +1057,10 @@ class InvoiceProcessorService {
 
     // Start with fallback extraction from email metadata
     let result = this.extractFromEmailMetadata(invoice);
-    console.log('Email metadata extraction:', result);
+    logger.info('Email metadata extraction:', result);
 
     if (docResult.rows.length === 0) {
-      console.log('No documents found for invoice', processedInvoiceId);
+      logger.info('No documents found for invoice', processedInvoiceId);
       return result;
     }
 
@@ -1067,7 +1068,7 @@ class InvoiceProcessorService {
 
     // Only process PDFs
     if (!doc.mime_type?.includes('pdf') && !doc.original_filename?.toLowerCase().endsWith('.pdf')) {
-      console.log('Document is not a PDF:', doc.mime_type);
+      logger.info('Document is not a PDF:', doc.mime_type);
       return result;
     }
 
@@ -1078,18 +1079,18 @@ class InvoiceProcessorService {
       // Extract text from PDF
       const pdfData = await pdfParse(fileBuffer);
       const rawText = pdfData.text;
-      console.log('PDF text length:', rawText?.length || 0);
-      console.log('PDF text preview:', rawText?.substring(0, 500));
+      logger.info('PDF text length:', rawText?.length || 0);
+      logger.info('PDF text preview:', rawText?.substring(0, 500));
 
       if (!rawText || rawText.trim().length < 50) {
-        console.log('PDF has insufficient text content');
+        logger.info('PDF has insufficient text content');
         result.rawText = 'PDF enthält keinen extrahierbaren Text';
         return result;
       }
 
       // Try to extract data using regex patterns first (faster, no API cost)
       const regexExtraction = this.extractWithRegex(rawText);
-      console.log('Regex extraction:', regexExtraction);
+      logger.info('Regex extraction:', regexExtraction);
 
       // Merge regex extraction with email fallback (prefer regex if found)
       result = {
@@ -1120,18 +1121,18 @@ class InvoiceProcessorService {
         [organizationId]
       );
 
-      console.log('AI config found:', aiConfigResult.rows.length > 0 ? 'Yes' : 'No');
+      logger.info('AI config found:', aiConfigResult.rows.length > 0 ? 'Yes' : 'No');
 
       // If OpenAI is configured, always use Vision for best results (includes line items)
       if (aiConfigResult.rows.length > 0) {
         const aiConfig = aiConfigResult.rows[0];
-        console.log('AI provider:', aiConfig.provider);
+        logger.info('AI provider:', aiConfig.provider);
 
         if (aiConfig.provider === 'openai') {
           // Use Vision directly for best extraction (handles scanned PDFs, extracts line items)
-          console.log('Using OpenAI Vision for comprehensive extraction...');
+          logger.info('Using OpenAI Vision for comprehensive extraction...');
           const visionExtraction = await this.extractWithVision(fileBuffer, aiConfig);
-          console.log('Vision extraction result:', visionExtraction);
+          logger.info('Vision extraction result:', visionExtraction);
 
           if (visionExtraction.confidence > 0) {
             // Merge Vision extraction with existing data (Vision takes precedence)
@@ -1146,9 +1147,9 @@ class InvoiceProcessorService {
           }
         } else {
           // For Anthropic, use text-based extraction
-          console.log('Using text-based AI extraction...');
+          logger.info('Using text-based AI extraction...');
           const aiExtraction = await this.extractWithAI(rawText, aiConfig);
-          console.log('AI extraction:', aiExtraction);
+          logger.info('AI extraction:', aiExtraction);
 
           result = {
             ...result,
@@ -1158,13 +1159,13 @@ class InvoiceProcessorService {
           };
         }
       } else {
-        console.log('No AI config found - using regex/email extraction only');
+        logger.info('No AI config found - using regex/email extraction only');
       }
 
       return result;
 
     } catch (error: any) {
-      console.error('Error extracting invoice data:', error.message);
+      logger.error('Error extracting invoice data:', error.message);
       result.rawText = `Fehler: ${error.message}`;
       return result;
     }
@@ -1599,7 +1600,7 @@ Wichtig:
         };
       }
     } catch (error: any) {
-      console.error('AI extraction failed:', error.message);
+      logger.error('AI extraction failed:', error.message);
     }
 
     return this.createEmptyExtraction('KI-Extraktion fehlgeschlagen');
@@ -1609,32 +1610,32 @@ Wichtig:
    * Extract invoice data using OpenAI Vision API (for scanned/image PDFs)
    */
   private async extractWithVision(pdfBuffer: Buffer, aiConfig: any): Promise<ExtractedInvoiceData> {
-    console.log('=== Starting Vision extraction ===');
-    console.log('AI Config:', { provider: aiConfig.provider, hasApiKey: !!aiConfig.api_key });
+    logger.info('=== Starting Vision extraction ===');
+    logger.info('AI Config:', { provider: aiConfig.provider, hasApiKey: !!aiConfig.api_key });
 
     // Only works with OpenAI
     if (aiConfig.provider !== 'openai') {
-      console.log('Vision extraction only available with OpenAI, got:', aiConfig.provider);
+      logger.info('Vision extraction only available with OpenAI, got:', aiConfig.provider);
       return this.createEmptyExtraction('Vision nur mit OpenAI verfügbar');
     }
 
     const apiKey = aiConfig.api_key;
     if (!apiKey) {
-      console.log('No API key found in config');
+      logger.info('No API key found in config');
       return this.createEmptyExtraction('Kein API-Key konfiguriert');
     }
 
-    console.log('API key found, length:', apiKey.length);
+    logger.info('API key found, length:', apiKey.length);
 
     try {
       // Convert ALL pages of PDF to images (max 5 pages to avoid token limits)
-      console.log('Converting PDF to images, buffer size:', pdfBuffer.length);
+      logger.info('Converting PDF to images, buffer size:', pdfBuffer.length);
       let document;
       try {
         document = await pdf(pdfBuffer, { scale: 2.0 });
       } catch (pdfError: any) {
-        console.error('PDF to image conversion failed:', pdfError.message);
-        console.error('Full error:', pdfError);
+        logger.error('PDF to image conversion failed:', pdfError.message);
+        logger.error('Full error:', pdfError);
         return this.createEmptyExtraction(`PDF-Konvertierung fehlgeschlagen: ${pdfError.message}`);
       }
 
@@ -1643,25 +1644,25 @@ Wichtig:
 
       for await (const image of document) {
         pageImages.push(image);
-        console.log(`Got page ${pageImages.length} image, size: ${image.length} bytes`);
+        logger.info(`Got page ${pageImages.length} image, size: ${image.length} bytes`);
         if (pageImages.length >= MAX_PAGES) {
-          console.log(`Reached max pages limit (${MAX_PAGES})`);
+          logger.info(`Reached max pages limit (${MAX_PAGES})`);
           break;
         }
       }
 
       if (pageImages.length === 0) {
-        console.log('Failed to convert PDF to image - no pages extracted');
+        logger.info('Failed to convert PDF to image - no pages extracted');
         return this.createEmptyExtraction('PDF konnte nicht in Bild konvertiert werden');
       }
 
-      console.log(`Extracted ${pageImages.length} page(s) from PDF`);
+      logger.info(`Extracted ${pageImages.length} page(s) from PDF`);
 
       // Build image content array for all pages
       const imageContents: Array<{ type: 'image_url'; image_url: { url: string; detail: string } }> = [];
       for (let i = 0; i < pageImages.length; i++) {
         const base64Image = pageImages[i].toString('base64');
-        console.log(`Page ${i + 1} converted to base64, size: ${Math.round(base64Image.length / 1024)} KB`);
+        logger.info(`Page ${i + 1} converted to base64, size: ${Math.round(base64Image.length / 1024)} KB`);
         imageContents.push({
           type: 'image_url',
           image_url: {
@@ -1702,7 +1703,7 @@ Wichtig:
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Vision API error:', response.status, errorText);
+        logger.error('Vision API error:', { status: response.status, body: errorText });
         return this.createEmptyExtraction(`Vision API Fehler: ${response.status}`);
       }
 
@@ -1711,7 +1712,7 @@ Wichtig:
       };
 
       const content = data.choices?.[0]?.message?.content || '';
-      console.log('Vision API response:', content);
+      logger.info('Vision API response:', content);
 
       // Parse JSON from response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -1735,7 +1736,7 @@ Wichtig:
             productType: item.productType || null,
           }));
           lineItems = parsedItems;
-          console.log(`Extracted ${parsedItems.length} line items from ${pageImages.length} page(s)`);
+          logger.info(`Extracted ${parsedItems.length} line items from ${pageImages.length} page(s)`);
         }
 
         return {
@@ -1779,9 +1780,9 @@ Wichtig:
       return this.createEmptyExtraction('Keine JSON-Antwort von Vision API');
 
     } catch (error: any) {
-      console.error('=== Vision extraction error ===');
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+      logger.error('=== Vision extraction error ===');
+      logger.error('Error message:', error.message);
+      logger.error('Error stack:', error.stack);
       return this.createEmptyExtraction(`Vision Fehler: ${error.message}`);
     }
   }
@@ -1999,7 +2000,7 @@ SPEZIELLE RECHNUNGSTYPEN:
           // Validate extracted data before sending to sevDesk
           const validation = validateInvoiceData(extractedData);
           if (validation.warnings.length > 0) {
-            console.log(`Invoice ${processedInvoiceId} validation warnings:`, validation.warnings);
+            logger.info(`Invoice ${processedInvoiceId} validation warnings:`, validation.warnings);
           }
 
           // Use extracted data for voucher creation
@@ -2024,10 +2025,10 @@ SPEZIELLE RECHNUNGSTYPEN:
           );
 
           sevdeskVoucherId = voucherResult.voucherId;
-          console.log(`Created sevDesk voucher ${sevdeskVoucherId} for invoice ${processedInvoiceId}`);
+          logger.info(`Created sevDesk voucher ${sevdeskVoucherId} for invoice ${processedInvoiceId}`);
         }
       } catch (err) {
-        console.error(`Failed to create sevDesk voucher for invoice ${processedInvoiceId}:`, err);
+        logger.error(`Failed to create sevDesk voucher for invoice ${processedInvoiceId}:`, err);
         // Continue anyway - we still mark as processed even if sevDesk fails
       }
     }

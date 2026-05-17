@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { emailService } from '../services/emailService';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -154,10 +155,10 @@ router.post('/send', authenticateToken, validate(sendApprovalSchema), async (req
 
     if (!emailSent) {
       // Email failed, but we still created the approval
-      console.warn(`⚠️ Approval created but email failed for: ${recipientEmail}`);
+      logger.warn(`⚠️ Approval created but email failed for: ${recipientEmail}`);
     }
 
-    console.log(`📧 Report approval request sent to: ${recipientEmail}${revisionOfId ? ' (revision)' : ''}`);
+    logger.info(`📧 Report approval request sent to: ${recipientEmail}${revisionOfId ? ' (revision)' : ''}`);
 
     res.json({
       success: true,
@@ -166,7 +167,7 @@ router.post('/send', authenticateToken, validate(sendApprovalSchema), async (req
       expiresAt
     });
   } catch (error) {
-    console.error('Send approval request error:', error);
+    logger.error('Send approval request error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -213,7 +214,7 @@ router.post('/check-exists', authenticateToken, async (req: AuthRequest, res) =>
       res.json({ exists: false });
     }
   } catch (error) {
-    console.error('Check report exists error:', error);
+    logger.error('Check report exists error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -235,7 +236,7 @@ router.delete('/saved/:id', authenticateToken, async (req: AuthRequest, res) => 
 
     res.json({ success: true, message: 'Report wurde gelöscht' });
   } catch (error) {
-    console.error('Delete saved report error:', error);
+    logger.error('Delete saved report error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -275,7 +276,7 @@ router.post('/save', authenticateToken, validate(saveReportSchema), async (req: 
       ]
     );
 
-    console.log(`💾 Report saved: ${reportData.customerName} (${reportData.startDate} - ${reportData.endDate})`);
+    logger.info(`💾 Report saved: ${reportData.customerName} (${reportData.startDate} - ${reportData.endDate})`);
 
     res.json({
       success: true,
@@ -284,7 +285,7 @@ router.post('/save', authenticateToken, validate(saveReportSchema), async (req: 
       token
     });
   } catch (error) {
-    console.error('Save report error:', error);
+    logger.error('Save report error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -338,7 +339,7 @@ router.get('/saved', authenticateToken, async (req: AuthRequest, res) => {
       })
     });
   } catch (error) {
-    console.error('Get saved reports error:', error);
+    logger.error('Get saved reports error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -398,7 +399,7 @@ router.get('/review/:token', async (req, res) => {
       expiresAt: approval.expires_at
     });
   } catch (error) {
-    console.error('Get approval details error:', error);
+    logger.error('Get approval details error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -467,10 +468,10 @@ router.post('/review/:token', validate(reviewApprovalSchema), async (req, res) =
     });
 
     if (!emailSent) {
-      console.warn(`⚠️ Approval updated but notification email failed for: ${approval.sender_email}`);
+      logger.warn(`⚠️ Approval updated but notification email failed for: ${approval.sender_email}`);
     }
 
-    console.log(`✅ Report ${newStatus} by ${approval.recipient_email}`);
+    logger.info(`✅ Report ${newStatus} by ${approval.recipient_email}`);
 
     const messages: Record<string, string> = {
       'approved': 'Report wurde freigegeben',
@@ -484,7 +485,7 @@ router.post('/review/:token', validate(reviewApprovalSchema), async (req, res) =
       status: newStatus
     });
   } catch (error) {
-    console.error('Submit review error:', error);
+    logger.error('Submit review error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -507,7 +508,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
       approvals: result.rows
     });
   } catch (error) {
-    console.error('Get approvals error:', error);
+    logger.error('Get approvals error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -540,14 +541,14 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
     // Delete approval
     await pool.query('DELETE FROM report_approvals WHERE id = $1', [id]);
 
-    console.log(`🗑️ Approval request cancelled: ${id}`);
+    logger.info(`🗑️ Approval request cancelled: ${id}`);
 
     res.json({
       success: true,
       message: 'Freigabe-Anfrage wurde gelöscht'
     });
   } catch (error) {
-    console.error('Delete approval error:', error);
+    logger.error('Delete approval error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -630,7 +631,7 @@ router.post('/bulk-send', authenticateToken, validate(bulkSendSchema), async (re
         });
 
         if (!emailSent) {
-          console.warn(`⚠️ Bulk: Approval created but email failed for: ${recipientEmail}`);
+          logger.warn(`⚠️ Bulk: Approval created but email failed for: ${recipientEmail}`);
         }
       } catch (err: any) {
         results.push({
@@ -645,7 +646,7 @@ router.post('/bulk-send', authenticateToken, validate(bulkSendSchema), async (re
     const successCount = results.filter(r => r.success).length;
     const failCount = results.filter(r => !r.success).length;
 
-    console.log(`📧 Bulk send: ${successCount} successful, ${failCount} failed`);
+    logger.info(`📧 Bulk send: ${successCount} successful, ${failCount} failed`);
 
     res.json({
       success: failCount === 0,
@@ -655,7 +656,7 @@ router.post('/bulk-send', authenticateToken, validate(bulkSendSchema), async (re
       failCount
     });
   } catch (error) {
-    console.error('Bulk send error:', error);
+    logger.error('Bulk send error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -721,7 +722,7 @@ router.get('/customer-contacts/:customerId', authenticateToken, async (req: Auth
       customerName: customer?.name
     });
   } catch (error) {
-    console.error('Get customer contacts error:', error);
+    logger.error('Get customer contacts error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -755,7 +756,7 @@ router.get('/pending-reminders', authenticateToken, async (req: AuthRequest, res
       }))
     });
   } catch (error) {
-    console.error('Get pending reminders error:', error);
+    logger.error('Get pending reminders error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -806,7 +807,7 @@ router.post('/send-reminder/:id', authenticateToken, async (req: AuthRequest, re
         [id]
       );
 
-      console.log(`📧 Reminder sent for approval ${id} to ${approval.recipient_email}`);
+      logger.info(`📧 Reminder sent for approval ${id} to ${approval.recipient_email}`);
 
       res.json({
         success: true,
@@ -816,7 +817,7 @@ router.post('/send-reminder/:id', authenticateToken, async (req: AuthRequest, re
       res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden' });
     }
   } catch (error) {
-    console.error('Send reminder error:', error);
+    logger.error('Send reminder error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -853,7 +854,7 @@ router.post('/create-revision/:id', authenticateToken, async (req: AuthRequest, 
       }
     });
   } catch (error) {
-    console.error('Create revision error:', error);
+    logger.error('Create revision error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

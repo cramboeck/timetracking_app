@@ -10,6 +10,7 @@ import { query } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
 import { getUserOrganizationId } from '../middleware/organization';
 import { emailService } from '../services/emailService';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -120,7 +121,7 @@ router.get('/', async (req: Request, res: Response) => {
       offset: parseInt(offset as string)
     });
   } catch (error) {
-    console.error('Error fetching contacts:', error);
+    logger.error('Error fetching contacts:', error);
     res.status(500).json({ error: 'Failed to fetch contacts' });
   }
 });
@@ -168,7 +169,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       recent_interactions: interactions.rows
     });
   } catch (error) {
-    console.error('Error fetching contact:', error);
+    logger.error('Error fetching contact:', error);
     res.status(500).json({ error: 'Failed to fetch contact' });
   }
 });
@@ -244,7 +245,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error creating contact:', error);
+    logger.error('Error creating contact:', error);
     res.status(500).json({ error: 'Failed to create contact' });
   }
 });
@@ -326,7 +327,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error updating contact:', error);
+    logger.error('Error updating contact:', error);
     res.status(500).json({ error: 'Failed to update contact' });
   }
 });
@@ -354,7 +355,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     res.json({ success: true, deleted: id });
   } catch (error) {
-    console.error('Error deleting contact:', error);
+    logger.error('Error deleting contact:', error);
     res.status(500).json({ error: 'Failed to delete contact' });
   }
 });
@@ -468,7 +469,7 @@ router.post('/:id/portal-access', async (req: Request, res: Response) => {
         organizationId,
       });
 
-      console.log(`📧 Portal invitation email ${emailSent ? 'sent' : 'failed'} for contact: ${contactData.email}`);
+      logger.info(`📧 Portal invitation email ${emailSent ? 'sent' : 'failed'} for contact: ${contactData.email}`);
     }
 
     res.json({
@@ -481,7 +482,7 @@ router.post('/:id/portal-access', async (req: Request, res: Response) => {
         : 'Portal access created'
     });
   } catch (error) {
-    console.error('Error enabling portal access:', error);
+    logger.error('Error enabling portal access:', error);
     res.status(500).json({ error: 'Failed to enable portal access' });
   }
 });
@@ -549,7 +550,7 @@ router.post('/:id/resend-invitation', async (req: Request, res: Response) => {
       organizationId,
     });
 
-    console.log(`📧 Portal invitation resend ${emailSent ? 'sent' : 'failed'} for contact: ${contactData.email}`);
+    logger.info(`📧 Portal invitation resend ${emailSent ? 'sent' : 'failed'} for contact: ${contactData.email}`);
 
     res.json({
       success: true,
@@ -559,7 +560,7 @@ router.post('/:id/resend-invitation', async (req: Request, res: Response) => {
       message: emailSent ? 'Invitation resent successfully' : 'Failed to send invitation email'
     });
   } catch (error) {
-    console.error('Error resending portal invitation:', error);
+    logger.error('Error resending portal invitation:', error);
     res.status(500).json({ error: 'Failed to resend invitation' });
   }
 });
@@ -589,7 +590,7 @@ router.get('/customer/:customerId', async (req: Request, res: Response) => {
 
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching customer contacts:', error);
+    logger.error('Error fetching customer contacts:', error);
     res.status(500).json({ error: 'Failed to fetch customer contacts' });
   }
 });

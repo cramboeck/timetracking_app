@@ -1,6 +1,7 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import { pool } from '../config/database';
 import { microsoftGraphService } from './microsoftGraphService';
+import { logger } from '../utils/logger';
 import crypto from 'crypto';
 
 interface EmailOptions {
@@ -50,18 +51,18 @@ class EmailService {
 
     // Log which provider will be used
     if (this.provider === 'graph' && microsoftGraphService.isAvailable()) {
-      console.log('📧 Email provider: Microsoft Graph API');
+      logger.info('📧 Email provider: Microsoft Graph API');
     } else if (this.provider === 'auto' && microsoftGraphService.isAvailable()) {
-      console.log('📧 Email provider: Microsoft Graph API (auto-detected)');
+      logger.info('📧 Email provider: Microsoft Graph API (auto-detected)');
     } else if (this.transporter) {
-      console.log('📧 Email provider: SMTP');
+      logger.info('📧 Email provider: SMTP');
     }
   }
 
   private initializeTransporter() {
     // Only initialize SMTP if not using Graph API exclusively
     if (this.provider === 'graph' && microsoftGraphService.isAvailable()) {
-      console.log('ℹ️ Skipping SMTP initialization (using Graph API)');
+      logger.info('ℹ️ Skipping SMTP initialization (using Graph API)');
       return;
     }
 
@@ -78,12 +79,12 @@ class EmailService {
           secure: process.env.EMAIL_SECURE === 'true',
           auth: { user, pass },
         });
-        console.log('✅ SMTP email transporter initialized');
+        logger.info('✅ SMTP email transporter initialized');
       } else {
-        console.log('ℹ️ SMTP not configured (missing EMAIL_HOST/USER/PASSWORD)');
+        logger.info('ℹ️ SMTP not configured (missing EMAIL_HOST/USER/PASSWORD)');
       }
     } catch (error) {
-      console.error('❌ Failed to initialize SMTP transporter:', error);
+      logger.error('❌ Failed to initialize SMTP transporter:', error);
     }
   }
 
@@ -154,8 +155,8 @@ class EmailService {
     try {
       // In test mode, override recipient
       if (this.testMode) {
-        console.log(`📧 TEST MODE: Email would be sent to ${options.to}`);
-        console.log(`📧 TEST MODE: Redirecting to ${this.testRecipient}`);
+        logger.info(`📧 TEST MODE: Email would be sent to ${options.to}`);
+        logger.info(`📧 TEST MODE: Redirecting to ${this.testRecipient}`);
         options.to = this.testRecipient;
         usedProvider = 'test';
 
@@ -187,7 +188,7 @@ class EmailService {
             text: options.text,
             attachments: options.attachments,
           });
-          console.log('✅ Email sent via Graph API to:', options.to);
+          logger.info('✅ Email sent via Graph API to:', options.to);
 
           // Log success
           if (logOptions) {
@@ -200,13 +201,13 @@ class EmailService {
           }
           return true;
         } catch (graphError: any) {
-          console.error('❌ Graph API email failed:', graphError.message);
+          logger.error('❌ Graph API email failed:', graphError.message);
           errorMessage = graphError.message;
           errorCode = graphError.code;
 
           // Fallback to SMTP if available and provider is 'auto'
           if (this.provider === 'auto' && this.transporter) {
-            console.log('⚠️ Falling back to SMTP...');
+            logger.info('⚠️ Falling back to SMTP...');
           } else {
             // Log failure
             if (logOptions) {
@@ -226,7 +227,7 @@ class EmailService {
 
       // Use SMTP
       if (!this.transporter && !this.testMode) {
-        console.error('❌ No email provider available');
+        logger.error('❌ No email provider available');
         errorMessage = 'No email provider available';
         if (logOptions) {
           await this.logEmailDetailed({
@@ -242,9 +243,9 @@ class EmailService {
 
       // In test mode with no provider configured, just log
       if (this.testMode && !this.transporter && !useGraph) {
-        console.log('📧 TEST MODE (No Provider): Email simulation');
-        console.log('To:', options.to);
-        console.log('Subject:', options.subject);
+        logger.info('📧 TEST MODE (No Provider): Email simulation');
+        logger.info('To:', options.to);
+        logger.info('Subject:', options.subject);
         if (logOptions) {
           await this.logEmailDetailed({
             ...logOptions,
@@ -277,7 +278,7 @@ class EmailService {
 
         const info = await this.transporter.sendMail(mailOptions);
         messageId = info.messageId;
-        console.log('✅ Email sent via SMTP:', messageId);
+        logger.info('✅ Email sent via SMTP:', messageId);
 
         // Log success
         if (logOptions) {
@@ -294,7 +295,7 @@ class EmailService {
 
       return false;
     } catch (error: any) {
-      console.error('❌ Failed to send email:', error);
+      logger.error('❌ Failed to send email:', error);
       errorMessage = error.message || 'Unknown error';
       errorCode = error.code;
 
@@ -362,7 +363,7 @@ class EmailService {
         ]
       );
     } catch (error) {
-      console.error('Failed to log email details:', error);
+      logger.error('Failed to log email details:', error);
     }
   }
 
@@ -823,7 +824,7 @@ RamboFlow von ramboeck.IT
         ]
       );
     } catch (error) {
-      console.error('Failed to log email notification:', error);
+      logger.error('Failed to log email notification:', error);
     }
   }
 
@@ -848,7 +849,7 @@ RamboFlow von ramboeck.IT
 
       return hoursPassed >= minHoursBetween;
     } catch (error) {
-      console.error('Error checking notification eligibility:', error);
+      logger.error('Error checking notification eligibility:', error);
       return true; // Allow sending if check fails
     }
   }
@@ -2346,7 +2347,7 @@ RamboFlow von ramboeck.IT
       metadata: { customerName, invitationToken },
     });
 
-    console.log(`📧 Portal invitation email ${success ? 'sent' : 'failed'} to: ${to}`);
+    logger.info(`📧 Portal invitation email ${success ? 'sent' : 'failed'} to: ${to}`);
 
     return success;
   }
@@ -2386,7 +2387,7 @@ RamboFlow von ramboeck.IT
       metadata: { customerName, invitationToken },
     });
 
-    console.log(`📧 Portal invitation resend email ${success ? 'sent' : 'failed'} to: ${to}`);
+    logger.info(`📧 Portal invitation resend email ${success ? 'sent' : 'failed'} to: ${to}`);
 
     return success;
   }

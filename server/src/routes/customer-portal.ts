@@ -9,6 +9,7 @@ import { authLimiter } from '../middleware/rateLimiter';
 import { securityService } from '../services/securityService';
 import { CustomerAuthRequest, authenticateCustomerToken } from '../middleware/customerAuth';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
+import { logger } from '../utils/logger';
 import { z } from 'zod';
 import { sendTicketNotification } from '../services/pushNotifications';
 import { emailService } from '../services/emailService';
@@ -182,7 +183,7 @@ router.post('/login', authLimiter, async (req, res) => {
 
     if (!contact) {
       // Log failed login (user not found)
-      console.log(`🔐 Portal login failed: No contact found for email "${email}"`);
+      logger.info(`🔐 Portal login failed: No contact found for email "${email}"`);
       securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -192,11 +193,11 @@ router.post('/login', authLimiter, async (req, res) => {
     const effectiveMfaEnabled = contact.mfa_enabled || contact.portal_mfa_enabled;
     const effectiveMfaSecret = contact.mfa_secret || contact.portal_mfa_secret;
 
-    console.log(`🔐 Portal login attempt for "${email}": contact found (id: ${contact.id}), password_hash exists: ${!!effectivePasswordHash}`);
+    logger.info(`🔐 Portal login attempt for "${email}": contact found (id: ${contact.id}), password_hash exists: ${!!effectivePasswordHash}`);
 
     if (!effectivePasswordHash) {
       // Log failed login (account not activated)
-      console.log(`🔐 Portal login failed: No password_hash for contact "${email}" (id: ${contact.id})`);
+      logger.info(`🔐 Portal login failed: No password_hash for contact "${email}" (id: ${contact.id})`);
       securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Account not activated. Please contact support.' });
     }
@@ -215,7 +216,7 @@ router.post('/login', authLimiter, async (req, res) => {
       const isTrusted = deviceToken ? await checkPortalTrustedDevice(contact.id, deviceToken) : false;
 
       if (isTrusted) {
-        console.log(`🔐 Portal MFA skipped for trusted device for contact "${contact.email}"`);
+        logger.info(`🔐 Portal MFA skipped for trusted device for contact "${contact.email}"`);
         // Skip MFA for trusted device - continue with login
       } else {
         // Generate a temporary token for MFA verification
@@ -225,7 +226,7 @@ router.post('/login', authLimiter, async (req, res) => {
           { expiresIn: '5m' }
         );
 
-        console.log(`🔐 Portal MFA required for contact "${contact.email}"`);
+        logger.info(`🔐 Portal MFA required for contact "${contact.email}"`);
 
         return res.json({
           success: true,
@@ -275,7 +276,7 @@ router.post('/login', authLimiter, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Customer portal login error:', error);
+    logger.error('Customer portal login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -329,7 +330,7 @@ router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, re
       canViewQuotes: contact.can_view_quotes ?? false,
     });
   } catch (error) {
-    console.error('Get contact error:', error);
+    logger.error('Get contact error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -388,7 +389,7 @@ router.get('/tickets', authenticateCustomerToken, async (req: CustomerAuthReques
 
     res.json(tickets);
   } catch (error) {
-    console.error('Get customer tickets error:', error);
+    logger.error('Get customer tickets error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -457,7 +458,7 @@ router.get('/tickets/:id', authenticateCustomerToken, async (req: CustomerAuthRe
       comments,
     });
   } catch (error) {
-    console.error('Get customer ticket error:', error);
+    logger.error('Get customer ticket error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -489,10 +490,10 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
     const customerName = customerResult.rows[0]?.name;
     const organizationId = customerResult.rows[0]?.organization_id;
 
-    console.log(`🎫 Creating ticket for customer "${customerName}" (${req.customerId}), organization_id: ${organizationId}`);
+    logger.info(`🎫 Creating ticket for customer "${customerName}" (${req.customerId}), organization_id: ${organizationId}`);
 
     if (!userId || !organizationId) {
-      console.error(`❌ Customer ${req.customerId} not found or has no user_id/organization_id`);
+      logger.error(`❌ Customer ${req.customerId} not found or has no user_id/organization_id`);
       return res.status(404).json({ error: 'Customer not found' });
     }
 
@@ -517,7 +518,7 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
       [ticketId, ticketNumber, userId, organizationId, req.customerId, req.contactId, title, description || null, priority]
     );
 
-    console.log(`✅ Ticket ${ticketNumber} created with id=${ticketId}, organization_id=${organizationId}, customer_id=${req.customerId}`);
+    logger.info(`✅ Ticket ${ticketNumber} created with id=${ticketId}, organization_id=${organizationId}, customer_id=${req.customerId}`);
 
     // Get created ticket
     const ticketResult = await pool.query(
@@ -545,10 +546,10 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
             { id: ticketId, ticketNumber, title },
             'push_on_new_ticket',
             `Neues Portal-Ticket von ${customerName}: ${title}`
-          ).catch(err => console.error('Push notification error:', err));
+          ).catch(err => logger.error('Push notification error:', err));
         }
       } catch (err) {
-        console.error('Error sending push notifications:', err);
+        logger.error('Error sending push notifications:', err);
       }
     })();
 
@@ -568,10 +569,10 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
           ticketTitle: title,
           ticketDescription: description || '',
           portalUrl,
-        }).catch(err => console.error('Failed to send ticket created notification:', err));
+        }).catch(err => logger.error('Failed to send ticket created notification:', err));
       }
     } catch (emailErr) {
-      console.error('Error preparing ticket created notification:', emailErr);
+      logger.error('Error preparing ticket created notification:', emailErr);
     }
 
     // Send email notification to admin/service provider (async, non-blocking)
@@ -597,10 +598,10 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
           ticketDescription: description || '',
           priority,
           adminUrl,
-        }).catch(err => console.error('Failed to send admin notification:', err));
+        }).catch(err => logger.error('Failed to send admin notification:', err));
       }
     } catch (emailErr) {
-      console.error('Error preparing admin notification:', emailErr);
+      logger.error('Error preparing admin notification:', emailErr);
     }
 
     res.status(201).json({
@@ -615,7 +616,7 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
       updatedAt: ticket.updated_at,
     });
   } catch (error) {
-    console.error('Create customer ticket error:', error);
+    logger.error('Create customer ticket error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -678,7 +679,7 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
       { id, ticketNumber: comment.ticket_number, title: comment.ticket_title },
       'push_on_ticket_comment',
       `Neuer Kundenkommentar von ${comment.contact_name}`
-    ).catch(err => console.error('Failed to send push notification:', err));
+    ).catch(err => logger.error('Failed to send push notification:', err));
 
     // Send notification to assignee if different from owner (async, non-blocking)
     (async () => {
@@ -718,7 +719,7 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
             { id, ticketNumber: comment.ticket_number, title: comment.ticket_title },
             'push_on_ticket_comment',
             `Kundenkommentar von ${comment.contact_name}: ${content.substring(0, 80)}${content.length > 80 ? '...' : ''}`
-          ).catch(err => console.error('Push notification error (customer comment to assignee):', err));
+          ).catch(err => logger.error('Push notification error (customer comment to assignee):', err));
         }
 
         // Send email notification
@@ -735,10 +736,10 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
             customerName: ticket.customer_name || 'Unbekannt',
             isFromCustomer: true,
             ticketUrl
-          }).catch(err => console.error('Email notification error (customer comment to assignee):', err));
+          }).catch(err => logger.error('Email notification error (customer comment to assignee):', err));
         }
       } catch (err) {
-        console.error('Error sending customer comment notification to assignee:', err);
+        logger.error('Error sending customer comment notification to assignee:', err);
       }
     })();
 
@@ -750,7 +751,7 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
       createdAt: comment.created_at,
     });
   } catch (error) {
-    console.error('Add customer comment error:', error);
+    logger.error('Add customer comment error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -791,7 +792,7 @@ router.post('/set-password', async (req, res) => {
 
     res.json({ success: true, message: 'Password set successfully. You can now login.' });
   } catch (error) {
-    console.error('Set password error:', error);
+    logger.error('Set password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -856,7 +857,7 @@ router.get('/invitation/verify/:token', async (req, res) => {
       expiresAt: portalUser.password_reset_expires
     });
   } catch (error) {
-    console.error('Token verification error:', error);
+    logger.error('Token verification error:', error);
     res.status(500).json({ valid: false, error: 'Internal server error' });
   }
 });
@@ -927,7 +928,7 @@ router.post('/invitation/activate', async (req, res) => {
       );
     }
 
-    console.log(`✅ Portal account activated for: ${portalUser.email}`);
+    logger.info(`✅ Portal account activated for: ${portalUser.email}`);
 
     res.json({
       success: true,
@@ -935,7 +936,7 @@ router.post('/invitation/activate', async (req, res) => {
       email: portalUser.email
     });
   } catch (error) {
-    console.error('Portal activation error:', error);
+    logger.error('Portal activation error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -987,7 +988,7 @@ router.post('/tickets/:id/close', authenticateCustomerToken, async (req: Custome
 
     res.json({ success: true, message: 'Ticket closed successfully' });
   } catch (error) {
-    console.error('Close ticket error:', error);
+    logger.error('Close ticket error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1035,7 +1036,7 @@ router.post('/tickets/:id/reopen', authenticateCustomerToken, async (req: Custom
 
     res.json({ success: true, message: 'Ticket reopened successfully' });
   } catch (error) {
-    console.error('Reopen ticket error:', error);
+    logger.error('Reopen ticket error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1102,7 +1103,7 @@ router.post('/tickets/:id/attachments', authenticateCustomerToken, upload.array(
 
     res.status(201).json({ success: true, attachments });
   } catch (error) {
-    console.error('Upload attachment error:', error);
+    logger.error('Upload attachment error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1151,7 +1152,7 @@ router.get('/tickets/:id/attachments', authenticateCustomerToken, async (req: Cu
 
     res.json(attachments);
   } catch (error) {
-    console.error('Get attachments error:', error);
+    logger.error('Get attachments error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1199,7 +1200,7 @@ router.delete('/tickets/:ticketId/attachments/:attachmentId', authenticateCustom
 
     res.json({ success: true, message: 'Attachment deleted' });
   } catch (error) {
-    console.error('Delete attachment error:', error);
+    logger.error('Delete attachment error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1248,7 +1249,7 @@ router.post('/change-password', authenticateCustomerToken, async (req: CustomerA
 
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
-    console.error('Change password error:', error);
+    logger.error('Change password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1277,7 +1278,7 @@ router.get('/notification-preferences', authenticateCustomerToken, async (req: C
       notifyTicketReply: prefs.notify_ticket_reply ?? true,
     });
   } catch (error) {
-    console.error('Get notification preferences error:', error);
+    logger.error('Get notification preferences error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1298,7 +1299,7 @@ router.put('/notification-preferences', authenticateCustomerToken, async (req: C
 
     res.json({ success: true, message: 'Notification preferences updated' });
   } catch (error) {
-    console.error('Update notification preferences error:', error);
+    logger.error('Update notification preferences error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1351,7 +1352,7 @@ router.post('/tickets/:id/rate', authenticateCustomerToken, async (req: Customer
 
     res.json({ success: true, message: 'Thank you for your feedback!' });
   } catch (error) {
-    console.error('Rate ticket error:', error);
+    logger.error('Rate ticket error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1403,7 +1404,7 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
       try {
         deviceData = typeof row.device_data === 'string' ? JSON.parse(row.device_data) : (row.device_data || {});
       } catch (e) {
-        console.error('Failed to parse device_data:', e);
+        logger.error('Failed to parse device_data:', e);
       }
 
       // Extract OS details from device_data
@@ -1452,7 +1453,7 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
 
     res.json({ success: true, data: devices });
   } catch (error) {
-    console.error('Get devices error:', error);
+    logger.error('Get devices error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1518,7 +1519,7 @@ router.get('/devices/:deviceId/alerts', authenticateCustomerToken, async (req: C
 
     res.json({ success: true, data: alerts });
   } catch (error) {
-    console.error('Get device alerts error:', error);
+    logger.error('Get device alerts error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1586,7 +1587,7 @@ router.get('/devices/:deviceId/software', authenticateCustomerToken, async (req:
       },
     });
   } catch (error) {
-    console.error('Get device software error:', error);
+    logger.error('Get device software error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1638,7 +1639,7 @@ router.post('/devices/:deviceId/software/refresh', authenticateCustomerToken, as
       },
     });
   } catch (error) {
-    console.error('Refresh device software error:', error);
+    logger.error('Refresh device software error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1696,7 +1697,7 @@ router.get('/devices/:deviceId/os-patches', authenticateCustomerToken, async (re
       },
     });
   } catch (error) {
-    console.error('Get device OS patches error:', error);
+    logger.error('Get device OS patches error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1750,7 +1751,7 @@ router.post('/devices/:deviceId/os-patches/refresh', authenticateCustomerToken, 
       },
     });
   } catch (error) {
-    console.error('Refresh device OS patches error:', error);
+    logger.error('Refresh device OS patches error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1807,7 +1808,7 @@ router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthReque
     );
 
     if (!response.ok) {
-      console.error('sevDesk API error:', response.status, await response.text());
+      logger.error('sevDesk API error:', { status: response.status, body: await response.text() });
       return res.json({ success: true, data: [], message: 'Could not fetch invoices' });
     }
 
@@ -1836,7 +1837,7 @@ router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthReque
 
     res.json({ success: true, data: invoices });
   } catch (error) {
-    console.error('Get invoices error:', error);
+    logger.error('Get invoices error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1889,7 +1890,7 @@ router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest
     );
 
     if (!response.ok) {
-      console.error('sevDesk API error:', response.status, await response.text());
+      logger.error('sevDesk API error:', { status: response.status, body: await response.text() });
       return res.json({ success: true, data: [], message: 'Could not fetch quotes' });
     }
 
@@ -1919,7 +1920,7 @@ router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest
 
     res.json({ success: true, data: quotes });
   } catch (error) {
-    console.error('Get quotes error:', error);
+    logger.error('Get quotes error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2040,7 +2041,7 @@ router.post('/mfa/verify', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Portal MFA verify error:', error);
+    logger.error('Portal MFA verify error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2055,7 +2056,7 @@ router.get('/mfa/status', authenticateCustomerToken, async (req: CustomerAuthReq
 
     res.json({ enabled: result.rows[0]?.mfa_enabled ?? false });
   } catch (error) {
-    console.error('Get MFA status error:', error);
+    logger.error('Get MFA status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2102,7 +2103,7 @@ router.post('/mfa/setup', authenticateCustomerToken, async (req: CustomerAuthReq
       manualEntryKey: secret
     });
   } catch (error) {
-    console.error('MFA setup error:', error);
+    logger.error('MFA setup error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2155,7 +2156,7 @@ router.post('/mfa/verify-setup', authenticateCustomerToken, async (req: Customer
 
     res.json({ success: true, message: 'MFA enabled successfully' });
   } catch (error) {
-    console.error('MFA verify setup error:', error);
+    logger.error('MFA verify setup error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2212,7 +2213,7 @@ router.post('/mfa/disable', authenticateCustomerToken, async (req: CustomerAuthR
 
     res.json({ success: true, message: 'MFA disabled successfully' });
   } catch (error) {
-    console.error('MFA disable error:', error);
+    logger.error('MFA disable error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2230,7 +2231,7 @@ router.get('/mfa/recovery-codes', authenticateCustomerToken, async (req: Custome
 
     res.json({ remaining });
   } catch (error) {
-    console.error('Get recovery codes error:', error);
+    logger.error('Get recovery codes error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2279,7 +2280,7 @@ router.post('/mfa/regenerate-recovery-codes', authenticateCustomerToken, async (
 
     res.json({ success: true, recoveryCodes });
   } catch (error) {
-    console.error('Regenerate recovery codes error:', error);
+    logger.error('Regenerate recovery codes error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2308,7 +2309,7 @@ router.get('/mfa/trusted-devices', authenticateCustomerToken, async (req: Custom
       }))
     });
   } catch (error) {
-    console.error('Get trusted devices error:', error);
+    logger.error('Get trusted devices error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2329,7 +2330,7 @@ router.delete('/mfa/trusted-devices/:id', authenticateCustomerToken, async (req:
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Remove trusted device error:', error);
+    logger.error('Remove trusted device error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2344,7 +2345,7 @@ router.delete('/mfa/trusted-devices', authenticateCustomerToken, async (req: Cus
 
     res.json({ success: true, count: result.rowCount });
   } catch (error) {
-    console.error('Remove all trusted devices error:', error);
+    logger.error('Remove all trusted devices error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2403,7 +2404,7 @@ router.post('/push/subscribe', authenticateCustomerToken, async (req: CustomerAu
 
     res.json({ success: true, id });
   } catch (error) {
-    console.error('Portal push subscribe error:', error);
+    logger.error('Portal push subscribe error:', error);
     res.status(500).json({ error: 'Failed to subscribe' });
   }
 });
@@ -2421,7 +2422,7 @@ router.post('/push/unsubscribe', authenticateCustomerToken, async (req: Customer
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Portal push unsubscribe error:', error);
+    logger.error('Portal push unsubscribe error:', error);
     res.status(500).json({ error: 'Failed to unsubscribe' });
   }
 });
@@ -2438,7 +2439,7 @@ router.get('/push/subscriptions', authenticateCustomerToken, async (req: Custome
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Get portal push subscriptions error:', error);
+    logger.error('Get portal push subscriptions error:', error);
     res.status(500).json({ error: 'Failed to get subscriptions' });
   }
 });
@@ -2460,7 +2461,7 @@ router.delete('/push/subscriptions/:id', authenticateCustomerToken, async (req: 
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete portal push subscription error:', error);
+    logger.error('Delete portal push subscription error:', error);
     res.status(500).json({ error: 'Failed to delete subscription' });
   }
 });
@@ -2488,7 +2489,7 @@ router.get('/push/preferences', authenticateCustomerToken, async (req: CustomerA
       }
     });
   } catch (error) {
-    console.error('Get portal push preferences error:', error);
+    logger.error('Get portal push preferences error:', error);
     res.status(500).json({ error: 'Failed to get preferences' });
   }
 });
@@ -2509,7 +2510,7 @@ router.put('/push/preferences', authenticateCustomerToken, async (req: CustomerA
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Update portal push preferences error:', error);
+    logger.error('Update portal push preferences error:', error);
     res.status(500).json({ error: 'Failed to update preferences' });
   }
 });
@@ -2562,7 +2563,7 @@ router.post('/push/test', authenticateCustomerToken, async (req: CustomerAuthReq
 
     res.json({ success: true, sent, failed });
   } catch (error) {
-    console.error('Send portal test push error:', error);
+    logger.error('Send portal test push error:', error);
     res.status(500).json({ error: 'Failed to send test notification' });
   }
 });
@@ -2604,7 +2605,7 @@ router.get('/debug/contact-status', async (req, res) => {
         recentLoginAttempts = lines.slice(-10); // Last 10 entries for this email
       }
     } catch (logError) {
-      console.error('Could not read security log:', logError);
+      logger.error('Could not read security log:', logError);
     }
 
     // Check audit logs for this contact
@@ -2621,7 +2622,7 @@ router.get('/debug/contact-status', async (req, res) => {
         );
         auditLogs = auditResult.rows;
       } catch (auditError) {
-        console.error('Could not read audit logs:', auditError);
+        logger.error('Could not read audit logs:', auditError);
       }
     }
 
@@ -2654,7 +2655,7 @@ router.get('/debug/contact-status', async (req, res) => {
       auditLogs
     });
   } catch (error) {
-    console.error('Debug contact status error:', error);
+    logger.error('Debug contact status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

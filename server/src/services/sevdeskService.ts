@@ -681,14 +681,14 @@ export async function createInvoice(
       });
 
       const responseText = await response.text();
-      console.log('[sevDesk] Response:', response.status, responseText.substring(0, 500));
+      logger.info('[sevDesk] Response:', { status: response.status, body: responseText.substring(0, 500) });
 
       if (!response.ok) {
         const errorMessage = responseText;
         // Check if retryable error
         if (errorMessage.includes('Correct number abort') && retries < maxRetries - 1) {
           retries++;
-          console.log(`Invoice creation attempt ${retries} failed, retrying in ${retries * 2000}ms...`);
+          logger.info(`Invoice creation attempt ${retries} failed, retrying in ${retries * 2000}ms...`);
           await new Promise(resolve => setTimeout(resolve, retries * 2000));
           continue;
         }
@@ -699,7 +699,7 @@ export async function createInvoice(
       const invoiceId = invoiceResponse.objects.invoice.id;
       const invoiceNumber = invoiceResponse.objects.invoice.invoiceNumber;
 
-      console.log('[sevDesk] Invoice created:', invoiceId, invoiceNumber);
+      logger.info('[sevDesk] Invoice created:', { invoiceId, invoiceNumber });
 
       return {
         invoiceId,
@@ -708,7 +708,7 @@ export async function createInvoice(
     } catch (error: any) {
       if (error.message?.includes('Correct number abort') && retries < maxRetries - 1) {
         retries++;
-        console.log(`Invoice creation attempt ${retries} failed:`, error.message);
+        logger.info(`Invoice creation attempt ${retries} failed:`, error.message);
         await new Promise(resolve => setTimeout(resolve, retries * 2000));
         continue;
       }
@@ -1020,10 +1020,10 @@ export async function getInvoiceWithPositions(
     inv = inv[0];
   }
 
-  console.log('Invoice response type:', typeof inv, Array.isArray(invoiceResponse.objects) ? 'array' : 'object');
+  logger.info('Invoice response type:', { type: typeof inv, kind: Array.isArray(invoiceResponse.objects) ? 'array' : 'object' });
 
   if (!inv) {
-    console.error('No invoice data in response:', JSON.stringify(invoiceResponse, null, 2));
+    logger.error('No invoice data in response:', invoiceResponse);
     return null;
   }
 
@@ -1127,10 +1127,10 @@ export async function getQuoteWithPositions(
     quote = quote[0];
   }
 
-  console.log('Quote response type:', typeof quote, Array.isArray(quoteResponse.objects) ? 'array' : 'object');
+  logger.info('Quote response type:', { type: typeof quote, kind: Array.isArray(quoteResponse.objects) ? 'array' : 'object' });
 
   if (!quote) {
-    console.error('No quote data in response:', JSON.stringify(quoteResponse, null, 2));
+    logger.error('No quote data in response:', quoteResponse);
     return null;
   }
 
@@ -1431,7 +1431,7 @@ export async function createVoucherFromFile(
 
   // Log validation warnings
   if (validationWarnings.length > 0) {
-    console.log(`Voucher validation warnings for file ${fileId}:`, validationWarnings);
+    logger.info(`Voucher validation warnings for file ${fileId}:`, validationWarnings);
   }
 
   const response = await fetch(`${SEVDESK_API_URL}/Voucher/Factory/saveVoucher`, {
@@ -1538,7 +1538,7 @@ export async function syncInvoices(
           );
           synced++;
         } catch (err) {
-          console.error(`Error syncing invoice ${inv.id}:`, err);
+          logger.error(`Error syncing invoice ${inv.id}:`, err);
           errors++;
         }
       }
@@ -1549,7 +1549,7 @@ export async function syncInvoices(
       }
     }
   } catch (err) {
-    console.error('Error fetching invoices for sync:', err);
+    logger.error('Error fetching invoices for sync:', err);
     errors++;
   }
 
@@ -1618,7 +1618,7 @@ export async function syncQuotes(
           );
           synced++;
         } catch (err) {
-          console.error(`Error syncing quote ${quote.id}:`, err);
+          logger.error(`Error syncing quote ${quote.id}:`, err);
           errors++;
         }
       }
@@ -1629,7 +1629,7 @@ export async function syncQuotes(
       }
     }
   } catch (err) {
-    console.error('Error fetching quotes for sync:', err);
+    logger.error('Error fetching quotes for sync:', err);
     errors++;
   }
 
@@ -1917,8 +1917,8 @@ export async function createQuote(
   const contact = contactResponse.objects;
   const addresses = addressResponse.objects || [];
 
-  console.log('[sevDesk] Contact response:', JSON.stringify(contact, null, 2));
-  console.log('[sevDesk] Addresses response:', JSON.stringify(addresses, null, 2));
+  logger.info('[sevDesk] Contact response:', contact);
+  logger.info('[sevDesk] Addresses response:', addresses);
 
   // Get the main address (or first address)
   const mainAddress = addresses[0] || {};
@@ -1937,8 +1937,8 @@ export async function createQuote(
   if (addressZip || addressCity) addressParts.push([addressZip, addressCity].filter(Boolean).join(' '));
   const fullAddress = addressParts.join('\n');
 
-  console.log('[sevDesk] Address fields - name:', addressName, 'street:', addressStreet, 'zip:', addressZip, 'city:', addressCity);
-  console.log('[sevDesk] Full address:', fullAddress);
+  logger.info('[sevDesk] Address fields', { name: addressName, street: addressStreet, zip: addressZip, city: addressCity });
+  logger.info('[sevDesk] Full address:', fullAddress);
 
   // Use Unix timestamp for date
   const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
@@ -2010,8 +2010,8 @@ export async function createQuote(
 
   const formBody = objectToFormData(orderData);
 
-  console.log('[sevDesk] Creating quote with form-urlencoded data');
-  console.log('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
+  logger.info('[sevDesk] Creating quote with form-urlencoded data');
+  logger.info('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
 
   const response = await fetch(`${SEVDESK_API_URL}/Order/Factory/saveOrder`, {
     method: 'POST',
@@ -2023,7 +2023,7 @@ export async function createQuote(
   });
 
   const responseText = await response.text();
-  console.log('[sevDesk] Response:', response.status, responseText.substring(0, 500));
+  logger.info('[sevDesk] Response:', { status: response.status, body: responseText.substring(0, 500) });
 
   if (!response.ok) {
     throw new Error(`Failed to create quote: ${responseText}`);
@@ -2033,7 +2033,7 @@ export async function createQuote(
   const quoteId = quoteData.objects.order.id;
   const quoteNumber = quoteData.objects.order.orderNumber;
 
-  console.log('[sevDesk] Quote created:', quoteId, quoteNumber);
+  logger.info('[sevDesk] Quote created:', { quoteId, quoteNumber });
 
   return {
     quoteId,
@@ -2159,7 +2159,7 @@ export async function updateQuote(
 
   const formBody = objectToFormData(orderData);
 
-  console.log('[sevDesk] Updating quote with form-urlencoded data');
+  logger.info('[sevDesk] Updating quote with form-urlencoded data');
 
   const response = await fetch(`${SEVDESK_API_URL}/Order/Factory/saveOrder`, {
     method: 'POST',
@@ -2171,7 +2171,7 @@ export async function updateQuote(
   });
 
   const responseText = await response.text();
-  console.log('[sevDesk] Update response:', response.status, responseText.substring(0, 500));
+  logger.info('[sevDesk] Update response:', { status: response.status, body: responseText.substring(0, 500) });
 
   if (!response.ok) {
     throw new Error(`Failed to update quote: ${responseText}`);
@@ -2180,7 +2180,7 @@ export async function updateQuote(
   const quoteData = JSON.parse(responseText) as { objects: { order: { id: string; orderNumber: string } } };
   const updatedQuoteNumber = quoteData.objects.order.orderNumber;
 
-  console.log('[sevDesk] Quote updated:', quoteId, updatedQuoteNumber);
+  logger.info('[sevDesk] Quote updated:', { quoteId, quoteNumber: updatedQuoteNumber });
 
   return {
     quoteId,
@@ -2304,7 +2304,7 @@ export async function getCustomerImportPreview(
       }
     }
   } catch (err) {
-    console.error('Failed to fetch contact addresses:', err);
+    logger.error('Failed to fetch contact addresses:', err);
   }
 
   // Build preview list
@@ -2479,7 +2479,7 @@ export async function batchImportSevdeskCustomers(
       }
     }
   } catch (err) {
-    console.error('Failed to fetch addresses:', err);
+    logger.error('Failed to fetch addresses:', err);
   }
 
   for (const item of imports) {

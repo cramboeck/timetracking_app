@@ -7,6 +7,7 @@ import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { emailService } from '../services/emailService';
 import { sendTicketNotification, sendPortalTicketNotification } from '../services/pushNotifications';
 import { auditLog } from '../services/auditLog';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
 
@@ -115,7 +116,7 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
     const organizationId = orgReq.organization.id;
     const { status, customerId, priority } = req.query;
 
-    console.log(`📋 Fetching tickets for organization_id: ${organizationId}`);
+    logger.info(`📋 Fetching tickets for organization_id: ${organizationId}`);
 
     let queryText = `
       SELECT t.*, c.name as customer_name, p.name as project_name
@@ -148,10 +149,10 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
     queryText += ' ORDER BY t.created_at DESC';
 
     const result = await query(queryText, params);
-    console.log(`📋 Found ${result.rows.length} tickets for organization_id: ${organizationId}`);
+    logger.info(`📋 Found ${result.rows.length} tickets for organization_id: ${organizationId}`);
     res.json({ success: true, data: result.rows.map(transformTicket) });
   } catch (error) {
-    console.error('Error fetching tickets:', error);
+    logger.error('Error fetching tickets:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch tickets' });
   }
 });
@@ -178,7 +179,7 @@ router.get('/stats', authenticateToken, attachOrganization, async (req, res) => 
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error fetching ticket stats:', error);
+    logger.error('Error fetching ticket stats:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch ticket stats' });
   }
 });
@@ -369,7 +370,7 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req, res)
       }
     });
   } catch (error) {
-    console.error('Error fetching dashboard data:', error);
+    logger.error('Error fetching dashboard data:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch dashboard data' });
   }
 });
@@ -445,7 +446,7 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching ticket:', error);
+    logger.error('Error fetching ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch ticket' });
   }
 });
@@ -517,16 +518,16 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
             { id, ticketNumber, title },
             'push_on_new_ticket',
             `Neues Ticket erstellt: ${title}`
-          ).catch(err => console.error('Push notification error:', err));
+          ).catch(err => logger.error('Push notification error:', err));
         }
       } catch (err) {
-        console.error('Error sending push notifications:', err);
+        logger.error('Error sending push notifications:', err);
       }
     })();
 
     res.status(201).json({ success: true, data: transformTicket(ticketResult.rows[0]) });
   } catch (error) {
-    console.error('Error creating ticket:', error);
+    logger.error('Error creating ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to create ticket' });
   }
 });
@@ -672,7 +673,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
             oldStatus: oldValues.status,
             newStatus: status,
             portalUrl: portalTicketUrl,
-          }).catch(err => console.error('Failed to send status change notification:', err));
+          }).catch(err => logger.error('Failed to send status change notification:', err));
 
           // Send push notification for status change
           if (ticket.contact_id) {
@@ -688,7 +689,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
               { id, ticketNumber: ticket.ticket_number, title: ticket.title },
               'push_on_status_change',
               `Status geändert: ${statusNames[status] || status}`
-            ).catch(err => console.error('Failed to send portal status change push:', err));
+            ).catch(err => logger.error('Failed to send portal status change push:', err));
           }
         }
       }
@@ -759,7 +760,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
                 { id, ticketNumber: ticket.ticket_number, title: ticket.title },
                 'push_on_ticket_assigned',
                 `${assignerName} hat Ihnen Ticket #${ticket.ticket_number} zugewiesen`
-              ).catch(err => console.error('Push notification error (assigned):', err));
+              ).catch(err => logger.error('Push notification error (assigned):', err));
             }
 
             // Send email notification
@@ -775,10 +776,10 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
                 customerName: ticket.customer_name || 'Unbekannt',
                 priority: ticket.priority,
                 ticketUrl
-              }).catch(err => console.error('Email notification error (assigned):', err));
+              }).catch(err => logger.error('Email notification error (assigned):', err));
             }
           } catch (err) {
-            console.error('Error sending assignment notifications:', err);
+            logger.error('Error sending assignment notifications:', err);
           }
         })();
       } else {
@@ -811,7 +812,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
     res.json({ success: true, data: transformTicket(ticketResult.rows[0]) });
   } catch (error) {
-    console.error('Error updating ticket:', error);
+    logger.error('Error updating ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to update ticket' });
   }
 });
@@ -847,7 +848,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
 
     res.json({ success: true, message: 'Ticket deleted' });
   } catch (error) {
-    console.error('Error deleting ticket:', error);
+    logger.error('Error deleting ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to delete ticket' });
   }
 });
@@ -1066,7 +1067,7 @@ router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole(
       throw txError;
     }
   } catch (error) {
-    console.error('Error merging tickets:', error);
+    logger.error('Error merging tickets:', error);
     res.status(500).json({ success: false, error: 'Failed to merge tickets' });
   } finally {
     client.release();
@@ -1152,7 +1153,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
                 // Reply via email thread (Graph API) - handled by mailboxMonitorService
                 const { mailboxMonitorService } = await import('../services/mailboxMonitorService');
                 mailboxMonitorService.replyToTicketEmail(organizationId, ticketId, content, ticket.replier_name || 'Support')
-                  .catch(err => console.error('Failed to send email reply via Graph API:', err));
+                  .catch(err => logger.error('Failed to send email reply via Graph API:', err));
               } else {
                 // Send standard notification email via SMTP
                 const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${ticketId}`;
@@ -1164,7 +1165,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
                   replyContent: content,
                   replierName: ticket.replier_name || 'Support',
                   portalUrl: portalTicketUrl,
-                }).catch(err => console.error('Failed to send ticket reply notification:', err));
+                }).catch(err => logger.error('Failed to send ticket reply notification:', err));
               }
 
               // Send push notification to customer (async, non-blocking)
@@ -1175,12 +1176,12 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
                   { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
                   'push_on_ticket_reply',
                   `Neue Antwort von ${ticket.replier_name || 'Support'}`
-                ).catch(err => console.error('Failed to send portal push notification:', err));
+                ).catch(err => logger.error('Failed to send portal push notification:', err));
               }
             }
           }
         } catch (emailErr) {
-          console.error('Error preparing ticket notification email:', emailErr);
+          logger.error('Error preparing ticket notification email:', emailErr);
           // Don't fail the comment creation if email fails
         }
       }
@@ -1233,7 +1234,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
             { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
             'push_on_ticket_comment',
             `${commenterName}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
-          ).catch(err => console.error('Push notification error (comment to assignee):', err));
+          ).catch(err => logger.error('Push notification error (comment to assignee):', err));
         }
 
         // Send email notification
@@ -1249,10 +1250,10 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
             customerName: ticket.customer_name || 'Unbekannt',
             isFromCustomer: false, // Internal comment
             ticketUrl
-          }).catch(err => console.error('Email notification error (comment to assignee):', err));
+          }).catch(err => logger.error('Email notification error (comment to assignee):', err));
         }
       } catch (err) {
-        console.error('Error sending comment notification to assignee:', err);
+        logger.error('Error sending comment notification to assignee:', err);
       }
     })();
 
@@ -1284,7 +1285,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
 
     res.status(201).json({ success: true, data: transformComment(result.rows[0]) });
   } catch (error) {
-    console.error('Error adding comment:', error);
+    logger.error('Error adding comment:', error);
     res.status(500).json({ success: false, error: 'Failed to add comment' });
   }
 });
@@ -1340,7 +1341,7 @@ router.get('/:ticketId/attachments', authenticateToken, attachOrganization, asyn
 
     res.json({ success: true, data: attachments });
   } catch (error) {
-    console.error('Get attachments error:', error);
+    logger.error('Get attachments error:', error);
     res.status(500).json({ success: false, error: 'Failed to get attachments' });
   }
 });
@@ -1407,7 +1408,7 @@ router.post('/:ticketId/attachments', authenticateToken, attachOrganization, req
 
     res.status(201).json({ success: true, data: attachments });
   } catch (error) {
-    console.error('Upload attachments error:', error);
+    logger.error('Upload attachments error:', error);
     res.status(500).json({ success: false, error: 'Failed to upload attachments' });
   }
 });
@@ -1457,7 +1458,7 @@ router.delete('/:ticketId/attachments/:attachmentId', authenticateToken, attachO
 
     res.json({ success: true, message: 'Attachment deleted' });
   } catch (error) {
-    console.error('Delete attachment error:', error);
+    logger.error('Delete attachment error:', error);
     res.status(500).json({ success: false, error: 'Failed to delete attachment' });
   }
 });
@@ -1473,7 +1474,7 @@ router.get('/debug/check', authenticateToken, attachOrganization, async (req, re
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
 
-    console.log(`🔍 Debug check for organization_id: ${organizationId}`);
+    logger.info(`🔍 Debug check for organization_id: ${organizationId}`);
 
     // Get user info
     const userResult = await query('SELECT id, username FROM users WHERE id = $1', [userId]);
@@ -1521,7 +1522,7 @@ router.get('/debug/check', authenticateToken, attachOrganization, async (req, re
       }
     });
   } catch (error) {
-    console.error('Debug check error:', error);
+    logger.error('Debug check error:', error);
     res.status(500).json({ success: false, error: 'Debug check failed' });
   }
 });
@@ -1558,7 +1559,7 @@ router.get('/contacts/:customerId', authenticateToken, attachOrganization, async
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error fetching contacts:', error);
+    logger.error('Error fetching contacts:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch contacts' });
   }
 });
@@ -1611,7 +1612,7 @@ router.post('/contacts', authenticateToken, attachOrganization, async (req, res)
     if (error.code === '23505') { // Unique violation
       return res.status(400).json({ success: false, error: 'Email already exists for this customer' });
     }
-    console.error('Error creating contact:', error);
+    logger.error('Error creating contact:', error);
     res.status(500).json({ success: false, error: 'Failed to create contact' });
   }
 });
@@ -1658,7 +1659,7 @@ router.put('/contacts/:id', authenticateToken, attachOrganization, async (req, r
     if (error.code === '23505') {
       return res.status(400).json({ success: false, error: 'Email already exists for this customer' });
     }
-    console.error('Error updating contact:', error);
+    logger.error('Error updating contact:', error);
     res.status(500).json({ success: false, error: 'Failed to update contact' });
   }
 });
@@ -1690,7 +1691,7 @@ router.get('/canned-responses/list', authenticateToken, attachOrganization, asyn
     const result = await query(queryText, params);
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error fetching canned responses:', error);
+    logger.error('Error fetching canned responses:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch canned responses' });
   }
 });
@@ -1717,7 +1718,7 @@ router.post('/canned-responses', authenticateToken, attachOrganization, async (r
 
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error creating canned response:', error);
+    logger.error('Error creating canned response:', error);
     res.status(500).json({ success: false, error: 'Failed to create canned response' });
   }
 });
@@ -1747,7 +1748,7 @@ router.put('/canned-responses/:id', authenticateToken, attachOrganization, async
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error updating canned response:', error);
+    logger.error('Error updating canned response:', error);
     res.status(500).json({ success: false, error: 'Failed to update canned response' });
   }
 });
@@ -1770,7 +1771,7 @@ router.delete('/canned-responses/:id', authenticateToken, attachOrganization, as
 
     res.json({ success: true, message: 'Canned response deleted' });
   } catch (error) {
-    console.error('Error deleting canned response:', error);
+    logger.error('Error deleting canned response:', error);
     res.status(500).json({ success: false, error: 'Failed to delete canned response' });
   }
 });
@@ -1795,7 +1796,7 @@ router.post('/canned-responses/:id/use', authenticateToken, attachOrganization, 
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error updating canned response usage:', error);
+    logger.error('Error updating canned response usage:', error);
     res.status(500).json({ success: false, error: 'Failed to update usage count' });
   }
 });
@@ -2008,7 +2009,7 @@ Mit freundlichen Grüßen`,
 
     res.json({ success: true, message: `${defaultResponses.length} Standard-Vorlagen erstellt`, seeded: true, count: defaultResponses.length });
   } catch (error) {
-    console.error('Error seeding canned responses:', error);
+    logger.error('Error seeding canned responses:', error);
     res.status(500).json({ success: false, error: 'Failed to seed canned responses' });
   }
 });
@@ -2034,7 +2035,7 @@ router.get('/tags/list', authenticateToken, attachOrganization, async (req, res)
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error fetching tags:', error);
+    logger.error('Error fetching tags:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch tags' });
   }
 });
@@ -2064,7 +2065,7 @@ router.post('/tags', authenticateToken, attachOrganization, async (req, res) => 
     if (error.code === '23505') {
       return res.status(400).json({ success: false, error: 'Tag with this name already exists' });
     }
-    console.error('Error creating tag:', error);
+    logger.error('Error creating tag:', error);
     res.status(500).json({ success: false, error: 'Failed to create tag' });
   }
 });
@@ -2094,7 +2095,7 @@ router.put('/tags/:id', authenticateToken, attachOrganization, async (req, res) 
     if (error.code === '23505') {
       return res.status(400).json({ success: false, error: 'Tag with this name already exists' });
     }
-    console.error('Error updating tag:', error);
+    logger.error('Error updating tag:', error);
     res.status(500).json({ success: false, error: 'Failed to update tag' });
   }
 });
@@ -2117,7 +2118,7 @@ router.delete('/tags/:id', authenticateToken, attachOrganization, async (req, re
 
     res.json({ success: true, message: 'Tag deleted' });
   } catch (error) {
-    console.error('Error deleting tag:', error);
+    logger.error('Error deleting tag:', error);
     res.status(500).json({ success: false, error: 'Failed to delete tag' });
   }
 });
@@ -2149,7 +2150,7 @@ router.get('/:ticketId/tags', authenticateToken, attachOrganization, async (req,
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error fetching ticket tags:', error);
+    logger.error('Error fetching ticket tags:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch ticket tags' });
   }
 });
@@ -2215,7 +2216,7 @@ router.post('/:ticketId/tags/:tagId', authenticateToken, attachOrganization, asy
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error adding tag to ticket:', error);
+    logger.error('Error adding tag to ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to add tag to ticket' });
   }
 });
@@ -2270,7 +2271,7 @@ router.delete('/:ticketId/tags/:tagId', authenticateToken, attachOrganization, a
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error removing tag from ticket:', error);
+    logger.error('Error removing tag from ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to remove tag from ticket' });
   }
 });
@@ -2296,7 +2297,7 @@ export async function logTicketActivity(
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `, [id, ticketId, userId, customerContactId, actionType, oldValue, newValue, metadata ? JSON.stringify(metadata) : null]);
   } catch (error) {
-    console.error('Error logging ticket activity:', error);
+    logger.error('Error logging ticket activity:', error);
     // Don't throw - activity logging should not break main operations
   }
 }
@@ -2349,7 +2350,7 @@ router.get('/:ticketId/activities', authenticateToken, attachOrganization, async
 
     res.json({ success: true, data: activities });
   } catch (error) {
-    console.error('Error fetching ticket activities:', error);
+    logger.error('Error fetching ticket activities:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch ticket activities' });
   }
 });
@@ -2455,7 +2456,7 @@ router.get('/search/query', authenticateToken, attachOrganization, async (req, r
 
     res.json({ success: true, data: allTickets.map(transformTicket) });
   } catch (error) {
-    console.error('Error searching tickets:', error);
+    logger.error('Error searching tickets:', error);
     res.status(500).json({ success: false, error: 'Failed to search tickets' });
   }
 });
@@ -2503,7 +2504,7 @@ router.get('/sla/policies', authenticateToken, attachOrganization, async (req, r
 
     res.json({ success: true, data: result.rows.map(transformSlaPolicy) });
   } catch (error) {
-    console.error('Error fetching SLA policies:', error);
+    logger.error('Error fetching SLA policies:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch SLA policies' });
   }
 });
@@ -2556,7 +2557,7 @@ router.post('/sla/policies', authenticateToken, attachOrganization, requireOrgRo
 
     res.status(201).json({ success: true, data: transformSlaPolicy(result.rows[0]) });
   } catch (error) {
-    console.error('Error creating SLA policy:', error);
+    logger.error('Error creating SLA policy:', error);
     res.status(500).json({ success: false, error: 'Failed to create SLA policy' });
   }
 });
@@ -2617,7 +2618,7 @@ router.put('/sla/policies/:id', authenticateToken, attachOrganization, requireOr
 
     res.json({ success: true, data: transformSlaPolicy(result.rows[0]) });
   } catch (error) {
-    console.error('Error updating SLA policy:', error);
+    logger.error('Error updating SLA policy:', error);
     res.status(500).json({ success: false, error: 'Failed to update SLA policy' });
   }
 });
@@ -2653,7 +2654,7 @@ router.delete('/sla/policies/:id', authenticateToken, attachOrganization, requir
 
     res.json({ success: true, message: 'SLA policy deleted' });
   } catch (error) {
-    console.error('Error deleting SLA policy:', error);
+    logger.error('Error deleting SLA policy:', error);
     res.status(500).json({ success: false, error: 'Failed to delete SLA policy' });
   }
 });
@@ -2729,7 +2730,7 @@ router.post('/sla/apply/:ticketId', authenticateToken, attachOrganization, async
 
     res.json({ success: true, data: deadlines });
   } catch (error) {
-    console.error('Error applying SLA:', error);
+    logger.error('Error applying SLA:', error);
     res.status(500).json({ success: false, error: 'Failed to apply SLA' });
   }
 });
@@ -2829,7 +2830,7 @@ router.get('/tasks/all', authenticateToken, attachOrganization, async (req, res)
 
     res.json({ success: true, data: tasks });
   } catch (error) {
-    console.error('Error fetching all tasks:', error);
+    logger.error('Error fetching all tasks:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch tasks' });
   }
 });
@@ -2869,7 +2870,7 @@ router.get('/:id/tasks', authenticateToken, attachOrganization, async (req, res)
 
     res.json({ success: true, data: tasks });
   } catch (error) {
-    console.error('Error fetching ticket tasks:', error);
+    logger.error('Error fetching ticket tasks:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch tasks' });
   }
 });
@@ -2935,7 +2936,7 @@ router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole(
 
     res.status(201).json({ success: true, data: taskData });
   } catch (error) {
-    console.error('Error creating ticket task:', error);
+    logger.error('Error creating ticket task:', error);
     res.status(500).json({ success: false, error: 'Failed to create task' });
   }
 });
@@ -3084,7 +3085,7 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, re
 
     res.json({ success: true, data: taskData });
   } catch (error) {
-    console.error('Error updating ticket task:', error);
+    logger.error('Error updating ticket task:', error);
     res.status(500).json({ success: false, error: 'Failed to update task' });
   }
 });
@@ -3127,7 +3128,7 @@ router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, re
 
     res.json({ success: true, data: result.rows.map(transformTask) });
   } catch (error) {
-    console.error('Error reordering ticket tasks:', error);
+    logger.error('Error reordering ticket tasks:', error);
     res.status(500).json({ success: false, error: 'Failed to reorder tasks' });
   }
 });
@@ -3177,7 +3178,7 @@ router.delete('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization,
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting ticket task:', error);
+    logger.error('Error deleting ticket task:', error);
     res.status(500).json({ success: false, error: 'Failed to delete task' });
   }
 });

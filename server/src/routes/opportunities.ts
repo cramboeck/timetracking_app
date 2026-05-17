@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { query } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
 import { getUserOrganizationId } from '../middleware/organization';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -64,7 +65,7 @@ router.get('/stages', async (req: Request, res: Response) => {
 
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching pipeline stages:', error);
+    logger.error('Error fetching pipeline stages:', error);
     res.status(500).json({ error: 'Failed to fetch pipeline stages' });
   }
 });
@@ -99,7 +100,7 @@ router.post('/stages', async (req: Request, res: Response) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error creating pipeline stage:', error);
+    logger.error('Error creating pipeline stage:', error);
     res.status(500).json({ error: 'Failed to create pipeline stage' });
   }
 });
@@ -134,7 +135,7 @@ router.put('/stages/:id', async (req: Request, res: Response) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error updating pipeline stage:', error);
+    logger.error('Error updating pipeline stage:', error);
     res.status(500).json({ error: 'Failed to update pipeline stage' });
   }
 });
@@ -168,7 +169,7 @@ router.put('/stages/reorder', async (req: Request, res: Response) => {
 
     res.json(result.rows);
   } catch (error) {
-    console.error('Error reordering stages:', error);
+    logger.error('Error reordering stages:', error);
     res.status(500).json({ error: 'Failed to reorder stages' });
   }
 });
@@ -216,7 +217,7 @@ router.delete('/stages/:id', async (req: Request, res: Response) => {
 
     res.json({ success: true, deleted: id });
   } catch (error) {
-    console.error('Error deleting pipeline stage:', error);
+    logger.error('Error deleting pipeline stage:', error);
     res.status(500).json({ error: 'Failed to delete pipeline stage' });
   }
 });
@@ -308,7 +309,7 @@ router.get('/', async (req: Request, res: Response) => {
       total: result.rows.length
     });
   } catch (error) {
-    console.error('Error fetching opportunities:', error);
+    logger.error('Error fetching opportunities:', error);
     res.status(500).json({ error: 'Failed to fetch opportunities' });
   }
 });
@@ -365,7 +366,7 @@ router.get('/pipeline', async (req: Request, res: Response) => {
 
     res.json({ pipeline, totals });
   } catch (error) {
-    console.error('Error fetching pipeline:', error);
+    logger.error('Error fetching pipeline:', error);
     res.status(500).json({ error: 'Failed to fetch pipeline' });
   }
 });
@@ -417,7 +418,7 @@ router.get('/forecast', async (req: Request, res: Response) => {
       period_months: parseInt(months as string)
     });
   } catch (error) {
-    console.error('Error fetching forecast:', error);
+    logger.error('Error fetching forecast:', error);
     res.status(500).json({ error: 'Failed to fetch forecast' });
   }
 });
@@ -479,7 +480,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       activities: activities.rows
     });
   } catch (error) {
-    console.error('Error fetching opportunity:', error);
+    logger.error('Error fetching opportunity:', error);
     res.status(500).json({ error: 'Failed to fetch opportunity' });
   }
 });
@@ -562,7 +563,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error creating opportunity:', error);
+    logger.error('Error creating opportunity:', error);
     res.status(500).json({ error: 'Failed to create opportunity' });
   }
 });
@@ -666,7 +667,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error updating opportunity:', error);
+    logger.error('Error updating opportunity:', error);
     res.status(500).json({ error: 'Failed to update opportunity' });
   }
 });
@@ -742,7 +743,7 @@ router.post('/:id/move', async (req: Request, res: Response) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error moving opportunity:', error);
+    logger.error('Error moving opportunity:', error);
     res.status(500).json({ error: 'Failed to move opportunity' });
   }
 });
@@ -784,7 +785,7 @@ router.post('/:id/activities', async (req: Request, res: Response) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error adding activity:', error);
+    logger.error('Error adding activity:', error);
     res.status(500).json({ error: 'Failed to add activity' });
   }
 });
@@ -810,7 +811,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     res.json({ success: true, deleted: id });
   } catch (error) {
-    console.error('Error deleting opportunity:', error);
+    logger.error('Error deleting opportunity:', error);
     res.status(500).json({ error: 'Failed to delete opportunity' });
   }
 });
@@ -873,7 +874,7 @@ router.get('/stats/overview', async (req: Request, res: Response) => {
       closing_soon: closingSoon.rows[0]
     });
   } catch (error) {
-    console.error('Error fetching opportunity stats:', error);
+    logger.error('Error fetching opportunity stats:', error);
     res.status(500).json({ error: 'Failed to fetch opportunity stats' });
   }
 });

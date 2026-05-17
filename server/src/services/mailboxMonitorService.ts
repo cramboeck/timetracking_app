@@ -11,6 +11,7 @@ import { Client } from '@microsoft/microsoft-graph-client';
 import { TokenCredentialAuthenticationProvider } from '@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials';
 import { getConfig, Microsoft365Config } from './microsoft365ConfigService';
 import { query } from '../config/database';
+import { logger } from '../utils/logger';
 
 export interface EmailMessage {
   id: string;
@@ -63,7 +64,7 @@ class MailboxMonitorService {
     const config = await getConfig(organizationId);
 
     if (!config || !config.tenantId || !config.clientId || !config.clientSecret) {
-      console.error('Microsoft 365 not configured for organization:', organizationId);
+      logger.error('Microsoft 365 not configured for organization:', organizationId);
       return null;
     }
 
@@ -82,7 +83,7 @@ class MailboxMonitorService {
 
       return { client, config };
     } catch (error) {
-      console.error('Failed to create Graph client:', error);
+      logger.error('Failed to create Graph client:', error);
       return null;
     }
   }
@@ -171,10 +172,10 @@ class MailboxMonitorService {
       }));
 
       const status = includeRead ? 'all' : 'unread';
-      console.log(`📬 Found ${emails.length} ${status} emails in ${mailbox}`);
+      logger.info(`📬 Found ${emails.length} ${status} emails in ${mailbox}`);
       return { success: true, emails };
     } catch (error: any) {
-      console.error('Failed to get unread emails:', error.message);
+      logger.error('Failed to get unread emails:', error.message);
       return {
         success: false,
         emails: [],
@@ -250,7 +251,7 @@ class MailboxMonitorService {
 
       return { success: true, emails };
     } catch (error: any) {
-      console.error('Failed to get emails from mailbox:', error.message);
+      logger.error('Failed to get emails from mailbox:', error.message);
       return {
         success: false,
         emails: [],
@@ -308,7 +309,7 @@ class MailboxMonitorService {
         importance: msg.importance || 'normal',
       };
     } catch (error: any) {
-      console.error('Failed to get email from mailbox:', error.message);
+      logger.error('Failed to get email from mailbox:', error.message);
       return null;
     }
   }
@@ -336,7 +337,7 @@ class MailboxMonitorService {
 
       return true;
     } catch (error: any) {
-      console.error('Failed to mark email as read:', error.message);
+      logger.error('Failed to mark email as read:', error.message);
       return false;
     }
   }
@@ -395,7 +396,7 @@ class MailboxMonitorService {
         importance: msg.importance || 'normal',
       };
     } catch (error: any) {
-      console.error('Failed to get email:', error.message);
+      logger.error('Failed to get email:', error.message);
       return null;
     }
   }
@@ -434,7 +435,7 @@ class MailboxMonitorService {
       for (const att of response.value || []) {
         // Skip non-file attachments (like item attachments or reference attachments)
         if (att['@odata.type'] !== '#microsoft.graph.fileAttachment') {
-          console.log(`Skipping non-file attachment: ${att.name} (${att['@odata.type']})`);
+          logger.info(`Skipping non-file attachment: ${att.name} (${att['@odata.type']})`);
           continue;
         }
 
@@ -452,15 +453,15 @@ class MailboxMonitorService {
             contentBytes: fullAttachment.contentBytes,
           });
 
-          console.log(`Fetched attachment: ${fullAttachment.name} (${fullAttachment.size} bytes)`);
+          logger.info(`Fetched attachment: ${fullAttachment.name} (${fullAttachment.size} bytes)`);
         } catch (attError: any) {
-          console.error(`Failed to fetch attachment ${att.name}:`, attError.message);
+          logger.error(`Failed to fetch attachment ${att.name}:`, attError.message);
         }
       }
 
       return attachments;
     } catch (error: any) {
-      console.error('Failed to get attachments:', error.message);
+      logger.error('Failed to get attachments:', error.message);
       return [];
     }
   }
@@ -493,7 +494,7 @@ class MailboxMonitorService {
 
       return true;
     } catch (error: any) {
-      console.error('Failed to mark email as read:', error.message);
+      logger.error('Failed to mark email as read:', error.message);
       return false;
     }
   }
@@ -524,10 +525,10 @@ class MailboxMonitorService {
         .api(`/users/${mailbox}/messages/${messageId}`)
         .patch({ isRead: false });
 
-      console.log(`📧 Marked email ${messageId} as unread`);
+      logger.info(`📧 Marked email ${messageId} as unread`);
       return true;
     } catch (error: any) {
-      console.error('Failed to mark email as unread:', error.message);
+      logger.error('Failed to mark email as unread:', error.message);
       return false;
     }
   }
@@ -552,7 +553,7 @@ class MailboxMonitorService {
       }
     }
 
-    console.log(`📧 Marked ${success}/${messageIds.length} emails as unread`);
+    logger.info(`📧 Marked ${success}/${messageIds.length} emails as unread`);
     return { success, failed };
   }
 
@@ -586,7 +587,7 @@ class MailboxMonitorService {
         .get();
 
       if (!folders.value || folders.value.length === 0) {
-        console.error(`Folder '${folderName}' not found`);
+        logger.error(`Folder '${folderName}' not found`);
         return false;
       }
 
@@ -599,7 +600,7 @@ class MailboxMonitorService {
 
       return true;
     } catch (error: any) {
-      console.error('Failed to move email:', error.message);
+      logger.error('Failed to move email:', error.message);
       return false;
     }
   }
@@ -641,10 +642,10 @@ class MailboxMonitorService {
         },
       });
 
-      console.log(`📧 Reply sent for message ${messageId}`);
+      logger.info(`📧 Reply sent for message ${messageId}`);
       return true;
     } catch (error: any) {
-      console.error('Failed to reply to email:', error.message);
+      logger.error('Failed to reply to email:', error.message);
       return false;
     }
   }
@@ -670,7 +671,7 @@ class MailboxMonitorService {
       `, [ticketId, organizationId]);
 
       if (result.rows.length === 0) {
-        console.error(`No inbound email found for ticket ${ticketId}`);
+        logger.error(`No inbound email found for ticket ${ticketId}`);
         return false;
       }
 
@@ -698,7 +699,7 @@ class MailboxMonitorService {
       // Send the reply via Graph API
       return await this.replyToEmail(organizationId, lastEmail.message_id, htmlContent, false, 'support');
     } catch (error: any) {
-      console.error('Failed to reply to ticket email:', error.message);
+      logger.error('Failed to reply to ticket email:', error.message);
       return false;
     }
   }

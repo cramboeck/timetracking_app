@@ -3,6 +3,7 @@ import { pool } from '../config/database';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/adminAuth';
 import { auditLog } from '../services/auditLog';
+import { logger } from '../utils/logger';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
@@ -69,7 +70,7 @@ router.get('/stats', async (req, res) => {
       todayEntries
     });
   } catch (error) {
-    console.error('Error fetching admin stats:', error);
+    logger.error('Error fetching admin stats:', error);
     res.status(500).json({ error: 'Failed to fetch statistics' });
   }
 });
@@ -132,7 +133,7 @@ router.get('/users', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching users:', error);
+    logger.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
@@ -188,7 +189,7 @@ router.get('/users/:id', async (req, res) => {
       recent_entries: entriesResult.rows
     });
   } catch (error) {
-    console.error('Error fetching user details:', error);
+    logger.error('Error fetching user details:', error);
     res.status(500).json({ error: 'Failed to fetch user details' });
   }
 });
@@ -223,7 +224,7 @@ router.put('/users/:id/role', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: 'User role updated' });
   } catch (error) {
-    console.error('Error updating user role:', error);
+    logger.error('Error updating user role:', error);
     res.status(500).json({ error: 'Failed to update user role' });
   }
 });
@@ -260,7 +261,7 @@ router.delete('/users/:id', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
-    console.error('Error deleting user:', error);
+    logger.error('Error deleting user:', error);
     res.status(500).json({ error: 'Failed to delete user' });
   }
 });
@@ -331,7 +332,7 @@ router.get('/audit-logs', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching audit logs:', error);
+    logger.error('Error fetching audit logs:', error);
     res.status(500).json({ error: 'Failed to fetch audit logs' });
   }
 });
@@ -392,7 +393,7 @@ router.get('/analytics', async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error fetching analytics:', error);
+    logger.error('Error fetching analytics:', error);
     res.status(500).json({ error: 'Failed to fetch analytics' });
   }
 });
@@ -473,7 +474,7 @@ router.get('/maintenance', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching maintenance announcements:', error);
+    logger.error('Error fetching maintenance announcements:', error);
     res.status(500).json({ error: 'Failed to fetch maintenance announcements' });
   }
 });
@@ -508,7 +509,7 @@ router.get('/maintenance/stats', async (req, res) => {
       notifications: customerStats.rows[0]
     });
   } catch (error) {
-    console.error('Error fetching maintenance stats:', error);
+    logger.error('Error fetching maintenance stats:', error);
     res.status(500).json({ error: 'Failed to fetch maintenance stats' });
   }
 });
@@ -553,7 +554,7 @@ router.delete('/maintenance/:id', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: 'Wartungsankündigung gelöscht' });
   } catch (error) {
-    console.error('Error deleting maintenance announcement:', error);
+    logger.error('Error deleting maintenance announcement:', error);
     res.status(500).json({ error: 'Failed to delete maintenance announcement' });
   }
 });
@@ -615,7 +616,7 @@ router.delete('/maintenance/bulk', async (req: AuthRequest, res) => {
       message: `${deletedCount} Wartungsankündigung(en) gelöscht`
     });
   } catch (error) {
-    console.error('Error bulk deleting maintenance announcements:', error);
+    logger.error('Error bulk deleting maintenance announcements:', error);
     res.status(500).json({ error: 'Failed to delete maintenance announcements' });
   }
 });
@@ -701,7 +702,7 @@ router.get('/features', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching features:', error);
+    logger.error('Error fetching features:', error);
     res.status(500).json({ error: 'Failed to fetch features' });
   }
 });
@@ -757,7 +758,7 @@ router.put('/features/:userId/:packageName', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: `Package ${packageName} ${enabled ? 'enabled' : 'disabled'} for user` });
   } catch (error) {
-    console.error('Error updating feature:', error);
+    logger.error('Error updating feature:', error);
     res.status(500).json({ error: 'Failed to update feature' });
   }
 });
@@ -815,7 +816,7 @@ router.post('/features/bulk', async (req: AuthRequest, res) => {
       message: `Package ${packageName} ${enabled ? 'enabled' : 'disabled'} for ${updatedCount} users`
     });
   } catch (error) {
-    console.error('Error bulk updating features:', error);
+    logger.error('Error bulk updating features:', error);
     res.status(500).json({ error: 'Failed to bulk update features' });
   }
 });
@@ -876,7 +877,7 @@ router.get('/backups', async (req, res) => {
 
     res.json({ backups, backupDir: BACKUP_DIR });
   } catch (error) {
-    console.error('Error listing backups:', error);
+    logger.error('Error listing backups:', error);
     res.status(500).json({ error: 'Failed to list backups' });
   }
 });
@@ -943,7 +944,7 @@ router.post('/backups', async (req: AuthRequest, res) => {
       }
     });
   } catch (error: any) {
-    console.error('Error creating backup:', error);
+    logger.error('Error creating backup:', error);
     res.status(500).json({ error: `Backup fehlgeschlagen: ${error.message}` });
   }
 });
@@ -1016,7 +1017,7 @@ router.post('/backups/:filename/restore', async (req: AuthRequest, res) => {
       message: 'Datenbank erfolgreich wiederhergestellt. Server-Neustart empfohlen.'
     });
   } catch (error: any) {
-    console.error('Error restoring backup:', error);
+    logger.error('Error restoring backup:', error);
     res.status(500).json({ error: `Wiederherstellung fehlgeschlagen: ${error.message}` });
   }
 });
@@ -1056,7 +1057,7 @@ router.delete('/backups/:filename', async (req: AuthRequest, res) => {
       message: 'Backup gelöscht'
     });
   } catch (error: any) {
-    console.error('Error deleting backup:', error);
+    logger.error('Error deleting backup:', error);
     res.status(500).json({ error: `Löschen fehlgeschlagen: ${error.message}` });
   }
 });
@@ -1105,7 +1106,7 @@ router.delete('/backups', async (req: AuthRequest, res) => {
       message: `${deletedCount} alte Backup(s) gelöscht`
     });
   } catch (error: any) {
-    console.error('Error cleaning up backups:', error);
+    logger.error('Error cleaning up backups:', error);
     res.status(500).json({ error: `Aufräumen fehlgeschlagen: ${error.message}` });
   }
 });
@@ -1194,7 +1195,7 @@ router.get('/system/status', async (req, res) => {
 
     res.json(status);
   } catch (error: any) {
-    console.error('Error fetching system status:', error);
+    logger.error('Error fetching system status:', error);
     res.status(500).json({ error: 'Failed to fetch system status' });
   }
 });
@@ -1280,7 +1281,7 @@ router.get('/database/stats', async (req, res) => {
       slowQueries
     });
   } catch (error: any) {
-    console.error('Error fetching database stats:', error);
+    logger.error('Error fetching database stats:', error);
     res.status(500).json({ error: 'Failed to fetch database statistics' });
   }
 });
@@ -1314,7 +1315,7 @@ router.post('/database/vacuum', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: 'VACUUM ANALYZE erfolgreich ausgeführt' });
   } catch (error: any) {
-    console.error('Error running vacuum:', error);
+    logger.error('Error running vacuum:', error);
     res.status(500).json({ error: `VACUUM fehlgeschlagen: ${error.message}` });
   }
 });
@@ -1410,7 +1411,7 @@ router.get('/security/sessions', async (req, res) => {
       }
     });
   } catch (error: any) {
-    console.error('Error fetching security data:', error);
+    logger.error('Error fetching security data:', error);
     res.status(500).json({ error: 'Failed to fetch security data' });
   }
 });
@@ -1438,7 +1439,7 @@ router.delete('/security/sessions/:userId', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: 'Sessions invalidiert' });
   } catch (error: any) {
-    console.error('Error invalidating sessions:', error);
+    logger.error('Error invalidating sessions:', error);
     res.status(500).json({ error: 'Failed to invalidate sessions' });
   }
 });
@@ -1489,7 +1490,7 @@ router.get('/system/logs', async (req, res) => {
 
     res.json({ logs, logType });
   } catch (error: any) {
-    console.error('Error fetching logs:', error);
+    logger.error('Error fetching logs:', error);
     res.status(500).json({ error: 'Failed to fetch logs' });
   }
 });
@@ -1512,7 +1513,7 @@ router.get('/notifications', async (req, res) => {
     if (error.code === '42P01') {
       res.json({ notifications: [], tableExists: false });
     } else {
-      console.error('Error fetching notifications:', error);
+      logger.error('Error fetching notifications:', error);
       res.status(500).json({ error: 'Failed to fetch notifications' });
     }
   }
@@ -1557,7 +1558,7 @@ router.post('/notifications', async (req: AuthRequest, res) => {
 
     res.json({ success: true, notification: result.rows[0] });
   } catch (error: any) {
-    console.error('Error creating notification:', error);
+    logger.error('Error creating notification:', error);
     res.status(500).json({ error: 'Failed to create notification' });
   }
 });
@@ -1578,7 +1579,7 @@ router.delete('/notifications/:id', async (req: AuthRequest, res) => {
 
     res.json({ success: true });
   } catch (error: any) {
-    console.error('Error deleting notification:', error);
+    logger.error('Error deleting notification:', error);
     res.status(500).json({ error: 'Failed to delete notification' });
   }
 });
@@ -1596,7 +1597,7 @@ router.put('/notifications/:id/toggle', async (req: AuthRequest, res) => {
 
     res.json({ success: true, notification: result.rows[0] });
   } catch (error: any) {
-    console.error('Error toggling notification:', error);
+    logger.error('Error toggling notification:', error);
     res.status(500).json({ error: 'Failed to toggle notification' });
   }
 });
@@ -1753,7 +1754,7 @@ router.get('/email/stats', async (req, res) => {
         tableExists: false,
       });
     } else {
-      console.error('Error fetching email stats:', error);
+      logger.error('Error fetching email stats:', error);
       res.status(500).json({ error: 'Failed to fetch email statistics' });
     }
   }
@@ -1824,7 +1825,7 @@ router.get('/email/logs', async (req, res) => {
     if (error.code === '42P01') {
       res.json({ logs: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 }, tableExists: false });
     } else {
-      console.error('Error fetching email logs:', error);
+      logger.error('Error fetching email logs:', error);
       res.status(500).json({ error: 'Failed to fetch email logs' });
     }
   }
@@ -1851,7 +1852,7 @@ router.get('/email/config', async (req, res) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching email config:', error);
+    logger.error('Error fetching email config:', error);
     res.status(500).json({ error: 'Failed to fetch email configuration' });
   }
 });
@@ -1907,7 +1908,7 @@ router.post('/email/test', async (req: AuthRequest, res) => {
       res.status(500).json({ success: false, error: 'Email konnte nicht gesendet werden' });
     }
   } catch (error: any) {
-    console.error('Error sending test email:', error);
+    logger.error('Error sending test email:', error);
     res.status(500).json({ error: error.message || 'Failed to send test email' });
   }
 });
@@ -1926,7 +1927,7 @@ router.get('/email/types', async (req, res) => {
     if (error.code === '42P01') {
       res.json({ types: [], tableExists: false });
     } else {
-      console.error('Error fetching email types:', error);
+      logger.error('Error fetching email types:', error);
       res.status(500).json({ error: 'Failed to fetch email types' });
     }
   }
