@@ -37,6 +37,39 @@
 
 ---
 
+## Branch-Konvention
+
+> **Wichtig für alle KI-Assistenten:** Hier wird zentral festgelegt, gegen welchen Branch
+> Feature- und Fix-Branches eröffnet werden. Bitte vor dem ersten Commit prüfen.
+
+| Branch | Rolle |
+|---|---|
+| `claude/next-version-roadmap-ks0D0` | **Entwicklungs-Basis** — entspricht dem Stand auf dem Hetzner-Produktionsserver. Alle Feature-/Fix-Branches gehen von hier aus, PRs werden gegen diesen Branch eröffnet. |
+| `main` | **Release-Target** — wird nicht direkt per Feature-PR aktualisiert, sondern in regelmäßigen Abständen per Release-Merge aus `claude/next-version-roadmap-ks0D0` synchronisiert. |
+
+### Standard-Workflow
+
+```bash
+# 1. neueste Basis holen
+git fetch origin claude/next-version-roadmap-ks0D0
+
+# 2. Feature-Branch davon abzweigen
+git checkout -b <feature-name> origin/claude/next-version-roadmap-ks0D0
+
+# 3. Entwickeln, committen, pushen
+
+# 4. PR öffnen mit base = claude/next-version-roadmap-ks0D0
+#    (NICHT base = main!)
+```
+
+Periodisch — nur auf explizite User-Anweisung — wird `claude/next-version-roadmap-ks0D0 → main` als Release-Merge ausgeführt.
+
+### Warum
+
+Der Hetzner-Produktionsserver zieht den Code aus `claude/next-version-roadmap-ks0D0`. Wenn Features stattdessen in `main` landen, sieht der Server sie nicht — das ist am 17.5.2026 mit PR #48 (Logger + Zod) versehentlich passiert und musste mit einem Fast-Forward von `main` nach `claude/next-version-roadmap-ks0D0` nachträglich korrigiert werden. Diese Konvention soll das verhindern.
+
+---
+
 ## Bereits durchgeführte Änderungen
 
 ### PR #43 – Epic 1: Sicherheits-Optimierungen
@@ -277,6 +310,7 @@ Es gibt eine massive funktionale Überschneidung zwischen `tasks` und `tickets`.
 10. **`password_hash` niemals zurückgeben** – in keiner API-Antwort
 11. **Lazy Loading beibehalten** – neue schwere Komponenten in `App.tsx` als `lazy()` importieren
 12. **Rückwärtskompatibilität** – Legacy-Clients müssen weiterhin funktionieren (`?all=true` für entries)
+13. **Branch-Konvention beachten** – Feature-/Fix-Branches IMMER von `claude/next-version-roadmap-ks0D0` ausgehen, PRs gegen denselben Branch eröffnen (= Hetzner-Stand). Niemals direkt gegen `main`. Details siehe Sektion „Branch-Konvention" oben.
 
 ---
 
