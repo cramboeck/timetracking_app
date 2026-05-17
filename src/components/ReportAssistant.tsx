@@ -2436,7 +2436,7 @@ ${companyInfo?.phone || ''}`;
                                   <StatusIcon size={12} />
                                   {statusBadge.label}
                                 </span>
-                                <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">
+                                <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded-full">
                                   {report.report_title}
                                 </span>
                               </div>
@@ -2687,14 +2687,14 @@ ${companyInfo?.phone || ''}`;
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[90vw] max-w-md p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center gap-3 mb-4">
-                <Send size={24} className="text-blue-600" />
+                <Send size={24} className="text-accent-primary" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   {sendApprovalDialog.revisionOfId ? 'Überarbeiteten Report senden' : 'Zur Genehmigung senden'}
                 </h3>
               </div>
 
               {sendApprovalDialog.revisionOfId && (
-                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="mb-4 p-3 bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <p className="text-sm text-blue-800 dark:text-blue-300">
                     Dies ist eine Überarbeitung eines abgelehnten Reports. Der ursprüngliche Report wird als "Ersetzt" markiert.
                   </p>

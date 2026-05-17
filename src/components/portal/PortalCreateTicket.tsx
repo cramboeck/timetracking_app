@@ -992,7 +992,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
               <div
                 className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
                   message.type === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-md'
+                    ? 'bg-accent-primary text-white rounded-br-md'
                     : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm rounded-bl-md border border-gray-100 dark:border-gray-700'
                 }`}
               >
@@ -1021,7 +1021,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
             <div className="flex justify-start">
               <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm border border-gray-100 dark:border-gray-700">
                 <div className="flex items-center gap-2">
-                  <Loader2 size={16} className="animate-spin text-blue-600" />
+                  <Loader2 size={16} className="animate-spin text-accent-primary" />
                   <span className="text-sm text-gray-500 dark:text-gray-400">Ticket wird erstellt...</span>
                 </div>
               </div>
@@ -1035,7 +1035,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
                 <button
                   key={option.id}
                   onClick={() => handleOptionClick(option)}
-                  className="px-4 py-2 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500"
+                  className="px-4 py-2 bg-white dark:bg-gray-800 hover:bg-accent-light dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-accent-primary"
                 >
                   {option.label}
                 </button>
@@ -1091,7 +1091,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
               {/* Screenshot button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 rounded-full transition-colors"
+                className="p-2.5 text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-gray-700 rounded-full transition-colors"
                 title="Screenshot hochladen"
               >
                 <Image size={18} />
@@ -1110,7 +1110,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
                   }}
                   placeholder={currentStepData.inputPlaceholder}
                   rows={3}
-                  className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               ) : (
                 <input
@@ -1124,13 +1124,13 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
                     }
                   }}
                   placeholder={currentStepData.inputPlaceholder}
-                  className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-full bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-full bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               )}
               <button
                 onClick={handleInputSubmit}
                 disabled={!inputValue.trim()}
-                className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-full transition-colors"
+                className="p-2.5 bg-accent-primary hover:bg-accent-primary disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-full transition-colors"
               >
                 <Send size={18} />
               </button>
@@ -1143,7 +1143,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center justify-center gap-2 py-2 text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2 text-sm text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               <Image size={16} />
               <span>Screenshot hinzufügen</span>
@@ -1156,7 +1156,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
             <button
               onClick={resetConversation}
-              className="w-full py-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="w-full py-2.5 text-sm font-medium text-accent-primary dark:text-blue-400 hover:bg-accent-light dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               🔄 Neue Anfrage starten
             </button>

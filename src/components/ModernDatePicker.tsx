@@ -149,7 +149,7 @@ export const ModernDatePicker = ({
             className={`
               flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200
               ${formatDate(date) === value
-                ? 'bg-blue-600 text-white shadow-md'
+                ? 'bg-accent-primary text-white shadow-md'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }
             `}
@@ -176,9 +176,9 @@ export const ModernDatePicker = ({
                 className={`
                   flex flex-col items-center min-w-[52px] py-2 px-2 rounded-xl transition-all duration-200
                   ${isSelected
-                    ? 'bg-blue-600 text-white shadow-lg scale-105'
+                    ? 'bg-accent-primary text-white shadow-lg scale-105'
                     : isTodayDate
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                      ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
                       : isFutureDate
                         ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed'
                         : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -210,7 +210,7 @@ export const ModernDatePicker = ({
           border-2 rounded-xl
           transition-all duration-200
           ${isOpen
-            ? 'border-blue-500 ring-2 ring-blue-500/20'
+            ? 'border-accent-primary ring-2 ring-accent-primary/20'
             : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
           }
         `}
@@ -270,9 +270,9 @@ export const ModernDatePicker = ({
                   ${!d
                     ? 'invisible'
                     : isSelectedDate(d)
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-accent-primary text-white'
                       : isToday(d)
-                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                        ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
                         : isFuture(d)
                           ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
                           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'

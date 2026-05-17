@@ -332,12 +332,12 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
       />
 
       {/* Info Box */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+      <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-start gap-3">
-          <Info className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" size={18} />
+          <Info className="text-accent-primary dark:text-blue-400 flex-shrink-0 mt-0.5" size={18} />
           <div className="text-sm text-blue-800 dark:text-blue-200">
             <p className="font-medium mb-1">So funktioniert die sevDesk-Integration:</p>
-            <ol className="list-decimal list-inside space-y-1 text-blue-700 dark:text-blue-300">
+            <ol className="list-decimal list-inside space-y-1 text-accent-dark dark:text-blue-300">
               <li>Verbinden Sie Ihr sevDesk-Konto mit dem API-Token</li>
               <li>Verknüpfen Sie Ihre Kunden mit sevDesk-Kontakten</li>
               <li>Wählen Sie im Bereich "Abrechnung" die zu fakturierenden Zeiten</li>

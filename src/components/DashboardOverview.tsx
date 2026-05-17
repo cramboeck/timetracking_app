@@ -303,12 +303,12 @@ export const DashboardOverview = ({
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Clock size={18} className="text-blue-600 dark:text-blue-400" />
+              <Clock size={18} className="text-accent-primary dark:text-blue-400" />
               Letzte Zeiteinträge
             </h2>
             <button
               onClick={() => onNavigate('arbeiten', 'list')}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+              className="text-sm text-accent-primary dark:text-blue-400 hover:underline flex items-center gap-1"
             >
               Alle anzeigen
               <ArrowRight size={14} />
@@ -360,7 +360,7 @@ export const DashboardOverview = ({
             </h2>
             <button
               onClick={() => onNavigate('support', 'tickets')}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+              className="text-sm text-accent-primary dark:text-blue-400 hover:underline flex items-center gap-1"
             >
               Alle anzeigen
               <ArrowRight size={14} />
@@ -385,7 +385,7 @@ export const DashboardOverview = ({
                   const priorityColors = {
                     critical: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
                     high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-                    normal: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                    normal: 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400',
                     low: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
                   };
                   const statusColors = {

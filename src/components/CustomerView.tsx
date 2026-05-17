@@ -152,7 +152,7 @@ export const CustomerView = ({
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2 mb-3">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Building2 size={24} className="text-blue-600 dark:text-blue-400" />
+              <Building2 size={24} className="text-accent-primary dark:text-blue-400" />
               Kunden
             </h1>
             <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -179,7 +179,7 @@ export const CustomerView = ({
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600
                 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                focus:ring-2 focus:ring-accent-primary focus:border-transparent"
             />
           </div>
 
@@ -220,7 +220,7 @@ export const CustomerView = ({
                     }}
                     className={`w-full p-4 text-left transition-colors ${
                       isSelected
-                        ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500'
+                        ? 'bg-accent-light dark:bg-blue-900/20 border-l-4 border-accent-primary'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 border-l-4 border-transparent'
                     }`}
                   >
@@ -262,7 +262,7 @@ export const CustomerView = ({
             onClick={() => setSelectedCustomerId(null)}
             variant="ghost"
             icon={<ChevronRight size={18} className="rotate-180" />}
-            className="lg:hidden m-4 text-blue-600 dark:text-blue-400"
+            className="lg:hidden m-4 text-accent-primary dark:text-blue-400"
           >
             Zurück
           </Button>
@@ -347,7 +347,7 @@ export const CustomerView = ({
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                   <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <Clock size={18} className="text-blue-600 dark:text-blue-400" />
+                    <Clock size={18} className="text-accent-primary dark:text-blue-400" />
                     Letzte Zeiteinträge
                   </h3>
                 </div>
@@ -439,7 +439,7 @@ export const CustomerView = ({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-blue-600 dark:text-blue-400"
+                    className="text-accent-primary dark:text-blue-400"
                   >
                     Alle anzeigen
                   </Button>

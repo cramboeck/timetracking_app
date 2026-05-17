@@ -110,7 +110,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent-primary"></div>
       </div>
     );
   }
@@ -129,7 +129,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
             />
             <div className="flex-1">
               {selectedArticle.categoryName && (
-                <p className="text-sm text-blue-600 dark:text-blue-400 mb-1">
+                <p className="text-sm text-accent-primary dark:text-blue-400 mb-1">
                   {selectedArticle.categoryName}
                 </p>
               )}
@@ -229,7 +229,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
                 key={article.id}
                 onClick={() => handleArticleSelect(article)}
                 variant="ghost"
-                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 h-auto"
+                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-accent-primary h-auto"
               >
                 <div className="flex items-start justify-between gap-4 w-full">
                   <div className="flex-1 text-left">
@@ -313,7 +313,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
                 className="w-full text-left p-3 rounded-xl h-auto"
               >
                 <div className="flex items-center gap-3 w-full">
-                  <FileText size={20} className="text-blue-500 flex-shrink-0" />
+                  <FileText size={20} className="text-accent-primary flex-shrink-0" />
                   <div className="flex-1 min-w-0 text-left">
                     <p className="font-medium text-gray-900 dark:text-white truncate">
                       {article.title}
@@ -346,7 +346,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
               <button
                 key={category.id}
                 onClick={() => handleCategorySelect(category)}
-                className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors"
+                className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-accent-primary hover:bg-accent-light/50 dark:hover:bg-blue-900/20 transition-colors"
               >
                 <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
                   <FolderOpen size={24} className="text-indigo-600 dark:text-indigo-400" />

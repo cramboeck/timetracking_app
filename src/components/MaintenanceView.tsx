@@ -43,7 +43,7 @@ const STATUS_LABELS: Record<MaintenanceStatus, string> = {
 
 const STATUS_COLORS: Record<MaintenanceStatus, string> = {
   draft: 'bg-gray-100 text-gray-800',
-  scheduled: 'bg-blue-100 text-blue-800',
+  scheduled: 'bg-accent-lighter text-blue-800',
   sent: 'bg-yellow-100 text-yellow-800',
   in_progress: 'bg-purple-100 text-purple-800',
   completed: 'bg-green-100 text-green-800',
@@ -317,7 +317,7 @@ function AnnouncementDialog({
                 type="checkbox"
                 checked={formData.requireApproval}
                 onChange={(e) => setFormData({ ...formData, requireApproval: e.target.checked })}
-                className="w-4 h-4 text-blue-600 rounded"
+                className="w-4 h-4 text-accent-primary rounded"
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">
                 Kunden-Freigabe erforderlich
@@ -343,7 +343,7 @@ function AnnouncementDialog({
                     type="checkbox"
                     checked={formData.autoProceedOnNoResponse}
                     onChange={(e) => setFormData({ ...formData, autoProceedOnNoResponse: e.target.checked })}
-                    className="w-4 h-4 text-blue-600 rounded"
+                    className="w-4 h-4 text-accent-primary rounded"
                   />
                   <span className="text-sm text-gray-700 dark:text-gray-300">
                     Bei fehlender Antwort automatisch fortfahren
@@ -376,7 +376,7 @@ function AnnouncementDialog({
                           setFormData({ ...formData, customerIds: formData.customerIds.filter(id => id !== customer.id) });
                         }
                       }}
-                      className="w-4 h-4 text-blue-600 rounded"
+                      className="w-4 h-4 text-accent-primary rounded"
                     />
                     <span className="text-sm text-gray-900 dark:text-white">{customer.name}</span>
                     {customer.email && (
@@ -393,19 +393,19 @@ function AnnouncementDialog({
 
           {/* Ticket creation option - only shown when exactly one customer is selected */}
           {formData.customerIds.length === 1 && !announcement && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="p-4 bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <label className="flex items-center gap-3">
                 <input
                   type="checkbox"
                   checked={formData.createTicket}
                   onChange={(e) => setFormData({ ...formData, createTicket: e.target.checked })}
-                  className="w-4 h-4 text-blue-600 rounded"
+                  className="w-4 h-4 text-accent-primary rounded"
                 />
                 <div>
                   <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
                     Ticket für Zeiterfassung erstellen
                   </span>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                  <p className="text-xs text-accent-primary dark:text-blue-400 mt-0.5">
                     Erstellt automatisch ein Ticket mit dem Wartungstitel für die Zeiterfassung
                   </p>
                 </div>
@@ -646,7 +646,7 @@ function AnnouncementDetail({
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-8">
-          <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+          <RefreshCw className="w-8 h-8 animate-spin text-accent-primary" />
         </div>
       </div>
     );
@@ -981,7 +981,7 @@ export default function MaintenanceView() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+        <RefreshCw className="w-8 h-8 animate-spin text-accent-primary" />
       </div>
     );
   }
@@ -1013,8 +1013,8 @@ export default function MaintenanceView() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Calendar className="w-5 h-5 text-blue-600" />
+              <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
+                <Calendar className="w-5 h-5 text-accent-primary" />
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">

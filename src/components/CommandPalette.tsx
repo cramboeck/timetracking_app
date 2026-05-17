@@ -105,7 +105,7 @@ const COMMANDS: CommandItem[] = [
     label: 'Dashboard',
     description: 'Übersicht & Kennzahlen',
     icon: <LayoutDashboard size={18} />,
-    subView: 'dashboard',
+    subView: 'overview',
     keywords: ['dashboard', 'übersicht', 'kennzahlen', 'statistik'],
   },
   {

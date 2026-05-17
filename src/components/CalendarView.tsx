@@ -507,7 +507,7 @@ export const CalendarView = ({
                 onClick={() => setShowTimeEntries(!showTimeEntries)}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                   showTimeEntries
-                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200'
+                    ? 'bg-accent-lighter text-blue-800 dark:bg-blue-900/50 dark:text-blue-200'
                     : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
                 }`}
               >
@@ -528,14 +528,14 @@ export const CalendarView = ({
             </div>
 
             {/* Time summary */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-accent-light dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
               <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
                 {view === 'day' && 'Heute'}
                 {view === 'week' && 'Diese Woche'}
                 {view === 'month' && 'Dieser Monat'}
                 {view === 'agenda' && 'Nächste 30 Tage'}
               </span>
-              <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
+              <span className="text-sm font-bold text-accent-dark dark:text-blue-300">
                 {visibleHours.hours}h
               </span>
             </div>
@@ -585,7 +585,7 @@ export const CalendarView = ({
               <select
                 value={editProjectId}
                 onChange={(e) => setEditProjectId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
                 required
               >
                 <option value="">Projekt wählen...</option>
@@ -607,7 +607,7 @@ export const CalendarView = ({
               <select
                 value={editActivityId}
                 onChange={(e) => setEditActivityId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
               >
                 <option value="">Keine Tätigkeit</option>
                 {activities.map(activity => (
@@ -626,7 +626,7 @@ export const CalendarView = ({
                 type="date"
                 value={editDate}
                 onChange={(e) => setEditDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
                 required
               />
             </div>
@@ -663,7 +663,7 @@ export const CalendarView = ({
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
                 placeholder="Optional: Details zur Tätigkeit..."
               />
             </div>
@@ -698,7 +698,7 @@ export const CalendarView = ({
         >
           <div className="space-y-4">
             {/* Date display */}
-            <div className="text-center py-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+            <div className="text-center py-2 bg-accent-light dark:bg-blue-900/30 rounded-lg">
               <span className="text-lg font-medium text-blue-900 dark:text-blue-200">
                 {format(createSlotInfo.start, 'EEEE, dd.MM.yyyy', { locale: de })}
               </span>
@@ -753,7 +753,7 @@ export const CalendarView = ({
               <select
                 value={createProjectId}
                 onChange={(e) => setCreateProjectId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
                 required
               >
                 <option value="">Projekt wählen...</option>
@@ -776,7 +776,7 @@ export const CalendarView = ({
               <select
                 value={createActivityId}
                 onChange={(e) => setCreateActivityId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
               >
                 <option value="">Keine Tätigkeit</option>
                 {activities.map(activity => (
@@ -796,7 +796,7 @@ export const CalendarView = ({
                 value={createDescription}
                 onChange={(e) => setCreateDescription(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
                 placeholder="Was wurde gemacht?"
               />
             </div>

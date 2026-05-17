@@ -1028,7 +1028,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
               variant="primary"
               size="sm"
               icon={<Archive size={16} />}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-accent-primary hover:bg-accent-primary"
             >
               <span className="hidden sm:inline">Gespeicherte </span>Reports
             </Button>
@@ -1057,7 +1057,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
             <select
               value={timeframeType}
               onChange={(e) => setTimeframeType(e.target.value as TimeframeType)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="month">Monat</option>
               <option value="quarter">Quartal</option>
@@ -1075,7 +1075,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 {availableMonths.map(month => {
                   const [year, m] = month.split('-');
@@ -1099,7 +1099,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
               <select
                 value={selectedQuarter}
                 onChange={(e) => setSelectedQuarter(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 {availableQuarters.map(q => {
                   const match = q.match(/^(\d{4})-Q(\d)$/);
@@ -1123,7 +1123,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 {availableYears.map(year => (
                   <option key={year} value={year}>
@@ -1145,7 +1145,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               </div>
               <div>
@@ -1156,7 +1156,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               </div>
             </>
@@ -1173,7 +1173,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                 setSelectedCustomer(e.target.value);
                 setSelectedProject('all'); // Reset project filter when customer changes
               }}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="all">Alle Kunden</option>
               {customers.map(customer => (
@@ -1192,7 +1192,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
             <select
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="all">Alle Projekte</option>
               {projects
@@ -1215,7 +1215,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center gap-3 mb-2">
-              <Clock className="text-blue-600" size={24} />
+              <Clock className="text-accent-primary" size={24} />
               <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Gesamtstunden</h3>
             </div>
             <p className="text-3xl font-bold dark:text-white">{totalHours.toFixed(2)} h</p>
@@ -1249,7 +1249,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
         {pieChartData.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
             <div className="flex items-center gap-3 mb-4">
-              <PieChartIcon className="text-blue-600" size={24} />
+              <PieChartIcon className="text-accent-primary" size={24} />
               <h2 className="text-lg font-semibold dark:text-white">Stundenverteilung nach Kunde</h2>
             </div>
             <div className="flex flex-col lg:flex-row gap-6">
@@ -1410,7 +1410,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                                       })}
                                     </span>
                                     {activity && (
-                                      <span className="text-xs px-1.5 sm:px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                                      <span className="text-xs px-1.5 sm:px-2 py-0.5 bg-accent-lighter dark:bg-blue-900 text-accent-dark dark:text-blue-300 rounded">
                                         {activity.name}
                                       </span>
                                     )}
@@ -1468,7 +1468,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
             {/* Header */}
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Archive size={24} className="text-blue-600" />
+                <Archive size={24} className="text-accent-primary" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Gespeicherte Reports
                 </h3>
@@ -1504,7 +1504,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
             <div className="flex-1 overflow-auto p-6">
               {isLoadingSavedReports ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 size={32} className="animate-spin text-blue-600" />
+                  <Loader2 size={32} className="animate-spin text-accent-primary" />
                 </div>
               ) : filteredSavedReports.length === 0 ? (
                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
@@ -1523,7 +1523,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                           <h4 className="font-semibold text-gray-900 dark:text-white">
                             {report.customer_name}
                           </h4>
-                          <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">
+                          <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded-full">
                             {report.report_title}
                           </span>
                         </div>
@@ -1588,7 +1588,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
             {/* Preview Header */}
             <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <FileText size={20} className="text-blue-600" />
+                <FileText size={20} className="text-accent-primary" />
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-white">
                     {savedReportPreview.reportName}
@@ -1635,7 +1635,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
               {isGeneratingSavedPreview ? (
                 <div className="w-full h-full flex items-center justify-center">
                   <div className="flex flex-col items-center gap-3">
-                    <Loader2 size={40} className="animate-spin text-blue-600" />
+                    <Loader2 size={40} className="animate-spin text-accent-primary" />
                     <span className="text-gray-600 dark:text-gray-400">PDF wird generiert...</span>
                   </div>
                 </div>
@@ -1666,7 +1666,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                     <a
                       href={savedReportPreview.pdfUrl}
                       download={`${savedReportPreview.reportName}.pdf`}
-                      className="px-4 py-3 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg flex items-center justify-center gap-2"
+                      className="px-4 py-3 sm:py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary shadow-lg flex items-center justify-center gap-2"
                     >
                       <Download size={18} />
                       Herunterladen

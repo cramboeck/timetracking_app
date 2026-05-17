@@ -191,14 +191,14 @@ const FollowUpItem: React.FC<FollowUpItemProps> = ({ interaction, onComplete, on
       <div className={`p-2 rounded-lg ${
         isOverdue
           ? 'bg-red-100 dark:bg-red-900/30'
-          : 'bg-blue-100 dark:bg-blue-900/30'
+          : 'bg-accent-lighter dark:bg-blue-900/30'
       }`}>
         {interaction.type === 'call' ? (
-          <Phone size={16} className={isOverdue ? 'text-red-600' : 'text-blue-600'} />
+          <Phone size={16} className={isOverdue ? 'text-red-600' : 'text-accent-primary'} />
         ) : interaction.type === 'email' ? (
-          <Mail size={16} className={isOverdue ? 'text-red-600' : 'text-blue-600'} />
+          <Mail size={16} className={isOverdue ? 'text-red-600' : 'text-accent-primary'} />
         ) : (
-          <Calendar size={16} className={isOverdue ? 'text-red-600' : 'text-blue-600'} />
+          <Calendar size={16} className={isOverdue ? 'text-red-600' : 'text-accent-primary'} />
         )}
       </div>
       <div className="flex-1 min-w-0">
@@ -245,7 +245,7 @@ const RecentInteraction: React.FC<RecentInteractionProps> = ({ interaction, onCl
 
   const typeColors: Record<string, string> = {
     call: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
-    email: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+    email: 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400',
     meeting: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
     demo: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
     support: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400',
@@ -442,7 +442,7 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <RefreshCw size={32} className="animate-spin text-blue-500" />
+        <RefreshCw size={32} className="animate-spin text-accent-primary" />
       </div>
     );
   }
@@ -453,7 +453,7 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <BarChart3 size={28} className="text-blue-600 dark:text-blue-400" />
+            <BarChart3 size={28} className="text-accent-primary dark:text-blue-400" />
             CRM Dashboard
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -505,7 +505,7 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
       {/* Sales Pipeline */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <Target size={20} className="text-blue-600 dark:text-blue-400" />
+          <Target size={20} className="text-accent-primary dark:text-blue-400" />
           Sales Pipeline
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -639,8 +639,8 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
                 {stats.activeCustomers}
               </p>
             </div>
-            <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-              <Users size={24} className="text-blue-600 dark:text-blue-400" />
+            <div className="p-3 rounded-lg bg-accent-lighter dark:bg-blue-900/30">
+              <Users size={24} className="text-accent-primary dark:text-blue-400" />
             </div>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">

@@ -866,8 +866,8 @@ export default function AdminPortal() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                      <Users className="text-blue-600 dark:text-blue-400" size={24} />
+                    <div className="p-3 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
+                      <Users className="text-accent-primary dark:text-blue-400" size={24} />
                     </div>
                     <div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Benutzer gesamt</p>
@@ -1103,7 +1103,7 @@ export default function AdminPortal() {
                               user.account_type === 'business'
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                                 : user.account_type === 'team'
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                                ? 'bg-accent-lighter text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
                                 : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                             }`}>
                               {user.account_type}
@@ -1187,7 +1187,7 @@ export default function AdminPortal() {
                             {log.username}
                           </td>
                           <td className="px-4 py-3">
-                            <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 rounded">
+                            <span className="px-2 py-1 text-xs font-medium bg-accent-lighter text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 rounded">
                               {log.action}
                             </span>
                           </td>
@@ -1430,8 +1430,8 @@ export default function AdminPortal() {
                 {/* Memory Usage */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                      <Cpu className="text-blue-600 dark:text-blue-400" size={20} />
+                    <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
+                      <Cpu className="text-accent-primary dark:text-blue-400" size={20} />
                     </div>
                     <div>
                       <p className="font-medium dark:text-white">Arbeitsspeicher</p>
@@ -1562,7 +1562,7 @@ export default function AdminPortal() {
                   </div>
                   <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Verbindungen</p>
-                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                    <p className="text-2xl font-bold text-accent-primary dark:text-blue-400">
                       {databaseStats.connections.active} <span className="text-sm font-normal text-gray-500">aktiv</span> / {databaseStats.connections.total} <span className="text-sm font-normal text-gray-500">gesamt</span>
                     </p>
                   </div>
@@ -1870,7 +1870,7 @@ export default function AdminPortal() {
                               notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
                               notification.type === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
                               notification.type === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                              'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                              'bg-accent-lighter text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
                             }`}>
                               {notification.type}
                             </span>
@@ -1989,8 +1989,8 @@ export default function AdminPortal() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                          <Mail className="text-blue-600 dark:text-blue-400" size={20} />
+                        <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
+                          <Mail className="text-accent-primary dark:text-blue-400" size={20} />
                         </div>
                         <span className="text-sm text-gray-500 dark:text-gray-400">Heute</span>
                       </div>

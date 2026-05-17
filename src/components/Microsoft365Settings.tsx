@@ -347,8 +347,8 @@ export const Microsoft365Settings = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-          <Cloud className="text-blue-600 dark:text-blue-400" size={24} />
+        <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
+          <Cloud className="text-accent-primary dark:text-blue-400" size={24} />
         </div>
         <div>
           <h2 className="text-xl font-semibold dark:text-white">Microsoft 365</h2>
@@ -470,7 +470,7 @@ export const Microsoft365Settings = () => {
             href="/docs/azure-setup"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            className="inline-flex items-center gap-1 text-sm text-accent-primary dark:text-blue-400 hover:underline"
           >
             <ExternalLink size={14} />
             Azure App Registration Anleitung
@@ -710,7 +710,7 @@ export const Microsoft365Settings = () => {
 
           {/* Processing Result */}
           {invoiceProcessResult && (
-            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="mb-4 p-3 bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <div className="flex gap-4 text-sm">
                 <span className="text-green-600 dark:text-green-400">
                   ✓ {invoiceProcessResult.processedCount} verarbeitet
@@ -775,7 +775,7 @@ export const Microsoft365Settings = () => {
                           {invoice.attachmentCount > 0 ? (
                             <button
                               onClick={() => handleToggleDocuments(invoice.id)}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-accent-primary dark:text-blue-400 hover:bg-accent-light dark:hover:bg-blue-900/20 rounded transition-colors"
                               title="Dokumente anzeigen"
                             >
                               {loadingDocuments === invoice.id ? (
@@ -802,7 +802,7 @@ export const Microsoft365Settings = () => {
                             invoice.status === 'processed'
                               ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                               : invoice.status === 'draft'
-                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                              ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
                               : invoice.status === 'failed'
                               ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                               : invoice.status === 'skipped'
@@ -859,7 +859,7 @@ export const Microsoft365Settings = () => {
                       {expandedInvoiceId === invoice.id && (
                         <tr className="bg-gray-50 dark:bg-dark-200">
                           <td colSpan={6} className="py-3 px-4">
-                            <div className="pl-4 border-l-2 border-blue-300 dark:border-blue-600">
+                            <div className="pl-4 border-l-2 border-blue-300 dark:border-accent-primary">
                               <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Anhänge
                               </div>

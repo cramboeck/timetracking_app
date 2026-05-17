@@ -441,8 +441,8 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       {/* Profile Info */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-            <User size={32} className="text-blue-600 dark:text-blue-400" />
+          <div className="w-16 h-16 rounded-full bg-accent-lighter dark:bg-blue-900/30 flex items-center justify-center">
+            <User size={32} className="text-accent-primary dark:text-blue-400" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -517,7 +517,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pr-12"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary pr-12"
                 placeholder="Ihr aktuelles Passwort"
               />
               <IconButton
@@ -540,7 +540,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 minLength={8}
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pr-12"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary pr-12"
                 placeholder="Mindestens 8 Zeichen"
               />
               <IconButton
@@ -561,7 +561,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               placeholder="Passwort wiederholen"
             />
           </div>
@@ -605,7 +605,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
 
         {mfaLoading ? (
           <div className="flex items-center justify-center py-8">
-            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
           </div>
         ) : mfaEnabled ? (
           <div className="space-y-4">
@@ -718,8 +718,8 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       {/* Email Notification Preferences */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-            <Bell size={20} className="text-blue-600 dark:text-blue-400" />
+          <div className="w-10 h-10 rounded-xl bg-accent-lighter dark:bg-blue-900/30 flex items-center justify-center">
+            <Bell size={20} className="text-accent-primary dark:text-blue-400" />
           </div>
           <div>
             <h3 className="font-semibold text-gray-900 dark:text-white">
@@ -733,7 +733,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
 
         {notifyLoading ? (
           <div className="flex items-center justify-center py-8">
-            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <div className="space-y-4">
@@ -757,7 +757,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 type="checkbox"
                 checked={notifyTicketCreated}
                 onChange={(e) => setNotifyTicketCreated(e.target.checked)}
-                className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+                className="w-5 h-5 rounded text-accent-primary focus:ring-accent-primary"
               />
             </label>
 
@@ -772,7 +772,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 type="checkbox"
                 checked={notifyTicketStatusChanged}
                 onChange={(e) => setNotifyTicketStatusChanged(e.target.checked)}
-                className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+                className="w-5 h-5 rounded text-accent-primary focus:ring-accent-primary"
               />
             </label>
 
@@ -787,7 +787,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 type="checkbox"
                 checked={notifyTicketReply}
                 onChange={(e) => setNotifyTicketReply(e.target.checked)}
-                className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+                className="w-5 h-5 rounded text-accent-primary focus:ring-accent-primary"
               />
             </label>
 
@@ -1027,7 +1027,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                       onKeyDown={(e) => handleMfaSetupKeyDown(index, e)}
                       onPaste={handleMfaSetupPaste}
                       disabled={mfaSetupLoading}
-                      className="w-11 h-13 text-center text-xl font-bold rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-11 h-13 text-center text-xl font-bold rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     />
                   ))}
                 </div>
@@ -1137,7 +1137,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                   type="password"
                   value={disablePassword}
                   onChange={(e) => setDisablePassword(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   placeholder="Ihr Passwort"
                 />
               </div>
@@ -1152,7 +1152,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                   onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   inputMode="numeric"
                   maxLength={6}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   placeholder="6-stelliger Code"
                 />
               </div>

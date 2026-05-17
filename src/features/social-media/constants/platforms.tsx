@@ -11,7 +11,7 @@ export const PLATFORM_ICONS: Record<string, React.ReactNode> = {
 
 // Platform brand colors
 export const PLATFORM_COLORS: Record<string, string> = {
-  linkedin: 'bg-blue-600',
+  linkedin: 'bg-accent-primary',
   twitter: 'bg-sky-500',
   facebook: 'bg-blue-500',
   instagram: 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500',

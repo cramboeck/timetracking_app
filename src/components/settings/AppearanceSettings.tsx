@@ -39,7 +39,7 @@ export const AppearanceSettings = ({
             onClick={() => updateTimeFormat('24h')}
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               (currentUser?.timeFormat || '24h') === '24h'
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                ? 'border-accent-primary bg-accent-light dark:bg-blue-900/20 shadow-sm'
                 : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
             }`}
           >
@@ -61,7 +61,7 @@ export const AppearanceSettings = ({
             onClick={() => updateTimeFormat('12h')}
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               currentUser?.timeFormat === '12h'
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                ? 'border-accent-primary bg-accent-light dark:bg-blue-900/20 shadow-sm'
                 : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
             }`}
           >
@@ -108,7 +108,7 @@ export const AppearanceSettings = ({
                   onClick={() => updateAccentColor(color.name as any)}
                   className={`relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover:scale-105 ${
                     currentUser?.accentColor === color.name
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      ? 'border-accent-primary bg-accent-light dark:bg-blue-900/20'
                       : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
                   }`}
                   title={color.label}
@@ -119,7 +119,7 @@ export const AppearanceSettings = ({
                   />
                   <span className={`text-xs font-medium ${
                     currentUser?.accentColor === color.name
-                      ? 'text-blue-600 dark:text-blue-400'
+                      ? 'text-accent-primary dark:text-blue-400'
                       : 'text-gray-600 dark:text-gray-400'
                   }`}>
                     {color.label}
@@ -153,7 +153,7 @@ export const AppearanceSettings = ({
                   onClick={() => updateGrayTone(tone.name)}
                   className={`relative flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover:scale-105 ${
                     currentUser?.grayTone === tone.name
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      ? 'border-accent-primary bg-accent-light dark:bg-blue-900/20'
                       : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
                   }`}
                   title={tone.desc}
@@ -172,7 +172,7 @@ export const AppearanceSettings = ({
                   <div className="text-center">
                     <span className={`text-sm font-medium block ${
                       currentUser?.grayTone === tone.name
-                        ? 'text-blue-600 dark:text-blue-400'
+                        ? 'text-accent-primary dark:text-blue-400'
                         : 'text-gray-900 dark:text-white'
                     }`}>
                       {tone.label}

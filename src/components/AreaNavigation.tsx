@@ -3,13 +3,18 @@ import {
   Ticket, Monitor, Bell, Wrench, Mail,
   BarChart3, Wallet, FileText, FileSignature, FileInput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
-  Target, Users, LayoutDashboard, Building2, Receipt
+  Target, Users, LayoutDashboard, Building2, Receipt, Search
 } from 'lucide-react';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { DesktopSidebar } from './DesktopSidebar';
 
 // Area definitions - New structure for market-ready product
 export type Area = 'dashboard' | 'arbeiten' | 'support' | 'crm' | 'finanzen';
+
+// Globale Command Palette öffnen (Cmd+K Event)
+const openCommandPalette = () => {
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+};
 export type SubView =
   // Dashboard (standalone)
   | 'overview'
@@ -140,6 +145,15 @@ export const AreaNavigation = ({
               </button>
             ))}
           </div>
+
+          {/* Suche-Button (öffnet Command Palette) */}
+          <button
+            onClick={openCommandPalette}
+            aria-label="Suche öffnen (Cmd+K)"
+            className="p-2 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-gray-800/50 active:scale-95 transition-all duration-200"
+          >
+            <Search size={20} />
+          </button>
 
           {/* Settings Button */}
           <button

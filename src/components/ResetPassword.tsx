@@ -84,7 +84,7 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary dark:border-blue-400 mx-auto"></div>
           <p className="mt-4 text-gray-600 dark:text-gray-400">Token wird überprüft...</p>
         </div>
       </div>
@@ -166,7 +166,7 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
                   placeholder="Mindestens 8 Zeichen"
                   required
                   minLength={8}
-                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
+                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-blue-400 transition-colors"
                 />
                 <button
                   type="button"
@@ -190,7 +190,7 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Passwort wiederholen"
                   required
-                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
+                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-blue-400 transition-colors"
                 />
                 <button
                   type="button"
