@@ -1,4 +1,5 @@
 import { query } from '../config/database';
+import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 
 // sevDesk API Base URL
@@ -58,7 +59,7 @@ async function sevdeskFetch(
   options: RequestInit = {}
 ): Promise<any> {
   const url = `${SEVDESK_API_URL}${endpoint}`;
-  console.log(`sevDesk API call: ${options.method || 'GET'} ${url}`);
+  logger.info(`sevDesk API call: ${options.method || 'GET'} ${url}`);
 
   const response = await fetch(url, {
     ...options,
@@ -71,7 +72,7 @@ async function sevdeskFetch(
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`sevDesk API error: ${response.status} ${response.statusText}`, errorText);
+    logger.error(`sevDesk API error: ${response.status} ${response.statusText}`, errorText);
     let errorMessage = `sevDesk API error: ${response.status}`;
     try {
       const errorData = JSON.parse(errorText);
@@ -213,7 +214,7 @@ export async function testConnection(apiToken: string): Promise<{ success: boole
 
     return { success: false, error: 'Keine Benutzerdaten gefunden' };
   } catch (error: any) {
-    console.error('sevDesk testConnection error:', error);
+    logger.error('sevDesk testConnection error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -478,15 +479,15 @@ export async function createInvoice(
   const endDate = new Date(periodEnd);
   const periodLabel = `${startDate.toLocaleDateString('de-DE')} - ${endDate.toLocaleDateString('de-DE')}`;
 
-  console.log(`Creating sevDesk invoice for contact ${sevdeskCustomerId}, period ${periodLabel}, ${entries.length} entries`);
-  console.log('Custom data provided:', !!customData, 'custom positions:', customData?.positions?.length || 0);
+  logger.info(`Creating sevDesk invoice for contact ${sevdeskCustomerId}, period ${periodLabel}, ${entries.length} entries`);
+  logger.info('Custom data provided:', { provided: !!customData, customPositions: customData?.positions?.length || 0 });
 
   // Create invoice positions - use custom positions if provided, otherwise create from entries
   let positions: any[];
 
   if (customData?.positions && customData.positions.length > 0) {
     // Use grouped positions from frontend
-    console.log('Using custom grouped positions');
+    logger.info('Using custom grouped positions');
     positions = customData.positions.map((pos, index) => {
       // Header positions (quantity 0) are displayed as bold headers in sevDesk
       if (pos.isHeader || pos.hours === 0) {
@@ -525,7 +526,7 @@ export async function createInvoice(
     });
   } else {
     // Fallback: create positions from individual entries
-    console.log('Using individual entry positions (fallback)');
+    logger.info('Using individual entry positions (fallback)');
     positions = entries.map((entry, index) => {
       const hours = entry.duration / 3600;
       let name = entry.description || 'Dienstleistung';
@@ -586,8 +587,8 @@ export async function createInvoice(
   if (addressZip || addressCity) addressParts.push([addressZip, addressCity].filter(Boolean).join(' '));
   const fullAddress = addressParts.join('\n');
 
-  console.log('[sevDesk] Using SevUser as contactPerson:', sevUser.id);
-  console.log('[sevDesk] Address:', fullAddress);
+  logger.info('[sevDesk] Using SevUser as contactPerson:', sevUser.id);
+  logger.info('[sevDesk] Address:', fullAddress);
 
   // Use Unix timestamp for date (like the quote creation)
   const invoiceDateTimestamp = Math.floor(new Date().getTime() / 1000);
@@ -660,8 +661,8 @@ export async function createInvoice(
   // Convert to form-urlencoded format (like quote creation)
   const formBody = objectToFormData(invoiceData);
 
-  console.log('[sevDesk] Creating invoice with form-urlencoded data');
-  console.log('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
+  logger.info('[sevDesk] Creating invoice with form-urlencoded data');
+  logger.info('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
 
   // Create invoice with retry mechanism
   let response: Response;

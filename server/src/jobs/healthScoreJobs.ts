@@ -15,6 +15,7 @@
 import cron from 'node-cron';
 import { customerHealthScoreService, JobExecutionResult } from '../services/customerHealthScoreService';
 import { pool } from '../config/database';
+import { logger } from '../utils/logger';
 
 // Job state
 let isJobRunning = false;
@@ -26,7 +27,7 @@ let scheduledTask: cron.ScheduledTask | null = null;
  */
 export async function runHealthScoreJob(): Promise<JobExecutionResult> {
   if (isJobRunning) {
-    console.log('[HealthScoreJob] Job already running, skipping...');
+    logger.info('[HealthScoreJob] Job already running, skipping...');
     return {
       success: false,
       startedAt: new Date().toISOString(),
@@ -41,9 +42,9 @@ export async function runHealthScoreJob(): Promise<JobExecutionResult> {
   }
 
   isJobRunning = true;
-  console.log('[HealthScoreJob] ========================================');
-  console.log('[HealthScoreJob] Starting scheduled health score calculation');
-  console.log('[HealthScoreJob] ========================================');
+  logger.info('[HealthScoreJob] ========================================');
+  logger.info('[HealthScoreJob] Starting scheduled health score calculation');
+  logger.info('[HealthScoreJob] ========================================');
 
   try {
     // Run the calculation for all organizations
@@ -56,27 +57,27 @@ export async function runHealthScoreJob(): Promise<JobExecutionResult> {
     lastJobResult = result;
 
     // Log summary
-    console.log('[HealthScoreJob] ========================================');
-    console.log('[HealthScoreJob] Job completed successfully');
-    console.log(`[HealthScoreJob] Duration: ${result.durationMs}ms`);
-    console.log(`[HealthScoreJob] Customers processed: ${result.customersProcessed}`);
-    console.log(`[HealthScoreJob] Customers updated: ${result.customersUpdated}`);
-    console.log(`[HealthScoreJob] Warnings generated: ${result.warningsGenerated.length}`);
-    console.log(`[HealthScoreJob] Errors: ${result.errors.length}`);
-    console.log('[HealthScoreJob] ========================================');
+    logger.info('[HealthScoreJob] ========================================');
+    logger.info('[HealthScoreJob] Job completed successfully');
+    logger.info(`[HealthScoreJob] Duration: ${result.durationMs}ms`);
+    logger.info(`[HealthScoreJob] Customers processed: ${result.customersProcessed}`);
+    logger.info(`[HealthScoreJob] Customers updated: ${result.customersUpdated}`);
+    logger.info(`[HealthScoreJob] Warnings generated: ${result.warningsGenerated.length}`);
+    logger.info(`[HealthScoreJob] Errors: ${result.errors.length}`);
+    logger.info('[HealthScoreJob] ========================================');
 
     // Log high-risk customers
     const highRiskWarnings = result.warningsGenerated.filter(w => w.churnRisk === 'high');
     if (highRiskWarnings.length > 0) {
-      console.log('[HealthScoreJob] HIGH RISK CUSTOMERS:');
+      logger.info('[HealthScoreJob] HIGH RISK CUSTOMERS:');
       highRiskWarnings.forEach(w => {
-        console.log(`  - ${w.customerName}: Score ${w.healthScore}, Factors: ${w.riskFactors.join(', ')}`);
+        logger.info(`  - ${w.customerName}: Score ${w.healthScore}, Factors: ${w.riskFactors.join(', ')}`);
       });
     }
 
     return result;
   } catch (error: any) {
-    console.error('[HealthScoreJob] Fatal error:', error);
+    logger.error('[HealthScoreJob] Fatal error:', error);
 
     const errorResult: JobExecutionResult = {
       success: false,
@@ -104,7 +105,7 @@ export async function runHealthScoreJob(): Promise<JobExecutionResult> {
 export function startHealthScoreJobs(schedule: string = '0 2 * * *'): void {
   // Check if health score jobs are enabled
   if (process.env.HEALTH_SCORE_JOBS_ENABLED === 'false') {
-    console.log('[HealthScoreJob] Health score jobs disabled via environment');
+    logger.info('[HealthScoreJob] Health score jobs disabled via environment');
     return;
   }
 
@@ -116,18 +117,18 @@ export function startHealthScoreJobs(schedule: string = '0 2 * * *'): void {
 
   // Validate cron expression
   if (!cron.validate(schedule)) {
-    console.error(`[HealthScoreJob] Invalid cron expression: ${schedule}`);
+    logger.error(`[HealthScoreJob] Invalid cron expression: ${schedule}`);
     return;
   }
 
   // Schedule the job
   scheduledTask = cron.schedule(schedule, async () => {
-    console.log(`[HealthScoreJob] Triggered at ${new Date().toISOString()}`);
+    logger.info(`[HealthScoreJob] Triggered at ${new Date().toISOString()}`);
     await runHealthScoreJob();
   });
 
-  console.log(`[HealthScoreJob] Health score job scheduled: ${schedule}`);
-  console.log('[HealthScoreJob] Next run: Daily at 2:00 AM (default)');
+  logger.info(`[HealthScoreJob] Health score job scheduled: ${schedule}`);
+  logger.info('[HealthScoreJob] Next run: Daily at 2:00 AM (default)');
 }
 
 /**
@@ -137,7 +138,7 @@ export function stopHealthScoreJobs(): void {
   if (scheduledTask) {
     scheduledTask.stop();
     scheduledTask = null;
-    console.log('[HealthScoreJob] Health score job stopped');
+    logger.info('[HealthScoreJob] Health score job stopped');
   }
 }
 
@@ -168,7 +169,7 @@ export async function runHealthScoreJobForOrganization(
   warnings: any[];
   errors: any[];
 }> {
-  console.log(`[HealthScoreJob] Manual trigger for organization: ${organizationId}`);
+  logger.info(`[HealthScoreJob] Manual trigger for organization: ${organizationId}`);
 
   try {
     const { results, warnings, errors } = await customerHealthScoreService.calculateForOrganization(
@@ -176,7 +177,7 @@ export async function runHealthScoreJobForOrganization(
       periodType
     );
 
-    console.log(`[HealthScoreJob] Organization job completed: ${results.length} customers, ${warnings.length} warnings`);
+    logger.info(`[HealthScoreJob] Organization job completed: ${results.length} customers, ${warnings.length} warnings`);
 
     return {
       success: true,
@@ -185,7 +186,7 @@ export async function runHealthScoreJobForOrganization(
       errors
     };
   } catch (error: any) {
-    console.error(`[HealthScoreJob] Error processing organization:`, error);
+    logger.error(`[HealthScoreJob] Error processing organization:`, error);
     return {
       success: false,
       results: [],
