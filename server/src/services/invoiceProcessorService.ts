@@ -502,7 +502,11 @@ class InvoiceProcessorService {
       return { status: 'skipped', documentsCreated: 0 };
     }
 
-    // Skip emails without attachments
+    // Skip emails without attachments.
+    // Note: hasAttachments is treated as a hint only – some mail clients (e.g. certain ERP systems)
+    // send PDFs as inline attachments which Microsoft Graph may not always reflect in hasAttachments.
+    // We therefore skip only when hasAttachments is explicitly false AND we trust the flag.
+    // The actual attachment fetch below is the authoritative check.
     if (!email.hasAttachments) {
       // Still record it to avoid reprocessing
       await this.recordProcessedEmail(organizationId, email, [], 'skipped', 'Keine Anhänge');
@@ -522,11 +526,13 @@ class InvoiceProcessorService {
         return { status: 'skipped', documentsCreated: 0 };
       }
 
-      // Filter for relevant attachments (PDFs, images)
+      // Filter for relevant attachments (PDFs, images).
+      // isInline PDFs are explicitly included: some invoicing systems (e.g. DATEV, Lexware)
+      // send the invoice PDF as an inline attachment (isInline=true) rather than a regular one.
       const relevantAttachments = attachments.filter(att => {
         const ext = path.extname(att.name).toLowerCase();
         const mimeType = att.contentType?.toLowerCase() || '';
-        return (
+        const isPdfOrImage = (
           ext === '.pdf' ||
           ext === '.png' ||
           ext === '.jpg' ||
@@ -534,6 +540,14 @@ class InvoiceProcessorService {
           mimeType.includes('pdf') ||
           mimeType.includes('image')
         );
+        if (!isPdfOrImage) return false;
+        // Exclude inline attachments that are clearly email signatures or logos
+        // (small images < 50 KB that are marked as inline). Full PDF invoices are always kept.
+        if (att.isInline && !mimeType.includes('pdf') && ext !== '.pdf' && att.size < 51200) {
+          logger.info(`Skipping small inline image (likely signature/logo): ${att.name} (${att.size} bytes)`);
+          return false;
+        }
+        return true;
       });
 
       if (relevantAttachments.length === 0) {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Clock, Mail, Lock, User, Shield, Building2, Users, Ticket, UserPlus, CheckCircle, XCircle } from 'lucide-react';
+import { Mail, Lock, User, Shield, Building2, Users, Ticket, UserPlus, CheckCircle, XCircle } from 'lucide-react';
+import logoRamboeck from '../logo/logo-ramboeckit.png';
 import { useAuth } from '../contexts/AuthContext';
 import { AccountType } from '../types';
 import { ForgotPassword } from './ForgotPassword';
@@ -240,7 +241,7 @@ export const Auth = () => {
   // Show JoinOrganization view
   if (authView === 'join-organization' && invitationCode) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-50 dark:bg-dark-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-8">
@@ -413,18 +414,21 @@ export const Auth = () => {
   const isLogin = authView === 'login';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-accent-primary rounded-full mb-4">
-            <Clock className="text-white" size={32} />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          {/* Company logo – light mode uses the original, dark mode inverts to white */}
+          <img
+            src={logoRamboeck}
+            alt="Ramboeck IT"
+            className="h-14 mx-auto mb-4 object-contain dark:brightness-0 dark:invert"
+          />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
             RamboFlow
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Professionelle Zeiterfassung & Projektmanagement
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Zeiterfassung & Projektmanagement
           </p>
         </div>
 
@@ -554,14 +558,16 @@ export const Auth = () => {
                 </form>
               ) : (
                 /* Normal Login Form */
-                <form onSubmit={handleLogin} className="space-y-4">
+                <form onSubmit={handleLogin} className="space-y-4" autoComplete="on">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label htmlFor="login-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Benutzername
                     </label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                       <input
+                        id="login-username"
+                        name="username"
                         type="text"
                         value={loginUsername}
                         onChange={(e) => setLoginUsername(e.target.value)}
@@ -569,13 +575,14 @@ export const Auth = () => {
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                         required
                         autoFocus
+                        autoComplete="username"
                       />
                     </div>
                   </div>
 
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Passwort
                       </label>
                       <Button
@@ -590,12 +597,15 @@ export const Auth = () => {
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                       <input
+                        id="login-password"
+                        name="password"
                         type="password"
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
                         placeholder="Passwort eingeben"
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                         required
+                        autoComplete="current-password"
                       />
                     </div>
                   </div>

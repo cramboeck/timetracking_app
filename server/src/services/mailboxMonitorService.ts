@@ -45,6 +45,7 @@ export interface EmailAttachment {
   name: string;
   contentType: string;
   size: number;
+  isInline: boolean;
   contentBytes?: string; // Base64 encoded
 }
 
@@ -440,20 +441,36 @@ class MailboxMonitorService {
         }
 
         try {
-          // Fetch the individual attachment with contentBytes
+          // For large attachments (>4 MB) contentBytes is not included in the default response.
+          // We always fetch the individual attachment to ensure contentBytes is present.
           const fullAttachment = await client
             .api(`/users/${mailbox}/messages/${messageId}/attachments/${att.id}`)
             .get();
+
+          // If contentBytes is still missing (can happen for very large files), try the $value endpoint
+          let contentBytes: string | undefined = fullAttachment.contentBytes;
+          if (!contentBytes && fullAttachment.size > 0) {
+            try {
+              logger.info(`contentBytes missing for ${fullAttachment.name} (${fullAttachment.size} bytes) – trying $value endpoint`);
+              const rawBuffer: ArrayBuffer = await client
+                .api(`/users/${mailbox}/messages/${messageId}/attachments/${att.id}/$value`)
+                .get();
+              contentBytes = Buffer.from(rawBuffer).toString('base64');
+            } catch (valueError: any) {
+              logger.error(`$value fallback failed for ${fullAttachment.name}:`, valueError.message);
+            }
+          }
 
           attachments.push({
             id: fullAttachment.id,
             name: fullAttachment.name,
             contentType: fullAttachment.contentType,
             size: fullAttachment.size,
-            contentBytes: fullAttachment.contentBytes,
+            isInline: fullAttachment.isInline ?? false,
+            contentBytes,
           });
 
-          logger.info(`Fetched attachment: ${fullAttachment.name} (${fullAttachment.size} bytes)`);
+          logger.info(`Fetched attachment: ${fullAttachment.name} (${fullAttachment.size} bytes, isInline=${fullAttachment.isInline ?? false})`);
         } catch (attError: any) {
           logger.error(`Failed to fetch attachment ${att.name}:`, attError.message);
         }
