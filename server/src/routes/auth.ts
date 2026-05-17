@@ -2,16 +2,35 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { z } from 'zod';
 import { pool } from '../config/database';
 import { emailService } from '../services/emailService';
 import { auditLog } from '../services/auditLog';
 import { securityService } from '../services/securityService';
+import { refreshTokenService } from '../services/refreshTokenService';
 import { authLimiter } from '../middleware/rateLimiter';
 import { validate, registerSchema, loginSchema } from '../middleware/validation';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { checkTrustedDevice } from './mfa';
 
 const router = Router();
+
+// Access tokens are short-lived; clients must use POST /api/auth/refresh
+// (with the long-lived refresh token) to obtain a fresh access token.
+const ACCESS_TOKEN_TTL = '1h';
+
+// Extract device info from request for the refresh-token record
+const deviceInfoFromReq = (req: any) => ({
+  userAgent: req.headers['user-agent'] as string | undefined,
+  ipAddress:
+    (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
+    req.ip ||
+    undefined,
+});
+
+const refreshSchema = z.object({
+  refreshToken: z.string().min(20).max(200),
+});
 
 // Helper to generate slug from name
 function generateSlug(name: string): string {
@@ -187,13 +206,16 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
       userEmail: email
     });
 
-    // Generate token
-    const token = jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: '7d' });
+    // Generate access token (short-lived) + refresh token (long-lived)
+    const token = jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: ACCESS_TOKEN_TTL });
+    const refresh = await refreshTokenService.create(userId, deviceInfoFromReq(req));
 
     res.json({
       success: true,
       data: {
         token,
+        refreshToken: refresh.token,
+        refreshTokenExpiresAt: refresh.expiresAt.toISOString(),
         user: {
           id: userId,
           username,
@@ -303,12 +325,15 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
       userAgent: userAgent
     });
 
-    // Generate token
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, { expiresIn: '7d' });
+    // Generate access token (short-lived) + refresh token (long-lived)
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, { expiresIn: ACCESS_TOKEN_TTL });
+    const refresh = await refreshTokenService.create(user.id, deviceInfoFromReq(req));
 
     res.json({
       success: true,
       token,
+      refreshToken: refresh.token,
+      refreshTokenExpiresAt: refresh.expiresAt.toISOString(),
       user: {
         id: user.id,
         username: user.username,
@@ -319,6 +344,55 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/refresh — exchange a valid refresh token for a fresh
+// access token (and a rotated refresh token). Issued refresh tokens are
+// single-use; the response contains the new one to store.
+router.post('/refresh', authLimiter, validate(refreshSchema), async (req, res) => {
+  try {
+    const { refreshToken } = req.body as { refreshToken: string };
+
+    const result = await refreshTokenService.verifyAndRotate(
+      refreshToken,
+      deviceInfoFromReq(req)
+    );
+
+    if (!result) {
+      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    }
+
+    const accessToken = jwt.sign(
+      { userId: result.userId },
+      process.env.JWT_SECRET!,
+      { expiresIn: ACCESS_TOKEN_TTL }
+    );
+
+    res.json({
+      success: true,
+      token: accessToken,
+      refreshToken: result.newToken.token,
+      refreshTokenExpiresAt: result.newToken.expiresAt.toISOString(),
+    });
+  } catch (error) {
+    console.error('Refresh error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/logout — revoke the presented refresh token. The access
+// token cannot be invalidated server-side (stateless JWT), but it expires
+// within ACCESS_TOKEN_TTL anyway.
+router.post('/logout', validate(refreshSchema), async (req, res) => {
+  try {
+    const { refreshToken } = req.body as { refreshToken: string };
+    await refreshTokenService.revoke(refreshToken);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Logout error:', error);
+    // Logout is best-effort — never block the client
+    res.json({ success: true });
   }
 });
 
@@ -362,6 +436,11 @@ router.post('/change-password', authenticateToken, async (req: AuthRequest, res)
 
     // Update password
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newPasswordHash, userId]);
+
+    // Security: invalidate all refresh tokens so every other device must
+    // re-login. The current session's access token will still work until
+    // it expires (~1h), but any refresh after that requires fresh credentials.
+    await refreshTokenService.revokeAllForUser(userId);
 
     // Audit log
     auditLog.log({
