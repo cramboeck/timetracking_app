@@ -421,7 +421,7 @@ export const SupportInbox = () => {
                     selectedEmail?.id === email.id
                       ? 'bg-accent-primary/10'
                       : 'hover:bg-gray-50 dark:hover:bg-dark-200'
-                  } ${!email.isRead ? 'bg-accent-light/50 dark:bg-blue-900/10' : ''}`}
+                  } ${!email.isRead ? 'bg-accent-light/50 dark:bg-accent-primary/40/10' : ''}`}
                 >
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-full ${
@@ -511,12 +511,12 @@ export const SupportInbox = () => {
                       </p>
                     </div>
                   ) : selectedTicketInfo.suggestedTicket ? (
-                    <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-accent-dark dark:text-blue-300">
+                    <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-accent-dark dark:text-accent-primary">
                         <Link2 size={16} />
                         <span className="text-sm font-medium">Passendes Ticket gefunden</span>
                       </div>
-                      <p className="text-sm text-accent-primary dark:text-blue-400 mt-1">
+                      <p className="text-sm text-accent-primary dark:text-accent-primary mt-1">
                         {selectedTicketInfo.suggestedTicket.ticket_number}: {selectedTicketInfo.suggestedTicket.title}
                       </p>
                       <Button

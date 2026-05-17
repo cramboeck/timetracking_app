@@ -313,7 +313,7 @@ export const Auth = () => {
                     <span className="text-sm text-gray-600 dark:text-gray-400">Deine Rolle:</span>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                       invitationInfo.role === 'admin'
-                        ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400'
+                        ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary'
                         : invitationInfo.role === 'viewer'
                         ? 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
                         : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
@@ -332,8 +332,8 @@ export const Auth = () => {
                 <div className="space-y-4">
                   {invitationInfo.userAlreadyExists ? (
                     <>
-                      <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                        <p className="text-sm text-accent-dark dark:text-blue-300 text-center">
+                      <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-3">
+                        <p className="text-sm text-accent-dark dark:text-accent-primary text-center">
                           <strong>Du hast bereits ein Konto</strong> mit der E-Mail-Adresse {invitationInfo.invitedEmail}. Bitte melde dich an, um der Organisation beizutreten.
                         </p>
                       </div>
@@ -477,8 +477,8 @@ export const Auth = () => {
               mfaRequired ? (
                 /* MFA Verification Form */
                 <form onSubmit={handleMfaVerify} className="space-y-4">
-                  <div className="flex items-center gap-3 p-4 bg-accent-light dark:bg-blue-900/20 rounded-lg">
-                    <Shield className="text-accent-primary dark:text-blue-400" size={24} />
+                  <div className="flex items-center gap-3 p-4 bg-accent-light dark:bg-accent-primary/20 rounded-lg">
+                    <Shield className="text-accent-primary dark:text-accent-primary" size={24} />
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">
                         Zwei-Faktor-Authentifizierung

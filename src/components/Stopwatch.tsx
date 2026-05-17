@@ -354,7 +354,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
           <div className="text-center mb-8">
             <div className={`text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-mono font-bold tracking-tight sm:tracking-wider mb-4 transition-colors break-all ${
               isRunning
-                ? 'text-accent-primary dark:text-blue-400 animate-pulse'
+                ? 'text-accent-primary dark:text-accent-primary animate-pulse'
                 : 'text-gray-800 dark:text-gray-100'
             }`}>
               {formatDuration(elapsedSeconds)}
@@ -362,7 +362,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
             {/* Active Project Info */}
             {isRunning && selectedProject && (
-              <div className="inline-flex items-center gap-2 px-3 py-2 bg-accent-light dark:bg-blue-900/30 rounded-full border border-blue-200 dark:border-blue-800 max-w-full">
+              <div className="inline-flex items-center gap-2 px-3 py-2 bg-accent-light dark:bg-accent-primary/30 rounded-full border border-blue-200 dark:border-accent-primary/40 max-w-full">
                 <div
                   className="w-3 h-3 rounded-full animate-pulse flex-shrink-0"
                   style={{ backgroundColor: selectedCustomer?.color || '#3B82F6' }}
@@ -439,7 +439,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Beschreibung (optional)
                   {isRunning && (
-                    <span className="ml-2 text-xs text-accent-primary dark:text-blue-400">
+                    <span className="ml-2 text-xs text-accent-primary dark:text-accent-primary">
                       · editierbar während der Erfassung
                     </span>
                   )}

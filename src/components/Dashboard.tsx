@@ -1410,7 +1410,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                                       })}
                                     </span>
                                     {activity && (
-                                      <span className="text-xs px-1.5 sm:px-2 py-0.5 bg-accent-lighter dark:bg-blue-900 text-accent-dark dark:text-blue-300 rounded">
+                                      <span className="text-xs px-1.5 sm:px-2 py-0.5 bg-accent-lighter dark:bg-accent-primary/40 text-accent-dark dark:text-accent-primary rounded">
                                         {activity.name}
                                       </span>
                                     )}
@@ -1523,7 +1523,7 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                           <h4 className="font-semibold text-gray-900 dark:text-white">
                             {report.customer_name}
                           </h4>
-                          <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded-full">
+                          <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary rounded-full">
                             {report.report_title}
                           </span>
                         </div>

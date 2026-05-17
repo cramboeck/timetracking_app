@@ -177,7 +177,7 @@ export const ModernDatePicker = ({
                   ${isSelected
                     ? 'bg-accent-primary text-white shadow-lg scale-105'
                     : isTodayDate
-                      ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
+                      ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                       : isFutureDate
                         ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed'
                         : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -271,7 +271,7 @@ export const ModernDatePicker = ({
                     : isSelectedDate(d)
                       ? 'bg-accent-primary text-white'
                       : isToday(d)
-                        ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
+                        ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                         : isFuture(d)
                           ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
                           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'

@@ -26,7 +26,7 @@ interface PortalTicketDetailProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
-  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-blue-900/50 dark:text-blue-300', icon: AlertCircle },
+  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-accent-primary/50 dark:text-accent-primary', icon: AlertCircle },
   in_progress: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300', icon: Clock },
   waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300', icon: Pause },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300', icon: CheckCircle },
@@ -36,7 +36,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
 
 const priorityConfig: Record<string, { label: string; color: string; bgColor: string }> = {
   low: { label: 'Niedrig', color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-100 dark:bg-gray-700' },
-  normal: { label: 'Normal', color: 'text-accent-primary dark:text-blue-400', bgColor: 'bg-accent-light dark:bg-blue-900/30' },
+  normal: { label: 'Normal', color: 'text-accent-primary dark:text-accent-primary', bgColor: 'bg-accent-light dark:bg-accent-primary/30' },
   high: { label: 'Hoch', color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/30' },
   critical: { label: 'Kritisch', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/30' },
 };
@@ -293,7 +293,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
               variant="primary"
               loading={actionLoading}
               icon={<RotateCcw size={16} />}
-              className="bg-accent-light dark:bg-blue-900/30 text-accent-dark dark:text-blue-300 hover:bg-accent-lighter dark:hover:bg-blue-900/50"
+              className="bg-accent-light dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary hover:bg-accent-lighter dark:hover:bg-accent-primary/50"
             >
               Wiedereröffnen
             </Button>
@@ -373,7 +373,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
             Anhänge ({attachments.length})
           </h3>
           {canComment && (
-            <label className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-accent-primary dark:text-blue-400 bg-accent-light dark:bg-blue-900/30 hover:bg-accent-lighter dark:hover:bg-blue-900/50 rounded-lg cursor-pointer transition-colors">
+            <label className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-accent-primary dark:text-accent-primary bg-accent-light dark:bg-accent-primary/30 hover:bg-accent-lighter dark:hover:bg-accent-primary/50 rounded-lg cursor-pointer transition-colors">
               <Paperclip size={16} />
               {uploadingFiles ? 'Lädt...' : 'Datei hinzufügen'}
               <input
@@ -469,7 +469,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                             href={getAbsoluteFileUrl(attachment.fileUrl)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-1.5 text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-blue-900/30 rounded transition-colors"
+                            className="p-1.5 text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/30 rounded transition-colors"
                             title="Herunterladen"
                           >
                             <Download size={16} />

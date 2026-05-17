@@ -414,7 +414,7 @@ export const InvoiceInbox = () => {
 
       {/* Processing Result */}
       {invoiceProcessResult && (
-        <div className="p-3 bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <div className="p-3 bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg">
           <div className="flex gap-4 text-sm">
             <span className="text-green-600 dark:text-green-400">
               ✓ {invoiceProcessResult.processedCount} verarbeitet
@@ -454,7 +454,7 @@ export const InvoiceInbox = () => {
                       invoice.status === 'processed'
                         ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                         : invoice.status === 'draft'
-                        ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
+                        ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                         : invoice.status === 'failed'
                         ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                         : invoice.status === 'skipped'
@@ -499,7 +499,7 @@ export const InvoiceInbox = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleToggleDocuments(invoice.id)}
-                        className="text-accent-primary dark:text-blue-400"
+                        className="text-accent-primary dark:text-accent-primary"
                         icon={loadingDocuments === invoice.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                       >
                         {invoice.attachmentCount} Anhang{invoice.attachmentCount !== 1 ? 'e' : ''}
@@ -647,7 +647,7 @@ export const InvoiceInbox = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleToggleDocuments(invoice.id)}
-                              className="text-accent-primary dark:text-blue-400"
+                              className="text-accent-primary dark:text-accent-primary"
                               icon={loadingDocuments === invoice.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                             >
                               {invoice.attachmentCount}
@@ -669,7 +669,7 @@ export const InvoiceInbox = () => {
                             invoice.status === 'processed'
                               ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                               : invoice.status === 'draft'
-                              ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
+                              ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                               : invoice.status === 'failed'
                               ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                               : invoice.status === 'skipped'
@@ -1077,7 +1077,7 @@ export const InvoiceInbox = () => {
                         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                           <span>Rechnungspositionen ({extractedData.lineItems.length})</span>
                           {extractedData.lineItems.some(item => item.customerName) && (
-                            <span className="text-xs bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 px-2 py-0.5 rounded">
+                            <span className="text-xs bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded">
                               MSP/Reseller
                             </span>
                           )}
@@ -1106,7 +1106,7 @@ export const InvoiceInbox = () => {
                                     </div>
                                   )}
                                   {item.customerName && (
-                                    <div className="text-xs text-accent-primary dark:text-blue-400 mt-1 font-medium">
+                                    <div className="text-xs text-accent-primary dark:text-accent-primary mt-1 font-medium">
                                       → Kunde: {item.customerName}
                                     </div>
                                   )}

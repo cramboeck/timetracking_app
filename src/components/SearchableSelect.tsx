@@ -206,11 +206,11 @@ export const SearchableSelect = ({
                 className={`
                   px-4 py-3 cursor-pointer transition-colors
                   ${index === highlightedIndex
-                    ? 'bg-accent-light dark:bg-blue-900/20'
+                    ? 'bg-accent-light dark:bg-accent-primary/20'
                     : 'hover:bg-gray-50 dark:hover:bg-dark-200'
                   }
                   ${option.value === value
-                    ? 'bg-accent-lighter dark:bg-blue-900/30 font-medium'
+                    ? 'bg-accent-lighter dark:bg-accent-primary/30 font-medium'
                     : ''
                   }
                 `}

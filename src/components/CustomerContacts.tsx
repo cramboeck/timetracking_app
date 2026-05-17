@@ -483,7 +483,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                             {contact.name}
                           </span>
                           {contact.isPrimary && (
-                            <span className="text-xs bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-300 px-2 py-0.5 rounded-full">
+                            <span className="text-xs bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded-full">
                               Hauptkontakt
                             </span>
                           )}
@@ -515,7 +515,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                             </span>
                           )}
                           {contact.canViewDevices && (
-                            <span className="bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-300 px-2 py-0.5 rounded">
+                            <span className="bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded">
                               Geräte
                             </span>
                           )}

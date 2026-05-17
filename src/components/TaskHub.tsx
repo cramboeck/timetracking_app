@@ -170,7 +170,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
     switch (priority) {
       case 'urgent': return 'text-red-600 dark:text-red-400';
       case 'high': return 'text-orange-600 dark:text-orange-400';
-      case 'normal': return 'text-accent-primary dark:text-blue-400';
+      case 'normal': return 'text-accent-primary dark:text-accent-primary';
       case 'low': return 'text-gray-500 dark:text-gray-400';
     }
   };
@@ -180,7 +180,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
     const colors = {
       urgent: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
       high: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-      normal: 'bg-accent-lighter text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+      normal: 'bg-accent-lighter text-blue-800 dark:bg-accent-primary/30 dark:text-accent-primary',
       low: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400',
     };
     const labels = { urgent: 'Dringend', high: 'Hoch', normal: 'Normal', low: 'Niedrig' };
@@ -436,7 +436,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 <TrendingUp className="w-4 h-4" />
                 <span className="text-xs font-medium">In Arbeit</span>
               </div>
-              <p className="text-2xl font-bold text-accent-primary dark:text-blue-400 mt-1">
+              <p className="text-2xl font-bold text-accent-primary dark:text-accent-primary mt-1">
                 {dashboard.myTasks.my_in_progress}
               </p>
             </div>
@@ -457,7 +457,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
               onClick={() => setView(tab.key as any)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                 view === tab.key
-                  ? 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400'
+                  ? 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
@@ -518,7 +518,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
               'Heute',
               <CalendarDays className="w-4 h-4" />,
               groupedTasks.today || [],
-              'text-accent-primary dark:text-blue-400'
+              'text-accent-primary dark:text-accent-primary'
             )}
             {renderGroup(
               'upcoming',

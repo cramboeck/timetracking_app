@@ -129,7 +129,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
             />
             <div className="flex-1">
               {selectedArticle.categoryName && (
-                <p className="text-sm text-accent-primary dark:text-blue-400 mb-1">
+                <p className="text-sm text-accent-primary dark:text-accent-primary mb-1">
                   {selectedArticle.categoryName}
                 </p>
               )}
@@ -346,7 +346,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
               <button
                 key={category.id}
                 onClick={() => handleCategorySelect(category)}
-                className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-accent-primary hover:bg-accent-light/50 dark:hover:bg-blue-900/20 transition-colors"
+                className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-accent-primary hover:bg-accent-light/50 dark:hover:bg-accent-primary/20 transition-colors"
               >
                 <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
                   <FolderOpen size={24} className="text-indigo-600 dark:text-indigo-400" />

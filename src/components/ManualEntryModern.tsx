@@ -237,7 +237,7 @@ export const ManualEntryModern = ({
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-        <Clock size={28} className="text-accent-primary dark:text-blue-400" />
+        <Clock size={28} className="text-accent-primary dark:text-accent-primary" />
         Zeit erfassen
       </h1>
 

@@ -107,7 +107,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ customer, projects, stats }) 
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-accent-light dark:bg-blue-900/20 rounded-xl p-3 text-center">
+        <div className="bg-accent-light dark:bg-accent-primary/20 rounded-xl p-3 text-center">
           <div className="text-2xl font-bold text-accent-primary">{customerProjects.length}</div>
           <div className="text-xs text-accent-primary/80">Projekte</div>
         </div>
@@ -164,7 +164,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ customer, projects, stats }) 
           <h4 className="font-medium text-gray-900 dark:text-white mb-3">Integrationen</h4>
           <div className="flex flex-wrap gap-2">
             {customer.sevdeskCustomerId && (
-              <span className="flex items-center gap-1 text-sm bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 px-3 py-1.5 rounded-lg">
+              <span className="flex items-center gap-1 text-sm bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary px-3 py-1.5 rounded-lg">
                 <ExternalLink size={14} />
                 sevDesk verknupft
               </span>
@@ -229,7 +229,7 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ customerId, onNavigateToTickets
       case 'open':
         return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400';
       case 'in_progress':
-        return 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400';
+        return 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary';
       case 'resolved':
         return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400';
       case 'closed':
@@ -268,7 +268,7 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ customerId, onNavigateToTickets
       {onNavigateToTickets && (
         <button
           onClick={() => onNavigateToTickets(customerId)}
-          className="w-full flex items-center justify-center gap-2 p-3 text-accent-primary hover:bg-accent-light dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+          className="w-full flex items-center justify-center gap-2 p-3 text-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/20 rounded-lg transition-colors"
         >
           Alle Tickets anzeigen
           <ChevronRight size={16} />

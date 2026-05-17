@@ -1156,7 +1156,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
             <button
               onClick={resetConversation}
-              className="w-full py-2.5 text-sm font-medium text-accent-primary dark:text-blue-400 hover:bg-accent-light dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="w-full py-2.5 text-sm font-medium text-accent-primary dark:text-accent-primary hover:bg-accent-light dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               🔄 Neue Anfrage starten
             </button>

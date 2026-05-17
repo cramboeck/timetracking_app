@@ -206,7 +206,7 @@ export const SevdeskCustomerImport = ({
         key={customer.sevdeskId}
         className={`p-3 border-b border-gray-100 dark:border-gray-700 ${
           isLinked ? 'bg-gray-50 dark:bg-gray-800/50' : ''
-        } ${isSelected && !isLinked ? 'bg-accent-light dark:bg-blue-900/20' : ''}`}
+        } ${isSelected && !isLinked ? 'bg-accent-light dark:bg-accent-primary/20' : ''}`}
       >
         <div className="flex items-start gap-3">
           {/* Checkbox */}
@@ -267,7 +267,7 @@ export const SevdeskCustomerImport = ({
                   <Link2 size={12} /> Verknüpfen
                 </span>
               ) : (
-                <span className="flex items-center gap-1 text-accent-primary dark:text-blue-400">
+                <span className="flex items-center gap-1 text-accent-primary dark:text-accent-primary">
                   <UserPlus size={12} /> Importieren
                 </span>
               )}
@@ -371,7 +371,7 @@ export const SevdeskCustomerImport = ({
                 <span className="text-gray-600 dark:text-gray-400">
                   <strong>{counts.total}</strong> Kontakte in sevDesk
                 </span>
-                <span className="text-accent-primary dark:text-blue-400">
+                <span className="text-accent-primary dark:text-accent-primary">
                   <strong>{counts.new}</strong> neu
                 </span>
                 <span className="text-amber-600 dark:text-amber-400">
@@ -423,7 +423,7 @@ export const SevdeskCustomerImport = ({
                 'new',
                 'Neue Kontakte',
                 <UserPlus size={18} />,
-                'bg-accent-light dark:bg-blue-900/30 text-accent-dark dark:text-blue-300'
+                'bg-accent-light dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
               )}
 
               {renderSection(
