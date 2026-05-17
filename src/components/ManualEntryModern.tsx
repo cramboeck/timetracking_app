@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Save, Clock, ArrowRight, Zap } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { calculateDuration, toLocalDateString } from '../utils/time';
@@ -26,6 +26,25 @@ const formatDurationHuman = (seconds: number): string => {
   if (hours === 0) return `${minutes} min`;
   if (minutes === 0) return `${hours}h`;
   return `${hours}h ${minutes}min`;
+};
+
+// Format seconds as "H:MM" for the editable duration input
+const formatDurationColon = (seconds: number): string => {
+  const totalMinutes = Math.max(0, Math.round(seconds / 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}:${String(minutes).padStart(2, '0')}`;
+};
+
+// Parse "H:MM" → total minutes, or null if invalid
+const parseDurationColon = (input: string): number | null => {
+  const match = input.trim().match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!match) return null;
+  const hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  if (minutes >= 60) return null;
+  if (hours > 23) return null; // prevent day-overflow when applied to startTime
+  return hours * 60 + minutes;
 };
 
 export const ManualEntryModern = ({
@@ -67,6 +86,18 @@ export const ManualEntryModern = ({
       return 0;
     }
   }, [date, startTime, endTime]);
+
+  // Editable duration input ("H:MM"). Bidirectionally synced with the time pickers:
+  // changing start/end updates this field, and typing a valid value here recomputes
+  // end time from start time + duration. Invalid input is kept locally so the user
+  // can finish typing (e.g. "2:" before adding "30") without losing focus or value.
+  const [durationInput, setDurationInput] = useState(() => formatDurationColon(calculatedDuration));
+  const [durationInputInvalid, setDurationInputInvalid] = useState(false);
+
+  useEffect(() => {
+    setDurationInput(formatDurationColon(calculatedDuration));
+    setDurationInputInvalid(false);
+  }, [calculatedDuration]);
 
   // Duration percentage for visual bar (max 10 hours = 100%)
   const durationPercent = Math.min(100, (calculatedDuration / (10 * 3600)) * 100);
@@ -122,6 +153,31 @@ export const ManualEntryModern = ({
 
     const newEndTime = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
     setEndTime(newEndTime);
+  };
+
+  const handleDurationInputChange = (raw: string) => {
+    setDurationInput(raw);
+    if (raw.trim() === '') {
+      setDurationInputInvalid(false);
+      return;
+    }
+    const parsed = parseDurationColon(raw);
+    if (parsed === null) {
+      setDurationInputInvalid(true);
+      return;
+    }
+    setDurationInputInvalid(false);
+    applyDurationPreset(parsed);
+  };
+
+  const handleDurationInputBlur = () => {
+    // Snap back to the current calculated value if the user left the field
+    // empty or with an invalid input — keeps the displayed value in sync
+    // with the time pickers (which remain the source of truth on submit).
+    if (durationInputInvalid || durationInput.trim() === '') {
+      setDurationInput(formatDurationColon(calculatedDuration));
+      setDurationInputInvalid(false);
+    }
   };
 
   const handleCustomerChange = (customerId: string) => {
@@ -219,17 +275,34 @@ export const ManualEntryModern = ({
             </div>
           </div>
 
-          {/* Duration Bar */}
+          {/* Duration: editable H:MM input, bidirectionally synced with time pickers */}
           <div className="mt-4">
-            <div className="flex justify-between items-center mb-2">
+            <div className="flex justify-between items-center mb-2 gap-3">
               <span className="text-sm text-gray-500 dark:text-gray-400">Dauer</span>
-              <span className={`text-lg font-bold ${
-                calculatedDuration > 0
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-gray-400'
-              }`}>
-                {formatDurationHuman(calculatedDuration)}
-              </span>
+              <div className="flex items-baseline gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={durationInput}
+                  onChange={(e) => handleDurationInputChange(e.target.value)}
+                  onBlur={handleDurationInputBlur}
+                  placeholder="2:30"
+                  aria-label="Dauer in Stunden:Minuten"
+                  aria-invalid={durationInputInvalid || undefined}
+                  className={`w-20 px-2 py-1 text-right text-lg font-bold rounded-md border focus:outline-none focus:ring-2 focus:ring-accent-primary tabular-nums ${
+                    durationInputInvalid
+                      ? 'border-red-500 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
+                      : calculatedDuration > 0
+                      ? 'border-gray-300 dark:border-gray-600 text-green-600 dark:text-green-400 bg-white dark:bg-gray-800'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-400 bg-white dark:bg-gray-800'
+                  }`}
+                />
+                {!durationInputInvalid && calculatedDuration > 0 && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                    ({formatDurationHuman(calculatedDuration)})
+                  </span>
+                )}
+              </div>
             </div>
             <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
               <div
