@@ -65,7 +65,13 @@ export const entriesApi = {
     return authFetch(`/entries/${id}`);
   },
 
-  create: async (entry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'> & { clientId?: string }): Promise<{ success: boolean; data: TimeEntry }> => {
+  create: async (
+    entry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'> & { clientId?: string }
+  ): Promise<{
+    success: boolean;
+    data: TimeEntry;
+    autoStoppedTimer?: { id: string; duration: number };
+  }> => {
     return authFetch('/entries', {
       method: 'POST',
       body: JSON.stringify(entry),

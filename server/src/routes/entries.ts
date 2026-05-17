@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { transformRow, transformRows } from '../utils/dbTransform';
 import { logTicketActivity } from './tickets';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -282,6 +283,47 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const id = clientId || crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
+    // Prevent overlapping running timers: if the new entry is running, auto-stop
+    // any other running timer the user might have left open (forgotten timer).
+    // Returns metadata about the stopped timer so the frontend can show a toast.
+    let autoStoppedTimer: { id: string; duration: number } | null = null;
+    if (isRunning) {
+      const runningResult = await pool.query(
+        `SELECT id FROM time_entries
+         WHERE user_id = $1 AND organization_id = $2 AND is_running = true AND id != $3`,
+        [userId, organizationId, id]
+      );
+
+      for (const row of runningResult.rows) {
+        const stopResult = await pool.query(
+          `UPDATE time_entries
+           SET is_running = false,
+               end_time = NOW(),
+               duration = GREATEST(EXTRACT(EPOCH FROM (NOW() - start_time))::int, 0)
+           WHERE id = $1
+           RETURNING id, duration`,
+          [row.id]
+        );
+
+        if (stopResult.rows.length > 0) {
+          const stopped = stopResult.rows[0];
+          autoStoppedTimer = { id: stopped.id, duration: stopped.duration };
+          logger.info(`Auto-stopped previous running timer for user ${userId}`, {
+            previousTimerId: stopped.id,
+            durationSeconds: stopped.duration
+          });
+
+          auditLog.log({
+            userId,
+            action: 'time_entry.auto_stop',
+            details: JSON.stringify({ previousTimerId: stopped.id, durationSeconds: stopped.duration, reason: 'new_timer_started' }),
+            ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+            userAgent: req.headers['user-agent']
+          });
+        }
+      }
+    }
+
     await pool.query(
       `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, is_billable, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
@@ -335,7 +377,8 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
 
     res.status(201).json({
       success: true,
-      data: newEntry
+      data: newEntry,
+      ...(autoStoppedTimer && { autoStoppedTimer })
     });
   } catch (error) {
     console.error('Create entry error:', error);
