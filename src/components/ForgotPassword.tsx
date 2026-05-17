@@ -41,9 +41,9 @@ export const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-dark-50 dark:to-dark-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-xl p-8">
           <Button
             onClick={onBack}
             variant="ghost"
@@ -57,7 +57,7 @@ export const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
               Passwort vergessen?
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-600 dark:text-dark-400">
               Gib deine E-Mail-Adresse ein und wir senden dir einen Link zum Zurücksetzen.
             </p>
           </div>
@@ -77,7 +77,7 @@ export const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
               <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200 mb-2">
                 🔧 Development Mode - Reset Token:
               </p>
-              <div className="bg-white dark:bg-gray-900 p-3 rounded border border-yellow-300 dark:border-yellow-700 font-mono text-xs break-all text-gray-800 dark:text-gray-200">
+              <div className="bg-white dark:bg-dark-50 p-3 rounded border border-yellow-300 dark:border-yellow-700 font-mono text-xs break-all text-gray-800 dark:text-dark-500">
                 {devToken}
               </div>
               <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-2">
@@ -88,7 +88,7 @@ export const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 E-Mail-Adresse
               </label>
               <input
@@ -98,7 +98,7 @@ export const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="deine@email.de"
                 required
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-accent-primary transition-colors"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-accent-primary transition-colors"
               />
             </div>
 

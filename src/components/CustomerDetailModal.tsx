@@ -75,17 +75,17 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ customer, projects, stats }) 
   return (
     <div className="space-y-6">
       {/* Customer Info */}
-      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
+      <div className="bg-gray-50 dark:bg-dark-100/50 rounded-xl p-4">
         <h4 className="font-medium text-gray-900 dark:text-white mb-3">Kontaktdaten</h4>
         <div className="space-y-2 text-sm">
           {customer.contactPerson && (
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-2 text-gray-600 dark:text-dark-400">
               <User size={16} />
               <span>{customer.contactPerson}</span>
             </div>
           )}
           {customer.email && (
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-2 text-gray-600 dark:text-dark-400">
               <Mail size={16} />
               <a href={`mailto:${customer.email}`} className="text-accent-primary hover:underline">
                 {customer.email}
@@ -93,12 +93,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ customer, projects, stats }) 
             </div>
           )}
           {customer.address && (
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-2 text-gray-600 dark:text-dark-400">
               <MapPin size={16} />
               <span>{customer.address}</span>
             </div>
           )}
-          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+          <div className="flex items-center gap-2 text-gray-600 dark:text-dark-400">
             <Calendar size={16} />
             <span>Kunde seit {formatDate(customer.createdAt)}</span>
           </div>
@@ -129,13 +129,13 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ customer, projects, stats }) 
       <div>
         <h4 className="font-medium text-gray-900 dark:text-white mb-3">Projekte</h4>
         {customerProjects.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">Keine Projekte vorhanden</p>
+          <p className="text-sm text-gray-500 dark:text-dark-400">Keine Projekte vorhanden</p>
         ) : (
           <div className="space-y-2">
             {customerProjects.map((project) => (
               <div
                 key={project.id}
-                className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                className="flex items-center justify-between p-3 bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border"
               >
                 <div>
                   <div className="font-medium text-gray-900 dark:text-white">{project.name}</div>
@@ -147,7 +147,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ customer, projects, stats }) 
                   className={`text-xs px-2 py-1 rounded-full ${
                     project.isActive
                       ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                      : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                   }`}
                 >
                   {project.isActive ? 'Aktiv' : 'Inaktiv'}
@@ -217,7 +217,7 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ customerId, onNavigateToTickets
 
   if (tickets.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+      <div className="text-center py-12 text-gray-500 dark:text-dark-400">
         <Ticket size={40} className="mx-auto mb-3 opacity-50" />
         <p>Keine Tickets vorhanden</p>
       </div>
@@ -233,9 +233,9 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ customerId, onNavigateToTickets
       case 'resolved':
         return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400';
       case 'closed':
-        return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
+        return 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400';
       default:
-        return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
+        return 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400';
     }
   };
 
@@ -244,7 +244,7 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ customerId, onNavigateToTickets
       {tickets.map((ticket) => (
         <div
           key={ticket.id}
-          className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
+          className="p-3 bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-dark-border transition-colors"
         >
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
@@ -318,7 +318,7 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ customerId, projects })
 
   if (entries.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+      <div className="text-center py-12 text-gray-500 dark:text-dark-400">
         <Clock size={40} className="mx-auto mb-3 opacity-50" />
         <p>Keine Zeiteinträge vorhanden</p>
       </div>
@@ -332,7 +332,7 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ customerId, projects })
         return (
           <div
             key={entry.id}
-            className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+            className="p-3 bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border"
           >
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
@@ -433,9 +433,9 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative bg-white dark:bg-dark-100 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
             <div
               className="w-12 h-12 rounded-xl flex items-center justify-center"
@@ -450,20 +450,20 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
             <div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">{customer.name}</h2>
               {customer.customerNumber && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">#{customer.customerNumber}</p>
+                <p className="text-sm text-gray-500 dark:text-dark-400">#{customer.customerNumber}</p>
               )}
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg text-gray-500"
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700 px-4 overflow-x-auto">
+        <div className="flex border-b border-gray-200 dark:border-dark-border px-4 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -473,7 +473,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                   activeTab === tab.id
                     ? 'border-accent-primary text-accent-primary'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-dark-500'
                 }`}
               >
                 <Icon size={16} />

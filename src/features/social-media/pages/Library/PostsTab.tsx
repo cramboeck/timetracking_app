@@ -172,7 +172,7 @@ export default function PostsTab() {
         );
       default:
         return (
-          <span className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-medium">
+          <span className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded text-xs font-medium">
             <Edit size={12} />
             Entwurf
           </span>
@@ -183,7 +183,7 @@ export default function PostsTab() {
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
         <div className="flex flex-wrap gap-4">
           {/* Search */}
           <div className="flex-1 min-w-[200px]">
@@ -194,7 +194,7 @@ export default function PostsTab() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Posts durchsuchen..."
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
             </div>
           </div>
@@ -203,7 +203,7 @@ export default function PostsTab() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+            className="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
           >
             <option value="all">Alle Status</option>
             <option value="draft">Entwürfe</option>
@@ -215,7 +215,7 @@ export default function PostsTab() {
           <select
             value={platformFilter}
             onChange={(e) => setPlatformFilter(e.target.value as PlatformFilter)}
-            className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+            className="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
           >
             <option value="all">Alle Plattformen</option>
             <option value="linkedin">LinkedIn</option>
@@ -227,9 +227,9 @@ export default function PostsTab() {
       </div>
 
       {/* Posts List */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
+      <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border divide-y divide-gray-200 dark:divide-dark-border">
         {filteredPosts.length === 0 ? (
-          <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          <div className="p-8 text-center text-gray-500 dark:text-dark-400">
             <p className="mb-2">Keine Posts gefunden.</p>
             <button
               onClick={() => {
@@ -245,7 +245,7 @@ export default function PostsTab() {
           filteredPosts.map((post) => (
             <div
               key={post.id}
-              className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+              className="p-4 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors"
             >
               <div className="flex items-start gap-4">
                 {/* Platforms */}
@@ -268,7 +268,7 @@ export default function PostsTab() {
                   <div className="flex flex-wrap items-center gap-3 text-sm">
                     {getStatusBadge(post.status)}
                     {post.scheduledAt && (
-                      <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                      <span className="flex items-center gap-1 text-gray-500 dark:text-dark-400">
                         <Calendar size={14} />
                         {new Date(post.scheduledAt).toLocaleDateString('de-DE', {
                           day: '2-digit',
@@ -280,7 +280,7 @@ export default function PostsTab() {
                       </span>
                     )}
                     {post.hashtags && post.hashtags.length > 0 && (
-                      <span className="text-gray-500 dark:text-gray-400">
+                      <span className="text-gray-500 dark:text-dark-400">
                         {post.hashtags.length} Hashtags
                       </span>
                     )}
@@ -291,23 +291,23 @@ export default function PostsTab() {
                 <div className="relative flex-shrink-0">
                   <button
                     onClick={() => setShowMenu(showMenu === post.id ? null : post.id)}
-                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-dark-500 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200"
                   >
                     <MoreVertical size={18} />
                   </button>
 
                   {showMenu === post.id && (
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10">
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-dark-100 rounded-lg shadow-lg border border-gray-200 dark:border-dark-border py-1 z-10">
                       <button
                         onClick={() => handleCopy(post.content)}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200"
                       >
                         <Copy size={16} />
                         Kopieren
                       </button>
                       <button
                         onClick={() => openEditModal(post)}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200"
                       >
                         <Edit size={16} />
                         Bearbeiten
@@ -331,7 +331,7 @@ export default function PostsTab() {
 
       {/* Post count */}
       {filteredPosts.length > 0 && (
-        <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+        <p className="text-sm text-gray-500 dark:text-dark-400 text-center">
           {filteredPosts.length} von {posts.length} Posts
         </p>
       )}
@@ -343,17 +343,17 @@ export default function PostsTab() {
           onClick={closeEditModal}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
                 Post bearbeiten
               </h2>
               <button
                 onClick={closeEditModal}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                className="text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
               >
                 <X size={20} />
               </button>
@@ -363,7 +363,7 @@ export default function PostsTab() {
             <div className="p-4 space-y-4">
               {/* Platforms */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Plattformen
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -374,7 +374,7 @@ export default function PostsTab() {
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                         editPlatforms.includes(platform)
                           ? `${PLATFORM_COLORS[platform]} text-white`
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                          : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                       }`}
                     >
                       {PLATFORM_ICONS[platform]}
@@ -386,23 +386,23 @@ export default function PostsTab() {
 
               {/* Content */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Inhalt
                 </label>
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   rows={6}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white resize-none"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white resize-none"
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                   {editContent.length} Zeichen
                 </p>
               </div>
 
               {/* Hashtags */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   <Hash size={14} className="inline mr-1" />
                   Hashtags
                 </label>
@@ -426,11 +426,11 @@ export default function PostsTab() {
                     onChange={(e) => setHashtagInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addEditHashtag())}
                     placeholder="Hashtag hinzufügen..."
-                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-sm"
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white text-sm"
                   />
                   <button
                     onClick={addEditHashtag}
-                    className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                    className="px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
                   >
                     +
                   </button>
@@ -439,7 +439,7 @@ export default function PostsTab() {
 
               {/* Schedule */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   <Calendar size={14} className="inline mr-1" />
                   Veröffentlichung planen
                 </label>
@@ -447,7 +447,7 @@ export default function PostsTab() {
                   type="datetime-local"
                   value={editScheduledAt}
                   onChange={(e) => setEditScheduledAt(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
                 {editScheduledAt && (
                   <button
@@ -461,10 +461,10 @@ export default function PostsTab() {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-dark-border">
               <button
                 onClick={closeEditModal}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+                className="px-4 py-2 text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white"
               >
                 Abbrechen
               </button>

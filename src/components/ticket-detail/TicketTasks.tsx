@@ -105,7 +105,7 @@ export const TicketTasks = ({
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+        <h2 className="text-sm font-medium text-gray-700 dark:text-dark-500 flex items-center gap-2">
           <CheckSquare size={16} />
           Aufgaben ({localTasks.filter(t => t.completed).length}/{localTasks.length})
         </h2>
@@ -125,7 +125,7 @@ export const TicketTasks = ({
               onDragStart={() => handleDragStart(task.id)}
               onDragOver={(e) => handleDragOver(e, task.id)}
               onDragEnd={handleDragEnd}
-              className={`flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg group cursor-move transition-opacity ${
+              className={`flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg group cursor-move transition-opacity ${
                 draggedTaskId === task.id ? 'opacity-50' : ''
               }`}
             >
@@ -143,7 +143,7 @@ export const TicketTasks = ({
                 {task.completed ? (
                   <CheckSquare size={20} className="text-green-500" />
                 ) : (
-                  <Square size={20} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                  <Square size={20} className="text-gray-400 hover:text-gray-600 dark:hover:text-dark-500" />
                 )}
               </button>
 
@@ -162,7 +162,7 @@ export const TicketTasks = ({
                       }
                     }}
                     autoFocus
-                    className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                    className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   />
                   <IconButton
                     onClick={() => handleSaveEditTask(task.id)}
@@ -183,7 +183,7 @@ export const TicketTasks = ({
                 <span
                   className={`flex-1 text-sm cursor-pointer hover:text-accent-primary ${
                     task.completed
-                      ? 'text-gray-500 dark:text-gray-400 line-through'
+                      ? 'text-gray-500 dark:text-dark-400 line-through'
                       : 'text-gray-900 dark:text-white'
                   }`}
                   onDoubleClick={() => handleStartEditTask(task)}
@@ -211,7 +211,7 @@ export const TicketTasks = ({
                 className={`p-1.5 rounded transition-colors ${
                   task.visibleToCustomer
                     ? 'text-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/30'
-                    : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200'
                 }`}
                 title={task.visibleToCustomer ? 'Für Kunden sichtbar' : 'Nur intern sichtbar'}
               >
@@ -231,8 +231,8 @@ export const TicketTasks = ({
           ))}
 
           {/* Add Task Form */}
-          <div className="flex items-center gap-2 p-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-            <Square size={20} className="text-gray-300 dark:text-gray-600 flex-shrink-0" />
+          <div className="flex items-center gap-2 p-2 border border-dashed border-gray-300 dark:border-dark-border rounded-lg">
+            <Square size={20} className="text-gray-300 dark:text-dark-400 flex-shrink-0" />
             <input
               type="text"
               value={newTaskTitle}
@@ -246,7 +246,7 @@ export const TicketTasks = ({
               className={`p-1.5 rounded transition-colors ${
                 newTaskVisible
                   ? 'text-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/30'
-                  : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200'
               }`}
               title={newTaskVisible ? 'Für Kunden sichtbar' : 'Nur intern sichtbar'}
             >

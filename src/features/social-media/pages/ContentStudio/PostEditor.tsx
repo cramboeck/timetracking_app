@@ -72,8 +72,8 @@ export default function PostEditor() {
       {/* Main Editor */}
       <div className="lg:col-span-2 space-y-4">
         {/* Platform Selection */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-3">
             Plattformen auswählen
           </label>
           <div className="flex flex-wrap gap-2">
@@ -84,7 +84,7 @@ export default function PostEditor() {
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                   editor.platforms.includes(platform)
                     ? `${PLATFORM_COLORS[platform]} text-white`
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 hover:bg-gray-200 dark:hover:bg-dark-300'
                 }`}
               >
                 {PLATFORM_ICONS[platform]}
@@ -95,9 +95,9 @@ export default function PostEditor() {
         </div>
 
         {/* Content Editor */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center justify-between mb-3">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
               Post-Inhalt
             </label>
             <button
@@ -118,7 +118,7 @@ export default function PostEditor() {
                 </span>
                 <button
                   onClick={() => setShowAIHelper(false)}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                  className="text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
                 >
                   <X size={16} />
                 </button>
@@ -129,13 +129,13 @@ export default function PostEditor() {
                   value={aiTopic}
                   onChange={(e) => setAITopic(e.target.value)}
                   placeholder="Worüber soll der Post handeln?"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
                 <div className="flex gap-2">
                   <select
                     value={aiTone}
                     onChange={(e) => setAITone(e.target.value as Tone)}
-                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                   >
                     {TONES.map((tone) => (
                       <option key={tone.value} value={tone.value}>
@@ -171,12 +171,12 @@ export default function PostEditor() {
             onChange={(e) => editor.setContent(e.target.value)}
             placeholder="Was möchtest du teilen?"
             rows={8}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white resize-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white resize-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
           />
 
           {/* Character Count */}
           <div className="flex items-center justify-between mt-2 text-sm">
-            <span className={isOverLimit ? 'text-red-600' : 'text-gray-500 dark:text-gray-400'}>
+            <span className={isOverLimit ? 'text-red-600' : 'text-gray-500 dark:text-dark-400'}>
               {charCount} / {charLimit} Zeichen
             </span>
             {isOverLimit && (
@@ -189,10 +189,10 @@ export default function PostEditor() {
         </div>
 
         {/* Hashtags */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-3">
             <Hash size={18} className="text-gray-500" />
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
               Hashtags
             </label>
           </div>
@@ -218,7 +218,7 @@ export default function PostEditor() {
             onChange={(e) => setHashtagInput(e.target.value)}
             onKeyDown={handleHashtagKeyDown}
             placeholder="Hashtag eingeben und Enter drücken..."
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
           />
         </div>
       </div>
@@ -226,14 +226,14 @@ export default function PostEditor() {
       {/* Sidebar */}
       <div className="space-y-4">
         {/* Customer Selection */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-3">
             Kunde (optional)
           </label>
           <select
             value={editor.customerId}
             onChange={(e) => editor.setCustomerId(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
           >
             <option value="">Kein Kunde</option>
             {customers.map((customer) => (
@@ -245,10 +245,10 @@ export default function PostEditor() {
         </div>
 
         {/* Scheduling */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-3">
             <Clock size={18} className="text-gray-500" />
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
               Veröffentlichung planen
             </label>
           </div>
@@ -256,21 +256,21 @@ export default function PostEditor() {
             type="datetime-local"
             value={editor.scheduledAt}
             onChange={(e) => editor.setScheduledAt(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
           />
         </div>
 
         {/* Media Upload */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-3">
             <Image size={18} className="text-gray-500" />
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
               Medien
             </label>
           </div>
-          <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
+          <div className="border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-6 text-center">
             <Image size={32} className="mx-auto mb-2 text-gray-400" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-dark-400">
               Bilder oder Videos hierher ziehen
             </p>
             <button className="mt-2 text-sm text-pink-600 hover:text-pink-700">
@@ -317,7 +317,7 @@ export default function PostEditor() {
           {editor.content && (
             <button
               onClick={() => editor.setContent('')}
-              className="w-full px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+              className="w-full px-4 py-2 text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white"
             >
               Zurücksetzen
             </button>

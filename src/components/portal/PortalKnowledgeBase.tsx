@@ -120,7 +120,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
     return (
       <div className="space-y-6">
         {/* Header */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
             <IconButton
               icon={<ArrowLeft size={24} />}
@@ -136,7 +136,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                 {selectedArticle.title}
               </h1>
-              <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+              <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-dark-400">
                 <span className="flex items-center gap-1">
                   <Clock size={14} />
                   {formatDate(selectedArticle.publishedAt || selectedArticle.createdAt)}
@@ -151,13 +151,13 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
         </div>
 
         {/* Content */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
           <MarkdownRenderer content={selectedArticle.content} />
         </div>
 
         {/* Feedback */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm text-center">
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm text-center">
+          <p className="text-gray-700 dark:text-dark-500 mb-4">
             War dieser Artikel hilfreich?
           </p>
           {feedbackGiven ? (
@@ -194,7 +194,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
     return (
       <div className="space-y-6">
         {/* Header */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
           <div className="flex items-center gap-4">
             <IconButton
               icon={<ArrowLeft size={24} />}
@@ -206,7 +206,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
                 {view === 'search' ? `Suchergebnisse: "${searchQuery}"` : selectedCategory?.name}
               </h1>
               {selectedCategory?.description && (
-                <p className="text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-gray-500 dark:text-dark-400 mt-1">
                   {selectedCategory.description}
                 </p>
               )}
@@ -216,9 +216,9 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
 
         {/* Articles */}
         {articles.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+          <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-12 text-center">
             <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">
+            <p className="text-gray-500 dark:text-dark-400">
               {view === 'search' ? 'Keine Artikel gefunden' : 'Noch keine Artikel in dieser Kategorie'}
             </p>
           </div>
@@ -229,7 +229,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
                 key={article.id}
                 onClick={() => handleArticleSelect(article)}
                 variant="ghost"
-                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-accent-primary/40 dark:hover:border-accent-primary h-auto"
+                className="w-full text-left bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-4 hover:border-accent-primary/40 dark:hover:border-accent-primary h-auto"
               >
                 <div className="flex items-start justify-between gap-4 w-full">
                   <div className="flex-1 text-left">
@@ -237,7 +237,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
                       {article.title}
                     </h3>
                     {article.excerpt && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                      <p className="text-sm text-gray-500 dark:text-dark-400 mt-1 line-clamp-2">
                         {article.excerpt}
                       </p>
                     )}
@@ -297,7 +297,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
 
       {/* Featured Articles */}
       {featuredArticles.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Star size={20} className="text-yellow-500" />
             <h2 className="font-semibold text-gray-900 dark:text-white">
@@ -319,7 +319,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
                       {article.title}
                     </p>
                     {article.categoryName && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         {article.categoryName}
                       </p>
                     )}
@@ -334,7 +334,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
 
       {/* Categories */}
       {categories.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Book size={20} className="text-indigo-500" />
             <h2 className="font-semibold text-gray-900 dark:text-white">
@@ -346,7 +346,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
               <button
                 key={category.id}
                 onClick={() => handleCategorySelect(category)}
-                className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-accent-primary/40 dark:hover:border-accent-primary hover:bg-accent-light/50 dark:hover:bg-accent-primary/20 transition-colors"
+                className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-dark-border hover:border-accent-primary/40 dark:hover:border-accent-primary hover:bg-accent-light/50 dark:hover:bg-accent-primary/20 transition-colors"
               >
                 <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
                   <FolderOpen size={24} className="text-indigo-600 dark:text-indigo-400" />
@@ -355,7 +355,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
                   <p className="font-medium text-gray-900 dark:text-white">
                     {category.name}
                   </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
                     {category.articleCount} Artikel
                   </p>
                 </div>
@@ -368,7 +368,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
 
       {/* Recent Articles */}
       {recentArticles.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Clock size={20} className="text-green-500" />
             <h2 className="font-semibold text-gray-900 dark:text-white">
@@ -380,7 +380,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
               <button
                 key={article.id}
                 onClick={() => handleArticleSelect(article)}
-                className="w-full text-left p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                className="w-full text-left p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <FileText size={20} className="text-green-500 flex-shrink-0" />
@@ -388,7 +388,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
                     <p className="font-medium text-gray-900 dark:text-white truncate">
                       {article.title}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-500 dark:text-dark-400">
                       {formatDate(article.publishedAt || article.createdAt)}
                     </p>
                   </div>
@@ -402,9 +402,9 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
 
       {/* Empty State */}
       {categories.length === 0 && featuredArticles.length === 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-12 text-center">
           <Book size={48} className="mx-auto text-gray-400 mb-4" />
-          <p className="text-gray-500 dark:text-gray-400">
+          <p className="text-gray-500 dark:text-dark-400">
             Die Wissensdatenbank ist noch leer.
           </p>
         </div>

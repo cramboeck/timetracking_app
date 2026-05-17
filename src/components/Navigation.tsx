@@ -48,7 +48,7 @@ export const Navigation = ({ currentView, onViewChange }: NavigationProps) => {
   const secondaryActive = secondaryNavItems.some(item => item.view === currentView);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 safe-area-bottom z-40">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-100 border-t border-gray-200 dark:border-dark-border safe-area-bottom z-40">
       <div className="flex justify-around items-center h-16">
         {/* Primary Nav Items */}
         {primaryNavItems.map(({ view, icon: Icon, label, premium }) => (
@@ -58,7 +58,7 @@ export const Navigation = ({ currentView, onViewChange }: NavigationProps) => {
             className={`relative flex flex-col items-center justify-center flex-1 h-full touch-manipulation transition-colors ${
               currentView === view
                 ? 'text-accent-primary'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-dark-500'
             }`}
           >
             <div className="relative">
@@ -78,7 +78,7 @@ export const Navigation = ({ currentView, onViewChange }: NavigationProps) => {
             className={`flex flex-col items-center justify-center w-full h-16 touch-manipulation transition-colors ${
               secondaryActive || showMoreMenu
                 ? 'text-accent-primary'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-dark-500'
             }`}
           >
             <MoreHorizontal size={24} />
@@ -94,7 +94,7 @@ export const Navigation = ({ currentView, onViewChange }: NavigationProps) => {
                 onClick={() => setShowMoreMenu(false)}
               />
               {/* Menu */}
-              <div className="absolute bottom-full right-0 mb-2 mr-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden z-50 min-w-[160px]">
+              <div className="absolute bottom-full right-0 mb-2 mr-2 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg shadow-lg overflow-hidden z-50 min-w-[160px]">
                 {secondaryNavItems.map(({ view, icon: Icon, label }) => (
                   <button
                     key={view}
@@ -105,7 +105,7 @@ export const Navigation = ({ currentView, onViewChange }: NavigationProps) => {
                     className={`flex items-center gap-3 w-full px-4 py-3 text-left transition-colors ${
                       currentView === view
                         ? 'bg-accent-primary/10 text-accent-primary'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        : 'text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200'
                     }`}
                   >
                     <Icon size={20} />

@@ -76,14 +76,14 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div className="bg-white dark:bg-dark-100 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {type === 'invoices' ? 'Rechnung' : 'Angebot'} {type === 'invoices' ? (document as SevdeskInvoice).invoiceNumber : (document as SevdeskQuote).quoteNumber}
           </h3>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            className="text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-500"
           >
             &times;
           </button>
@@ -104,21 +104,21 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
               {/* Header Info */}
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Kunde:</span>
+                  <span className="text-gray-500 dark:text-dark-400">Kunde:</span>
                   <p className="font-medium text-gray-900 dark:text-white">{detail.contact.name}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Datum:</span>
+                  <span className="text-gray-500 dark:text-dark-400">Datum:</span>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {formatDate(type === 'invoices' ? (detail as SevdeskInvoice).invoiceDate : (detail as SevdeskQuote).quoteDate)}
                   </p>
                 </div>
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Status:</span>
+                  <span className="text-gray-500 dark:text-dark-400">Status:</span>
                   <p className="font-medium text-gray-900 dark:text-white">{detail.statusName}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Betrag:</span>
+                  <span className="text-gray-500 dark:text-dark-400">Betrag:</span>
                   <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(detail.sumGross)}</p>
                 </div>
               </div>
@@ -126,7 +126,7 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
               {/* Header Text */}
               {detail.header && (
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400 text-sm">Betreff:</span>
+                  <span className="text-gray-500 dark:text-dark-400 text-sm">Betreff:</span>
                   <p className="text-gray-900 dark:text-white">{detail.header}</p>
                 </div>
               )}
@@ -134,16 +134,16 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
               {/* Positions */}
               {detail.positions && detail.positions.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Positionen</h4>
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">Positionen</h4>
+                  <div className="bg-gray-50 dark:bg-dark-50 rounded-lg overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-200 dark:border-gray-700">
-                          <th className="text-left p-2 text-gray-500 dark:text-gray-400 w-6"></th>
-                          <th className="text-left p-2 text-gray-500 dark:text-gray-400">Beschreibung</th>
-                          <th className="text-right p-2 text-gray-500 dark:text-gray-400">Menge</th>
-                          <th className="text-right p-2 text-gray-500 dark:text-gray-400">Preis</th>
-                          <th className="text-right p-2 text-gray-500 dark:text-gray-400">Summe</th>
+                        <tr className="border-b border-gray-200 dark:border-dark-border">
+                          <th className="text-left p-2 text-gray-500 dark:text-dark-400 w-6"></th>
+                          <th className="text-left p-2 text-gray-500 dark:text-dark-400">Beschreibung</th>
+                          <th className="text-right p-2 text-gray-500 dark:text-dark-400">Menge</th>
+                          <th className="text-right p-2 text-gray-500 dark:text-dark-400">Preis</th>
+                          <th className="text-right p-2 text-gray-500 dark:text-dark-400">Summe</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -155,8 +155,8 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                           // Zwischenüberschrift (Menge = 0)
                           if (isHeading) {
                             return (
-                              <tr key={pos.id} className="bg-gray-200 dark:bg-gray-700">
-                                <td colSpan={5} className="p-2 font-semibold text-gray-800 dark:text-gray-200">
+                              <tr key={pos.id} className="bg-gray-200 dark:bg-dark-200">
+                                <td colSpan={5} className="p-2 font-semibold text-gray-800 dark:text-dark-500">
                                   {pos.name}
                                 </td>
                               </tr>
@@ -167,10 +167,10 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                           return (
                             <Fragment key={pos.id}>
                               <tr
-                                className={`border-b border-gray-200 dark:border-gray-700 last:border-0 ${hasText ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : ''}`}
+                                className={`border-b border-gray-200 dark:border-dark-border last:border-0 ${hasText ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-100' : ''}`}
                                 onClick={() => hasText && togglePosition(pos.id)}
                               >
-                                <td className="p-2 text-gray-500 dark:text-gray-400">
+                                <td className="p-2 text-gray-500 dark:text-dark-400">
                                   {hasText && (
                                     isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
                                   )}
@@ -181,9 +181,9 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                                 <td className="p-2 text-right text-gray-900 dark:text-white">{formatCurrency(pos.sumNet)}</td>
                               </tr>
                               {isExpanded && hasText && (
-                                <tr className="border-b border-gray-200 dark:border-gray-700">
-                                  <td colSpan={5} className="p-3 bg-gray-100 dark:bg-gray-800">
-                                    <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                <tr className="border-b border-gray-200 dark:border-dark-border">
+                                  <td colSpan={5} className="p-3 bg-gray-100 dark:bg-dark-100">
+                                    <div className="text-sm text-gray-700 dark:text-dark-500 whitespace-pre-wrap">
                                       {pos.text}
                                     </div>
                                   </td>
@@ -199,14 +199,14 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
               )}
 
               {/* Totals */}
-              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">Netto:</span>
+                  <span className="text-gray-500 dark:text-dark-400">Netto:</span>
                   <span className="text-gray-900 dark:text-white">{formatCurrency(detail.sumNet)}</span>
                 </div>
                 {type === 'invoices' && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500 dark:text-gray-400">MwSt:</span>
+                    <span className="text-gray-500 dark:text-dark-400">MwSt:</span>
                     <span className="text-gray-900 dark:text-white">{formatCurrency((detail as SevdeskInvoice).sumTax)}</span>
                   </div>
                 )}
@@ -217,7 +217,7 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
               </div>
             </div>
           ) : (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+            <p className="text-gray-500 dark:text-dark-400 text-center py-8">
               Dokument konnte nicht geladen werden
             </p>
           )}
@@ -342,14 +342,14 @@ export const SevdeskDocuments = () => {
   const getStatusColor = (status: number, type: DocumentType) => {
     if (type === 'invoices') {
       switch (status) {
-        case 100: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'; // Draft
+        case 100: return 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500'; // Draft
         case 200: return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'; // Open
         case 1000: return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'; // Paid
         default: return 'bg-gray-100 text-gray-700';
       }
     } else {
       switch (status) {
-        case 100: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'; // Draft
+        case 100: return 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500'; // Draft
         case 200: return 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary'; // Sent
         case 300: return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'; // Accepted
         case 400: return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'; // Rejected
@@ -380,7 +380,7 @@ export const SevdeskDocuments = () => {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Sync Status - hidden on very small screens */}
           {syncStatus && (
-            <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400">
               <Database size={14} />
               <span>{syncStatus.invoiceCount + syncStatus.quoteCount} im Cache</span>
               {syncStatus.lastSync && (
@@ -450,13 +450,13 @@ export const SevdeskDocuments = () => {
       )}
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700">
+      <div className="flex border-b border-gray-200 dark:border-dark-border">
         <button
           onClick={() => setActiveTab('invoices')}
           className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
             activeTab === 'invoices'
               ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
           }`}
         >
           <Receipt size={18} />
@@ -467,7 +467,7 @@ export const SevdeskDocuments = () => {
           className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
             activeTab === 'quotes'
               ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
           }`}
         >
           <FileText size={18} />
@@ -487,20 +487,20 @@ export const SevdeskDocuments = () => {
               ? "Volltextsuche im lokalen Cache..."
               : "Suchen nach Nummer, Kunde oder Betreff..."
             }
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
           />
           {searching && (
             <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />
           )}
         </div>
         {/* Search Mode Toggle */}
-        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+        <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
           <button
             onClick={() => { setSearchMode('live'); setSearchResults([]); }}
             className={`px-3 py-2 text-sm ${
               searchMode === 'live'
                 ? 'bg-accent-primary text-white'
-                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
             }`}
             title="Direkt von sevDesk"
           >
@@ -511,7 +511,7 @@ export const SevdeskDocuments = () => {
             className={`px-3 py-2 text-sm flex items-center gap-1 ${
               searchMode === 'cached'
                 ? 'bg-accent-primary text-white'
-                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
             }`}
             title="Volltextsuche im lokalen Cache"
           >
@@ -532,7 +532,7 @@ export const SevdeskDocuments = () => {
           {searchResults.length === 0 ? (
             <div className="text-center py-8">
               <Database size={32} className="mx-auto mb-2 text-gray-400" />
-              <p className="text-gray-500 dark:text-gray-400">
+              <p className="text-gray-500 dark:text-dark-400">
                 {searching ? 'Suche...' : 'Keine Ergebnisse im Cache gefunden'}
               </p>
               {!syncStatus?.lastSync && (
@@ -576,13 +576,13 @@ export const SevdeskDocuments = () => {
                     doc,
                   });
                 }}
-                className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                className="flex items-center gap-4 p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
               >
-                <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg">
                   {result.documentType === 'invoice' ? (
-                    <Receipt size={20} className="text-gray-500 dark:text-gray-400" />
+                    <Receipt size={20} className="text-gray-500 dark:text-dark-400" />
                   ) : (
-                    <FileText size={20} className="text-gray-500 dark:text-gray-400" />
+                    <FileText size={20} className="text-gray-500 dark:text-dark-400" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -597,7 +597,7 @@ export const SevdeskDocuments = () => {
                       {result.documentType === 'invoice' ? 'Rechnung' : 'Angebot'}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                  <p className="text-sm text-gray-500 dark:text-dark-400 truncate">
                     {result.contactName} • {result.header || 'Keine Beschreibung'}
                   </p>
                 </div>
@@ -605,7 +605,7 @@ export const SevdeskDocuments = () => {
                   <p className="font-medium text-gray-900 dark:text-white">
                     {formatCurrency(result.sumGross)}
                   </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
                     {formatDate(result.documentDate)}
                   </p>
                 </div>
@@ -617,7 +617,7 @@ export const SevdeskDocuments = () => {
       ) : searchMode === 'cached' ? (
         <div className="text-center py-8">
           <Database size={32} className="mx-auto mb-2 text-gray-400" />
-          <p className="text-gray-500 dark:text-gray-400">
+          <p className="text-gray-500 dark:text-dark-400">
             Mindestens 2 Zeichen eingeben für Volltextsuche
           </p>
           {syncStatus && (
@@ -631,7 +631,7 @@ export const SevdeskDocuments = () => {
         <div className="space-y-2">
           {activeTab === 'invoices' ? (
             filteredInvoices.length === 0 ? (
-              <p className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <p className="text-center py-8 text-gray-500 dark:text-dark-400">
                 Keine Rechnungen gefunden
               </p>
             ) : (
@@ -639,10 +639,10 @@ export const SevdeskDocuments = () => {
                 <div
                   key={invoice.id}
                   onClick={() => setSelectedDocument({ type: 'invoices', doc: invoice })}
-                  className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                  className="flex items-center gap-4 p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
                 >
-                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                    <Receipt size={20} className="text-gray-500 dark:text-gray-400" />
+                  <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg">
+                    <Receipt size={20} className="text-gray-500 dark:text-dark-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -653,7 +653,7 @@ export const SevdeskDocuments = () => {
                         {invoice.statusName}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    <p className="text-sm text-gray-500 dark:text-dark-400 truncate">
                       {invoice.contact.name} • {invoice.header || 'Keine Beschreibung'}
                     </p>
                   </div>
@@ -661,7 +661,7 @@ export const SevdeskDocuments = () => {
                     <p className="font-medium text-gray-900 dark:text-white">
                       {formatCurrency(invoice.sumGross)}
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500 dark:text-dark-400">
                       {formatDate(invoice.invoiceDate)}
                     </p>
                   </div>
@@ -671,7 +671,7 @@ export const SevdeskDocuments = () => {
             )
           ) : (
             filteredQuotes.length === 0 ? (
-              <p className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <p className="text-center py-8 text-gray-500 dark:text-dark-400">
                 Keine Angebote gefunden
               </p>
             ) : (
@@ -679,10 +679,10 @@ export const SevdeskDocuments = () => {
                 <div
                   key={quote.id}
                   onClick={() => setSelectedDocument({ type: 'quotes', doc: quote })}
-                  className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                  className="flex items-center gap-4 p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
                 >
-                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                    <FileText size={20} className="text-gray-500 dark:text-gray-400" />
+                  <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg">
+                    <FileText size={20} className="text-gray-500 dark:text-dark-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -693,7 +693,7 @@ export const SevdeskDocuments = () => {
                         {quote.statusName}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    <p className="text-sm text-gray-500 dark:text-dark-400 truncate">
                       {quote.contact.name} • {quote.header || 'Keine Beschreibung'}
                     </p>
                   </div>
@@ -701,7 +701,7 @@ export const SevdeskDocuments = () => {
                     <p className="font-medium text-gray-900 dark:text-white">
                       {formatCurrency(quote.sumGross)}
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500 dark:text-dark-400">
                       {formatDate(quote.quoteDate)}
                     </p>
                   </div>

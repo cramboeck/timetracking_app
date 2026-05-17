@@ -40,7 +40,7 @@ export const AppearanceSettings = ({
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Time Format Settings */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+      <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Zeitformat</h2>
         <div className="space-y-3">
           <button
@@ -48,13 +48,13 @@ export const AppearanceSettings = ({
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               (currentUser?.timeFormat || '24h') === '24h'
                 ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20 shadow-sm'
-                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-dark-border'
             }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <h3 className="font-medium text-gray-900 dark:text-white">24-Stunden-Format</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
                   Beispiel: 14:30, 23:45
                 </p>
               </div>
@@ -70,13 +70,13 @@ export const AppearanceSettings = ({
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               currentUser?.timeFormat === '12h'
                 ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20 shadow-sm'
-                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-dark-border'
             }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <h3 className="font-medium text-gray-900 dark:text-white">12-Stunden-Format (AM/PM)</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
                   Beispiel: 2:30 PM, 11:45 PM
                 </p>
               </div>
@@ -91,7 +91,7 @@ export const AppearanceSettings = ({
       </div>
 
       {/* Appearance Settings */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+      <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Design & Aussehen</h2>
 
         <div className="space-y-6">
@@ -104,9 +104,9 @@ export const AppearanceSettings = ({
           />
 
           {/* Accent Color Selection */}
-          <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
+          <div className="pt-3 border-t border-gray-200 dark:border-dark-border">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Akzentfarbe</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            <p className="text-sm text-gray-500 dark:text-dark-400 mb-4">
               Wähle deine bevorzugte Akzentfarbe für Buttons und Highlights
             </p>
             <div className="grid grid-cols-6 gap-3">
@@ -117,7 +117,7 @@ export const AppearanceSettings = ({
                   className={`relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover:scale-105 ${
                     currentUser?.accentColor === color.name
                       ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20'
-                      : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                      : 'border-gray-200 dark:border-dark-border hover:border-gray-300'
                   }`}
                   title={color.label}
                 >
@@ -128,12 +128,12 @@ export const AppearanceSettings = ({
                   <span className={`text-xs font-medium ${
                     currentUser?.accentColor === color.name
                       ? 'text-accent-primary dark:text-accent-primary'
-                      : 'text-gray-600 dark:text-gray-400'
+                      : 'text-gray-600 dark:text-dark-400'
                   }`}>
                     {color.label}
                   </span>
                   {currentUser?.accentColor === color.name && (
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center border border-gray-200 dark:border-gray-600">
+                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-white dark:bg-dark-100 rounded-full flex items-center justify-center border border-gray-200 dark:border-dark-border">
                       <div
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: color.hex }}
@@ -146,12 +146,12 @@ export const AppearanceSettings = ({
           </div>
 
           {/* Gray Tone Selection */}
-          <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
+          <div className="pt-3 border-t border-gray-200 dark:border-dark-border">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
               <Contrast size={18} />
               Grauton-Intensität
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            <p className="text-sm text-gray-500 dark:text-dark-400 mb-4">
               Wähle die Dunkelheit des Dark Modes (nur im Dark Mode sichtbar)
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -162,7 +162,7 @@ export const AppearanceSettings = ({
                   className={`relative flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover:scale-105 ${
                     currentUser?.grayTone === tone.name
                       ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20'
-                      : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                      : 'border-gray-200 dark:border-dark-border hover:border-gray-300'
                   }`}
                   title={tone.desc}
                 >
@@ -177,12 +177,12 @@ export const AppearanceSettings = ({
                     }`}>
                       {tone.label}
                     </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="text-xs text-gray-500 dark:text-dark-400">
                       {tone.desc}
                     </span>
                   </div>
                   {currentUser?.grayTone === tone.name && (
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center border border-gray-200 dark:border-gray-600">
+                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-white dark:bg-dark-100 rounded-full flex items-center justify-center border border-gray-200 dark:border-dark-border">
                       <div className="w-3 h-3 bg-accent-primary rounded-full" />
                     </div>
                   )}
@@ -194,12 +194,12 @@ export const AppearanceSettings = ({
       </div>
 
       {/* Heartbeat Interval Settings */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+      <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
           <Zap size={18} />
           Timer-Heartbeat
         </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        <p className="text-sm text-gray-500 dark:text-dark-400 mb-4">
           Wie oft soll ein laufender Timer auf den Server geschrieben werden? Häufige Heartbeats sind bei
           wackeliger Verbindung sicherer (weniger Datenverlust), seltene schonen Akku und Netz.
         </p>
@@ -211,7 +211,7 @@ export const AppearanceSettings = ({
               className={`relative flex flex-col items-center gap-1 p-4 rounded-lg border-2 transition-all hover:scale-105 ${
                 (currentUser?.heartbeatIntervalMinutes || 5) === option.value
                   ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20'
-                  : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                  : 'border-gray-200 dark:border-dark-border hover:border-gray-300'
               }`}
               title={option.desc}
             >
@@ -222,7 +222,7 @@ export const AppearanceSettings = ({
               }`}>
                 {option.label}
               </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 text-center leading-tight">
+              <span className="text-xs text-gray-500 dark:text-dark-400 text-center leading-tight">
                 {option.desc}
               </span>
             </button>

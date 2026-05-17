@@ -114,7 +114,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onCon
         e.dataTransfer.setData('leadId', lead.id);
         e.dataTransfer.effectAllowed = 'move';
       }}
-      className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-accent-primary/40 dark:hover:border-accent-primary transition-all"
+      className="group bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-accent-primary/40 dark:hover:border-accent-primary transition-all"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -128,7 +128,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onCon
             )}
           </div>
           {lead.company && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+            <p className="text-xs text-gray-500 dark:text-dark-400 truncate mt-0.5">
               {lead.company}
             </p>
           )}
@@ -144,7 +144,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onCon
           {showMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[160px]">
+              <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-dark-100 rounded-lg shadow-lg border border-gray-200 dark:border-dark-border py-1 min-w-[160px]">
                 <Button
                   onClick={() => { setShowMenu(false); onEdit(lead); }}
                   variant="ghost"
@@ -165,7 +165,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onCon
                     Zu Kunde konvertieren
                   </Button>
                 )}
-                <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                <div className="border-t border-gray-200 dark:border-dark-border my-1" />
                 <div className="px-3 py-1 text-xs text-gray-500 uppercase">Status ändern</div>
                 {(Object.keys(STATUS_CONFIG) as LeadStatus[])
                   .filter((s) => s !== lead.status && s !== 'won' && s !== 'lost')
@@ -181,7 +181,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onCon
                       {STATUS_CONFIG[status].label}
                     </Button>
                   ))}
-                <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                <div className="border-t border-gray-200 dark:border-dark-border my-1" />
                 <Button
                   onClick={() => { setShowMenu(false); onStatusChange(lead, 'won'); }}
                   variant="ghost"
@@ -200,7 +200,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onCon
                 >
                   Als verloren markieren
                 </Button>
-                <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                <div className="border-t border-gray-200 dark:border-dark-border my-1" />
                 <Button
                   onClick={() => { setShowMenu(false); onDelete(lead); }}
                   variant="ghost"
@@ -217,7 +217,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onCon
       </div>
 
       {/* Contact Info */}
-      <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400 mb-2">
+      <div className="space-y-1 text-xs text-gray-500 dark:text-dark-400 mb-2">
         {lead.email && (
           <div className="flex items-center gap-1.5 truncate">
             <Mail size={12} />
@@ -251,9 +251,9 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onCon
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-600">
+      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-dark-400 pt-2 border-t border-gray-100 dark:border-dark-border">
         {lead.source && (
-          <span className="bg-gray-100 dark:bg-gray-600 px-2 py-0.5 rounded">
+          <span className="bg-gray-100 dark:bg-dark-300 px-2 py-0.5 rounded">
             {SOURCE_LABELS[lead.source]}
           </span>
         )}
@@ -317,7 +317,7 @@ const LeadColumn: React.FC<LeadColumnProps> = ({
 
   return (
     <div
-      className={`flex-shrink-0 w-72 bg-gray-100 dark:bg-gray-800/50 rounded-xl flex flex-col max-h-full ${
+      className={`flex-shrink-0 w-72 bg-gray-100 dark:bg-dark-100/50 rounded-xl flex flex-col max-h-full ${
         isDragOver && !isClosedStatus ? 'ring-2 ring-accent-primary ring-opacity-50' : ''
       }`}
       onDragOver={!isClosedStatus ? handleDragOver : undefined}
@@ -325,12 +325,12 @@ const LeadColumn: React.FC<LeadColumnProps> = ({
       onDrop={!isClosedStatus ? handleDrop : undefined}
     >
       {/* Header */}
-      <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+      <div className="p-3 border-b border-gray-200 dark:border-dark-border">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className={`w-3 h-3 rounded-full ${config.bgColor}`} />
             <h3 className={`font-semibold text-sm ${config.color}`}>{config.label}</h3>
-            <span className="text-xs text-gray-500 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+            <span className="text-xs text-gray-500 bg-gray-200 dark:bg-dark-200 px-1.5 py-0.5 rounded">
               {leads.length}
             </span>
           </div>
@@ -361,7 +361,7 @@ const LeadColumn: React.FC<LeadColumnProps> = ({
           />
         ))}
         {leads.length === 0 && (
-          <div className="text-center py-4 text-gray-400 dark:text-gray-500 text-sm">
+          <div className="text-center py-4 text-gray-400 dark:text-dark-400 text-sm">
             Keine Leads
           </div>
         )}
@@ -439,26 +439,26 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
       {/* Name & Company */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Name <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
             required
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Firma
           </label>
           <input
             type="text"
             value={company}
             onChange={(e) => setCompany(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           />
         </div>
       </div>
@@ -466,25 +466,25 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
       {/* Contact */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             E-Mail
           </label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Telefon
           </label>
           <input
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           />
         </div>
       </div>
@@ -492,13 +492,13 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
       {/* Status & Priority */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Status
           </label>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as LeadStatus)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           >
             {(Object.keys(STATUS_CONFIG) as LeadStatus[]).map((s) => (
               <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
@@ -506,13 +506,13 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Prioritat
           </label>
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value as LeadPriority)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           >
             {(Object.keys(PRIORITY_CONFIG) as LeadPriority[]).map((p) => (
               <option key={p} value={p}>{PRIORITY_CONFIG[p].label}</option>
@@ -524,13 +524,13 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
       {/* Source & Value */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Quelle
           </label>
           <select
             value={source}
             onChange={(e) => setSource(e.target.value as LeadSource)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           >
             <option value="">Keine Angabe</option>
             {(Object.keys(SOURCE_LABELS) as LeadSource[]).map((s) => (
@@ -539,7 +539,7 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Geschaftswert (EUR)
           </label>
           <input
@@ -547,7 +547,7 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
             value={estimatedValue}
             onChange={(e) => setEstimatedValue(e.target.value)}
             min={0}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           />
         </div>
       </div>
@@ -555,7 +555,7 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
       {/* Probability & Dates */}
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Wahrscheinlichkeit (%)
           </label>
           <input
@@ -564,43 +564,43 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
             onChange={(e) => setProbability(e.target.value)}
             min={0}
             max={100}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Abschluss erwartet
           </label>
           <input
             type="date"
             value={expectedCloseDate}
             onChange={(e) => setExpectedCloseDate(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Nachstes Follow-up
           </label>
           <input
             type="date"
             value={nextFollowUp}
             onChange={(e) => setNextFollowUp(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           />
         </div>
       </div>
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
           Beschreibung
         </label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white resize-none"
         />
       </div>
 
@@ -792,7 +792,7 @@ const Leads: React.FC = () => {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Leads</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-dark-400">
             {filteredLeads.filter((l) => !closedStatuses.includes(l.status)).length} offene Leads
             {totalValue > 0 && ` - ${formatCurrency(totalValue)} Pipeline`}
           </p>
@@ -805,7 +805,7 @@ const Leads: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Suchen..."
-              className="pl-9 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-48 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+              className="pl-9 pr-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white w-48 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
             />
           </div>
           <Button
@@ -848,8 +848,8 @@ const Leads: React.FC = () => {
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowForm(false)} />
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="relative bg-white dark:bg-dark-100 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingLead ? 'Lead bearbeiten' : 'Neuer Lead'}
               </h3>

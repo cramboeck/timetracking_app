@@ -419,7 +419,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+      <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
         <div className="flex items-center gap-4">
           <IconButton
             icon={<ArrowLeft size={24} />}
@@ -431,7 +431,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
               Profil & Einstellungen
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-dark-400">
               Verwalten Sie Ihre Kontodaten
             </p>
           </div>
@@ -439,7 +439,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       </div>
 
       {/* Profile Info */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+      <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-16 h-16 rounded-full bg-accent-lighter dark:bg-accent-primary/30 flex items-center justify-center">
             <User size={32} className="text-accent-primary dark:text-accent-primary" />
@@ -448,24 +448,24 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               {contact.name}
             </h2>
-            <p className="text-gray-500 dark:text-gray-400">{contact.email}</p>
-            <p className="text-sm text-gray-400 dark:text-gray-500">
+            <p className="text-gray-500 dark:text-dark-400">{contact.email}</p>
+            <p className="text-sm text-gray-400 dark:text-dark-400">
               {contact.customerName}
             </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+          <div className="p-4 bg-gray-50 dark:bg-dark-200/50 rounded-xl">
+            <p className="text-xs text-gray-500 dark:text-dark-400 uppercase tracking-wide mb-1">
               Tickets erstellen
             </p>
             <p className="font-medium text-gray-900 dark:text-white">
               {contact.canCreateTickets ? 'Ja' : 'Nein'}
             </p>
           </div>
-          <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+          <div className="p-4 bg-gray-50 dark:bg-dark-200/50 rounded-xl">
+            <p className="text-xs text-gray-500 dark:text-dark-400 uppercase tracking-wide mb-1">
               Alle Tickets sehen
             </p>
             <p className="font-medium text-gray-900 dark:text-white">
@@ -476,7 +476,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       </div>
 
       {/* Change Password */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+      <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
             <Lock size={20} className="text-amber-600 dark:text-amber-400" />
@@ -485,7 +485,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
             <h3 className="font-semibold text-gray-900 dark:text-white">
               Passwort ändern
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-dark-400">
               Aktualisieren Sie Ihr Passwort regelmäßig
             </p>
           </div>
@@ -508,7 +508,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
 
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Aktuelles Passwort
             </label>
             <div className="relative">
@@ -517,7 +517,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary pr-12"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary pr-12"
                 placeholder="Ihr aktuelles Passwort"
               />
               <IconButton
@@ -530,7 +530,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Neues Passwort
             </label>
             <div className="relative">
@@ -540,7 +540,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 minLength={8}
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary pr-12"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary pr-12"
                 placeholder="Mindestens 8 Zeichen"
               />
               <IconButton
@@ -553,7 +553,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Neues Passwort bestätigen
             </label>
             <input
@@ -561,7 +561,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               placeholder="Passwort wiederholen"
             />
           </div>
@@ -580,7 +580,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       </div>
 
       {/* Two-Factor Authentication */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+      <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
             <Smartphone size={20} className="text-green-600 dark:text-green-400" />
@@ -589,14 +589,14 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
             <h3 className="font-semibold text-gray-900 dark:text-white">
               Zwei-Faktor-Authentifizierung (2FA)
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-dark-400">
               Zusätzliche Sicherheit für Ihr Konto
             </p>
           </div>
           {!mfaLoading && (
             <div className={`px-3 py-1 rounded-full text-xs font-medium ${mfaEnabled
               ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+              : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
             }`}>
               {mfaEnabled ? 'Aktiviert' : 'Deaktiviert'}
             </div>
@@ -610,12 +610,12 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
         ) : mfaEnabled ? (
           <div className="space-y-4">
             {/* Recovery Codes Status */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-200/50 rounded-xl">
               <div className="flex items-center gap-3">
-                <Key size={20} className="text-gray-500 dark:text-gray-400" />
+                <Key size={20} className="text-gray-500 dark:text-dark-400" />
                 <div>
                   <p className="font-medium text-gray-900 dark:text-white">Wiederherstellungscodes</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
                     {recoveryCodesCount} Code{recoveryCodesCount !== 1 ? 's' : ''} verfügbar
                   </p>
                 </div>
@@ -629,10 +629,10 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
 
             {/* Trusted Devices */}
             {trustedDevices.length > 0 && (
-              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+              <div className="p-4 bg-gray-50 dark:bg-dark-200/50 rounded-xl">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <Monitor size={18} className="text-gray-500 dark:text-gray-400" />
+                    <Monitor size={18} className="text-gray-500 dark:text-dark-400" />
                     <span className="font-medium text-gray-900 dark:text-white">
                       Vertrauenswürdige Geräte ({trustedDevices.length})
                     </span>
@@ -648,12 +648,12 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 {showTrustedDevices && (
                   <div className="space-y-2">
                     {trustedDevices.map(device => (
-                      <div key={device.id} className="flex items-center justify-between py-2 border-t border-gray-200 dark:border-gray-600">
+                      <div key={device.id} className="flex items-center justify-between py-2 border-t border-gray-200 dark:border-dark-border">
                         <div>
-                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          <p className="text-sm font-medium text-gray-700 dark:text-dark-500">
                             {device.browser} auf {device.os}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-gray-500 dark:text-dark-400">
                             Zuletzt: {new Date(device.lastUsedAt).toLocaleDateString('de-DE')}
                           </p>
                         </div>
@@ -691,7 +691,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-600 dark:text-dark-400">
               Schützen Sie Ihr Konto mit einem zusätzlichen Sicherheitscode bei der Anmeldung.
               Sie benötigen eine Authenticator-App wie Google Authenticator oder Microsoft Authenticator.
             </p>
@@ -716,7 +716,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       </div>
 
       {/* Email Notification Preferences */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+      <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-accent-lighter dark:bg-accent-primary/30 flex items-center justify-center">
             <Bell size={20} className="text-accent-primary dark:text-accent-primary" />
@@ -725,7 +725,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
             <h3 className="font-semibold text-gray-900 dark:text-white">
               E-Mail-Benachrichtigungen
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-dark-400">
               Wählen Sie, welche Benachrichtigungen Sie erhalten möchten
             </p>
           </div>
@@ -746,10 +746,10 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
               </div>
             )}
 
-            <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+            <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-200/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors">
               <div>
                 <p className="font-medium text-gray-900 dark:text-white">Ticket erstellt</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-gray-500 dark:text-dark-400">
                   Bestätigung wenn Sie ein neues Ticket erstellen
                 </p>
               </div>
@@ -761,10 +761,10 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
               />
             </label>
 
-            <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+            <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-200/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors">
               <div>
                 <p className="font-medium text-gray-900 dark:text-white">Status geändert</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-gray-500 dark:text-dark-400">
                   Wenn sich der Status eines Tickets ändert
                 </p>
               </div>
@@ -776,10 +776,10 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
               />
             </label>
 
-            <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+            <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-200/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors">
               <div>
                 <p className="font-medium text-gray-900 dark:text-white">Neue Antwort</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-gray-500 dark:text-dark-400">
                   Wenn eine neue Antwort zu Ihrem Ticket hinzugefügt wird
                 </p>
               </div>
@@ -805,7 +805,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       </div>
 
       {/* Push Notifications */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+      <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
             <BellRing size={20} className="text-purple-600 dark:text-purple-400" />
@@ -814,7 +814,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
             <h3 className="font-semibold text-gray-900 dark:text-white">
               Push-Benachrichtigungen
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-dark-400">
               Erhalten Sie sofortige Benachrichtigungen auf diesem Gerät
             </p>
           </div>
@@ -834,8 +834,8 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
             </div>
           </div>
         ) : !pushConfigured ? (
-          <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+          <div className="p-4 bg-gray-50 dark:bg-dark-200/50 rounded-xl">
+            <p className="text-sm text-gray-500 dark:text-dark-400">
               Push-Benachrichtigungen sind derzeit nicht verfügbar.
             </p>
           </div>
@@ -895,10 +895,10 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
 
             {/* Push Preferences */}
             {pushSubscribed && (
-              <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Benachrichtigen bei:</p>
+              <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-dark-border">
+                <p className="text-sm font-medium text-gray-700 dark:text-dark-500">Benachrichtigen bei:</p>
 
-                <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-200/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors">
                   <span className="text-sm text-gray-900 dark:text-white">Neue Antworten</span>
                   <input
                     type="checkbox"
@@ -908,7 +908,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                   />
                 </label>
 
-                <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-200/50 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors">
                   <span className="text-sm text-gray-900 dark:text-white">Status-Änderungen</span>
                   <input
                     type="checkbox"
@@ -922,15 +922,15 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
 
             {/* Registered Devices */}
             {pushSubscriptions.length > 0 && (
-              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
+                <p className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-3">
                   Registrierte Geräte ({pushSubscriptions.length})
                 </p>
                 <div className="space-y-2">
                   {pushSubscriptions.map((sub) => (
                     <div
                       key={sub.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl"
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-200/50 rounded-xl"
                     >
                       <div className="flex items-center gap-3">
                         <Smartphone size={18} className="text-gray-400" />
@@ -938,7 +938,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                           <p className="text-sm font-medium text-gray-900 dark:text-white">
                             {sub.device_name || 'Unbekanntes Gerät'}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-gray-500 dark:text-dark-400">
                             Hinzugefügt: {new Date(sub.created_at).toLocaleDateString('de-DE')}
                           </p>
                         </div>
@@ -961,8 +961,8 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       {/* MFA Setup Modal */}
       {showMfaSetup && mfaSetupData && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                 2FA einrichten
               </h3>
@@ -979,7 +979,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
             <div className="p-6 space-y-6">
               {/* QR Code */}
               <div className="text-center">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                <p className="text-sm text-gray-600 dark:text-dark-400 mb-4">
                   Scannen Sie diesen QR-Code mit Ihrer Authenticator-App
                 </p>
                 <div className="inline-block p-4 bg-white rounded-xl border border-gray-200">
@@ -988,12 +988,12 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
               </div>
 
               {/* Manual Entry Key */}
-              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              <div className="p-4 bg-gray-50 dark:bg-dark-200/50 rounded-xl">
+                <p className="text-xs text-gray-500 dark:text-dark-400 mb-2">
                   Oder manuell eingeben:
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-sm font-mono bg-white dark:bg-gray-800 px-3 py-2 rounded border border-gray-200 dark:border-gray-600 break-all">
+                  <code className="flex-1 text-sm font-mono bg-white dark:bg-dark-100 px-3 py-2 rounded border border-gray-200 dark:border-dark-border break-all">
                     {mfaSetupData.manualEntryKey}
                   </code>
                   <IconButton
@@ -1006,7 +1006,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
 
               {/* Verification Code Input */}
               <div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 text-center">
+                <p className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-3 text-center">
                   Geben Sie den 6-stelligen Code aus Ihrer App ein
                 </p>
                 {mfaSetupError && (
@@ -1027,7 +1027,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                       onKeyDown={(e) => handleMfaSetupKeyDown(index, e)}
                       onPaste={handleMfaSetupPaste}
                       disabled={mfaSetupLoading}
-                      className="w-11 h-13 text-center text-xl font-bold rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      className="w-11 h-13 text-center text-xl font-bold rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     />
                   ))}
                 </div>
@@ -1050,12 +1050,12 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       {/* Recovery Codes Modal */}
       {showRecoveryCodes && mfaSetupData && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 dark:border-dark-border">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                 Wiederherstellungscodes
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-600 dark:text-dark-400 mt-1">
                 Speichern Sie diese Codes an einem sicheren Ort
               </p>
             </div>
@@ -1067,7 +1067,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
               </div>
               <div className="grid grid-cols-2 gap-2 mb-4">
                 {mfaSetupData.recoveryCodes.map((code, index) => (
-                  <div key={index} className="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded text-center">
+                  <div key={index} className="font-mono text-sm bg-gray-100 dark:bg-dark-200 px-3 py-2 rounded text-center">
                     {code}
                   </div>
                 ))}
@@ -1100,8 +1100,8 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       {/* Disable MFA Modal */}
       {showDisableMfa && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                 2FA deaktivieren
               </h3>
@@ -1130,20 +1130,20 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Passwort
                 </label>
                 <input
                   type="password"
                   value={disablePassword}
                   onChange={(e) => setDisablePassword(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   placeholder="Ihr Passwort"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   2FA-Code
                 </label>
                 <input
@@ -1152,7 +1152,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                   onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   inputMode="numeric"
                   maxLength={6}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   placeholder="6-stelliger Code"
                 />
               </div>

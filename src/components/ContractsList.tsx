@@ -114,12 +114,12 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
       case 'expired':
         return 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/30';
       case 'draft':
-        return 'text-gray-600 bg-gray-50 dark:text-gray-400 dark:bg-gray-800';
+        return 'text-gray-600 bg-gray-50 dark:text-dark-400 dark:bg-dark-100';
       case 'paused':
         return 'text-accent-primary bg-accent-light dark:text-accent-primary dark:bg-accent-primary/30';
       case 'cancelled':
       case 'terminated':
-        return 'text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800';
+        return 'text-gray-500 bg-gray-100 dark:text-dark-400 dark:bg-dark-100';
       default:
         return 'text-gray-600 bg-gray-50';
     }
@@ -179,9 +179,9 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-50">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+      <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border p-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-accent-primary/10">
@@ -189,7 +189,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Verträge</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 Verwalten Sie Ihre Service- und Wartungsverträge
               </p>
             </div>
@@ -206,8 +206,8 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
         {/* Summary Cards */}
         {summary && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Gesamt</div>
+            <div className="p-3 rounded-lg bg-gray-50 dark:bg-dark-200">
+              <div className="text-xs text-gray-500 dark:text-dark-400">Gesamt</div>
               <div className="text-lg font-bold text-gray-900 dark:text-white">
                 {summary.totalContracts}
               </div>
@@ -235,7 +235,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
       </div>
 
       {/* Search & Filters */}
-      <div className="p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      <div className="p-4 bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -244,12 +244,12 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Verträge suchen..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent-primary"
             />
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-500 hover:bg-gray-50 dark:hover:bg-dark-200"
           >
             <Filter className="w-4 h-4" />
             <span>Filter</span>
@@ -261,7 +261,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="">Alle Status</option>
               <option value="draft">Entwurf</option>
@@ -275,7 +275,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="">Alle Typen</option>
               <option value="service">Servicevertrag</option>
@@ -289,7 +289,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
             <select
               value={customerFilter}
               onChange={(e) => setCustomerFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="">Alle Kunden</option>
               {customers.map((customer) => (
@@ -325,7 +325,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               Keine Verträge gefunden
             </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
+            <p className="text-gray-500 dark:text-dark-400 mb-4">
               {searchTerm || statusFilter || typeFilter || customerFilter
                 ? 'Versuchen Sie andere Filteroptionen'
                 : 'Erstellen Sie Ihren ersten Vertrag'}
@@ -345,14 +345,14 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
             {contracts.map((contract) => (
               <div
                 key={contract.id}
-                className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-accent-primary/50 transition-colors cursor-pointer"
+                className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border hover:border-accent-primary/50 transition-colors cursor-pointer"
                 onClick={() => onSelectContract(contract)}
               >
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+                        <span className="text-sm font-mono text-gray-500 dark:text-dark-400">
                           {contract.contractNumber}
                         </span>
                         <span
@@ -368,11 +368,11 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
                         {contract.name}
                       </h3>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
-                        <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                        <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-dark-400">
                           <Building2 className="w-4 h-4" />
                           <span>{contract.customerName || 'Kein Kunde'}</span>
                         </div>
-                        <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                        <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-dark-400">
                           <Calendar className="w-4 h-4" />
                           <span>
                             {formatDate(contract.startDate)}
@@ -381,13 +381,13 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
                           </span>
                         </div>
                         {contract.basePrice && (
-                          <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                          <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-dark-400">
                             <Euro className="w-4 h-4" />
                             <span>{formatCurrency(contract.basePrice)}</span>
                           </div>
                         )}
                         {contract.includedHoursMonthly && (
-                          <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                          <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-dark-400">
                             <Timer className="w-4 h-4" />
                             <span>{contract.includedHoursMonthly}h/Monat</span>
                           </div>
@@ -395,7 +395,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                      <span className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400">
                         {getTypeLabel(contract.contractType)}
                       </span>
                       <IconButton
@@ -429,7 +429,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
             onClick={() => setContextMenu(null)}
           />
           <div
-            className="fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[160px]"
+            className="fixed z-50 bg-white dark:bg-dark-100 rounded-lg shadow-lg border border-gray-200 dark:border-dark-border py-1 min-w-[160px]"
             style={{
               top: Math.min(contextMenu.y, window.innerHeight - 150),
               left: Math.min(contextMenu.x, window.innerWidth - 180),
@@ -461,7 +461,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
             >
               Bearbeiten
             </Button>
-            <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+            <div className="my-1 border-t border-gray-200 dark:border-dark-border" />
             <Button
               onClick={() => handleDeleteContract(contextMenu.contractId)}
               variant="danger"

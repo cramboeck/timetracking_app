@@ -26,19 +26,19 @@ export const TicketMetadata = ({
     <>
       {/* Info Cards */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg">
           <Building2 className="text-gray-400" size={20} />
           <div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Kunde</div>
+            <div className="text-xs text-gray-500 dark:text-dark-400">Kunde</div>
             <div className="font-medium text-gray-900 dark:text-white">
               {getCustomerName(ticket.customerId)}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg">
           <Clock className="text-gray-400" size={20} />
           <div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Erfasste Zeit</div>
+            <div className="text-xs text-gray-500 dark:text-dark-400">Erfasste Zeit</div>
             <div className="font-medium text-gray-900 dark:text-white">
               {formatDuration(totalTime)}
             </div>

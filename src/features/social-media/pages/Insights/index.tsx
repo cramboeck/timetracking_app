@@ -42,7 +42,7 @@ export default function InsightsPage() {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
               insightsTab === tab.id
                 ? 'bg-pink-600 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
+                : 'bg-white dark:bg-dark-100 text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200 border border-gray-200 dark:border-dark-border'
             }`}
           >
             {tab.icon}

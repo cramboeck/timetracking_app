@@ -49,13 +49,13 @@ export const getGrayClasses = (tone: GrayTone) => {
     },
     light: {
       bg: 'bg-gray-50',
-      bgDark: 'dark:bg-gray-800',
+      bgDark: 'dark:bg-dark-100',
       border: 'border-gray-200',
-      borderDark: 'dark:border-gray-700',
+      borderDark: 'dark:border-dark-border',
       text: 'text-gray-900',
-      textDark: 'dark:text-gray-100',
+      textDark: 'dark:text-dark-500',
       textMuted: 'text-gray-600',
-      textMutedDark: 'dark:text-gray-400',
+      textMutedDark: 'dark:text-dark-400',
     },
     medium: {
       bg: 'bg-gray-50',

@@ -675,7 +675,7 @@ export const NinjaRMMSettings = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Instance URL
                 </label>
                 <select
@@ -697,7 +697,7 @@ export const NinjaRMMSettings = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Client ID {config?.hasClientId && <span className="text-green-500">(gespeichert)</span>}
                 </label>
                 <input
@@ -721,7 +721,7 @@ export const NinjaRMMSettings = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Client Secret {config?.hasClientSecret && <span className="text-green-500">(gespeichert)</span>}
                 </label>
                 <input
@@ -809,12 +809,12 @@ export const NinjaRMMSettings = () => {
                   onChange={(e) => setAutoSyncDevices(e.target.checked)}
                   className="w-5 h-5 text-accent-primary rounded border-gray-300 focus:ring-accent-primary"
                 />
-                <span className="text-gray-700 dark:text-gray-300">Automatische Synchronisation aktivieren</span>
+                <span className="text-gray-700 dark:text-dark-500">Automatische Synchronisation aktivieren</span>
               </label>
 
               {autoSyncDevices && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Sync-Intervall (Minuten)
                   </label>
                   <input
@@ -1017,7 +1017,7 @@ export const NinjaRMMSettings = () => {
                             <p className="text-sm text-gray-500 dark:text-dark-400">{device.systemName}</p>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-3 text-gray-700 dark:text-dark-500">
                           {device.organizationName}
                           {device.customerName && (
                             <span className="text-sm text-gray-500 dark:text-dark-400 ml-1">
@@ -1026,11 +1026,11 @@ export const NinjaRMMSettings = () => {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500">
                             {device.nodeClass?.replace(/_/g, ' ') || 'Unbekannt'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-3 text-gray-700 dark:text-dark-500">
                           {device.osName || '-'}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-dark-400">
@@ -1148,7 +1148,7 @@ export const NinjaRMMSettings = () => {
                             alert.severity === 'MAJOR' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
                             alert.severity === 'MODERATE' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
                             alert.severity === 'MINOR' ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary' :
-                            'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300'
+                            'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500'
                           }`}>
                             {alert.severity}
                           </span>
@@ -1162,7 +1162,7 @@ export const NinjaRMMSettings = () => {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <p className="text-gray-700 dark:text-gray-300 max-w-md truncate" title={alert.message}>
+                          <p className="text-gray-700 dark:text-dark-500 max-w-md truncate" title={alert.message}>
                             {alert.message}
                           </p>
                           {alert.sourceName && (
@@ -1214,7 +1214,7 @@ export const NinjaRMMSettings = () => {
                 <div className="space-y-4">
                   {/* Webhook URL */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       Webhook URL
                     </label>
                     <div className="flex gap-2">
@@ -1236,7 +1236,7 @@ export const NinjaRMMSettings = () => {
 
                   {/* Webhook Secret */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       Sicherheit {webhookConfig?.hasSecret && <span className="text-green-500">(Secret aktiv)</span>}
                     </label>
                     <div className="flex items-center gap-3">
@@ -1290,7 +1290,7 @@ export const NinjaRMMSettings = () => {
                       className="w-5 h-5 text-accent-primary rounded border-gray-300 focus:ring-accent-primary"
                     />
                     <div>
-                      <span className="text-gray-700 dark:text-gray-300 font-medium">Webhook aktivieren</span>
+                      <span className="text-gray-700 dark:text-dark-500 font-medium">Webhook aktivieren</span>
                       <p className="text-sm text-gray-500 dark:text-dark-400">Eingehende Webhook-Events verarbeiten</p>
                     </div>
                   </label>
@@ -1304,7 +1304,7 @@ export const NinjaRMMSettings = () => {
                       className="w-5 h-5 text-accent-primary rounded border-gray-300 focus:ring-accent-primary"
                     />
                     <div>
-                      <span className="text-gray-700 dark:text-gray-300 font-medium">Automatische Ticket-Erstellung</span>
+                      <span className="text-gray-700 dark:text-dark-500 font-medium">Automatische Ticket-Erstellung</span>
                       <p className="text-sm text-gray-500 dark:text-dark-400">Erstelle automatisch Tickets für eingehende Alerts</p>
                     </div>
                   </label>
@@ -1312,7 +1312,7 @@ export const NinjaRMMSettings = () => {
                   {/* Min Severity */}
                   {webhookConfig?.autoCreateTickets && (
                     <div className="ml-8">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                         Mindest-Schweregrad für Ticket-Erstellung
                       </label>
                       <select
@@ -1338,7 +1338,7 @@ export const NinjaRMMSettings = () => {
                       className="w-5 h-5 text-accent-primary rounded border-gray-300 focus:ring-accent-primary"
                     />
                     <div>
-                      <span className="text-gray-700 dark:text-gray-300 font-medium">Automatisches Ticket-Schließen</span>
+                      <span className="text-gray-700 dark:text-dark-500 font-medium">Automatisches Ticket-Schließen</span>
                       <p className="text-sm text-gray-500 dark:text-dark-400">Schließe Tickets automatisch wenn der Alert in NinjaRMM gelöst wird</p>
                     </div>
                   </label>
@@ -1411,7 +1411,7 @@ export const NinjaRMMSettings = () => {
                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                 event.status === 'processed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
                                 event.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-                                event.status === 'ignored' ? 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300' :
+                                event.status === 'ignored' ? 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500' :
                                 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                               }`}>
                                 {event.status}
@@ -1427,7 +1427,7 @@ export const NinjaRMMSettings = () => {
                                 </div>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                            <td className="px-4 py-3 text-sm text-gray-700 dark:text-dark-500">
                               {event.deviceName || '-'}
                             </td>
                             <td className="px-4 py-3">
@@ -1442,7 +1442,7 @@ export const NinjaRMMSettings = () => {
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                            <td className="px-4 py-3 text-gray-700 dark:text-dark-500">
                               {event.ticketId ? (
                                 <span className="flex items-center gap-1 text-accent-primary">
                                   <Ticket size={14} />
@@ -1517,7 +1517,7 @@ export const NinjaRMMSettings = () => {
                   <div className="p-4 bg-gray-50 dark:bg-dark-50 border-b border-gray-200 dark:border-dark-200">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Name *</label>
                         <input
                           type="text"
                           value={exclusionForm.name}
@@ -1527,7 +1527,7 @@ export const NinjaRMMSettings = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Beschreibung</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Beschreibung</label>
                         <input
                           type="text"
                           value={exclusionForm.description}
@@ -1539,7 +1539,7 @@ export const NinjaRMMSettings = () => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Feld</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Feld</label>
                         <select
                           value={exclusionForm.matchField}
                           onChange={(e) => setExclusionForm({ ...exclusionForm, matchField: e.target.value as any })}
@@ -1553,7 +1553,7 @@ export const NinjaRMMSettings = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Match-Typ</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Match-Typ</label>
                         <select
                           value={exclusionForm.matchType}
                           onChange={(e) => setExclusionForm({ ...exclusionForm, matchType: e.target.value as any })}
@@ -1567,7 +1567,7 @@ export const NinjaRMMSettings = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Wert *</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Wert *</label>
                         <input
                           type="text"
                           value={exclusionForm.matchValue}
@@ -1578,7 +1578,7 @@ export const NinjaRMMSettings = () => {
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-dark-500">
                         <input
                           type="checkbox"
                           checked={exclusionForm.isActive}
@@ -1989,7 +1989,7 @@ export const NinjaRMMSettings = () => {
               {/* Alert Message */}
               <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4 mb-4">
                 <h4 className="font-medium text-gray-900 dark:text-white mb-2">Nachricht</h4>
-                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{selectedAlert.message}</p>
+                <p className="text-gray-700 dark:text-dark-500 whitespace-pre-wrap">{selectedAlert.message}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2008,7 +2008,7 @@ export const NinjaRMMSettings = () => {
                           selectedAlert.severity === 'MAJOR' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
                           selectedAlert.severity === 'MODERATE' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
                           selectedAlert.severity === 'MINOR' ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary' :
-                          'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300'
+                          'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500'
                         }`}>
                           {selectedAlert.severity}
                         </span>
@@ -2131,7 +2131,7 @@ export const NinjaRMMSettings = () => {
               />
             </div>
             <div className="p-4 overflow-y-auto max-h-[60vh]">
-              <pre className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+              <pre className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4 text-xs font-mono overflow-x-auto text-gray-800 dark:text-dark-500 whitespace-pre-wrap">
                 {JSON.stringify(selectedPayload.payload, null, 2)}
               </pre>
             </div>

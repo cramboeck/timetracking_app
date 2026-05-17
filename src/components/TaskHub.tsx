@@ -171,7 +171,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
       case 'urgent': return 'text-red-600 dark:text-red-400';
       case 'high': return 'text-orange-600 dark:text-orange-400';
       case 'normal': return 'text-accent-primary dark:text-accent-primary';
-      case 'low': return 'text-gray-500 dark:text-gray-400';
+      case 'low': return 'text-gray-500 dark:text-dark-400';
     }
   };
 
@@ -181,7 +181,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
       urgent: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
       high: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
       normal: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary',
-      low: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400',
+      low: 'bg-gray-100 text-gray-800 dark:bg-dark-200 dark:text-dark-400',
     };
     const labels = { urgent: 'Dringend', high: 'Hoch', normal: 'Normal', low: 'Niedrig' };
     return (
@@ -233,8 +233,8 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
         key={task.id}
         className={`group flex items-start gap-3 p-3 rounded-lg border transition-all ${
           isCompleted
-            ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 opacity-60'
-            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-accent-primary/40 dark:hover:border-accent-primary hover:shadow-sm'
+            ? 'bg-gray-50 dark:bg-dark-100/50 border-gray-200 dark:border-dark-border opacity-60'
+            : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-border hover:border-accent-primary/40 dark:hover:border-accent-primary hover:shadow-sm'
         }`}
       >
         {/* Checkbox */}
@@ -257,7 +257,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 {task.title}
               </h4>
               {task.description && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1 mt-0.5">
+                <p className="text-sm text-gray-500 dark:text-dark-400 line-clamp-1 mt-0.5">
                   {task.description}
                 </p>
               )}
@@ -295,7 +295,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
           </div>
 
           {/* Meta info */}
-          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500 dark:text-dark-400">
             {task.dueDate && (
               <span className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
@@ -361,7 +361,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
       <div className="mb-6">
         <button
           onClick={() => toggleGroup(key)}
-          className={`flex items-center gap-2 mb-3 text-sm font-semibold ${className || 'text-gray-700 dark:text-gray-300'}`}
+          className={`flex items-center gap-2 mb-3 text-sm font-semibold ${className || 'text-gray-700 dark:text-dark-500'}`}
         >
           {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           {icon}
@@ -378,13 +378,13 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-dark-50">
       {/* Header */}
-      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+      <div className="flex-shrink-0 bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Meine Aufgaben</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
               Unified Task Hub - Alle Aufgaben an einem Ort
             </p>
           </div>
@@ -404,8 +404,8 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
         {/* Quick Stats */}
         {dashboard && (
           <div className="grid grid-cols-4 gap-4 mt-4">
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+            <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400">
                 <ListTodo className="w-4 h-4" />
                 <span className="text-xs font-medium">Offen</span>
               </div>
@@ -413,8 +413,8 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 {dashboard.myTasks.my_pending + dashboard.myTasks.my_in_progress}
               </p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+            <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400">
                 <CalendarDays className="w-4 h-4" />
                 <span className="text-xs font-medium">Heute</span>
               </div>
@@ -422,7 +422,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 {dashboard.myTasks.my_today}
               </p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+            <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-3">
               <div className="flex items-center gap-2 text-red-500">
                 <AlertCircle className="w-4 h-4" />
                 <span className="text-xs font-medium">Überfällig</span>
@@ -431,8 +431,8 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 {dashboard.myTasks.my_overdue}
               </p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+            <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400">
                 <TrendingUp className="w-4 h-4" />
                 <span className="text-xs font-medium">In Arbeit</span>
               </div>
@@ -458,7 +458,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                 view === tab.key
                   ? 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  : 'text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-200'
               }`}
             >
               {tab.icon}
@@ -467,7 +467,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
           ))}
 
           <div className="ml-auto flex items-center gap-2">
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400 cursor-pointer">
               <input
                 type="checkbox"
                 checked={showCompleted}
@@ -487,7 +487,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
           </div>
         ) : tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+          <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-dark-400">
             <ListTodo className="w-16 h-16 mb-4 opacity-50" />
             <p className="text-lg font-medium">Keine Aufgaben gefunden</p>
             <p className="text-sm mt-1">Erstelle eine neue Aufgabe, um loszulegen</p>

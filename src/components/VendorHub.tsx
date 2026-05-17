@@ -177,9 +177,9 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-dark-100 rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
             <div
               className="w-10 h-10 rounded-lg flex items-center justify-center"
@@ -191,7 +191,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {customer.name}
               </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 {customer.vendorDomain ? `@${customer.vendorDomain}` : customer.email || 'Lieferanten-Hub'}
               </p>
             </div>
@@ -211,7 +211,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700">
+        <div className="flex border-b border-gray-200 dark:border-dark-border">
           {[
             { id: 'overview', label: 'Übersicht', icon: Package },
             { id: 'emails', label: 'E-Mails', icon: Mail },
@@ -224,7 +224,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.id
                   ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-dark-500'
               }`}
             >
               <tab.icon size={16} />
@@ -251,25 +251,25 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                         <div className="text-2xl font-bold text-accent-primary dark:text-accent-primary">
                           {stats.totalInvoices}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Belege gesamt</div>
+                        <div className="text-sm text-gray-600 dark:text-dark-400">Belege gesamt</div>
                       </div>
                       <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
                         <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                           {stats.draftInvoices}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Entwürfe</div>
+                        <div className="text-sm text-gray-600 dark:text-dark-400">Entwürfe</div>
                       </div>
                       <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                         <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                           {stats.processedInvoices}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Verarbeitet</div>
+                        <div className="text-sm text-gray-600 dark:text-dark-400">Verarbeitet</div>
                       </div>
                       <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
                         <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                           {stats.totalDocuments}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Dokumente</div>
+                        <div className="text-sm text-gray-600 dark:text-dark-400">Dokumente</div>
                       </div>
                     </div>
                   )}
@@ -285,7 +285,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                         {emails.slice(0, 5).map(email => (
                           <div
                             key={email.id}
-                            className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
+                            className="p-3 bg-gray-50 dark:bg-dark-200/50 rounded-lg"
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
@@ -302,7 +302,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                                 <p className="font-medium text-gray-900 dark:text-white truncate mt-1">
                                   {email.subject}
                                 </p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                <p className="text-sm text-gray-500 dark:text-dark-400">
                                   {email.from.name} &lt;{email.from.email}&gt;
                                 </p>
                               </div>
@@ -333,7 +333,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                         {invoices.slice(0, 5).map(invoice => (
                           <div
                             key={invoice.id}
-                            className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex items-center justify-between"
+                            className="p-3 bg-gray-50 dark:bg-dark-200/50 rounded-lg flex items-center justify-between"
                           >
                             <div className="flex items-center gap-3">
                               {getStatusIcon(invoice.status)}
@@ -369,7 +369,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                     emails.map(email => (
                       <div
                         key={email.id}
-                        className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        className="p-4 bg-gray-50 dark:bg-dark-200/50 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 transition-colors"
                       >
                         <div className="flex items-start gap-3">
                           <div className={`w-2 h-2 rounded-full mt-2 ${
@@ -397,11 +397,11 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                             <p className="font-medium text-gray-900 dark:text-white">
                               {email.subject}
                             </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-gray-500 dark:text-dark-400">
                               Von: {email.from.name} &lt;{email.from.email}&gt;
                             </p>
                             {email.bodyPreview && (
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 line-clamp-2">
+                              <p className="text-sm text-gray-500 dark:text-dark-400 mt-2 line-clamp-2">
                                 {email.bodyPreview}
                               </p>
                             )}
@@ -433,9 +433,9 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                       return (
                         <div
                           key={invoice.id}
-                          className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                          className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden"
                         >
-                          <div className="p-4 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
+                          <div className="p-4 bg-gray-50 dark:bg-dark-200/50 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               {getStatusIcon(invoice.status)}
                               <div>
@@ -462,11 +462,11 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                             </div>
                           </div>
                           {invoiceDocs.length > 0 && (
-                            <div className="p-3 bg-white dark:bg-gray-800 space-y-2">
+                            <div className="p-3 bg-white dark:bg-dark-100 space-y-2">
                               {invoiceDocs.map(doc => (
                                 <div
                                   key={doc.id}
-                                  className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded"
+                                  className="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-200/50 rounded"
                                 >
                                   <div className="flex items-center gap-2">
                                     <FileText size={16} className="text-gray-400" />
@@ -500,7 +500,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
               {/* Settings Tab */}
               {activeTab === 'settings' && (
                 <div className="max-w-xl space-y-6">
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-4">
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -520,7 +520,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       <Globe size={16} className="inline mr-1" />
                       Vendor-Domain
                     </label>
@@ -529,7 +529,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                       value={vendorDomain}
                       onChange={(e) => setVendorDomain(e.target.value)}
                       placeholder="z.B. elovade.com"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                     />
                     <p className="text-sm text-gray-500 mt-1">
                       Alle E-Mails von @{vendorDomain || 'domain.com'} werden diesem Lieferanten zugeordnet
@@ -537,7 +537,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       Notizen
                     </label>
                     <textarea
@@ -545,7 +545,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                       onChange={(e) => setVendorNotes(e.target.value)}
                       rows={4}
                       placeholder="Interne Notizen zum Lieferanten..."
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white resize-none"
                     />
                   </div>
 

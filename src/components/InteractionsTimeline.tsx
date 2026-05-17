@@ -84,7 +84,7 @@ const getTypeColor = (type: InteractionType) => {
     case 'followup':
       return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400';
     default:
-      return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
+      return 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400';
   }
 };
 
@@ -115,7 +115,7 @@ const getOutcomeColor = (outcome?: InteractionOutcome) => {
     case 'negative':
       return 'text-red-600 dark:text-red-400';
     default:
-      return 'text-gray-600 dark:text-gray-400';
+      return 'text-gray-600 dark:text-dark-400';
   }
 };
 
@@ -209,7 +209,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Type Selection */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
           Typ
         </label>
         <div className="flex flex-wrap gap-2">
@@ -223,7 +223,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   type === t
                     ? getTypeColor(t)
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 hover:bg-gray-200 dark:hover:bg-dark-300'
                 }`}
               >
                 <Icon size={16} />
@@ -237,7 +237,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
       {/* Direction (only for calls) */}
       {type === 'call' && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
             Richtung
           </label>
           <div className="flex gap-2">
@@ -247,7 +247,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
                 direction === 'outbound'
                   ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                  : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
               }`}
             >
               <PhoneOutgoing size={16} />
@@ -259,7 +259,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
                 direction === 'inbound'
                   ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                  : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
               }`}
             >
               <PhoneIncoming size={16} />
@@ -271,14 +271,14 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
 
       {/* Subject */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
           Betreff <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           placeholder="Kurze Beschreibung..."
           required
         />
@@ -286,14 +286,14 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
 
       {/* Content */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
           Details
         </label>
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white resize-none"
           placeholder="Ausführliche Notizen..."
         />
       </div>
@@ -301,7 +301,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
       {/* Duration & Outcome */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Dauer (Minuten)
           </label>
           <input
@@ -309,17 +309,17 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
             value={durationMinutes}
             onChange={(e) => setDurationMinutes(parseInt(e.target.value) || 0)}
             min={0}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Ergebnis
           </label>
           <select
             value={outcome}
             onChange={(e) => setOutcome(e.target.value as InteractionOutcome | '')}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           >
             <option value="">Nicht bewertet</option>
             <option value="positive">Positiv</option>
@@ -331,20 +331,20 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
 
       {/* Summary */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
           Zusammenfassung
         </label>
         <input
           type="text"
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           placeholder="Kurze Zusammenfassung..."
         />
       </div>
 
       {/* Follow-up */}
-      <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
+      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
         <label className="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"
@@ -358,25 +358,25 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
         {followUpRequired && (
           <div className="mt-3 ml-8 space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Datum
               </label>
               <input
                 type="date"
                 value={followUpDate}
                 onChange={(e) => setFollowUpDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Notizen
               </label>
               <input
                 type="text"
                 value={followUpNotes}
                 onChange={(e) => setFollowUpNotes(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                 placeholder="Was ist zu tun?"
               />
             </div>
@@ -493,7 +493,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
 
   if (!customerId) {
     return (
-      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+      <div className="text-center py-8 text-gray-500 dark:text-dark-400">
         Kein Kunde ausgewahlt
       </div>
     );
@@ -510,7 +510,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
           {!compact && (
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500"
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg text-gray-500"
             >
               <Filter size={16} />
             </button>
@@ -531,13 +531,13 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
 
       {/* Filters */}
       {showFilters && !compact && (
-        <div className="flex flex-wrap gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="flex flex-wrap gap-2 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg">
           <button
             onClick={() => setFilterType('')}
             className={`px-3 py-1.5 rounded-lg text-sm ${
               filterType === ''
                 ? 'bg-accent-primary text-white'
-                : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                : 'bg-white dark:bg-dark-200 text-gray-600 dark:text-dark-400'
             }`}
           >
             Alle
@@ -549,7 +549,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
               className={`px-3 py-1.5 rounded-lg text-sm ${
                 filterType === t
                   ? 'bg-accent-primary text-white'
-                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                  : 'bg-white dark:bg-dark-200 text-gray-600 dark:text-dark-400'
               }`}
             >
               {getTypeLabel(t)}
@@ -562,8 +562,8 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowForm(false)} />
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="relative bg-white dark:bg-dark-100 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingInteraction ? 'Interaktion bearbeiten' : 'Neue Interaktion'}
               </h3>
@@ -606,7 +606,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
 
       {/* Empty State */}
       {!loading && !error && interactions.length === 0 && (
-        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <div className="text-center py-8 text-gray-500 dark:text-dark-400">
           <MessageSquare size={40} className="mx-auto mb-3 opacity-50" />
           <p>Noch keine Interaktionen</p>
           <p className="text-sm mt-1">Protokolliere Anrufe, E-Mails und Meetings</p>
@@ -621,7 +621,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
             return (
               <div
                 key={interaction.id}
-                className="group relative flex gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
+                className="group relative flex gap-3 p-3 bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-dark-border transition-colors"
               >
                 {/* Icon */}
                 <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${getTypeColor(interaction.type)}`}>
@@ -646,7 +646,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                      <p className="text-sm text-gray-500 dark:text-dark-400 mt-0.5">
                         {formatDate(interaction.occurred_at)}
                         {interaction.duration_minutes && (
                           <span className="ml-2">
@@ -684,7 +684,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
 
                   {/* Summary/Content */}
                   {(interaction.summary || interaction.content) && (
-                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 line-clamp-2">
+                    <p className="text-sm text-gray-600 dark:text-dark-500 mt-2 line-clamp-2">
                       {interaction.summary || interaction.content}
                     </p>
                   )}

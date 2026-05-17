@@ -105,7 +105,7 @@ export const CompanySettings = ({
                     <X size={18} />
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-gray-500 dark:text-dark-400">
                   Das Logo wird automatisch skaliert (max. 30mm x 20mm) ohne Verzerrung
                 </p>
               </div>
@@ -122,7 +122,7 @@ export const CompanySettings = ({
                     <span className="text-base font-semibold text-gray-900 dark:text-white block mb-1">
                       Logo hochladen
                     </span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                    <span className="text-sm text-gray-500 dark:text-dark-400">
                       PNG, JPG oder SVG - Max. 2MB
                     </span>
                   </div>
@@ -142,7 +142,7 @@ export const CompanySettings = ({
           <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Grundinformationen</h3>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-500 mb-2">
                 Firmenname <span className="text-red-500">*</span>
               </label>
               <input
@@ -152,7 +152,7 @@ export const CompanySettings = ({
                 placeholder="z.B. Musterfirma GmbH"
                 className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              <p className="text-xs text-gray-500 dark:text-dark-400 mt-2">
                 Dieser Name erscheint auf allen PDF-Dokumenten
               </p>
             </div>
@@ -166,7 +166,7 @@ export const CompanySettings = ({
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Adresse</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-dark-500 mb-2">
                   Strasse & Hausnummer <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -180,7 +180,7 @@ export const CompanySettings = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-500 mb-2">
                     PLZ <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -193,7 +193,7 @@ export const CompanySettings = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-500 mb-2">
                     Stadt <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -207,7 +207,7 @@ export const CompanySettings = ({
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-dark-500 mb-2">
                   Land <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -226,7 +226,7 @@ export const CompanySettings = ({
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Kontaktdaten</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-dark-500 mb-2">
                   E-Mail <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -239,7 +239,7 @@ export const CompanySettings = ({
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-dark-500 mb-2">
                   Telefon
                 </label>
                 <input
@@ -252,7 +252,7 @@ export const CompanySettings = ({
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-dark-500 mb-2">
                   Website
                 </label>
                 <input
@@ -273,7 +273,7 @@ export const CompanySettings = ({
         <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Steuer- & Buchhaltungsinformationen</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-500 mb-2">
               Kundennummer
             </label>
             <input
@@ -283,12 +283,12 @@ export const CompanySettings = ({
               placeholder="z.B. K-12345"
               className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            <p className="text-xs text-gray-500 dark:text-dark-400 mt-2">
               Optional: Deine Kundennummer (z.B. bei sevDesk)
             </p>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-500 mb-2">
               Steuernummer / USt-IdNr.
             </label>
             <input
@@ -298,7 +298,7 @@ export const CompanySettings = ({
               placeholder="z.B. DE123456789"
               className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent bg-white dark:bg-dark-50 text-gray-900 dark:text-white transition-all"
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            <p className="text-xs text-gray-500 dark:text-dark-400 mt-2">
               Optional: Fur Rechnungen und offizielle Dokumente
             </p>
           </div>
@@ -312,7 +312,7 @@ export const CompanySettings = ({
             <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
               Anderungen speichern
             </p>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
+            <p className="text-xs text-gray-600 dark:text-dark-400">
               <span className="text-red-500">*</span> Pflichtfelder mussen ausgefullt sein
             </p>
           </div>

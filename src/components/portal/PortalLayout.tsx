@@ -38,9 +38,9 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
   const primaryColor = portalSettings?.primaryColor || '#3b82f6';
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col" style={brandStyles}>
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-50 flex flex-col" style={brandStyles}>
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+      <header className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             {portalSettings?.logoUrl ? (
@@ -61,7 +61,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
               <h1 className="font-semibold text-gray-900 dark:text-white">
                 {portalSettings?.companyName || 'Kundenportal'}
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{contact.customerName}</p>
+              <p className="text-sm text-gray-500 dark:text-dark-400">{contact.customerName}</p>
             </div>
           </div>
 
@@ -111,7 +111,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
 
       {/* Navigation Tabs */}
       {(onShowTickets || onShowDevices || onShowInvoices) && (
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border">
           <div className="max-w-6xl mx-auto px-4">
             <nav className="flex gap-1 overflow-x-auto">
               {onShowTickets && (
@@ -123,7 +123,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
                     currentView === 'tickets' || currentView === 'ticket-detail'
                       ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                      : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500'
                   }`}
                 >
                   Tickets
@@ -138,7 +138,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
                     currentView === 'devices'
                       ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                      : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500'
                   }`}
                 >
                   Geräte
@@ -153,7 +153,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
                     currentView === 'invoices'
                       ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                      : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500'
                   }`}
                 >
                   Finanzen
@@ -170,10 +170,10 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
       </main>
 
       {/* Footer */}
-      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-4">
+      <footer className="bg-white dark:bg-dark-100 border-t border-gray-200 dark:border-dark-border px-4 py-4">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="text-sm text-gray-500 dark:text-dark-400">
               Support-Portal powered by RamboFlow
             </div>
             <div className="flex items-center gap-4 text-sm">
@@ -210,8 +210,8 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
       {/* Privacy Policy Modal */}
       {showPrivacy && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div className="bg-white dark:bg-dark-100 rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Shield className="w-6 h-6 text-accent-primary" />
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -226,18 +226,18 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-6">
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                <p className="text-gray-600 dark:text-dark-500 mb-4">
                   <strong>Stand:</strong> {new Date().toLocaleDateString('de-DE')}
                 </p>
 
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
                   1. Verantwortlicher
                 </h3>
-                <p className="text-gray-600 dark:text-gray-300">
+                <p className="text-gray-600 dark:text-dark-500">
                   Verantwortlich für die Datenverarbeitung auf diesem Portal ist:
                 </p>
-                <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg mt-2 mb-4">
-                  <p className="text-gray-700 dark:text-gray-200">
+                <div className="bg-gray-50 dark:bg-dark-200/50 p-4 rounded-lg mt-2 mb-4">
+                  <p className="text-gray-700 dark:text-dark-500">
                     {portalSettings?.companyName || 'Der Betreiber dieses Portals'}
                   </p>
                 </div>
@@ -245,10 +245,10 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
                   2. Erhobene Daten
                 </h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-2">
+                <p className="text-gray-600 dark:text-dark-500 mb-2">
                   Im Rahmen der Nutzung dieses Kundenportals werden folgende Daten verarbeitet:
                 </p>
-                <ul className="list-disc list-inside text-gray-600 dark:text-gray-300 space-y-1">
+                <ul className="list-disc list-inside text-gray-600 dark:text-dark-500 space-y-1">
                   <li>Name und E-Mail-Adresse (für Ihren Zugang)</li>
                   <li>Support-Tickets und deren Inhalte</li>
                   <li>Hochgeladene Dateien und Anhänge</li>
@@ -258,7 +258,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
                   3. Zweck der Verarbeitung
                 </h3>
-                <p className="text-gray-600 dark:text-gray-300">
+                <p className="text-gray-600 dark:text-dark-500">
                   Die Daten werden ausschließlich zur Erbringung von Support-Leistungen und zur
                   Kommunikation im Rahmen bestehender Geschäftsbeziehungen verwendet.
                 </p>
@@ -266,7 +266,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
                   4. Speicherdauer
                 </h3>
-                <p className="text-gray-600 dark:text-gray-300">
+                <p className="text-gray-600 dark:text-dark-500">
                   Ihre Daten werden so lange gespeichert, wie es für die Erbringung unserer
                   Dienstleistungen erforderlich ist oder gesetzliche Aufbewahrungsfristen bestehen.
                 </p>
@@ -274,10 +274,10 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
                   5. Ihre Rechte
                 </h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-2">
+                <p className="text-gray-600 dark:text-dark-500 mb-2">
                   Sie haben das Recht auf:
                 </p>
-                <ul className="list-disc list-inside text-gray-600 dark:text-gray-300 space-y-1">
+                <ul className="list-disc list-inside text-gray-600 dark:text-dark-500 space-y-1">
                   <li>Auskunft über Ihre gespeicherten Daten</li>
                   <li>Berichtigung unrichtiger Daten</li>
                   <li>Löschung Ihrer Daten (soweit keine Aufbewahrungspflichten bestehen)</li>
@@ -289,13 +289,13 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
                   6. Kontakt
                 </h3>
-                <p className="text-gray-600 dark:text-gray-300">
+                <p className="text-gray-600 dark:text-dark-500">
                   Bei Fragen zum Datenschutz wenden Sie sich bitte an Ihren Ansprechpartner
                   oder nutzen Sie die Ticket-Funktion dieses Portals.
                 </p>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-border">
               <Button
                 onClick={() => setShowPrivacy(false)}
                 variant="primary"
@@ -311,8 +311,8 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
       {/* Legal/Impressum Modal */}
       {showLegal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div className="bg-white dark:bg-dark-100 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Info className="w-6 h-6 text-accent-primary" />
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -331,11 +331,11 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   Angaben gemäß § 5 TMG
                 </h3>
 
-                <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg mb-6">
-                  <p className="text-gray-700 dark:text-gray-200 font-medium mb-2">
+                <div className="bg-gray-50 dark:bg-dark-200/50 p-4 rounded-lg mb-6">
+                  <p className="text-gray-700 dark:text-dark-500 font-medium mb-2">
                     {portalSettings?.companyName || 'Betreiber des Portals'}
                   </p>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm">
+                  <p className="text-gray-600 dark:text-dark-500 text-sm">
                     Dieses Kundenportal wird betrieben im Rahmen einer Geschäftsbeziehung.
                     Die vollständigen Kontaktdaten entnehmen Sie bitte Ihren Vertragsunterlagen
                     oder wenden Sie sich direkt an Ihren Ansprechpartner.
@@ -345,7 +345,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
                   Kontakt
                 </h3>
-                <p className="text-gray-600 dark:text-gray-300">
+                <p className="text-gray-600 dark:text-dark-500">
                   Für Anfragen nutzen Sie bitte die Ticket-Funktion dieses Portals oder
                   kontaktieren Sie Ihren zuständigen Ansprechpartner direkt.
                 </p>
@@ -353,7 +353,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
                   Haftung für Inhalte
                 </h3>
-                <p className="text-gray-600 dark:text-gray-300">
+                <p className="text-gray-600 dark:text-dark-500">
                   Die Inhalte dieses Portals wurden mit größter Sorgfalt erstellt. Für die
                   Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch
                   keine Gewähr übernehmen.
@@ -362,13 +362,13 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
                   Urheberrecht
                 </h3>
-                <p className="text-gray-600 dark:text-gray-300">
+                <p className="text-gray-600 dark:text-dark-500">
                   Die durch die Seitenbetreiber erstellten Inhalte und Werke auf diesen Seiten
                   unterliegen dem deutschen Urheberrecht.
                 </p>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-border">
               <Button
                 onClick={() => setShowLegal(false)}
                 variant="primary"

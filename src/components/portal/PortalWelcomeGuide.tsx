@@ -141,9 +141,9 @@ export const PortalWelcomeGuide = ({ onClose, onNeverShowAgain, companyName }: P
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+      <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <div className="p-6 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-accent-lighter dark:bg-accent-primary/30 flex items-center justify-center">
               <Icon size={22} className="text-accent-primary dark:text-accent-primary" />
@@ -152,21 +152,21 @@ export const PortalWelcomeGuide = ({ onClose, onNeverShowAgain, companyName }: P
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                 {currentStep === 0 ? welcomeTitle : step.title}
               </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 Schritt {currentStep + 1} von {steps.length}
               </p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
           >
             <X size={20} className="text-gray-500" />
           </button>
         </div>
 
         {/* Progress bar */}
-        <div className="h-1 bg-gray-200 dark:bg-gray-700">
+        <div className="h-1 bg-gray-200 dark:bg-dark-200">
           <div
             className="h-full bg-accent-primary transition-all duration-300"
             style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
@@ -175,7 +175,7 @@ export const PortalWelcomeGuide = ({ onClose, onNeverShowAgain, companyName }: P
 
         {/* Content */}
         <div className="p-6">
-          <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 whitespace-pre-line">
+          <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-dark-500 whitespace-pre-line">
             {step.content.split('\n').map((line, i) => {
               if (line.startsWith('**') && line.endsWith('**')) {
                 return (
@@ -206,15 +206,15 @@ export const PortalWelcomeGuide = ({ onClose, onNeverShowAgain, companyName }: P
               className={`w-2 h-2 rounded-full transition-colors ${
                 index === currentStep
                   ? 'bg-accent-primary'
-                  : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400'
+                  : 'bg-gray-300 dark:bg-dark-300 hover:bg-gray-400'
               }`}
             />
           ))}
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+        <div className="p-4 border-t border-gray-200 dark:border-dark-border flex items-center justify-between">
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400 cursor-pointer">
             <input
               type="checkbox"
               checked={dontShowAgain}
@@ -228,7 +228,7 @@ export const PortalWelcomeGuide = ({ onClose, onNeverShowAgain, companyName }: P
             {!isFirstStep && (
               <button
                 onClick={handlePrev}
-                className="flex items-center gap-1 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="flex items-center gap-1 px-4 py-2 text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
               >
                 <ChevronLeft size={18} />
                 Zurück

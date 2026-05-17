@@ -25,14 +25,14 @@ export const TicketEmailHistory = ({
   };
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
+    <div className="border border-gray-200 dark:border-dark-border rounded-lg">
       <button
         onClick={toggleExpanded}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-100/50 transition-colors"
       >
         <div className="flex items-center gap-2">
           <Mail size={16} className="text-accent-primary" />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <span className="text-sm font-medium text-gray-700 dark:text-dark-500">
             E-Mail-Verlauf
           </span>
           {emails.length > 0 && (
@@ -47,17 +47,17 @@ export const TicketEmailHistory = ({
         />
       </button>
       {expanded && (
-        <div className="border-t border-gray-200 dark:border-gray-700">
+        <div className="border-t border-gray-200 dark:border-dark-border">
           {loading ? (
             <div className="flex items-center justify-center py-4">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
             </div>
           ) : emails.length === 0 ? (
-            <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+            <div className="text-sm text-gray-500 dark:text-dark-400 text-center py-4">
               Keine E-Mails mit diesem Ticket verknupft
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            <div className="divide-y divide-gray-100 dark:divide-dark-border">
               {emails.map((email) => (
                 <div key={email.id} className="px-4 py-3">
                   <div
@@ -91,10 +91,10 @@ export const TicketEmailHistory = ({
                           <Paperclip size={12} className="text-gray-400" />
                         )}
                       </div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                      <p className="text-sm text-gray-700 dark:text-dark-500 truncate">
                         {email.subject}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         {formatEmailDate(email.received_at)}
                       </p>
                     </div>
@@ -107,8 +107,8 @@ export const TicketEmailHistory = ({
                   </div>
                   {expandedEmailId === email.id && (
                     <div className="mt-3 pl-9">
-                      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 text-sm">
-                        <div className="mb-2 text-xs text-gray-500 dark:text-gray-500">
+                      <div className="bg-gray-50 dark:bg-dark-100/50 rounded-lg p-3 text-sm">
+                        <div className="mb-2 text-xs text-gray-500 dark:text-dark-400">
                           <span className="font-medium">Von:</span> {email.from_name} &lt;{email.from_email}&gt;
                         </div>
                         {email.body_html ? (
@@ -117,7 +117,7 @@ export const TicketEmailHistory = ({
                             dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(email.body_html) }}
                           />
                         ) : (
-                          <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300">
+                          <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-dark-500">
                             {email.body_text}
                           </pre>
                         )}

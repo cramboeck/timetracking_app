@@ -114,7 +114,7 @@ export default function TemplatesTab() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600 dark:text-dark-400">
           Speichere wiederverwendbare Content-Vorlagen.
         </p>
         <button
@@ -128,9 +128,9 @@ export default function TemplatesTab() {
 
       {/* Templates Grid */}
       {templates.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-gray-700 text-center">
-          <BookMarked size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-          <p className="text-gray-500 dark:text-gray-400 mb-4">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-dark-border text-center">
+          <BookMarked size={48} className="mx-auto mb-4 text-gray-300 dark:text-dark-400" />
+          <p className="text-gray-500 dark:text-dark-400 mb-4">
             Noch keine Vorlagen erstellt.
           </p>
           <button
@@ -145,7 +145,7 @@ export default function TemplatesTab() {
           {templates.map((template) => (
             <div
               key={template.id}
-              className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700"
+              className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border"
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -153,7 +153,7 @@ export default function TemplatesTab() {
                     {template.name}
                   </h3>
                   {template.category && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="text-xs text-gray-500 dark:text-dark-400">
                       {template.category}
                     </span>
                   )}
@@ -161,16 +161,16 @@ export default function TemplatesTab() {
                 <div className="relative">
                   <button
                     onClick={() => setShowMenu(showMenu === template.id ? null : template.id)}
-                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-dark-500"
                   >
                     <MoreVertical size={18} />
                   </button>
 
                   {showMenu === template.id && (
-                    <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10">
+                    <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-dark-100 rounded-lg shadow-lg border border-gray-200 dark:border-dark-border py-1 z-10">
                       <button
                         onClick={() => handleCopy(template.content)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200"
                       >
                         <Copy size={14} />
                         Kopieren
@@ -180,7 +180,7 @@ export default function TemplatesTab() {
                           openEditor(template);
                           setShowMenu(null);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200"
                       >
                         <Edit size={14} />
                         Bearbeiten
@@ -198,7 +198,7 @@ export default function TemplatesTab() {
                 </div>
               </div>
 
-              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3">
+              <p className="text-sm text-gray-600 dark:text-dark-400 line-clamp-3 mb-3">
                 {template.content}
               </p>
 
@@ -224,16 +224,16 @@ export default function TemplatesTab() {
           onClick={resetEditor}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full"
+            className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-lg w-full"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
                 {editingTemplate ? 'Vorlage bearbeiten' : 'Neue Vorlage'}
               </h2>
               <button
                 onClick={resetEditor}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                className="text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
               >
                 <X size={20} />
               </button>
@@ -241,7 +241,7 @@ export default function TemplatesTab() {
 
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Name
                 </label>
                 <input
@@ -249,12 +249,12 @@ export default function TemplatesTab() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="z.B. Produkt-Launch"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Kategorie (optional)
                 </label>
                 <input
@@ -262,12 +262,12 @@ export default function TemplatesTab() {
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   placeholder="z.B. Marketing, Sales, Support..."
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Content
                 </label>
                 <textarea
@@ -275,12 +275,12 @@ export default function TemplatesTab() {
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Vorlage mit {{variable}} Platzhaltern..."
                   rows={5}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white resize-none"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Plattformen
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -291,7 +291,7 @@ export default function TemplatesTab() {
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                         platforms.includes(platform)
                           ? `${PLATFORM_COLORS[platform]} text-white`
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                          : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                       }`}
                     >
                       {PLATFORM_ICONS[platform]}
@@ -302,10 +302,10 @@ export default function TemplatesTab() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-dark-border">
               <button
                 onClick={resetEditor}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+                className="px-4 py-2 text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white"
               >
                 Abbrechen
               </button>

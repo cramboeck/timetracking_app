@@ -99,7 +99,7 @@ export const NotificationPermissionRequest = ({ onClose }: NotificationPermissio
 
         {/* Content */}
         <div className="p-6">
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
+          <p className="text-gray-700 dark:text-dark-500 mb-4">
             Aktiviere Benachrichtigungen, um rechtzeitig an wichtige Ereignisse erinnert zu werden:
           </p>
 

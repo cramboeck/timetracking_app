@@ -54,10 +54,10 @@ export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'md
       />
 
       {/* Modal */}
-      <div className={`relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full ${maxWidthClasses[maxWidth]} max-h-[90vh] flex flex-col`}>
+      <div className={`relative bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-full ${maxWidthClasses[maxWidth]} max-h-[90vh] flex flex-col`}>
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-border">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h2>
             <IconButton
               onClick={onClose}
@@ -82,7 +82,7 @@ export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'md
 
         {/* Footer - fixed at bottom, outside scrollable area */}
         {footer && (
-          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             {footer}
           </div>
         )}

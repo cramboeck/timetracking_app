@@ -292,9 +292,9 @@ export const InvoiceCreationDialog = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-border">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
               Rechnung erstellen
@@ -352,38 +352,38 @@ export const InvoiceCreationDialog = ({
 
             <div className="grid gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Betreff / Header
                 </label>
                 <input
                   type="text"
                   value={invoiceHeader}
                   onChange={(e) => setInvoiceHeader(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Einleitungstext
                 </label>
                 <textarea
                   value={headText}
                   onChange={(e) => setHeadText(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Schlusstext
                 </label>
                 <input
                   type="text"
                   value={footText}
                   onChange={(e) => setFootText(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                 />
               </div>
             </div>
@@ -400,11 +400,11 @@ export const InvoiceCreationDialog = ({
               {positions.map((position, index) => (
                 <div
                   key={index}
-                  className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                  className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden"
                 >
                   {/* Position Header */}
                   <div
-                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 cursor-pointer"
+                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-200/50 cursor-pointer"
                     onClick={() => togglePosition(index)}
                   >
                     <div className="flex-1">
@@ -439,9 +439,9 @@ export const InvoiceCreationDialog = ({
 
                   {/* Position Details */}
                   {expandedPositions.has(index) && (
-                    <div className="p-4 space-y-3 bg-white dark:bg-gray-800">
+                    <div className="p-4 space-y-3 bg-white dark:bg-dark-100">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Beschreibung
                         </label>
                         <textarea
@@ -449,7 +449,7 @@ export const InvoiceCreationDialog = ({
                           onChange={(e) => updatePositionDescription(index, e.target.value)}
                           rows={2}
                           placeholder="Tätigkeit: IT Consulting im Bereich..."
-                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                         />
                       </div>
 
@@ -478,7 +478,7 @@ export const InvoiceCreationDialog = ({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+        <div className="p-6 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100/50">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <p className="text-sm text-gray-500">

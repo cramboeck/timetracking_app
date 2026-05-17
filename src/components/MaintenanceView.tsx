@@ -213,8 +213,8 @@ function AnnouncementDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200 dark:border-dark-border">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             {announcement ? 'Wartung bearbeiten' : 'Neue Wartungsankündigung'}
           </h2>
@@ -228,27 +228,27 @@ function AnnouncementDialog({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Titel *
             </label>
             <input
               type="text"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
               placeholder="z.B. Windows Updates Januar 2025"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Typ
               </label>
               <select
                 value={formData.maintenanceType}
                 onChange={(e) => handleTypeChange(e.target.value as MaintenanceType)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
               >
                 {Object.entries(MAINTENANCE_TYPE_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -259,14 +259,14 @@ function AnnouncementDialog({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Betroffene Systeme
               </label>
               <input
                 type="text"
                 value={formData.affectedSystems}
                 onChange={(e) => setFormData({ ...formData, affectedSystems: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                 placeholder="z.B. Windows Server, Clients"
               />
             </div>
@@ -274,44 +274,44 @@ function AnnouncementDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Startzeitpunkt *
               </label>
               <input
                 type="datetime-local"
                 value={formData.scheduledStart}
                 onChange={(e) => setFormData({ ...formData, scheduledStart: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Endzeitpunkt (optional)
               </label>
               <input
                 type="datetime-local"
                 value={formData.scheduledEnd}
                 onChange={(e) => setFormData({ ...formData, scheduledEnd: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Beschreibung
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
               placeholder="Detaillierte Beschreibung der Wartung..."
             />
           </div>
 
-          <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+          <div className="space-y-3 p-4 bg-gray-50 dark:bg-dark-200/50 rounded-lg">
             <label className="flex items-center gap-3">
               <input
                 type="checkbox"
@@ -319,7 +319,7 @@ function AnnouncementDialog({
                 onChange={(e) => setFormData({ ...formData, requireApproval: e.target.checked })}
                 className="w-4 h-4 text-accent-primary rounded"
               />
-              <span className="text-sm text-gray-700 dark:text-gray-300">
+              <span className="text-sm text-gray-700 dark:text-dark-500">
                 Kunden-Freigabe erforderlich
               </span>
             </label>
@@ -327,14 +327,14 @@ function AnnouncementDialog({
             {formData.requireApproval && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Freigabe-Frist
                   </label>
                   <input
                     type="datetime-local"
                     value={formData.approvalDeadline}
                     onChange={(e) => setFormData({ ...formData, approvalDeadline: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                   />
                 </div>
 
@@ -345,7 +345,7 @@ function AnnouncementDialog({
                     onChange={(e) => setFormData({ ...formData, autoProceedOnNoResponse: e.target.checked })}
                     className="w-4 h-4 text-accent-primary rounded"
                   />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                  <span className="text-sm text-gray-700 dark:text-dark-500">
                     Bei fehlender Antwort automatisch fortfahren
                   </span>
                 </label>
@@ -354,17 +354,17 @@ function AnnouncementDialog({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Kunden auswählen
             </label>
-            <div className="border border-gray-300 dark:border-gray-600 rounded-lg max-h-48 overflow-y-auto">
+            <div className="border border-gray-300 dark:border-dark-border rounded-lg max-h-48 overflow-y-auto">
               {customers.length === 0 ? (
                 <p className="p-3 text-sm text-gray-500">Keine Kunden vorhanden</p>
               ) : (
                 customers.map((customer) => (
                   <label
                     key={customer.id}
-                    className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-0"
+                    className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-dark-200 cursor-pointer border-b border-gray-100 dark:border-dark-border last:border-0"
                   >
                     <input
                       type="checkbox"
@@ -414,19 +414,19 @@ function AnnouncementDialog({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Interne Notizen
             </label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
               placeholder="Interne Notizen (nicht sichtbar für Kunden)..."
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
             <Button
               type="button"
               onClick={onClose}
@@ -483,8 +483,8 @@ function DeleteConfirmationDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-md w-full">
+        <div className="p-6 border-b border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3 text-red-600">
             <ShieldAlert className="w-6 h-6" />
             <h2 className="text-xl font-semibold">Wartung löschen</h2>
@@ -522,8 +522,8 @@ function DeleteConfirmationDialog({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Geben Sie <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">DELETE</span> ein, um das Löschen zu bestätigen:
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+              Geben Sie <span className="font-mono bg-gray-100 dark:bg-dark-200 px-2 py-0.5 rounded">DELETE</span> ein, um das Löschen zu bestätigen:
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -532,13 +532,13 @@ function DeleteConfirmationDialog({
                 value={password}
                 onChange={(e) => setPassword(e.target.value.toUpperCase())}
                 placeholder="DELETE"
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white font-mono"
                 autoFocus
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
             <Button
               type="button"
               onClick={onClose}
@@ -645,7 +645,7 @@ function AnnouncementDetail({
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-8">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-8">
           <RefreshCw className="w-8 h-8 animate-spin text-accent-primary" />
         </div>
       </div>
@@ -662,9 +662,9 @@ function AnnouncementDetail({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-start justify-between">
+        <div className="p-6 border-b border-gray-200 dark:border-dark-border flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3">
               <span className="text-2xl">{MAINTENANCE_TYPE_ICONS[announcement.maintenance_type]}</span>
@@ -697,7 +697,7 @@ function AnnouncementDetail({
 
           {/* Time Info */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <div className="p-4 bg-gray-50 dark:bg-dark-200/50 rounded-lg">
               <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
                 <Calendar className="w-4 h-4" />
                 Start
@@ -707,7 +707,7 @@ function AnnouncementDetail({
               </p>
             </div>
             {announcement.scheduled_end && (
-              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <div className="p-4 bg-gray-50 dark:bg-dark-200/50 rounded-lg">
                 <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
                   <Clock className="w-4 h-4" />
                   Ende
@@ -732,15 +732,15 @@ function AnnouncementDetail({
 
           {announcement.description && (
             <div>
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Beschreibung</h3>
-              <p className="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{announcement.description}</p>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">Beschreibung</h3>
+              <p className="text-gray-600 dark:text-dark-400 whitespace-pre-wrap">{announcement.description}</p>
             </div>
           )}
 
           {/* Customers */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-dark-500 flex items-center gap-2">
                 <Users className="w-4 h-4" />
                 Kunden ({customers.length})
               </h3>
@@ -769,9 +769,9 @@ function AnnouncementDetail({
               </div>
             </div>
 
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <div className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
               <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700">
+                <thead className="bg-gray-50 dark:bg-dark-200">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kunde</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -779,7 +779,7 @@ function AnnouncementDetail({
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Antwort</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                   {customers.map((customer) => (
                     <tr key={customer.id}>
                       <td className="px-4 py-3">
@@ -833,14 +833,14 @@ function AnnouncementDetail({
           {/* Activity Log */}
           {activityLog.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Aktivitäten</h3>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-3">Aktivitäten</h3>
               <div className="space-y-2">
                 {activityLog.slice(0, 10).map((log) => (
                   <div key={log.id} className="flex items-start gap-3 text-sm">
                     <span className="text-gray-400 whitespace-nowrap">
                       {formatDateTime(log.created_at)}
                     </span>
-                    <span className="text-gray-600 dark:text-gray-400">
+                    <span className="text-gray-600 dark:text-dark-400">
                       {log.actor_name && <strong>{log.actor_name}: </strong>}
                       {log.action}
                     </span>
@@ -852,7 +852,7 @@ function AnnouncementDetail({
         </div>
 
         {/* Footer with actions */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-between">
+        <div className="p-4 border-t border-gray-200 dark:border-dark-border flex justify-between">
           <div className="flex gap-2">
             {/* Edit button - only for draft, scheduled, or sent status */}
             {['draft', 'scheduled', 'sent'].includes(announcement.status) && (
@@ -1011,7 +1011,7 @@ export default function MaintenanceView() {
       {/* Dashboard Cards */}
       {dashboard && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="p-4 bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
                 <Calendar className="w-5 h-5 text-accent-primary" />
@@ -1024,7 +1024,7 @@ export default function MaintenanceView() {
               </div>
             </div>
           </div>
-          <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="p-4 bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
                 <Clock className="w-5 h-5 text-yellow-600" />
@@ -1037,7 +1037,7 @@ export default function MaintenanceView() {
               </div>
             </div>
           </div>
-          <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="p-4 bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
                 <RefreshCw className="w-5 h-5 text-purple-600" />
@@ -1050,7 +1050,7 @@ export default function MaintenanceView() {
               </div>
             </div>
           </div>
-          <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="p-4 bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-green-600" />
@@ -1073,7 +1073,7 @@ export default function MaintenanceView() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as MaintenanceStatus | '')}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white text-sm"
           >
             <option value="">Alle Status</option>
             {Object.entries(STATUS_LABELS).map(([value, label]) => (
@@ -1089,7 +1089,7 @@ export default function MaintenanceView() {
       </div>
 
       {/* Announcements List */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
         {announcements.length === 0 ? (
           <div className="p-12 text-center">
             <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -1106,11 +1106,11 @@ export default function MaintenanceView() {
             </Button>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="divide-y divide-gray-200 dark:divide-dark-border">
             {announcements.map((announcement) => (
               <div
                 key={announcement.id}
-                className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                className="p-4 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors"
               >
                 <div className="flex items-start gap-4">
                   <div className="text-2xl">

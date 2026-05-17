@@ -125,7 +125,7 @@ export default function BatchGenerator() {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Input Section */}
       <div className="space-y-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-4">
             <Layers size={20} className="text-pink-600" />
             <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -133,13 +133,13 @@ export default function BatchGenerator() {
             </h2>
           </div>
 
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          <p className="text-sm text-gray-600 dark:text-dark-400 mb-4">
             Generiere mehrere Posts auf einmal zu verschiedenen Themen.
           </p>
 
           {/* Topics */}
           <div className="space-y-3 mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500">
               Themen ({topics.length})
             </label>
             {topics.map((topic, index) => (
@@ -149,7 +149,7 @@ export default function BatchGenerator() {
                   value={topic}
                   onChange={(e) => updateTopic(index, e.target.value)}
                   placeholder={`Thema ${index + 1}...`}
-                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
                 {topics.length > 1 && (
                   <button
@@ -172,7 +172,7 @@ export default function BatchGenerator() {
 
           {/* Platform Selection */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Plattform
             </label>
             <div className="flex flex-wrap gap-2">
@@ -183,7 +183,7 @@ export default function BatchGenerator() {
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                     platform === p
                       ? `${PLATFORM_COLORS[p]} text-white`
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                      : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                   }`}
                 >
                   {PLATFORM_ICONS[p]}
@@ -195,13 +195,13 @@ export default function BatchGenerator() {
 
           {/* Tone */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Tonalität
             </label>
             <select
               value={tone}
               onChange={(e) => setTone(e.target.value as Tone)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
             >
               {TONES.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -220,7 +220,7 @@ export default function BatchGenerator() {
                 onChange={(e) => setIncludeHashtags(e.target.checked)}
                 className="w-4 h-4 text-pink-600 rounded border-gray-300 focus:ring-pink-500"
               />
-              <span className="text-sm text-gray-700 dark:text-gray-300">
+              <span className="text-sm text-gray-700 dark:text-dark-500">
                 Hashtags
               </span>
             </label>
@@ -231,14 +231,14 @@ export default function BatchGenerator() {
                 onChange={(e) => setIncludeEmoji(e.target.checked)}
                 className="w-4 h-4 text-pink-600 rounded border-gray-300 focus:ring-pink-500"
               />
-              <span className="text-sm text-gray-700 dark:text-gray-300">
+              <span className="text-sm text-gray-700 dark:text-dark-500">
                 Emojis
               </span>
             </label>
           </div>
 
           {/* Auto Schedule */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+          <div className="border-t border-gray-200 dark:border-dark-border pt-4 mb-4">
             <label className="flex items-center gap-2 mb-3">
               <input
                 type="checkbox"
@@ -246,7 +246,7 @@ export default function BatchGenerator() {
                 onChange={(e) => setAutoSchedule(e.target.checked)}
                 className="w-4 h-4 text-pink-600 rounded border-gray-300 focus:ring-pink-500"
               />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <span className="text-sm font-medium text-gray-700 dark:text-dark-500">
                 <Calendar size={16} className="inline mr-1" />
                 Automatisch planen
               </span>
@@ -255,18 +255,18 @@ export default function BatchGenerator() {
             {autoSchedule && (
               <div className="grid grid-cols-2 gap-4 ml-6">
                 <div>
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <label className="block text-xs text-gray-500 dark:text-dark-400 mb-1">
                     Startdatum
                   </label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-sm"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <label className="block text-xs text-gray-500 dark:text-dark-400 mb-1">
                     Posts pro Tag
                   </label>
                   <input
@@ -275,7 +275,7 @@ export default function BatchGenerator() {
                     max={5}
                     value={postsPerDay}
                     onChange={(e) => setPostsPerDay(parseInt(e.target.value) || 1)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-sm"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white text-sm"
                   />
                 </div>
               </div>
@@ -322,7 +322,7 @@ export default function BatchGenerator() {
             {results.map((result, index) => (
               <div
                 key={index}
-                className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700"
+                className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -331,20 +331,20 @@ export default function BatchGenerator() {
                     >
                       {PLATFORM_ICONS[platform]}
                     </span>
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    <span className="text-sm font-medium text-gray-600 dark:text-dark-400">
                       {result.topic}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     {result.scheduledAt && (
-                      <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                      <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-400">
                         <Clock size={12} />
                         {new Date(result.scheduledAt).toLocaleDateString('de-DE')}
                       </span>
                     )}
                     <button
                       onClick={() => copyToClipboard(result.content, index)}
-                      className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-dark-500"
                     >
                       {copiedIndex === index ? (
                         <Check size={16} className="text-green-600" />
@@ -364,7 +364,7 @@ export default function BatchGenerator() {
                     {result.hashtags.map((tag, i) => (
                       <span
                         key={i}
-                        className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded text-xs"
+                        className="px-2 py-0.5 bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-500 rounded text-xs"
                       >
                         #{tag}
                       </span>
@@ -375,7 +375,7 @@ export default function BatchGenerator() {
                 <button
                   onClick={() => saveAsPost(result, index)}
                   disabled={savingIndex === index}
-                  className="w-full px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                  className="w-full px-3 py-2 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50"
                 >
                   {savingIndex === index ? 'Speichere...' : 'Als Post speichern'}
                 </button>
@@ -383,9 +383,9 @@ export default function BatchGenerator() {
             ))}
           </>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-gray-700 text-center">
-            <Layers size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-            <p className="text-gray-500 dark:text-gray-400">
+          <div className="bg-white dark:bg-dark-100 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-dark-border text-center">
+            <Layers size={48} className="mx-auto mb-4 text-gray-300 dark:text-dark-400" />
+            <p className="text-gray-500 dark:text-dark-400">
               Füge Themen hinzu und klicke auf "Batch generieren" um mehrere Posts zu erstellen.
             </p>
           </div>

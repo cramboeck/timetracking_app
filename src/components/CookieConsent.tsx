@@ -65,7 +65,7 @@ export function CookieConsent() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 pointer-events-none">
-      <div className="pointer-events-auto w-full max-w-4xl bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700">
+      <div className="pointer-events-auto w-full max-w-4xl bg-white dark:bg-dark-100 rounded-lg shadow-2xl border border-gray-200 dark:border-dark-border">
         {!showSettings ? (
           // Simple consent banner
           <div className="p-6">
@@ -77,7 +77,7 @@ export function CookieConsent() {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                   🍪 Cookie-Einstellungen
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                <p className="text-sm text-gray-600 dark:text-dark-500 mb-4">
                   Wir verwenden Cookies und ähnliche Technologien, um Ihre Erfahrung zu verbessern,
                   unsere Dienste zu personalisieren und unseren Datenverkehr zu analysieren.
                   Durch Klicken auf "Alle akzeptieren" stimmen Sie der Verwendung aller Cookies zu.
@@ -107,7 +107,7 @@ export function CookieConsent() {
                     Einstellungen
                   </Button>
                 </div>
-                <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                <p className="mt-4 text-xs text-gray-500 dark:text-dark-400">
                   Weitere Informationen finden Sie in unserer{' '}
                   <a href="#datenschutz" className="text-accent-primary hover:underline">
                     Datenschutzerklärung
@@ -139,7 +139,7 @@ export function CookieConsent() {
 
             <div className="space-y-4 mb-6">
               {/* Necessary cookies */}
-              <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-dark-200/50 rounded-lg">
                 <div className="flex items-center h-6">
                   <input
                     type="checkbox"
@@ -157,7 +157,7 @@ export function CookieConsent() {
                       Erforderlich
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                  <p className="text-sm text-gray-600 dark:text-dark-500">
                     Diese Cookies sind für die Grundfunktionen der Website erforderlich und können nicht deaktiviert werden.
                     Sie speichern Ihre Login-Informationen, Spracheinstellungen und andere wesentliche Funktionen.
                   </p>
@@ -165,7 +165,7 @@ export function CookieConsent() {
               </div>
 
               {/* Functional cookies */}
-              <div className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+              <div className="flex items-start gap-4 p-4 border border-gray-200 dark:border-dark-border rounded-lg">
                 <div className="flex items-center h-6">
                   <input
                     type="checkbox"
@@ -178,7 +178,7 @@ export function CookieConsent() {
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1">
                     Funktionale Cookies
                   </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                  <p className="text-sm text-gray-600 dark:text-dark-500">
                     Diese Cookies ermöglichen erweiterte Funktionen wie Benachrichtigungen,
                     personalisierte Einstellungen und verbesserte Benutzererfahrung.
                   </p>
@@ -186,7 +186,7 @@ export function CookieConsent() {
               </div>
 
               {/* Analytics cookies */}
-              <div className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+              <div className="flex items-start gap-4 p-4 border border-gray-200 dark:border-dark-border rounded-lg">
                 <div className="flex items-center h-6">
                   <input
                     type="checkbox"
@@ -199,7 +199,7 @@ export function CookieConsent() {
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1">
                     Analyse-Cookies
                   </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                  <p className="text-sm text-gray-600 dark:text-dark-500">
                     Diese Cookies helfen uns zu verstehen, wie Besucher mit unserer Website interagieren,
                     indem sie Informationen anonym sammeln und melden.
                   </p>
@@ -207,7 +207,7 @@ export function CookieConsent() {
               </div>
 
               {/* Marketing cookies */}
-              <div className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+              <div className="flex items-start gap-4 p-4 border border-gray-200 dark:border-dark-border rounded-lg">
                 <div className="flex items-center h-6">
                   <input
                     type="checkbox"
@@ -220,7 +220,7 @@ export function CookieConsent() {
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1">
                     Marketing-Cookies
                   </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                  <p className="text-sm text-gray-600 dark:text-dark-500">
                     Diese Cookies werden verwendet, um Besuchern relevante Werbung und Marketingkampagnen bereitzustellen.
                     Sie verfolgen Besucher über Websites hinweg.
                   </p>

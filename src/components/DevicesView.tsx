@@ -257,12 +257,12 @@ export const DevicesView = () => {
 
   // Get severity color class
   const getSeverityColor = (severity: string | null) => {
-    if (!severity) return 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-400';
+    if (!severity) return 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-dark-400';
     const sev = severity.toLowerCase();
     if (sev === 'critical') return 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400';
     if (sev === 'important') return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400';
     if (sev === 'moderate') return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400';
-    return 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-gray-400';
+    return 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-dark-400';
   };
 
   // Reset software and patches when device changes
@@ -416,10 +416,10 @@ export const DevicesView = () => {
                   </p>
                   <p className="text-sm text-gray-500 dark:text-dark-400">{device.organizationName}</p>
                 </td>
-                <td className="px-4 py-3 hidden md:table-cell text-gray-600 dark:text-gray-300">
+                <td className="px-4 py-3 hidden md:table-cell text-gray-600 dark:text-dark-500">
                   {device.nodeClass?.replace(/_/g, ' ')}
                 </td>
-                <td className="px-4 py-3 hidden lg:table-cell text-gray-600 dark:text-gray-300">
+                <td className="px-4 py-3 hidden lg:table-cell text-gray-600 dark:text-dark-500">
                   {device.customerName || '-'}
                 </td>
                 <td className="px-4 py-3 hidden lg:table-cell text-gray-500 dark:text-dark-400 text-sm">
@@ -683,7 +683,7 @@ export const DevicesView = () => {
                                 <p className="text-xs text-gray-500 dark:text-dark-400 truncate">{sw.publisher}</p>
                               )}
                               <div className="flex items-center justify-between mt-2 text-xs">
-                                <span className="text-gray-600 dark:text-gray-400 font-mono">{sw.version || '-'}</span>
+                                <span className="text-gray-600 dark:text-dark-400 font-mono">{sw.version || '-'}</span>
                                 {sw.installDate && (
                                   <span className="text-gray-500 dark:text-dark-400">{formatInstallDate(sw.installDate)}</span>
                                 )}
@@ -835,7 +835,7 @@ export const DevicesView = () => {
                               </div>
                               <div className="flex items-center gap-2 mt-2 text-xs">
                                 {patch.kbNumber && (
-                                  <span className="font-mono text-gray-600 dark:text-gray-400">{patch.kbNumber}</span>
+                                  <span className="font-mono text-gray-600 dark:text-dark-400">{patch.kbNumber}</span>
                                 )}
                                 {patch.category && (
                                   <span className="text-gray-500 dark:text-dark-400">• {patch.category}</span>

@@ -371,8 +371,8 @@ export const InvoiceInbox = () => {
             <Mail className="text-accent-primary" />
             Rechnungseingang
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Postfach: <span className="font-medium text-gray-700 dark:text-gray-300">{invoiceMailbox}</span>
+          <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+            Postfach: <span className="font-medium text-gray-700 dark:text-dark-500">{invoiceMailbox}</span>
           </p>
         </div>
 
@@ -419,7 +419,7 @@ export const InvoiceInbox = () => {
             <span className="text-green-600 dark:text-green-400">
               ✓ {invoiceProcessResult.processedCount} verarbeitet
             </span>
-            <span className="text-gray-600 dark:text-gray-400">
+            <span className="text-gray-600 dark:text-dark-400">
               ○ {invoiceProcessResult.skippedCount} übersprungen
             </span>
             {invoiceProcessResult.failedCount > 0 && (
@@ -441,7 +441,7 @@ export const InvoiceInbox = () => {
                 <div key={invoice.id} className="p-4 space-y-3">
                   {/* Header mit Datum und Status */}
                   <div className="flex items-start justify-between gap-2">
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                    <div className="text-sm text-gray-500 dark:text-dark-400">
                       {new Date(invoice.receivedAt).toLocaleDateString('de-DE', {
                         day: '2-digit',
                         month: '2-digit',
@@ -458,7 +458,7 @@ export const InvoiceInbox = () => {
                         : invoice.status === 'failed'
                         ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                         : invoice.status === 'skipped'
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                        ? 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-dark-400'
                         : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
                     }`}>
                       {invoice.status === 'processed' && <CheckCircle size={12} />}
@@ -482,7 +482,7 @@ export const InvoiceInbox = () => {
                   </div>
 
                   {/* Betreff */}
-                  <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                  <div className="text-sm text-gray-600 dark:text-dark-400 line-clamp-2">
                     {invoice.emailSubject}
                   </div>
 
@@ -607,12 +607,12 @@ export const InvoiceInbox = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-dark-200 border-b border-gray-200 dark:border-dark-300">
-                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Datum</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Absender</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Betreff</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Anhänge</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Status</th>
-                    <th className="text-right py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Aktionen</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Datum</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Absender</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Betreff</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Anhänge</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Status</th>
+                    <th className="text-right py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Aktionen</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -636,7 +636,7 @@ export const InvoiceInbox = () => {
                             <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-gray-700 dark:text-gray-300">
+                        <td className="py-3 px-4 text-gray-700 dark:text-dark-500">
                           <div className="truncate max-w-[250px]" title={invoice.emailSubject}>
                             {invoice.emailSubject}
                           </div>
@@ -673,7 +673,7 @@ export const InvoiceInbox = () => {
                               : invoice.status === 'failed'
                               ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                               : invoice.status === 'skipped'
-                              ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                              ? 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-dark-400'
                               : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
                           }`}>
                             {invoice.status === 'processed' && <CheckCircle size={12} />}
@@ -724,7 +724,7 @@ export const InvoiceInbox = () => {
                         <tr className="bg-gray-50 dark:bg-dark-200">
                           <td colSpan={6} className="py-3 px-4">
                             <div className="pl-4 border-l-2 border-accent-primary/40 dark:border-accent-primary">
-                              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                              <div className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                                 Anhänge
                               </div>
                               {loadingDocuments === invoice.id ? (
@@ -744,7 +744,7 @@ export const InvoiceInbox = () => {
                                         <div className="font-medium text-gray-900 dark:text-white truncate">
                                           {doc.originalFilename}
                                         </div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                        <div className="text-xs text-gray-500 dark:text-dark-400">
                                           {formatFileSize(doc.size)} • {doc.mimeType}
                                         </div>
                                       </div>
@@ -766,7 +766,7 @@ export const InvoiceInbox = () => {
                                   ))}
                                 </div>
                               ) : (
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                <div className="text-sm text-gray-500 dark:text-dark-400">
                                   Keine Dokumente gefunden
                                 </div>
                               )}
@@ -781,7 +781,7 @@ export const InvoiceInbox = () => {
             </div>
           </>
         ) : (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-12 text-gray-500 dark:text-dark-400">
             <FileText size={48} className="mx-auto mb-3 opacity-50" />
             <p className="text-lg font-medium">Noch keine Rechnungen verarbeitet</p>
             <p className="text-sm mt-1">Klicken Sie auf "Neue E-Mails" um das Postfach abzurufen</p>
@@ -817,14 +817,14 @@ export const InvoiceInbox = () => {
               <div className="p-4 space-y-4">
                 {/* Invoice Info */}
                 <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3 text-sm">
-                  <div className="text-gray-600 dark:text-gray-400">Betreff</div>
+                  <div className="text-gray-600 dark:text-dark-400">Betreff</div>
                   <div className="font-medium text-gray-900 dark:text-white">{confirmingInvoice.emailSubject}</div>
-                  <div className="text-gray-600 dark:text-gray-400 mt-2">Absender</div>
+                  <div className="text-gray-600 dark:text-dark-400 mt-2">Absender</div>
                   <div className="text-gray-900 dark:text-white">{confirmingInvoice.senderName} ({confirmingInvoice.senderEmail})</div>
                 </div>
 
                 {extractingData ? (
-                  <div className="flex items-center justify-center py-8 text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center justify-center py-8 text-gray-500 dark:text-dark-400">
                     <Loader2 size={24} className="animate-spin mr-2" />
                     Extrahiere Rechnungsdaten aus PDF...
                   </div>
@@ -848,7 +848,7 @@ export const InvoiceInbox = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Supplier Name */}
                       <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Lieferant / Anbieter
                         </label>
                         <input
@@ -863,7 +863,7 @@ export const InvoiceInbox = () => {
                       {/* Recipient Name (if extracted) */}
                       {extractedData.recipientName && (
                         <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                             Rechnungsempfänger
                           </label>
                           <input
@@ -878,7 +878,7 @@ export const InvoiceInbox = () => {
 
                       {/* Invoice Number */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Rechnungsnummer
                         </label>
                         <input
@@ -892,7 +892,7 @@ export const InvoiceInbox = () => {
 
                       {/* Customer Number (if extracted) */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Kundennummer
                         </label>
                         <input
@@ -906,7 +906,7 @@ export const InvoiceInbox = () => {
 
                       {/* Invoice Date */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Rechnungsdatum
                         </label>
                         <input
@@ -919,7 +919,7 @@ export const InvoiceInbox = () => {
 
                       {/* Due Date */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Fälligkeitsdatum
                         </label>
                         <input
@@ -932,7 +932,7 @@ export const InvoiceInbox = () => {
 
                       {/* Net Amount */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Nettobetrag (EUR)
                         </label>
                         <input
@@ -946,7 +946,7 @@ export const InvoiceInbox = () => {
 
                       {/* VAT Rate */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           MwSt.-Satz (%)
                         </label>
                         <select
@@ -962,7 +962,7 @@ export const InvoiceInbox = () => {
 
                       {/* VAT Amount */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           MwSt. (EUR)
                         </label>
                         <input
@@ -976,7 +976,7 @@ export const InvoiceInbox = () => {
 
                       {/* Gross Amount */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Bruttobetrag (EUR)
                         </label>
                         <input
@@ -992,13 +992,13 @@ export const InvoiceInbox = () => {
                     {/* Payment Details (collapsible) */}
                     {(extractedData.iban || extractedData.bic || extractedData.taxId) && (
                       <details className="mt-4 border border-gray-200 dark:border-dark-300 rounded-lg">
-                        <summary className="px-3 py-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-200 rounded-lg">
+                        <summary className="px-3 py-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-dark-500 hover:bg-gray-50 dark:hover:bg-dark-200 rounded-lg">
                           Zahlungsdetails & Steuerdaten
                         </summary>
                         <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-200 dark:border-dark-300">
                           {extractedData.iban && (
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                                 IBAN
                               </label>
                               <input
@@ -1011,7 +1011,7 @@ export const InvoiceInbox = () => {
                           )}
                           {extractedData.bic && (
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                                 BIC
                               </label>
                               <input
@@ -1024,7 +1024,7 @@ export const InvoiceInbox = () => {
                           )}
                           {extractedData.taxId && (
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                                 USt-IdNr.
                               </label>
                               <input
@@ -1037,7 +1037,7 @@ export const InvoiceInbox = () => {
                           )}
                           {extractedData.paymentMethod && (
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                                 Zahlungsart
                               </label>
                               <input
@@ -1092,7 +1092,7 @@ export const InvoiceInbox = () => {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
                                     {item.position !== null && (
-                                      <span className="text-xs bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded">
+                                      <span className="text-xs bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-dark-400 px-1.5 py-0.5 rounded">
                                         #{item.position}
                                       </span>
                                     )}
@@ -1101,7 +1101,7 @@ export const InvoiceInbox = () => {
                                     </span>
                                   </div>
                                   {item.articleNumber && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono">
+                                    <div className="text-xs text-gray-500 dark:text-dark-400 mt-0.5 font-mono">
                                       Art.-Nr.: {item.articleNumber}
                                     </div>
                                   )}
@@ -1117,7 +1117,7 @@ export const InvoiceInbox = () => {
                                       </span>
                                     )}
                                     {item.period && (
-                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      <span className="text-xs text-gray-500 dark:text-dark-400">
                                         {item.period}
                                       </span>
                                     )}
@@ -1125,7 +1125,7 @@ export const InvoiceInbox = () => {
                                 </div>
                                 <div className="text-right flex-shrink-0">
                                   {item.quantity !== null && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    <div className="text-xs text-gray-500 dark:text-dark-400">
                                       {item.quantity} {item.unit || 'x'} {item.unitPrice !== null ? `à ${formatAmount(item.unitPrice)} €` : ''}
                                     </div>
                                   )}
@@ -1144,7 +1144,7 @@ export const InvoiceInbox = () => {
                             </div>
                           ))}
                         </div>
-                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        <div className="mt-2 text-xs text-gray-500 dark:text-dark-400">
                           Diese Positionen können später für die Weiterverrechnung verwendet werden.
                         </div>
                       </div>

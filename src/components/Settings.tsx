@@ -924,7 +924,7 @@ export const Settings = ({
   ];
 
   return (
-    <div className="flex h-full bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-full bg-gray-50 dark:bg-dark-50">
       {/* Sidebar */}
       <div className="w-64 bg-white dark:bg-dark-100 border-r border-gray-200 dark:border-dark-200 flex-shrink-0 hidden lg:flex flex-col">
         {/* Sidebar Header */}
@@ -951,7 +951,7 @@ export const Settings = ({
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
                         isActive
                           ? 'bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-medium'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-50'
+                          : 'text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-50'
                       }`}
                     >
                       <Icon size={20} className={isActive ? 'text-accent-primary' : 'text-gray-400'} />
@@ -973,10 +973,10 @@ export const Settings = ({
       </div>
 
       {/* Mobile Header - iOS Style Button */}
-      <div className="lg:hidden fixed top-12 left-0 right-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-700/50 px-4 py-2">
+      <div className="lg:hidden fixed top-12 left-0 right-0 z-20 bg-white/80 dark:bg-dark-50/80 backdrop-blur-lg border-b border-gray-200/50 dark:border-dark-border/50 px-4 py-2">
         <button
           onClick={() => setMobileMenuOpen(true)}
-          className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-100/80 dark:bg-gray-800/80 rounded-xl active:scale-[0.98] transition-transform"
+          className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-100/80 dark:bg-dark-100/80 rounded-xl active:scale-[0.98] transition-transform"
         >
           <div className="flex items-center gap-3">
             {(() => {
@@ -1006,10 +1006,10 @@ export const Settings = ({
           />
 
           {/* Sheet */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gray-100 dark:bg-gray-900 rounded-t-3xl max-h-[70vh] overflow-hidden animate-slide-up">
+          <div className="absolute bottom-0 left-0 right-0 bg-gray-100 dark:bg-dark-50 rounded-t-3xl max-h-[70vh] overflow-hidden animate-slide-up">
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-2">
-              <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+              <div className="w-10 h-1 bg-gray-300 dark:bg-dark-300 rounded-full" />
             </div>
 
             {/* Menu Items */}
@@ -1017,12 +1017,12 @@ export const Settings = ({
               {menuItems.map((section, idx) => (
                 <div key={section.category} className={idx > 0 ? 'mt-6' : ''}>
                   {/* Section Header */}
-                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2">
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-dark-400 uppercase tracking-wider px-4 mb-2">
                     {section.category}
                   </h3>
 
                   {/* Section Items - iOS grouped style */}
-                  <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden">
+                  <div className="bg-white dark:bg-dark-100 rounded-xl overflow-hidden">
                     {section.items.map((item, itemIdx) => {
                       const Icon = item.icon;
                       const isActive = activeTab === item.id;
@@ -1035,20 +1035,20 @@ export const Settings = ({
                             setActiveTab(item.id as any);
                             setMobileMenuOpen(false);
                           }}
-                          className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-100 dark:active:bg-gray-700 transition-colors ${
-                            !isLast ? 'border-b border-gray-100 dark:border-gray-700' : ''
+                          className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-100 dark:active:bg-dark-200 transition-colors ${
+                            !isLast ? 'border-b border-gray-100 dark:border-dark-border' : ''
                           }`}
                         >
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                            isActive ? 'bg-accent-primary/15' : 'bg-gray-100 dark:bg-gray-700'
+                            isActive ? 'bg-accent-primary/15' : 'bg-gray-100 dark:bg-dark-200'
                           }`}>
-                            <Icon size={18} className={isActive ? 'text-accent-primary' : 'text-gray-500 dark:text-gray-400'} />
+                            <Icon size={18} className={isActive ? 'text-accent-primary' : 'text-gray-500 dark:text-dark-400'} />
                           </div>
                           <div className="flex-1 text-left">
                             <div className={`text-sm ${isActive ? 'font-semibold text-accent-primary' : 'font-medium text-gray-900 dark:text-white'}`}>
                               {item.label}
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                            <div className="text-xs text-gray-500 dark:text-dark-400">
                               {item.desc}
                             </div>
                           </div>
@@ -1376,7 +1376,7 @@ export const Settings = ({
                         <p className="font-semibold text-accent-dark dark:text-accent-primary">
                           Migration abgeschlossen
                         </p>
-                        <div className="text-sm mt-2 text-gray-700 dark:text-gray-300 space-y-1">
+                        <div className="text-sm mt-2 text-gray-700 dark:text-dark-500 space-y-1">
                           <p>Kontakte aus Kunden-E-Mails: <strong>{migrationResult.contactsFromEmail}</strong></p>
                           <p>Kontakte aus Support-Tickets: <strong>{migrationResult.contactsFromTickets}</strong></p>
                           <p>Domains aus Websites: <strong>{migrationResult.domainsFromWebsite}</strong></p>
@@ -1425,7 +1425,7 @@ export const Settings = ({
                         }`}>
                           Import abgeschlossen
                         </p>
-                        <p className="text-sm mt-1 text-gray-700 dark:text-gray-300">
+                        <p className="text-sm mt-1 text-gray-700 dark:text-dark-500">
                           {importResult.success} erfolgreich, {importResult.failed} fehlgeschlagen
                         </p>
                       </div>
@@ -1437,7 +1437,7 @@ export const Settings = ({
                       />
                     </div>
                     {importResult.errors.length > 0 && (
-                      <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                      <div className="mt-2 text-sm text-gray-600 dark:text-dark-400">
                         <p className="font-medium mb-1">Fehler:</p>
                         <ul className="list-disc list-inside space-y-1">
                           {importResult.errors.slice(0, 5).map((error, idx) => (
@@ -1486,13 +1486,13 @@ export const Settings = ({
                                   </span>
                                 ) : null}
                                 {customer.customerNumber && (
-                                  <span className="text-xs bg-gray-100 dark:bg-dark-50 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                  <span className="text-xs bg-gray-100 dark:bg-dark-50 text-gray-600 dark:text-dark-500 px-2 py-0.5 rounded-full whitespace-nowrap">
                                     #{customer.customerNumber}
                                   </span>
                                 )}
                               </div>
                               {customer.reportTitle && (
-                                <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5 truncate">
+                                <p className="text-sm text-gray-600 dark:text-dark-500 mt-0.5 truncate">
                                   {customer.reportTitle}
                                 </p>
                               )}
@@ -2069,12 +2069,12 @@ export const Settings = ({
             <div className="space-y-6">
               {/* Section: Stammdaten */}
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-dark-border">
                   <span className="text-base">📋</span> Stammdaten
                 </h3>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Kundenname *
                   </label>
                   <input
@@ -2082,20 +2082,20 @@ export const Settings = ({
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder="z.B. Musterfirma GmbH"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                     autoFocus
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Kundentyp
                   </label>
                   <div className="flex gap-3">
                     <label className={`flex-1 flex items-center justify-center gap-2 cursor-pointer px-3 py-2 rounded-lg border transition-colors ${
                       customerType === 'company'
                         ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary'
-                        : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-200 text-gray-700 dark:text-dark-500'
                     }`}>
                       <input
                         type="radio"
@@ -2110,7 +2110,7 @@ export const Settings = ({
                     <label className={`flex-1 flex items-center justify-center gap-2 cursor-pointer px-3 py-2 rounded-lg border transition-colors ${
                       customerType === 'individual'
                         ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
-                        : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-200 text-gray-700 dark:text-dark-500'
                     }`}>
                       <input
                         type="radio"
@@ -2127,7 +2127,7 @@ export const Settings = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       Kundennummer
                     </label>
                     <input
@@ -2135,11 +2135,11 @@ export const Settings = ({
                       value={customerNumber}
                       onChange={(e) => setCustomerNumber(e.target.value)}
                       placeholder="z.B. K-12345"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       Ansprechpartner
                     </label>
                     <input
@@ -2147,13 +2147,13 @@ export const Settings = ({
                       value={customerContactPerson}
                       onChange={(e) => setCustomerContactPerson(e.target.value)}
                       placeholder="Max Mustermann"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     E-Mail
                   </label>
                   <input
@@ -2161,12 +2161,12 @@ export const Settings = ({
                     value={customerEmail}
                     onChange={(e) => setCustomerEmail(e.target.value)}
                     placeholder="kontakt@musterfirma.de"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Adresse
                   </label>
                   <textarea
@@ -2174,19 +2174,19 @@ export const Settings = ({
                     onChange={(e) => setCustomerAddress(e.target.value)}
                     placeholder="Musterstraße 123&#10;12345 Musterstadt"
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm resize-none"
                   />
                 </div>
               </div>
 
               {/* Section: Darstellung */}
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-dark-border">
                   <span className="text-base">🎨</span> Darstellung
                 </h3>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Farbe
                   </label>
                   <div className="grid grid-cols-5 gap-2">
@@ -2204,7 +2204,7 @@ export const Settings = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Anzeigename (für PDF)
                   </label>
                   <input
@@ -2212,7 +2212,7 @@ export const Settings = ({
                     value={customerDisplayName}
                     onChange={(e) => setCustomerDisplayName(e.target.value)}
                     placeholder="z.B. IHE (statt langer Firmenname)"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                   />
                 </div>
               </div>
@@ -2222,12 +2222,12 @@ export const Settings = ({
             <div className="space-y-6">
               {/* Section: PDF-Export */}
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-dark-border">
                   <span className="text-base">📄</span> PDF-Export
                 </h3>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Report-Titel
                   </label>
                   <input
@@ -2235,15 +2235,15 @@ export const Settings = ({
                     value={customerReportTitle}
                     onChange={(e) => setCustomerReportTitle(e.target.value)}
                     placeholder="z.B. Stundenzettel, Tätigkeitsnachweis"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                   />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                     Standard: "Stundenbericht"
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Import-Aliase
                   </label>
                   <input
@@ -2251,9 +2251,9 @@ export const Settings = ({
                     value={customerImportAliases}
                     onChange={(e) => setCustomerImportAliases(e.target.value)}
                     placeholder="z.B. IHE, IHE GmbH, IHE Planung"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                   />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                     Komma-getrennte Namen für CSV-Import
                   </p>
                 </div>
@@ -2261,13 +2261,13 @@ export const Settings = ({
                 {/* Default Project - only show when editing existing customer */}
                 {editingCustomer && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       Standard-Projekt
                     </label>
                     <select
                       value={customerDefaultProjectId}
                       onChange={(e) => setCustomerDefaultProjectId(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                     >
                       <option value="">— Kein Standard-Projekt —</option>
                       {projects
@@ -2277,7 +2277,7 @@ export const Settings = ({
                         ))
                       }
                     </select>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                       Fallback-Projekt für Import ohne Projektzuordnung
                     </p>
                   </div>
@@ -2287,13 +2287,13 @@ export const Settings = ({
               {/* Section: Abrechnung - only show if billing is enabled */}
               {billingEnabled && (
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-dark-border">
                     <span className="text-base">💰</span> Abrechnung
                   </h3>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                         Stundensatz (€)
                       </label>
                       <input
@@ -2303,11 +2303,11 @@ export const Settings = ({
                         value={customerHourlyRate}
                         onChange={(e) => setCustomerHourlyRate(e.target.value)}
                         placeholder="95.00"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                         Zahlungsziel (Tage)
                       </label>
                       <input
@@ -2317,19 +2317,19 @@ export const Settings = ({
                         value={customerPaymentTermsDays}
                         onChange={(e) => setCustomerPaymentTermsDays(e.target.value)}
                         placeholder="14"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       Zeitaufrundung
                     </label>
                     <select
                       value={customerTimeRoundingInterval}
                       onChange={(e) => setCustomerTimeRoundingInterval(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                     >
                       <option value="1">1 Min. (keine Rundung)</option>
                       <option value="5">5 Minuten</option>
@@ -2345,12 +2345,12 @@ export const Settings = ({
 
               {/* Section: Integrationen */}
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-dark-border">
                   <span className="text-base">🔗</span> Integrationen
                 </h3>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     NinjaRMM Organisation ID
                   </label>
                   <input
@@ -2358,7 +2358,7 @@ export const Settings = ({
                     value={customerNinjarmmOrgId}
                     onChange={(e) => setCustomerNinjarmmOrgId(e.target.value)}
                     placeholder="z.B. org-12345"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                   />
                 </div>
               </div>
@@ -2366,7 +2366,7 @@ export const Settings = ({
           </div>
 
           {/* Buttons - full width */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
             <Button
               variant="secondary"
               onClick={() => setCustomerModalOpen(false)}
@@ -2528,7 +2528,7 @@ export const Settings = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-3">
               Abrechnungsart *
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -2538,11 +2538,11 @@ export const Settings = ({
                 className={`p-3 rounded-lg border-2 transition-all text-center ${
                   activityPricingType === 'hourly'
                     ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-semibold'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 text-gray-700 dark:text-gray-300'
+                    : 'border-gray-300 dark:border-dark-border hover:border-gray-400 text-gray-700 dark:text-dark-500'
                 }`}
               >
                 <div className="text-sm font-medium">Stundenabrechnung</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Nach Projektsatz</div>
+                <div className="text-xs text-gray-500 dark:text-dark-400 mt-1">Nach Projektsatz</div>
               </button>
               <button
                 type="button"
@@ -2550,18 +2550,18 @@ export const Settings = ({
                 className={`p-3 rounded-lg border-2 transition-all text-center ${
                   activityPricingType === 'flat'
                     ? 'border-accent-primary bg-accent-light dark:bg-accent-lighter/10 text-accent-primary font-semibold'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 text-gray-700 dark:text-gray-300'
+                    : 'border-gray-300 dark:border-dark-border hover:border-gray-400 text-gray-700 dark:text-dark-500'
                 }`}
               >
                 <div className="text-sm font-medium">Pauschalpreis</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Fester Betrag</div>
+                <div className="text-xs text-gray-500 dark:text-dark-400 mt-1">Fester Betrag</div>
               </button>
             </div>
           </div>
 
           {activityPricingType === 'flat' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Pauschalbetrag * (€)
               </label>
               <input
@@ -2571,15 +2571,15 @@ export const Settings = ({
                 value={activityFlatRate}
                 onChange={(e) => setActivityFlatRate(e.target.value)}
                 placeholder="z.B. 2500"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary dark:bg-dark-200 dark:text-white"
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                 💡 Dieser Betrag wird unabhängig von der erfassten Zeit abgerechnet
               </p>
             </div>
           )}
 
-          <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-dark-100 rounded-lg">
             <input
               type="checkbox"
               id="activity-billable"
@@ -2587,9 +2587,9 @@ export const Settings = ({
               onChange={(e) => setActivityIsBillable(e.target.checked)}
               className="w-4 h-4 text-accent-primary border-gray-300 rounded focus:ring-2 focus:ring-accent-primary"
             />
-            <label htmlFor="activity-billable" className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+            <label htmlFor="activity-billable" className="flex-1 text-sm font-medium text-gray-700 dark:text-dark-500 cursor-pointer">
               Abrechenbar
-              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <span className="block text-xs text-gray-500 dark:text-dark-400 mt-1">
                 Nicht abrechenbare Tätigkeiten werden nicht in Reports berücksichtigt
               </span>
             </label>
@@ -2622,14 +2622,14 @@ export const Settings = ({
         title="Tätigkeit aus Vorlage wählen"
       >
         <div className="space-y-6">
-          <p className="text-base text-gray-700 dark:text-gray-300">
+          <p className="text-base text-gray-700 dark:text-dark-500">
             Wähle eine vorgefertigte Tätigkeit aus und passe sie nach Bedarf an.
           </p>
 
           <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2">
             {Object.entries(getTemplatesByCategory()).map(([category, templates]) => (
               <div key={category}>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 pb-2 border-b-2 border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 pb-2 border-b-2 border-gray-200 dark:border-dark-border">
                   {category}
                 </h3>
                 <div className="space-y-2">
@@ -2637,14 +2637,14 @@ export const Settings = ({
                     <button
                       key={idx}
                       onClick={() => handleUseTemplate(template)}
-                      className="w-full text-left p-4 rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-accent-primary dark:hover:border-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/30 transition-all group shadow-sm hover:shadow-md"
+                      className="w-full text-left p-4 rounded-lg border-2 border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 hover:border-accent-primary dark:hover:border-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/30 transition-all group shadow-sm hover:shadow-md"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <p className="text-base font-semibold text-gray-900 dark:text-white group-hover:text-accent-primary dark:group-hover:text-accent-primary mb-1">
                             {template.name}
                           </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">
+                          <p className="text-sm text-gray-600 dark:text-dark-400 group-hover:text-gray-700 dark:group-hover:text-dark-500">
                             {template.description}
                           </p>
                         </div>
@@ -2663,7 +2663,7 @@ export const Settings = ({
             ))}
           </div>
 
-          <div className="flex justify-end pt-4 border-t-2 border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end pt-4 border-t-2 border-gray-200 dark:border-dark-border">
             <Button
               variant="secondary"
               onClick={() => setTemplateModalOpen(false)}
@@ -2685,7 +2685,7 @@ export const Settings = ({
         title="CSV Spalten zuordnen"
       >
         <div className="space-y-6">
-          <p className="text-sm text-gray-700 dark:text-gray-300">
+          <p className="text-sm text-gray-700 dark:text-dark-500">
             Ordne die Spalten aus deiner CSV-Datei den entsprechenden Feldern zu.
             Vorschläge wurden automatisch erkannt. Du kannst diese anpassen oder Spalten ignorieren.
           </p>
@@ -2693,10 +2693,10 @@ export const Settings = ({
           {csvPreviewData && (
             <>
               {/* Column Mapping Table */}
-              <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+              <div className="border border-gray-300 dark:border-dark-border rounded-lg overflow-hidden">
                 <div className="max-h-[400px] overflow-y-auto">
-                  <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-600">
-                    <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
+                  <table className="min-w-full divide-y divide-gray-300 dark:divide-dark-border">
+                    <thead className="bg-gray-50 dark:bg-dark-100 sticky top-0">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
                           CSV Spalte
@@ -2709,9 +2709,9 @@ export const Settings = ({
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody className="bg-white dark:bg-dark-50 divide-y divide-gray-200 dark:divide-dark-border">
                       {csvPreviewData.headers.map((header, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-dark-100">
                           <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
                             {header}
                           </td>
@@ -2722,7 +2722,7 @@ export const Settings = ({
                                 ...prev,
                                 [header]: e.target.value
                               }))}
-                              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
+                              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded-md bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary"
                             >
                               <option value="">Ignorieren</option>
                               <option value="name">Name / Firmenname (Pflicht)</option>
@@ -2740,9 +2740,9 @@ export const Settings = ({
                               <option value="taxId">Steuernummer/USt-IdNr</option>
                             </select>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-400">
                             <div className="max-w-xs truncate">
-                              {csvPreviewData.rows[0]?.[header] || <span className="text-gray-400 dark:text-gray-500 italic">leer</span>}
+                              {csvPreviewData.rows[0]?.[header] || <span className="text-gray-400 dark:text-dark-400 italic">leer</span>}
                             </div>
                           </td>
                         </tr>
@@ -2791,7 +2791,7 @@ export const Settings = ({
               )}
 
               {/* Action Buttons */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
                 <Button
                   variant="secondary"
                   onClick={() => {
@@ -2823,7 +2823,7 @@ export const Settings = ({
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Benutzername
             </label>
             <input
@@ -2836,7 +2836,7 @@ export const Settings = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               E-Mail
             </label>
             <input
@@ -2890,7 +2890,7 @@ export const Settings = ({
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Aktuelles Passwort
             </label>
             <input
@@ -2903,7 +2903,7 @@ export const Settings = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Neues Passwort
             </label>
             <input
@@ -2916,7 +2916,7 @@ export const Settings = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Passwort bestätigen
             </label>
             <input

@@ -26,7 +26,7 @@ export default function LibraryPage() {
         return <PostsTab />;
       case 'evergreen':
         return (
-          <div className="flex items-center justify-center py-20 text-gray-500 dark:text-gray-400">
+          <div className="flex items-center justify-center py-20 text-gray-500 dark:text-dark-400">
             <div className="text-center">
               <RefreshCw size={48} className="mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium mb-2">Evergreen Content</p>
@@ -55,7 +55,7 @@ export default function LibraryPage() {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
               libraryTab === tab.id
                 ? 'bg-pink-600 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
+                : 'bg-white dark:bg-dark-100 text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200 border border-gray-200 dark:border-dark-border'
             }`}
           >
             {tab.icon}

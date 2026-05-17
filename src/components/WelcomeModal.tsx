@@ -21,7 +21,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
       description: `Hallo ${currentUser?.username || 'dort'}! Schön, dass du hier bist. Lass uns gemeinsam deine Zeiterfassung einrichten.`,
       content: (
         <div className="space-y-4">
-          <p className="text-gray-700 dark:text-gray-300">
+          <p className="text-gray-700 dark:text-dark-500">
             TimeTrack ist deine professionelle Lösung für Zeiterfassung und Abrechnung. In wenigen Schritten bist du startklar!
           </p>
 
@@ -64,7 +64,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
               </div>
               <div className="flex-1">
                 <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Navigation zu Einstellungen</h4>
-                <p className="text-sm text-gray-700 dark:text-gray-300">
+                <p className="text-sm text-gray-700 dark:text-dark-500">
                   Gehe zu <strong>Einstellungen</strong> → <strong>Zeiterfassung</strong> → <strong>Kunden</strong>
                 </p>
               </div>
@@ -78,7 +78,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
               </div>
               <div className="flex-1">
                 <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Kunde hinzufügen</h4>
-                <p className="text-sm text-gray-700 dark:text-gray-300">
+                <p className="text-sm text-gray-700 dark:text-dark-500">
                   Klicke auf <strong>"+ Neuer Kunde"</strong> und trage Name, Farbe und optional Kontaktdaten ein
                 </p>
               </div>
@@ -106,7 +106,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
               </div>
               <div className="flex-1">
                 <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Zu Projekte wechseln</h4>
-                <p className="text-sm text-gray-700 dark:text-gray-300">
+                <p className="text-sm text-gray-700 dark:text-dark-500">
                   In <strong>Einstellungen</strong> → <strong>Zeiterfassung</strong> → <strong>Projekte</strong>
                 </p>
               </div>
@@ -120,7 +120,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
               </div>
               <div className="flex-1">
                 <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Projekt anlegen</h4>
-                <p className="text-sm text-gray-700 dark:text-gray-300">
+                <p className="text-sm text-gray-700 dark:text-dark-500">
                   Wähle den Kunden, gib einen Projektnamen ein und lege den <strong>Stundensatz</strong> fest
                 </p>
               </div>
@@ -145,7 +145,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
             <div className="bg-gradient-to-br from-accent-light to-accent-lighter dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-lg p-4 border border-accent-primary/30 dark:border-accent-primary/40">
               <div className="text-2xl mb-2">⏱️</div>
               <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Stopwatch</h4>
-              <p className="text-sm text-gray-700 dark:text-gray-300">
+              <p className="text-sm text-gray-700 dark:text-dark-500">
                 Perfekt für laufende Arbeiten. Einfach Start drücken und später stoppen.
               </p>
             </div>
@@ -153,7 +153,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
               <div className="text-2xl mb-2">📝</div>
               <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Manuell</h4>
-              <p className="text-sm text-gray-700 dark:text-gray-300">
+              <p className="text-sm text-gray-700 dark:text-dark-500">
                 Ideal zum Nachtragen. Gib Start- und Endzeit ein.
               </p>
             </div>
@@ -166,7 +166,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
               </div>
               <h4 className="font-semibold text-gray-900 dark:text-white">Du bist startklar!</h4>
             </div>
-            <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+            <ul className="space-y-2 text-sm text-gray-700 dark:text-dark-500">
               <li className="flex items-center gap-2">
                 <Check size={16} className="text-green-600 flex-shrink-0" />
                 <span>Zeiten per Stopwatch oder manuell erfassen</span>

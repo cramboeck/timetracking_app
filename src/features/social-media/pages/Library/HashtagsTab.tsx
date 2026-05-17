@@ -118,7 +118,7 @@ export default function HashtagsTab() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600 dark:text-dark-400">
           Organisiere deine Hashtags in Gruppen für schnellen Zugriff.
         </p>
         <button
@@ -132,9 +132,9 @@ export default function HashtagsTab() {
 
       {/* Hashtag Groups */}
       {hashtagGroups.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-gray-700 text-center">
-          <Hash size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-          <p className="text-gray-500 dark:text-gray-400 mb-4">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-dark-border text-center">
+          <Hash size={48} className="mx-auto mb-4 text-gray-300 dark:text-dark-400" />
+          <p className="text-gray-500 dark:text-dark-400 mb-4">
             Noch keine Hashtag-Gruppen erstellt.
           </p>
           <button
@@ -149,7 +149,7 @@ export default function HashtagsTab() {
           {hashtagGroups.map((group) => (
             <div
               key={group.id}
-              className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700"
+              className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border"
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -157,14 +157,14 @@ export default function HashtagsTab() {
                     <Hash size={16} className="text-pink-600" />
                     {group.name}
                   </h3>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                  <span className="text-xs text-gray-500 dark:text-dark-400">
                     {group.hashtags.length} Hashtags
                   </span>
                 </div>
                 <div className="relative flex items-center gap-1">
                   <button
                     onClick={() => handleCopy(group)}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-dark-500 rounded hover:bg-gray-100 dark:hover:bg-dark-200"
                     title="Alle kopieren"
                   >
                     {copiedId === group.id ? (
@@ -175,19 +175,19 @@ export default function HashtagsTab() {
                   </button>
                   <button
                     onClick={() => setShowMenu(showMenu === group.id ? null : group.id)}
-                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-dark-500"
                   >
                     <MoreVertical size={18} />
                   </button>
 
                   {showMenu === group.id && (
-                    <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10">
+                    <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-dark-100 rounded-lg shadow-lg border border-gray-200 dark:border-dark-border py-1 z-10">
                       <button
                         onClick={() => {
                           openEditor(group);
                           setShowMenu(null);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200"
                       >
                         <Edit size={14} />
                         Bearbeiten
@@ -215,7 +215,7 @@ export default function HashtagsTab() {
                   </span>
                 ))}
                 {group.hashtags.length > 8 && (
-                  <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded text-sm">
+                  <span className="px-2 py-0.5 bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 rounded text-sm">
                     +{group.hashtags.length - 8} mehr
                   </span>
                 )}
@@ -232,16 +232,16 @@ export default function HashtagsTab() {
           onClick={resetEditor}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full"
+            className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-lg w-full"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
                 {editingGroup ? 'Gruppe bearbeiten' : 'Neue Hashtag-Gruppe'}
               </h2>
               <button
                 onClick={resetEditor}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                className="text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
               >
                 <X size={20} />
               </button>
@@ -249,7 +249,7 @@ export default function HashtagsTab() {
 
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Gruppenname
                 </label>
                 <input
@@ -257,15 +257,15 @@ export default function HashtagsTab() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="z.B. Tech & Startup"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Hashtags ({hashtags.length})
                 </label>
-                <div className="flex flex-wrap gap-1 mb-2 min-h-[40px] p-2 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex flex-wrap gap-1 mb-2 min-h-[40px] p-2 bg-gray-50 dark:bg-dark-50 rounded-lg border border-gray-200 dark:border-dark-border">
                   {hashtags.map((tag, i) => (
                     <span
                       key={i}
@@ -293,26 +293,26 @@ export default function HashtagsTab() {
                     onChange={(e) => setHashtagInput(e.target.value)}
                     onKeyDown={handleHashtagKeyDown}
                     placeholder="Hashtag eingeben..."
-                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                   />
                   <button
                     onClick={addHashtag}
                     disabled={!hashtagInput.trim()}
-                    className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                    className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50"
                   >
                     <Plus size={18} />
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                   Enter oder Komma zum Hinzufügen
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-dark-border">
               <button
                 onClick={resetEditor}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+                className="px-4 py-2 text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white"
               >
                 Abbrechen
               </button>

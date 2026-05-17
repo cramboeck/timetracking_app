@@ -305,13 +305,13 @@ export const TicketSettings = () => {
   return (
     <div className="space-y-6">
       {/* Section Tabs */}
-      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex gap-2 border-b border-gray-200 dark:border-dark-border">
         <button
           onClick={() => setActiveSection('tags')}
           className={`flex items-center gap-2 px-4 py-2 font-medium border-b-2 transition-colors ${
             activeSection === 'tags'
               ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
           }`}
         >
           <Tag size={18} />
@@ -322,7 +322,7 @@ export const TicketSettings = () => {
           className={`flex items-center gap-2 px-4 py-2 font-medium border-b-2 transition-colors ${
             activeSection === 'responses'
               ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
           }`}
         >
           <MessageSquare size={18} />
@@ -333,7 +333,7 @@ export const TicketSettings = () => {
           className={`flex items-center gap-2 px-4 py-2 font-medium border-b-2 transition-colors ${
             activeSection === 'sla'
               ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
           }`}
         >
           <Clock size={18} />
@@ -344,19 +344,19 @@ export const TicketSettings = () => {
       {/* Tags Section */}
       {activeSection === 'tags' && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600 dark:text-dark-400">
             Tags helfen dir, Tickets zu kategorisieren und schneller zu finden.
           </p>
 
           {/* Create/Edit Tag Form */}
-          <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-dark-100 rounded-lg">
             <input
               type="text"
               value={newTagName}
               onChange={(e) => setNewTagName(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && (editingTag ? handleUpdateTag() : handleCreateTag())}
               placeholder="Tag Name..."
-              className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
             />
             <div className="flex gap-1">
               {TAG_COLORS.map(color => (
@@ -404,7 +404,7 @@ export const TicketSettings = () => {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
             </div>
           ) : tags.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-8 text-gray-500 dark:text-dark-400">
               Noch keine Tags erstellt
             </div>
           ) : (
@@ -412,7 +412,7 @@ export const TicketSettings = () => {
               {tags.map(tag => (
                 <div
                   key={tag.id}
-                  className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                  className="flex items-center justify-between p-3 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg"
                 >
                   <div className="flex items-center gap-3">
                     <span
@@ -421,7 +421,7 @@ export const TicketSettings = () => {
                     />
                     <span className="font-medium text-gray-900 dark:text-white">{tag.name}</span>
                     {tag.ticket_count !== undefined && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                      <span className="text-xs text-gray-500 dark:text-dark-400">
                         {tag.ticket_count} Tickets
                       </span>
                     )}
@@ -450,7 +450,7 @@ export const TicketSettings = () => {
       {activeSection === 'responses' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-gray-600 dark:text-dark-400">
               Textbausteine für häufig verwendete Antworten in Ticket-Kommentaren.
             </p>
             {!showResponseForm && (
@@ -492,42 +492,42 @@ export const TicketSettings = () => {
             {showVariableInfo && (
               <div className="mt-3 space-y-3 text-sm">
                 <div>
-                  <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">Kunden-Variablen:</p>
+                  <p className="text-gray-700 dark:text-dark-500 font-medium mb-2">Kunden-Variablen:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{customer_name}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">Name des Kunden</div>
+                    <div className="text-gray-600 dark:text-dark-400">Name des Kunden</div>
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{customer_email}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">E-Mail des Kunden</div>
+                    <div className="text-gray-600 dark:text-dark-400">E-Mail des Kunden</div>
                   </div>
                 </div>
                 <div>
-                  <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">Ticket-Variablen:</p>
+                  <p className="text-gray-700 dark:text-dark-500 font-medium mb-2">Ticket-Variablen:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{ticket_number}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">Ticketnummer (z.B. T00001)</div>
+                    <div className="text-gray-600 dark:text-dark-400">Ticketnummer (z.B. T00001)</div>
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{ticket_title}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">Titel des Tickets</div>
+                    <div className="text-gray-600 dark:text-dark-400">Titel des Tickets</div>
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{ticket_description}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">Beschreibung des Tickets</div>
+                    <div className="text-gray-600 dark:text-dark-400">Beschreibung des Tickets</div>
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{status}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">Aktueller Status</div>
+                    <div className="text-gray-600 dark:text-dark-400">Aktueller Status</div>
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{priority}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">Priorität</div>
+                    <div className="text-gray-600 dark:text-dark-400">Priorität</div>
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{created_date}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">Erstellungsdatum</div>
+                    <div className="text-gray-600 dark:text-dark-400">Erstellungsdatum</div>
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{created_time}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">Erstellungszeit</div>
+                    <div className="text-gray-600 dark:text-dark-400">Erstellungszeit</div>
                   </div>
                 </div>
                 <div>
-                  <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">Datum/Zeit:</p>
+                  <p className="text-gray-700 dark:text-dark-500 font-medium mb-2">Datum/Zeit:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{current_date}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">Heutiges Datum</div>
+                    <div className="text-gray-600 dark:text-dark-400">Heutiges Datum</div>
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{current_time}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">Aktuelle Uhrzeit</div>
+                    <div className="text-gray-600 dark:text-dark-400">Aktuelle Uhrzeit</div>
                     <div className="font-mono text-accent-primary dark:text-accent-primary">{'{{current_datetime}}'}</div>
-                    <div className="text-gray-600 dark:text-gray-400">Aktuelles Datum und Uhrzeit</div>
+                    <div className="text-gray-600 dark:text-dark-400">Aktuelles Datum und Uhrzeit</div>
                   </div>
                 </div>
               </div>
@@ -536,10 +536,10 @@ export const TicketSettings = () => {
 
           {/* Create/Edit Response Form */}
           {showResponseForm && (
-            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-4">
+            <div className="p-4 bg-gray-50 dark:bg-dark-100 rounded-lg space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Titel *
                   </label>
                   <input
@@ -547,11 +547,11 @@ export const TicketSettings = () => {
                     value={responseTitle}
                     onChange={(e) => setResponseTitle(e.target.value)}
                     placeholder="z.B. Begrüßung"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Kürzel (optional)
                   </label>
                   <div className="relative">
@@ -561,13 +561,13 @@ export const TicketSettings = () => {
                       value={responseShortcut}
                       onChange={(e) => setResponseShortcut(e.target.value.replace(/\s/g, ''))}
                       placeholder="hi"
-                      className="w-full pl-6 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className="w-full pl-6 pr-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                     />
                   </div>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Inhalt *
                 </label>
                 <textarea
@@ -575,11 +575,11 @@ export const TicketSettings = () => {
                   onChange={(e) => setResponseContent(e.target.value)}
                   placeholder="Der Text, der eingefügt werden soll..."
                   rows={4}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white resize-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Kategorie (optional)
                 </label>
                 <input
@@ -587,7 +587,7 @@ export const TicketSettings = () => {
                   value={responseCategory}
                   onChange={(e) => setResponseCategory(e.target.value)}
                   placeholder="z.B. Allgemein, Support, Abschluss"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                 />
               </div>
               <div className="flex justify-end gap-2">
@@ -615,7 +615,7 @@ export const TicketSettings = () => {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
             </div>
           ) : responses.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-8 text-gray-500 dark:text-dark-400">
               Noch keine Textbausteine erstellt
             </div>
           ) : (
@@ -623,7 +623,7 @@ export const TicketSettings = () => {
               {responses.map(response => (
                 <div
                   key={response.id}
-                  className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                  className="p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -632,7 +632,7 @@ export const TicketSettings = () => {
                           {response.title}
                         </span>
                         {response.shortcut && (
-                          <span className="text-xs font-mono px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded">
+                          <span className="text-xs font-mono px-2 py-0.5 bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400 rounded">
                             /{response.shortcut}
                           </span>
                         )}
@@ -642,7 +642,7 @@ export const TicketSettings = () => {
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap line-clamp-2">
+                      <p className="mt-1 text-sm text-gray-600 dark:text-dark-400 whitespace-pre-wrap line-clamp-2">
                         {response.content}
                       </p>
                       <div className="mt-2 text-xs text-gray-400">
@@ -674,7 +674,7 @@ export const TicketSettings = () => {
       {activeSection === 'sla' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-gray-600 dark:text-dark-400">
               SLA-Richtlinien definieren die Reaktions- und Lösungszeiten für Tickets basierend auf ihrer Priorität.
             </p>
             {!showSlaForm && (
@@ -691,10 +691,10 @@ export const TicketSettings = () => {
 
           {/* Create/Edit SLA Form */}
           {showSlaForm && (
-            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-4">
+            <div className="p-4 bg-gray-50 dark:bg-dark-100 rounded-lg space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Name *
                   </label>
                   <input
@@ -702,17 +702,17 @@ export const TicketSettings = () => {
                     value={slaName}
                     onChange={(e) => setSlaName(e.target.value)}
                     placeholder="z.B. Standard-SLA"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Priorität
                   </label>
                   <select
                     value={slaPriority}
                     onChange={(e) => setSlaPriority(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                   >
                     <option value="all">Alle Prioritäten</option>
                     <option value="critical">Kritisch</option>
@@ -723,7 +723,7 @@ export const TicketSettings = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Beschreibung (optional)
                 </label>
                 <input
@@ -731,12 +731,12 @@ export const TicketSettings = () => {
                   value={slaDescription}
                   onChange={(e) => setSlaDescription(e.target.value)}
                   placeholder="Kurze Beschreibung dieser SLA-Richtlinie"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Erste Antwort in (Minuten)
                   </label>
                   <input
@@ -744,14 +744,14 @@ export const TicketSettings = () => {
                     min={1}
                     value={slaFirstResponseMinutes}
                     onChange={(e) => setSlaFirstResponseMinutes(parseInt(e.target.value) || 60)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     = {formatMinutesToTime(slaFirstResponseMinutes)}
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Lösung in (Minuten)
                   </label>
                   <input
@@ -759,7 +759,7 @@ export const TicketSettings = () => {
                     min={1}
                     value={slaResolutionMinutes}
                     onChange={(e) => setSlaResolutionMinutes(parseInt(e.target.value) || 480)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     = {formatMinutesToTime(slaResolutionMinutes)}
@@ -772,9 +772,9 @@ export const TicketSettings = () => {
                     type="checkbox"
                     checked={slaIsDefault}
                     onChange={(e) => setSlaIsDefault(e.target.checked)}
-                    className="rounded border-gray-300 dark:border-gray-600"
+                    className="rounded border-gray-300 dark:border-dark-border"
                   />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Standard-Richtlinie</span>
+                  <span className="text-sm text-gray-700 dark:text-dark-500">Standard-Richtlinie</span>
                 </label>
               </div>
               <div className="flex justify-end gap-2">
@@ -802,7 +802,7 @@ export const TicketSettings = () => {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
             </div>
           ) : slaPolicies.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-8 text-gray-500 dark:text-dark-400">
               Noch keine SLA-Richtlinien erstellt. SLA-Richtlinien helfen dir, Reaktionszeiten zu überwachen.
             </div>
           ) : (
@@ -810,10 +810,10 @@ export const TicketSettings = () => {
               {slaPolicies.map(policy => (
                 <div
                   key={policy.id}
-                  className={`p-4 bg-white dark:bg-gray-800 border rounded-lg ${
+                  className={`p-4 bg-white dark:bg-dark-100 border rounded-lg ${
                     policy.isActive
-                      ? 'border-gray-200 dark:border-gray-700'
-                      : 'border-gray-200 dark:border-gray-700 opacity-50'
+                      ? 'border-gray-200 dark:border-dark-border'
+                      : 'border-gray-200 dark:border-dark-border opacity-50'
                   }`}
                 >
                   <div className="flex items-start justify-between">
@@ -831,17 +831,17 @@ export const TicketSettings = () => {
                           </span>
                         )}
                         {!policy.isActive && (
-                          <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded">
+                          <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400 rounded">
                             Inaktiv
                           </span>
                         )}
                       </div>
                       {policy.description && (
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                        <p className="mt-1 text-sm text-gray-600 dark:text-dark-400">
                           {policy.description}
                         </p>
                       )}
-                      <div className="mt-2 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="mt-2 flex items-center gap-4 text-xs text-gray-500 dark:text-dark-400">
                         <span>Antwort: {formatMinutesToTime(policy.firstResponseMinutes)}</span>
                         <span>Lösung: {formatMinutesToTime(policy.resolutionMinutes)}</span>
                       </div>

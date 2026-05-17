@@ -109,7 +109,7 @@ export const TicketAIPanel = ({
           return (
             <div
               key={suggestion.id}
-              className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-purple-100 dark:border-purple-800"
+              className="p-3 bg-white dark:bg-dark-100 rounded-lg border border-purple-100 dark:border-purple-800"
             >
               <div className="flex items-center gap-2 mb-2">
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
@@ -117,7 +117,7 @@ export const TicketAIPanel = ({
                   {config.label}
                 </span>
                 {suggestion.confidence && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                  <span className="text-xs text-gray-500 dark:text-dark-400">
                     {Math.round(suggestion.confidence * 100)}% Konfidenz
                   </span>
                 )}
@@ -177,7 +177,7 @@ export const TicketAIPanel = ({
                 <div className="flex-1" />
 
                 {/* Feedback buttons */}
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-gray-500 dark:text-dark-400">
                   {new Date(suggestion.createdAt).toLocaleString('de-DE')}
                 </span>
                 <IconButton

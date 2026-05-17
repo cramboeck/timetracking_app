@@ -592,7 +592,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-3 sm:p-6 pb-3 sm:pb-4 z-10">
+      <div className="sticky top-0 bg-white dark:bg-dark-50 border-b border-gray-200 dark:border-dark-border p-3 sm:p-6 pb-3 sm:pb-4 z-10">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-0 mb-3 sm:mb-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Übersicht</h1>
@@ -644,9 +644,9 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
 
         {/* Filter Panel */}
         {showFilters && (
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4 border border-gray-200 dark:border-gray-700">
+          <div className="bg-gray-50 dark:bg-dark-100 rounded-lg p-4 mb-4 border border-gray-200 dark:border-dark-border">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-medium text-gray-700 dark:text-gray-300">Filter</h3>
+              <h3 className="font-medium text-gray-700 dark:text-dark-500">Filter</h3>
               {hasActiveFilters && (
                 <Button
                   onClick={clearFilters}
@@ -661,14 +661,14 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
               {/* Customer Filter */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Kunde</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Kunde</label>
                 <select
                   value={filterCustomerId}
                   onChange={(e) => {
                     setFilterCustomerId(e.target.value);
                     setFilterProjectId(''); // Reset project when customer changes
                   }}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                 >
                   <option value="">Alle Kunden</option>
                   {uniqueCustomers.map(customer => (
@@ -679,11 +679,11 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
 
               {/* Project Filter */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Projekt</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Projekt</label>
                 <select
                   value={filterProjectId}
                   onChange={(e) => setFilterProjectId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                 >
                   <option value="">Alle Projekte</option>
                   {projectsForFilter.filter(p => p.isActive).map(project => {
@@ -699,11 +699,11 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
 
               {/* Timeframe Type Filter */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Zeitraum</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Zeitraum</label>
                 <select
                   value={filterTimeframeType}
                   onChange={(e) => setFilterTimeframeType(e.target.value as 'month' | 'quarter' | 'year' | 'custom')}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                 >
                   <option value="month">Monat</option>
                   <option value="quarter">Quartal</option>
@@ -715,11 +715,11 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               {/* Month Selector */}
               {filterTimeframeType === 'month' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Monat/Jahr</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Monat/Jahr</label>
                   <select
                     value={filterMonth}
                     onChange={(e) => setFilterMonth(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   >
                     {availableMonths.map(month => {
                       const [year, m] = month.split('-');
@@ -737,11 +737,11 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               {/* Quarter Selector */}
               {filterTimeframeType === 'quarter' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Quartal</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Quartal</label>
                   <select
                     value={filterQuarter}
                     onChange={(e) => setFilterQuarter(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   >
                     {availableQuarters.map(q => {
                       const match = q.match(/^(\d{4})-Q(\d)$/);
@@ -757,11 +757,11 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               {/* Year Selector */}
               {filterTimeframeType === 'year' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Jahr</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Jahr</label>
                   <select
                     value={filterYear}
                     onChange={(e) => setFilterYear(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   >
                     {availableYears.map(year => (
                       <option key={year} value={year}>{year}</option>
@@ -773,12 +773,12 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               {/* Custom Date From Filter */}
               {filterTimeframeType === 'custom' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Von</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Von</label>
                   <input
                     type="date"
                     value={filterDateFrom}
                     onChange={(e) => setFilterDateFrom(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   />
                 </div>
               )}
@@ -786,25 +786,25 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               {/* Custom Date To Filter */}
               {filterTimeframeType === 'custom' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Bis</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Bis</label>
                   <input
                     type="date"
                     value={filterDateTo}
                     onChange={(e) => setFilterDateTo(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   />
                 </div>
               )}
 
               {/* Description Search */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Suche</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Suche</label>
                 <input
                   type="text"
                   value={filterDescription}
                   onChange={(e) => setFilterDescription(e.target.value)}
                   placeholder="Beschreibung..."
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                 />
               </div>
             </div>
@@ -852,7 +852,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
       {/* Entry List */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-6 pt-3 sm:pt-4">
         {filteredEntries.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-12 text-gray-500 dark:text-dark-400">
             <Filter size={48} className="mx-auto mb-4 opacity-50" />
             <p>Keine Einträge für die gewählten Filter gefunden</p>
             <Button
@@ -867,7 +867,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
         ) : (
           Object.entries(groupedEntries).map(([date, dateEntries]) => (
             <div key={date} className={compactView ? 'mb-2 sm:mb-3' : 'mb-4 sm:mb-6'}>
-              <h2 className={`font-semibold text-gray-600 dark:text-gray-400 ${compactView ? 'text-xs mb-1' : 'text-sm mb-2 sm:mb-3'}`}>{date}</h2>
+              <h2 className={`font-semibold text-gray-600 dark:text-dark-400 ${compactView ? 'text-xs mb-1' : 'text-sm mb-2 sm:mb-3'}`}>{date}</h2>
               <div className={compactView ? 'space-y-1' : 'space-y-2 sm:space-y-3'}>
                 {dateEntries.map((entry) => {
                   const project = getProjectById(entry.projectId);
@@ -879,12 +879,12 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                     return (
                       <div
                         key={entry.id}
-                        className={`bg-white dark:bg-gray-800 rounded border px-3 py-1.5 sm:py-1.5 transition-colors ${
+                        className={`bg-white dark:bg-dark-100 rounded border px-3 py-1.5 sm:py-1.5 transition-colors ${
                           selectedEntries.has(entry.id)
                             ? 'border-accent-primary ring-1 ring-accent-primary/20'
                             : isRunning
                               ? 'border-green-400 dark:border-green-500 ring-1 ring-green-400/30 dark:ring-green-500/30 bg-green-50/50 dark:bg-green-900/10'
-                              : 'border-gray-200 dark:border-gray-700'
+                              : 'border-gray-200 dark:border-dark-border'
                         }`}
                       >
                         {/* Mobile: Two rows layout */}
@@ -945,7 +945,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                           </div>
                           {/* Time and duration row */}
                           <div className={`flex items-center justify-between ${isRunning ? 'pl-7' : 'pl-5'}`}>
-                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                            <span className="text-xs text-gray-400 dark:text-dark-400">
                               {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
                             </span>
                             <span className={`font-semibold text-sm ${isRunning ? 'text-green-600 dark:text-green-400' : 'text-accent-primary'}`}>
@@ -961,10 +961,10 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                                   value={inlineEditDescriptions[entry.id] ?? entry.description}
                                   onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
                                   placeholder="Beschreibung eingeben..."
-                                  className="text-xs text-gray-700 dark:text-gray-300 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
+                                  className="text-xs text-gray-700 dark:text-dark-500 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-dark-400 py-0.5"
                                 />
                               ) : (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 whitespace-pre-wrap">
+                                <p className="text-xs text-gray-500 dark:text-dark-400 line-clamp-2 whitespace-pre-wrap">
                                   {entry.description}
                                 </p>
                               )}
@@ -1000,7 +1000,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                             <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-1">
                               {getProjectDisplay(entry)}
                             </span>
-                            <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
+                            <span className="text-xs text-gray-400 dark:text-dark-400 flex-shrink-0">
                               {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
                             </span>
                             <span className={`font-semibold text-sm flex-shrink-0 w-16 text-right ${isRunning ? 'text-green-600 dark:text-green-400' : 'text-accent-primary'}`}>
@@ -1043,10 +1043,10 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                                   value={inlineEditDescriptions[entry.id] ?? entry.description}
                                   onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
                                   placeholder="Beschreibung eingeben..."
-                                  className="text-xs text-gray-700 dark:text-gray-300 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
+                                  className="text-xs text-gray-700 dark:text-dark-500 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-dark-400 py-0.5"
                                 />
                               ) : (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 whitespace-pre-wrap">
+                                <p className="text-xs text-gray-500 dark:text-dark-400 line-clamp-2 whitespace-pre-wrap">
                                   {entry.description}
                                 </p>
                               )}
@@ -1062,12 +1062,12 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                   return (
                     <div
                       key={entry.id}
-                      className={`bg-white dark:bg-gray-800 rounded-lg border p-4 shadow-sm transition-colors ${
+                      className={`bg-white dark:bg-dark-100 rounded-lg border p-4 shadow-sm transition-colors ${
                         selectedEntries.has(entry.id)
                           ? 'border-accent-primary ring-2 ring-accent-primary/20'
                           : isRunningNormal
                             ? 'border-green-400 dark:border-green-500 ring-2 ring-green-400/30 dark:ring-green-500/30 bg-green-50/50 dark:bg-green-900/10'
-                            : 'border-gray-200 dark:border-gray-700'
+                            : 'border-gray-200 dark:border-dark-border'
                       }`}
                     >
                       <div className="flex justify-between items-start mb-2">
@@ -1112,10 +1112,10 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                                 value={inlineEditDescriptions[entry.id] ?? entry.description}
                                 onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
                                 placeholder="Beschreibung eingeben..."
-                                className="w-full text-sm text-gray-700 dark:text-gray-300 mt-1 bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
+                                className="w-full text-sm text-gray-700 dark:text-dark-500 mt-1 bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-dark-400 py-0.5"
                               />
                             ) : entry.description ? (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 whitespace-pre-wrap">{entry.description}</p>
+                              <p className="text-sm text-gray-600 dark:text-dark-400 mt-1 whitespace-pre-wrap">{entry.description}</p>
                             ) : null}
                           </div>
                         </div>
@@ -1150,7 +1150,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center justify-between text-sm text-gray-500 dark:text-dark-400">
                         <span>
                           {formatTime(entry.startTime, use24Hour)}
                           {entry.endTime && ` - ${formatTime(entry.endTime, use24Hour)}`}
@@ -1195,13 +1195,13 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Projekt *
             </label>
             <select
               value={editProjectId}
               onChange={(e) => setEditProjectId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               {projects.filter(p => p.isActive).map(project => {
                 const customer = getCustomerById(project.customerId);
@@ -1215,13 +1215,13 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Tätigkeit
             </label>
             <select
               value={editActivityId}
               onChange={(e) => setEditActivityId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="">— Keine Tätigkeit —</option>
               {activities.map(activity => (
@@ -1233,7 +1233,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Datum *
             </label>
             <input
@@ -1241,13 +1241,13 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               value={editDate}
               onChange={(e) => setEditDate(e.target.value)}
               required
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Von *
               </label>
               <TimePicker
@@ -1257,7 +1257,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Bis *
               </label>
               <TimePicker
@@ -1270,7 +1270,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
                 Beschreibung
               </label>
               {aiConfigured && editProjectId && (
@@ -1292,12 +1292,12 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
             />
           </div>
 
-          <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-dark-border">
+            <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
               Abrechenbar
             </label>
             <IconButton
@@ -1312,7 +1312,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               }
               variant={editIsBillable ? 'success' : 'default'}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                editIsBillable ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+                editIsBillable ? 'bg-green-500' : 'bg-gray-300 dark:bg-dark-300'
               }`}
               tooltip={editIsBillable ? 'Als nicht abrechenbar markieren' : 'Als abrechenbar markieren'}
             />
@@ -1354,13 +1354,13 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Neues Projekt zuweisen
             </label>
             <select
               value={bulkProjectId}
               onChange={(e) => setBulkProjectId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="">— Nicht ändern —</option>
               {projects.filter(p => p.isActive).map(project => {
@@ -1375,7 +1375,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Beschreibung
             </label>
             <div className="space-y-2">
@@ -1387,7 +1387,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                   onChange={() => setBulkDescriptionMode('keep')}
                   className="text-accent-primary focus:ring-accent-primary"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Nicht ändern</span>
+                <span className="text-sm text-gray-700 dark:text-dark-500">Nicht ändern</span>
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -1397,7 +1397,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                   onChange={() => setBulkDescriptionMode('replace')}
                   className="text-accent-primary focus:ring-accent-primary"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Ersetzen durch:</span>
+                <span className="text-sm text-gray-700 dark:text-dark-500">Ersetzen durch:</span>
               </label>
               {bulkDescriptionMode === 'replace' && (
                 <textarea
@@ -1405,20 +1405,20 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                   onChange={(e) => setBulkDescription(e.target.value)}
                   rows={2}
                   placeholder="Neue Beschreibung..."
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
                 />
               )}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Tätigkeit zuweisen
             </label>
             <select
               value={bulkActivityId}
               onChange={(e) => setBulkActivityId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="">— Nicht ändern —</option>
               <option value="__remove__">— Tätigkeit entfernen —</option>
@@ -1465,10 +1465,10 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
           one page for the active filter. Currently-loaded page can be empty
           and still display these (e.g. after deleting the last entry). */}
       {pagination && pagination.totalPages > 1 && (
-        <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between gap-3 z-10">
-          <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-            Seite <span className="font-semibold text-gray-700 dark:text-gray-200">{pagination.page}</span> von{' '}
-            <span className="font-semibold text-gray-700 dark:text-gray-200">{pagination.totalPages}</span>
+        <div className="sticky bottom-0 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-dark-border px-4 py-2 flex items-center justify-between gap-3 z-10">
+          <div className="text-xs text-gray-500 dark:text-dark-400 tabular-nums">
+            Seite <span className="font-semibold text-gray-700 dark:text-dark-500">{pagination.page}</span> von{' '}
+            <span className="font-semibold text-gray-700 dark:text-dark-500">{pagination.totalPages}</span>
             <span className="hidden sm:inline"> · {pagination.total} Einträge</span>
           </div>
           <div className="flex items-center gap-2">
@@ -1476,7 +1476,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={pagination.page <= 1 || loading}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-100 disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Vorherige Seite"
             >
               <ChevronLeft size={14} />
@@ -1485,7 +1485,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
             <button
               onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
               disabled={!pagination.hasMore || loading}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-100 disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Nächste Seite"
             >
               <span className="hidden sm:inline">Weiter</span>

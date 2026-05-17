@@ -117,9 +117,9 @@ export const AreaNavigation = ({
     <>
       {/* Sub-Navigation (Top) - iOS Glassmorphism */}
       <div className="fixed top-0 left-0 right-0 z-30
-        bg-white/70 dark:bg-gray-900/70
+        bg-white/70 dark:bg-dark-50/70
         backdrop-blur-xl
-        border-b border-white/20 dark:border-gray-700/50
+        border-b border-white/20 dark:border-dark-border/50
         shadow-sm
       ">
         <div className="flex items-center h-12 px-2">
@@ -137,7 +137,7 @@ export const AreaNavigation = ({
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm whitespace-nowrap transition-all duration-200 ${
                   currentSubView === view
                     ? 'bg-accent-primary/20 text-accent-primary font-semibold shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-gray-800/50 active:scale-95'
+                    : 'text-gray-600 dark:text-dark-400 hover:bg-white/50 dark:hover:bg-dark-100/50 active:scale-95'
                 }`}
               >
                 <Icon size={16} />
@@ -150,7 +150,7 @@ export const AreaNavigation = ({
           <button
             onClick={openCommandPalette}
             aria-label="Suche öffnen (Cmd+K)"
-            className="p-2 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-gray-800/50 active:scale-95 transition-all duration-200"
+            className="p-2 rounded-xl text-gray-600 dark:text-dark-400 hover:bg-white/50 dark:hover:bg-dark-100/50 active:scale-95 transition-all duration-200"
           >
             <Search size={20} />
           </button>
@@ -161,7 +161,7 @@ export const AreaNavigation = ({
             className={`p-2 rounded-xl transition-all duration-200 ${
               currentSubView === 'settings'
                 ? 'bg-accent-primary/20 text-accent-primary shadow-sm'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-gray-800/50 active:scale-95'
+                : 'text-gray-600 dark:text-dark-400 hover:bg-white/50 dark:hover:bg-dark-100/50 active:scale-95'
             }`}
           >
             <Settings size={20} />
@@ -171,9 +171,9 @@ export const AreaNavigation = ({
 
       {/* Bottom Navigation - iOS Glassmorphism with clear active state */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom
-        bg-white/70 dark:bg-gray-900/70
+        bg-white/70 dark:bg-dark-50/70
         backdrop-blur-xl
-        border-t border-white/20 dark:border-gray-700/50
+        border-t border-white/20 dark:border-dark-border/50
       ">
         <div className="flex justify-around items-center h-16 px-2">
           {visibleAreas.map((area) => {
@@ -188,7 +188,7 @@ export const AreaNavigation = ({
                 className={`relative flex flex-col items-center justify-center px-4 py-1 rounded-2xl touch-manipulation transition-all duration-200 active:scale-95 ${
                   isActive
                     ? 'text-accent-primary bg-accent-primary/15'
-                    : 'text-gray-500 dark:text-gray-400'
+                    : 'text-gray-500 dark:text-dark-400'
                 }`}
               >
                 <Icon size={22} strokeWidth={isActive ? 2.5 : 1.5} />

@@ -61,7 +61,7 @@ export const BillingWidget = ({ onNavigateToBilling }: BillingWidgetProps) => {
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+      <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-center justify-center h-24">
           <Loader2 className="animate-spin text-accent-primary" size={24} />
         </div>
@@ -89,7 +89,7 @@ export const BillingWidget = ({ onNavigateToBilling }: BillingWidgetProps) => {
                   PRO
                 </span>
               </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 Rechnungen, Angebote und Abrechnungen verwalten
               </p>
             </div>
@@ -109,7 +109,7 @@ export const BillingWidget = ({ onNavigateToBilling }: BillingWidgetProps) => {
       className={`rounded-lg border p-6 cursor-pointer hover:shadow-md transition-shadow ${
         hasUnbilled
           ? 'bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 border-orange-200 dark:border-orange-800'
-          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+          : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-border'
       }`}
     >
       <div className="flex items-center justify-between">
@@ -135,7 +135,7 @@ export const BillingWidget = ({ onNavigateToBilling }: BillingWidgetProps) => {
                   {unbilledSummary.customerCount} Kunden
                 </span>
                 <span className="text-gray-400">•</span>
-                <span className="text-gray-600 dark:text-gray-400">
+                <span className="text-gray-600 dark:text-dark-400">
                   {unbilledSummary.totalHours.toFixed(1)}h
                 </span>
                 <span className="text-gray-400">•</span>
@@ -144,7 +144,7 @@ export const BillingWidget = ({ onNavigateToBilling }: BillingWidgetProps) => {
                 </span>
               </div>
             ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 Keine offenen Abrechnungen diesen Monat
               </p>
             )}

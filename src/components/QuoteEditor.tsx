@@ -523,9 +523,9 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-dark-100 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <FileText size={20} />
             {isEditing ? 'Angebot bearbeiten' : 'Neues Angebot erstellen'}
@@ -558,7 +558,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
 
           {/* Customer Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Kunde *
             </label>
             {loadingContacts ? (
@@ -573,7 +573,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                   const contact = contacts.find(c => c.id === e.target.value);
                   setSelectedContact(contact || null);
                 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
               >
                 <option value="">Kunde auswählen...</option>
                 {contacts.map((contact) => (
@@ -587,20 +587,20 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
 
           {/* Quote Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Angebotsdatum
             </label>
             <input
               type="date"
               value={quoteDate}
               onChange={(e) => setQuoteDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
             />
           </div>
 
           {/* Header / Subject */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Betreff *
             </label>
             <input
@@ -608,13 +608,13 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
               value={header}
               onChange={(e) => setHeader(e.target.value)}
               placeholder="z.B. Angebot für IT-Dienstleistungen"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
             />
           </div>
 
           {/* Head Text with Templates */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Einleitungstext
             </label>
             {/* Template Selectors */}
@@ -622,7 +622,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
               <select
                 value={selectedSalutation}
                 onChange={(e) => setSelectedSalutation(e.target.value)}
-                className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                className="text-xs px-2 py-1 border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-100 text-gray-700 dark:text-dark-500"
               >
                 {SALUTATION_TEMPLATES.map(t => (
                   <option key={t.id} value={t.id}>{t.label}</option>
@@ -631,7 +631,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
               <select
                 value={selectedHeadTemplate}
                 onChange={(e) => setSelectedHeadTemplate(e.target.value)}
-                className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                className="text-xs px-2 py-1 border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-100 text-gray-700 dark:text-dark-500"
               >
                 {HEAD_TEXT_TEMPLATES.map(t => (
                   <option key={t.id} value={t.id}>{t.label}</option>
@@ -655,14 +655,14 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
               onChange={(e) => setHeadText(e.target.value)}
               placeholder="Sehr geehrte Damen und Herren,&#10;&#10;vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:"
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
             />
           </div>
 
           {/* Positions */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
                 Positionen *
               </label>
               <div className="flex gap-2">
@@ -696,7 +696,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
 
             {/* Position Search */}
             {showPositionSearch && (
-              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="mb-4 p-3 bg-gray-50 dark:bg-dark-50 rounded-lg border border-gray-200 dark:border-dark-border">
                 <div className="relative mb-2">
                   <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
@@ -705,7 +705,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                     onChange={(e) => setPositionSearch(e.target.value)}
                     placeholder="Suche in bisherigen Positionen..."
                     autoFocus
-                    className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
                   />
                   {searching && (
                     <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />
@@ -718,7 +718,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                       <div
                         key={result.id}
                         onClick={() => addPosition(result)}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer"
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded cursor-pointer"
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-medium text-sm text-gray-900 dark:text-white">
@@ -728,7 +728,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                             {formatCurrency(result.price)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400 mt-1">
                           {result.sourceDocumentType === 'invoice' ? (
                             <Receipt size={12} />
                           ) : (
@@ -739,7 +739,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                           <span>{result.sourceContactName}</span>
                         </div>
                         {result.text && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                          <p className="text-xs text-gray-500 dark:text-dark-400 mt-1 line-clamp-2">
                             {result.text}
                           </p>
                         )}
@@ -759,7 +759,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
             {/* Position List */}
             <div className="space-y-2">
               {positions.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                <div className="text-center py-8 text-gray-500 dark:text-dark-400 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg">
                   <FileText size={32} className="mx-auto mb-2 opacity-50" />
                   <p>Keine Positionen hinzugefügt</p>
                   <p className="text-sm">Nutze "Aus Vorlagen" um bestehende Positionen zu suchen</p>
@@ -770,8 +770,8 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                     key={pos.id}
                     className={`border rounded-lg overflow-hidden ${
                       pos.isHeading
-                        ? 'border-gray-400 dark:border-gray-500 bg-gray-100 dark:bg-gray-700'
-                        : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'
+                        ? 'border-gray-400 dark:border-dark-border bg-gray-100 dark:bg-dark-200'
+                        : 'border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100'
                     }`}
                   >
                     {/* Position Header */}
@@ -783,16 +783,16 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           {pos.isHeading ? (
-                            <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded">
+                            <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-dark-500 rounded">
                               Überschrift
                             </span>
                           ) : null}
-                          <span className={`font-medium truncate ${pos.isHeading ? 'text-gray-700 dark:text-gray-200' : 'text-gray-900 dark:text-white'}`}>
+                          <span className={`font-medium truncate ${pos.isHeading ? 'text-gray-700 dark:text-dark-500' : 'text-gray-900 dark:text-white'}`}>
                             {pos.name || '(Ohne Name)'}
                           </span>
                         </div>
                         {!pos.isHeading && (
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                          <div className="text-sm text-gray-500 dark:text-dark-400">
                             {pos.quantity} x {formatCurrency(pos.price)} = {formatCurrency(pos.quantity * pos.price)}
                           </div>
                         )}
@@ -835,16 +835,16 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
 
                     {/* Position Edit Form */}
                     {expandedPositions.has(pos.id) && (
-                      <div className="p-3 pt-0 border-t border-gray-200 dark:border-gray-600 space-y-3">
+                      <div className="p-3 pt-0 border-t border-gray-200 dark:border-dark-border space-y-3">
                         <div>
-                          <label className="text-xs text-gray-500 dark:text-gray-400">
+                          <label className="text-xs text-gray-500 dark:text-dark-400">
                             {pos.isHeading ? 'Überschrift' : 'Bezeichnung'}
                           </label>
                           <input
                             type="text"
                             value={pos.name}
                             onChange={(e) => updatePosition(pos.id, { name: e.target.value })}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                           />
                         </div>
 
@@ -852,7 +852,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                           <>
                             <div>
                               <div className="flex items-center justify-between flex-wrap gap-1">
-                                <label className="text-xs text-gray-500 dark:text-gray-400">
+                                <label className="text-xs text-gray-500 dark:text-dark-400">
                                   Beschreibung (optional)
                                 </label>
                                 <div className="flex items-center gap-2">
@@ -886,7 +886,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                                 value={pos.text}
                                 onChange={(e) => updatePosition(pos.id, { text: e.target.value })}
                                 rows={2}
-                                className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                               />
                               {/* Price Research Result */}
                               {priceResearchResult?.positionId === pos.id && (
@@ -898,7 +898,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
 
                             <div className="grid grid-cols-4 gap-3">
                               <div>
-                                <label className="text-xs text-gray-500 dark:text-gray-400">
+                                <label className="text-xs text-gray-500 dark:text-dark-400">
                                   Menge
                                 </label>
                                 <input
@@ -907,11 +907,11 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                                   step="0.01"
                                   value={pos.quantity}
                                   onChange={(e) => updatePosition(pos.id, { quantity: parseFloat(e.target.value) || 0 })}
-                                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                                 />
                               </div>
                               <div>
-                                <label className="text-xs text-gray-500 dark:text-gray-400">
+                                <label className="text-xs text-gray-500 dark:text-dark-400">
                                   EK-Preis (EUR)
                                 </label>
                                 <input
@@ -928,11 +928,11 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                                     }
                                   }}
                                   placeholder="EK"
-                                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                                 />
                               </div>
                               <div>
-                                <label className="text-xs text-gray-500 dark:text-gray-400">
+                                <label className="text-xs text-gray-500 dark:text-dark-400">
                                   VK-Preis (EUR)
                                 </label>
                                 <input
@@ -941,11 +941,11 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                                   step="0.01"
                                   value={pos.price}
                                   onChange={(e) => updatePosition(pos.id, { price: parseFloat(e.target.value) || 0 })}
-                                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                                 />
                               </div>
                               <div>
-                                <label className="text-xs text-gray-500 dark:text-gray-400">
+                                <label className="text-xs text-gray-500 dark:text-dark-400">
                                   Marge
                                 </label>
                                 <div className={`px-2 py-1 text-sm rounded text-center font-medium ${
@@ -955,7 +955,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                                       : calculateMargin(pos.price, pos.purchasePrice) >= 15
                                         ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                                         : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                    : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                                    : 'bg-gray-100 text-gray-500 dark:bg-dark-100 dark:text-dark-400'
                                 }`}>
                                   {pos.purchasePrice && pos.price
                                     ? `${calculateMargin(pos.price, pos.purchasePrice).toFixed(1)}%`
@@ -974,9 +974,9 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
 
             {/* Total with Margin Summary */}
             {positions.filter(p => !p.isHeading).length > 0 && (
-              <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg space-y-2">
+              <div className="mt-4 p-3 bg-gray-50 dark:bg-dark-50 rounded-lg space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                  <span className="font-medium text-gray-700 dark:text-dark-500">
                     Gesamtsumme (Netto)
                   </span>
                   <span className="text-lg font-bold text-gray-900 dark:text-white">
@@ -986,10 +986,10 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                 {/* Margin Summary - only show if at least one position has purchase price */}
                 {positions.some(p => !p.isHeading && p.purchasePrice && p.purchasePrice > 0) && (
                   <>
-                    <div className="border-t border-gray-200 dark:border-gray-700 pt-2">
+                    <div className="border-t border-gray-200 dark:border-dark-border pt-2">
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 dark:text-gray-400">Gesamt EK</span>
-                        <span className="text-gray-700 dark:text-gray-300">
+                        <span className="text-gray-500 dark:text-dark-400">Gesamt EK</span>
+                        <span className="text-gray-700 dark:text-dark-500">
                           {formatCurrency(
                             positions
                               .filter(p => !p.isHeading && p.purchasePrice)
@@ -998,7 +998,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                         </span>
                       </div>
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 dark:text-gray-400">Rohertrag</span>
+                        <span className="text-gray-500 dark:text-dark-400">Rohertrag</span>
                         <span className="text-green-600 dark:text-green-400 font-medium">
                           {formatCurrency(
                             positions
@@ -1008,7 +1008,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                         </span>
                       </div>
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 dark:text-gray-400">Ø Marge</span>
+                        <span className="text-gray-500 dark:text-dark-400">Ø Marge</span>
                         <span className={`font-medium ${
                           (() => {
                             const totalSell = positions.filter(p => !p.isHeading).reduce((sum, p) => sum + p.price * p.quantity, 0);
@@ -1034,7 +1034,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
 
           {/* Foot Text with Templates */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Schlusstext
             </label>
             {/* Template Selector */}
@@ -1042,7 +1042,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
               <select
                 value={selectedFootTemplate}
                 onChange={(e) => setSelectedFootTemplate(e.target.value)}
-                className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                className="text-xs px-2 py-1 border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-100 text-gray-700 dark:text-dark-500"
               >
                 {FOOT_TEXT_TEMPLATES.map(t => (
                   <option key={t.id} value={t.id}>{t.label}</option>
@@ -1065,7 +1065,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
               value={footText}
               onChange={(e) => setFootText(e.target.value)}
               rows={5}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
             />
           </div>
 
@@ -1076,16 +1076,16 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
               id="createAsDraft"
               checked={createAsDraft}
               onChange={(e) => setCreateAsDraft(e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-600"
+              className="rounded border-gray-300 dark:border-dark-border"
             />
-            <label htmlFor="createAsDraft" className="text-sm text-gray-700 dark:text-gray-300">
+            <label htmlFor="createAsDraft" className="text-sm text-gray-700 dark:text-dark-500">
               Als Entwurf speichern (kann später bearbeitet werden)
             </label>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+        <div className="p-4 border-t border-gray-200 dark:border-dark-border flex justify-end gap-3">
           <Button
             onClick={onClose}
             variant="outline"

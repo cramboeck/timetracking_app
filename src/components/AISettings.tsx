@@ -189,13 +189,13 @@ export const AISettings = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-dark-border">
         <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
           <Bot className="text-purple-600 dark:text-purple-400" size={24} />
         </div>
         <div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">KI-Assistent</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-dark-400">
             Konfiguriere den KI-Assistenten für Ticket-Lösungsvorschläge
           </p>
         </div>
@@ -217,13 +217,13 @@ export const AISettings = () => {
       )}
 
       {/* Enable/Disable Toggle */}
-      <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+      <div className="p-4 bg-gray-50 dark:bg-dark-100 rounded-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Sparkles className={enabled ? 'text-purple-500' : 'text-gray-400'} size={20} />
             <div>
               <h3 className="font-medium text-gray-900 dark:text-white">KI-Assistent aktivieren</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 Zeigt KI-Lösungsvorschläge in der Ticket-Ansicht
               </p>
             </div>
@@ -231,7 +231,7 @@ export const AISettings = () => {
           <button
             onClick={() => setEnabled(!enabled)}
             className={`relative w-14 h-7 rounded-full transition-colors ${
-              enabled ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'
+              enabled ? 'bg-purple-600' : 'bg-gray-300 dark:bg-dark-300'
             }`}
           >
             <span
@@ -245,7 +245,7 @@ export const AISettings = () => {
 
       {/* Provider Selection */}
       <div className="space-y-4">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500">
           KI-Anbieter
         </label>
         <div className="grid grid-cols-2 gap-4">
@@ -254,18 +254,18 @@ export const AISettings = () => {
             className={`p-4 border-2 rounded-lg transition-all ${
               provider === 'openai'
                 ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-dark-border'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                provider === 'openai' ? 'bg-purple-100 dark:bg-purple-800' : 'bg-gray-100 dark:bg-gray-700'
+                provider === 'openai' ? 'bg-purple-100 dark:bg-purple-800' : 'bg-gray-100 dark:bg-dark-200'
               }`}>
                 <Zap className={provider === 'openai' ? 'text-purple-600' : 'text-gray-500'} size={20} />
               </div>
               <div className="text-left">
                 <h4 className="font-medium text-gray-900 dark:text-white">OpenAI</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">GPT-4, GPT-3.5</p>
+                <p className="text-xs text-gray-500 dark:text-dark-400">GPT-4, GPT-3.5</p>
               </div>
             </div>
           </button>
@@ -275,18 +275,18 @@ export const AISettings = () => {
             className={`p-4 border-2 rounded-lg transition-all ${
               provider === 'anthropic'
                 ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-dark-border'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                provider === 'anthropic' ? 'bg-purple-100 dark:bg-purple-800' : 'bg-gray-100 dark:bg-gray-700'
+                provider === 'anthropic' ? 'bg-purple-100 dark:bg-purple-800' : 'bg-gray-100 dark:bg-dark-200'
               }`}>
                 <Bot className={provider === 'anthropic' ? 'text-purple-600' : 'text-gray-500'} size={20} />
               </div>
               <div className="text-left">
                 <h4 className="font-medium text-gray-900 dark:text-white">Anthropic</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Claude 3.5, Claude 3</p>
+                <p className="text-xs text-gray-500 dark:text-dark-400">Claude 3.5, Claude 3</p>
               </div>
             </div>
           </button>
@@ -295,7 +295,7 @@ export const AISettings = () => {
 
       {/* API Key */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500">
           API-Key
         </label>
         <div className="relative">
@@ -304,7 +304,7 @@ export const AISettings = () => {
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={config?.hasApiKey ? '••••••••••••••••••••••••' : 'API-Key eingeben...'}
-            className="w-full px-4 py-2 pr-20 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="w-full px-4 py-2 pr-20 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           />
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
             <IconButton
@@ -323,7 +323,7 @@ export const AISettings = () => {
             </Button>
           </div>
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-500 dark:text-dark-400">
           {provider === 'openai' ? (
             <>Hole deinen API-Key von <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">platform.openai.com</a></>
           ) : (
@@ -355,13 +355,13 @@ export const AISettings = () => {
 
       {/* Model Selection */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500">
           Modell
         </label>
         <select
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
         >
           {modelOptions[provider].map((option) => (
             <option key={option.value} value={option.value}>
@@ -373,14 +373,14 @@ export const AISettings = () => {
 
       {/* Advanced Settings */}
       <details className="group">
-        <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+        <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-dark-500 hover:text-gray-900 dark:hover:text-white">
           <Settings2 size={16} />
           Erweiterte Einstellungen
         </summary>
         <div className="mt-4 space-y-4 pl-6">
           {/* Max Tokens */}
           <div className="space-y-2">
-            <label className="block text-sm text-gray-600 dark:text-gray-400">
+            <label className="block text-sm text-gray-600 dark:text-dark-400">
               Max. Tokens (Antwortlänge): {maxTokens}
             </label>
             <input
@@ -400,7 +400,7 @@ export const AISettings = () => {
 
           {/* Temperature */}
           <div className="space-y-2">
-            <label className="block text-sm text-gray-600 dark:text-gray-400">
+            <label className="block text-sm text-gray-600 dark:text-dark-400">
               Kreativität: {temperature.toFixed(1)}
             </label>
             <input
@@ -422,12 +422,12 @@ export const AISettings = () => {
 
       {/* System Prompt Configuration */}
       <details className="group">
-        <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+        <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-dark-500 hover:text-gray-900 dark:hover:text-white">
           <FileText size={16} />
           System-Prompt anpassen
         </summary>
         <div className="mt-4 space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-dark-400">
             Passe die System-Prompts für verschiedene Assistenten-Funktionen an. Der System-Prompt definiert das Verhalten und den Kontext der KI.
           </p>
 
@@ -446,7 +446,7 @@ export const AISettings = () => {
                 className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1 ${
                   activePromptTab === tab.key
                     ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-medium'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 hover:bg-gray-200 dark:hover:bg-dark-300'
                 }`}
               >
                 {tab.label}
@@ -460,7 +460,7 @@ export const AISettings = () => {
           {/* Prompt Editor */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-sm text-gray-600 dark:text-gray-400">
+              <label className="block text-sm text-gray-600 dark:text-dark-400">
                 {activePromptTab === 'default' ? 'Standard System-Prompt' :
                  activePromptTab === 'solution' ? 'Lösungsvorschläge Prompt' :
                  activePromptTab === 'category' ? 'Kategorie-Klassifikation Prompt' :
@@ -482,10 +482,10 @@ export const AISettings = () => {
               value={getCurrentPromptValue(activePromptTab)}
               onChange={(e) => updatePrompt(activePromptTab, e.target.value)}
               rows={6}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+              className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
               placeholder={DEFAULT_SYSTEM_PROMPTS[activePromptTab] || DEFAULT_SYSTEM_PROMPTS.default}
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-gray-500 dark:text-dark-400">
               {activePromptTab === 'default' && 'Dieser Prompt wird verwendet, wenn kein spezifischer Prompt definiert ist.'}
               {activePromptTab === 'solution' && 'Wird bei "Lösung vorschlagen" im Ticket verwendet.'}
               {activePromptTab === 'category' && 'Wird für die automatische Kategorisierung von Tickets verwendet.'}
@@ -495,7 +495,7 @@ export const AISettings = () => {
           </div>
 
           {/* Quick Variables Info */}
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs text-gray-600 dark:text-gray-400">
+          <div className="p-3 bg-gray-50 dark:bg-dark-100 rounded-lg text-xs text-gray-600 dark:text-dark-400">
             <p className="font-medium mb-1">Hinweis:</p>
             <p>Der System-Prompt definiert die Persönlichkeit und das Verhalten der KI. Der eigentliche Ticket-Kontext (Titel, Beschreibung, etc.) wird automatisch zum Prompt hinzugefügt.</p>
           </div>
@@ -503,7 +503,7 @@ export const AISettings = () => {
       </details>
 
       {/* Save Button */}
-      <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-dark-border">
         <Button
           onClick={handleSave}
           disabled={saving}

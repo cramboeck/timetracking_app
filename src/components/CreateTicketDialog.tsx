@@ -79,9 +79,9 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
       />
 
       {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div className="relative bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-border">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Neues Ticket</h2>
           <IconButton
             icon={<X size={20} />}
@@ -101,7 +101,7 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
 
             {/* Customer */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Kunde *
               </label>
               <select
@@ -111,7 +111,7 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
                   setProjectId(''); // Reset project when customer changes
                 }}
                 required
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 <option value="">Kunde wählen...</option>
                 {customers.map(customer => (
@@ -124,14 +124,14 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
 
             {/* Project (optional) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Projekt (optional)
               </label>
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
                 disabled={!customerId || filteredProjects.length === 0}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary disabled:opacity-50"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary disabled:opacity-50"
               >
                 <option value="">
                   {!customerId
@@ -150,7 +150,7 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
 
             {/* Title */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Titel *
               </label>
               <input
@@ -159,13 +159,13 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
                 onChange={(e) => setTitle(e.target.value)}
                 required
                 placeholder="Kurze Beschreibung des Problems"
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               />
             </div>
 
             {/* Priority */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Priorität
               </label>
               <div className="grid grid-cols-4 gap-2">
@@ -183,7 +183,7 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
                             : option.value === 'low'
                               ? 'bg-gray-400 text-white'
                               : 'bg-blue-500 text-white'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        : 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 hover:bg-gray-200 dark:hover:bg-dark-300'
                     }`}
                   >
                     {option.label}
@@ -194,7 +194,7 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Beschreibung
               </label>
               <textarea
@@ -202,13 +202,13 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
                 placeholder="Detaillierte Beschreibung des Problems oder der Anfrage..."
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
               />
             </div>
           </div>
 
           {/* Footer */}
-          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <div className="flex gap-3">
               <Button
                 type="button"

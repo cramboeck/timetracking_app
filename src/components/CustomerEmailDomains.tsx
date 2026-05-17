@@ -133,11 +133,11 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden"
+          className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
             <div className="flex items-center gap-3">
               <div
                 className="w-10 h-10 rounded-lg flex items-center justify-center"
@@ -149,7 +149,7 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   E-Mail Domains
                 </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-gray-500 dark:text-dark-400">
                   {customer.name}
                 </p>
               </div>
@@ -189,7 +189,7 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
                     {domains.map((domain) => (
                       <div
                         key={domain.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
+                        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-200/50 rounded-lg"
                       >
                         <div className="flex items-center gap-3">
                           <Globe className="w-4 h-4 text-gray-400" />
@@ -206,7 +206,7 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
                               )}
                             </div>
                             {domain.notes && (
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              <p className="text-xs text-gray-500 dark:text-dark-400 mt-0.5">
                                 {domain.notes}
                               </p>
                             )}
@@ -222,7 +222,7 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
                     ))}
                   </div>
                 ) : !showForm ? (
-                  <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+                  <div className="text-center py-6 text-gray-500 dark:text-dark-400">
                     <Globe className="w-12 h-12 mx-auto mb-2 opacity-30" />
                     <p>Noch keine E-Mail Domains zugeordnet</p>
                   </div>
@@ -230,14 +230,14 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
 
                 {/* Add Domain Form */}
                 {showForm ? (
-                  <form onSubmit={handleSubmit} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                  <form onSubmit={handleSubmit} className="border border-gray-200 dark:border-dark-border rounded-lg p-4">
                     <h3 className="font-medium text-gray-900 dark:text-white mb-3">
                       Domain hinzufügen
                     </h3>
 
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Domain *
                         </label>
                         <div className="flex items-center">
@@ -247,14 +247,14 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
                             value={formDomain}
                             onChange={(e) => setFormDomain(e.target.value)}
                             placeholder="firma.at"
-                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                             autoFocus
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Notizen
                         </label>
                         <input
@@ -262,7 +262,7 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
                           value={formNotes}
                           onChange={(e) => setFormNotes(e.target.value)}
                           placeholder="z.B. Hauptdomain, alte Domain..."
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                         />
                       </div>
 
@@ -273,7 +273,7 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
                           onChange={(e) => setFormIsPrimary(e.target.checked)}
                           className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                         />
-                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                        <span className="text-sm text-gray-700 dark:text-dark-500">
                           Als primäre Domain markieren
                         </span>
                       </label>

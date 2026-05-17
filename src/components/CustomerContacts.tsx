@@ -209,9 +209,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative bg-white dark:bg-dark-100 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
             <div
               className="w-10 h-10 rounded-lg flex items-center justify-center"
@@ -223,7 +223,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 Kontakte verwalten
               </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 {customer.name}
               </p>
             </div>
@@ -257,7 +257,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
             /* Add/Edit Form */
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -266,12 +266,12 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                   onChange={(e) => setFormName(e.target.value)}
                   required
                   placeholder="Max Mustermann"
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   E-Mail <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -280,7 +280,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                   onChange={(e) => setFormEmail(e.target.value)}
                   required
                   placeholder="max@firma.de"
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                 />
               </div>
 
@@ -294,7 +294,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                   />
                   <div>
                     <span className="text-gray-900 dark:text-white font-medium">Hauptkontakt</span>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-500 dark:text-dark-400">
                       Dieser Kontakt ist der primäre Ansprechpartner
                     </p>
                   </div>
@@ -309,7 +309,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                   />
                   <div>
                     <span className="text-gray-900 dark:text-white font-medium">Kann Tickets erstellen</span>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-500 dark:text-dark-400">
                       Erlaubt das Erstellen neuer Support-Tickets
                     </p>
                   </div>
@@ -324,7 +324,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                   />
                   <div>
                     <span className="text-gray-900 dark:text-white font-medium">Kann alle Tickets sehen</span>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-500 dark:text-dark-400">
                       Sieht alle Tickets des Unternehmens, nicht nur eigene
                     </p>
                   </div>
@@ -341,7 +341,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                     />
                     <div>
                       <span className="text-gray-900 dark:text-white font-medium">Kann Geräte sehen</span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         Sieht alle Geräte des Unternehmens im Portal
                       </p>
                     </div>
@@ -359,7 +359,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                     />
                     <div>
                       <span className="text-gray-900 dark:text-white font-medium">Kann Rechnungen sehen</span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         Sieht alle Rechnungen des Unternehmens im Portal
                       </p>
                     </div>
@@ -377,7 +377,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                     />
                     <div>
                       <span className="text-gray-900 dark:text-white font-medium">Kann Angebote sehen</span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         Sieht alle Angebote des Unternehmens im Portal
                       </p>
                     </div>
@@ -386,10 +386,10 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
               </div>
 
               {/* Email Notification Preferences */}
-              <div className="border-t border-gray-200 dark:border-gray-600 pt-4 mt-4">
+              <div className="border-t border-gray-200 dark:border-dark-border pt-4 mt-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <Bell size={16} className="text-gray-500 dark:text-gray-400" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <Bell size={16} className="text-gray-500 dark:text-dark-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-dark-500">
                     E-Mail-Benachrichtigungen
                   </span>
                 </div>
@@ -403,7 +403,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                     />
                     <div>
                       <span className="text-gray-900 dark:text-white font-medium">Ticket erstellt</span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         Bestätigung bei Ticket-Erstellung
                       </p>
                     </div>
@@ -418,7 +418,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                     />
                     <div>
                       <span className="text-gray-900 dark:text-white font-medium">Status geändert</span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         Bei Statusänderungen des Tickets
                       </p>
                     </div>
@@ -433,7 +433,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                     />
                     <div>
                       <span className="text-gray-900 dark:text-white font-medium">Neue Antwort</span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         Bei neuen Antworten auf das Ticket
                       </p>
                     </div>
@@ -463,7 +463,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
             /* Contact List */
             <div className="space-y-4">
               {contacts.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                <div className="text-center py-8 text-gray-500 dark:text-dark-400">
                   <Users size={48} className="mx-auto mb-3 opacity-50" />
                   <p>Noch keine Kontakte vorhanden</p>
                   <p className="text-sm mt-1">
@@ -474,7 +474,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                 contacts.map(contact => (
                   <div
                     key={contact.id}
-                    className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4"
+                    className="bg-gray-50 dark:bg-dark-200 rounded-lg p-4"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
@@ -499,18 +499,18 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-1 mt-1 text-sm text-gray-500 dark:text-dark-400">
                           <Mail size={14} />
                           {contact.email}
                         </div>
-                        <div className="flex flex-wrap gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        <div className="flex flex-wrap gap-2 mt-2 text-xs text-gray-500 dark:text-dark-400">
                           {contact.canCreateTickets && (
-                            <span className="bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded">
+                            <span className="bg-gray-200 dark:bg-dark-300 px-2 py-0.5 rounded">
                               Kann Tickets erstellen
                             </span>
                           )}
                           {contact.canViewAllTickets && (
-                            <span className="bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded">
+                            <span className="bg-gray-200 dark:bg-dark-300 px-2 py-0.5 rounded">
                               Sieht alle Tickets
                             </span>
                           )}
@@ -579,7 +579,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
 
         {/* Footer */}
         {!showForm && !loading && !error && (
-          <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="p-6 border-t border-gray-200 dark:border-dark-border">
             <Button
               onClick={() => openForm()}
               variant="primary"
@@ -606,8 +606,8 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
         {passwordContact && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50" onClick={() => { setPasswordContact(null); setNewPassword(''); setShowPassword(false); }} />
-            <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md">
-              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="relative bg-white dark:bg-dark-100 rounded-xl shadow-xl w-full max-w-md">
+              <div className="p-6 border-b border-gray-200 dark:border-dark-border">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
                     <Key size={20} className="text-orange-600 dark:text-orange-400" />
@@ -616,7 +616,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       Passwort setzen
                     </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500 dark:text-dark-400">
                       {passwordContact.name}
                     </p>
                   </div>
@@ -625,7 +625,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
 
               <form onSubmit={(e) => { e.preventDefault(); handleSetPassword(); }} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Neues Passwort
                   </label>
                   <div className="relative">
@@ -634,7 +634,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Mindestens 8 Zeichen"
-                      className="w-full px-4 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      className="w-full px-4 py-2 pr-10 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                       required
                       minLength={8}
                     />
@@ -646,7 +646,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                       className="absolute right-3 top-1/2 -translate-y-1/2"
                     />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-1 text-xs text-gray-500 dark:text-dark-400">
                     Das Passwort muss mindestens 8 Zeichen lang sein.
                   </p>
                 </div>
