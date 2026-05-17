@@ -26,7 +26,7 @@ interface PortalTicketDetailProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
-  open: { label: 'Offen', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300', icon: AlertCircle },
+  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-blue-900/50 dark:text-blue-300', icon: AlertCircle },
   in_progress: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300', icon: Clock },
   waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300', icon: Pause },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300', icon: CheckCircle },
@@ -36,7 +36,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
 
 const priorityConfig: Record<string, { label: string; color: string; bgColor: string }> = {
   low: { label: 'Niedrig', color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-100 dark:bg-gray-700' },
-  normal: { label: 'Normal', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-50 dark:bg-blue-900/30' },
+  normal: { label: 'Normal', color: 'text-accent-primary dark:text-blue-400', bgColor: 'bg-accent-light dark:bg-blue-900/30' },
   high: { label: 'Hoch', color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/30' },
   critical: { label: 'Kritisch', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/30' },
 };
@@ -219,7 +219,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent-primary"></div>
       </div>
     );
   }
@@ -229,7 +229,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
       <div className="text-center text-gray-500 dark:text-gray-400 py-12">
         <AlertCircle className="mx-auto mb-3" size={48} />
         <p className="text-lg font-medium mb-2">{error || 'Ticket nicht gefunden'}</p>
-        <Button onClick={onBack} variant="ghost" className="text-blue-600">
+        <Button onClick={onBack} variant="ghost" className="text-accent-primary">
           Zurück zur Liste
         </Button>
       </div>
@@ -293,7 +293,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
               variant="primary"
               loading={actionLoading}
               icon={<RotateCcw size={16} />}
-              className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+              className="bg-accent-light dark:bg-blue-900/30 text-accent-dark dark:text-blue-300 hover:bg-accent-lighter dark:hover:bg-blue-900/50"
             >
               Wiedereröffnen
             </Button>
@@ -332,7 +332,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
             onChange={(e) => setRatingFeedback(e.target.value)}
             placeholder="Optionales Feedback..."
             rows={2}
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary mb-3"
           />
 
           <div className="flex gap-2">
@@ -373,7 +373,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
             Anhänge ({attachments.length})
           </h3>
           {canComment && (
-            <label className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg cursor-pointer transition-colors">
+            <label className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-accent-primary dark:text-blue-400 bg-accent-light dark:bg-blue-900/30 hover:bg-accent-lighter dark:hover:bg-blue-900/50 rounded-lg cursor-pointer transition-colors">
               <Paperclip size={16} />
               {uploadingFiles ? 'Lädt...' : 'Datei hinzufügen'}
               <input
@@ -469,7 +469,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                             href={getAbsoluteFileUrl(attachment.fileUrl)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                            className="p-1.5 text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-blue-900/30 rounded transition-colors"
                             title="Herunterladen"
                           >
                             <Download size={16} />
@@ -512,7 +512,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                 <div
                   className={`max-w-[85%] p-4 rounded-2xl ${
                     comment.isFromCustomer
-                      ? 'bg-blue-600 text-white rounded-br-md'
+                      ? 'bg-accent-primary text-white rounded-br-md'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-md'
                   }`}
                 >

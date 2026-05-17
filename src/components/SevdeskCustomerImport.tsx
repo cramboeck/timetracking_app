@@ -206,7 +206,7 @@ export const SevdeskCustomerImport = ({
         key={customer.sevdeskId}
         className={`p-3 border-b border-gray-100 dark:border-gray-700 ${
           isLinked ? 'bg-gray-50 dark:bg-gray-800/50' : ''
-        } ${isSelected && !isLinked ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+        } ${isSelected && !isLinked ? 'bg-accent-light dark:bg-blue-900/20' : ''}`}
       >
         <div className="flex items-start gap-3">
           {/* Checkbox */}
@@ -216,7 +216,7 @@ export const SevdeskCustomerImport = ({
                 type="checkbox"
                 checked={isSelected}
                 onChange={() => toggleSelection(customer)}
-                className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-gray-600 focus:ring-blue-500 dark:bg-gray-700"
+                className="w-4 h-4 text-accent-primary rounded border-gray-300 dark:border-gray-600 focus:ring-accent-primary dark:bg-gray-700"
               />
             </label>
           ) : (
@@ -267,7 +267,7 @@ export const SevdeskCustomerImport = ({
                   <Link2 size={12} /> Verknüpfen
                 </span>
               ) : (
-                <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                <span className="flex items-center gap-1 text-accent-primary dark:text-blue-400">
                   <UserPlus size={12} /> Importieren
                 </span>
               )}
@@ -371,7 +371,7 @@ export const SevdeskCustomerImport = ({
                 <span className="text-gray-600 dark:text-gray-400">
                   <strong>{counts.total}</strong> Kontakte in sevDesk
                 </span>
-                <span className="text-blue-600 dark:text-blue-400">
+                <span className="text-accent-primary dark:text-blue-400">
                   <strong>{counts.new}</strong> neu
                 </span>
                 <span className="text-amber-600 dark:text-amber-400">
@@ -409,7 +409,7 @@ export const SevdeskCustomerImport = ({
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <span className="flex items-center gap-1">
-                  <UserPlus size={12} className="text-blue-600" /> Importieren
+                  <UserPlus size={12} className="text-accent-primary" /> Importieren
                 </span>
                 <span className="flex items-center gap-1">
                   <Link2 size={12} className="text-green-600" /> Verknüpfen
@@ -423,7 +423,7 @@ export const SevdeskCustomerImport = ({
                 'new',
                 'Neue Kontakte',
                 <UserPlus size={18} />,
-                'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                'bg-accent-light dark:bg-blue-900/30 text-accent-dark dark:text-blue-300'
               )}
 
               {renderSection(
@@ -451,7 +451,7 @@ export const SevdeskCustomerImport = ({
             {customers.length > 0 && (
               <div className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Auswahl: <strong className="text-blue-600">{toImport}</strong> importieren,{' '}
+                  Auswahl: <strong className="text-accent-primary">{toImport}</strong> importieren,{' '}
                   <strong className="text-green-600">{toLink}</strong> verknüpfen,{' '}
                   <strong className="text-gray-500">{toSkip}</strong> überspringen
                 </div>

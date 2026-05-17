@@ -46,17 +46,17 @@ export const Card = ({
   const interactiveStyles = interactive
     ? `
       cursor-pointer
-      hover:border-blue-300 dark:hover:border-blue-600
+      hover:border-blue-300 dark:hover:border-accent-primary
       hover:shadow-md dark:hover:shadow-gray-900/50
-      focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2
+      focus-within:ring-2 focus-within:ring-accent-primary focus-within:ring-offset-2
       dark:focus-within:ring-offset-gray-900
     `
     : '';
 
   const selectedStyles = selected
     ? `
-      border-blue-500 dark:border-blue-400
-      ring-2 ring-blue-500/20 dark:ring-blue-400/20
+      border-accent-primary dark:border-blue-400
+      ring-2 ring-accent-primary/20 dark:ring-blue-400/20
     `
     : '';
 
@@ -140,7 +140,7 @@ export const KanbanCard = ({
       p-3
       cursor-grab active:cursor-grabbing
       hover:shadow-md dark:hover:shadow-gray-900/50
-      hover:border-blue-300 dark:hover:border-blue-600
+      hover:border-blue-300 dark:hover:border-accent-primary
       transition-all duration-150
       ${isDragging ? 'opacity-50 shadow-lg' : ''}
       ${className}
@@ -176,7 +176,7 @@ export const StatCard = ({ label, value, icon, trend, className = '' }: StatCard
         )}
       </div>
       {icon && (
-        <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
+        <div className="p-2 bg-accent-light dark:bg-blue-900/30 rounded-lg text-accent-primary dark:text-blue-400">
           {icon}
         </div>
       )}

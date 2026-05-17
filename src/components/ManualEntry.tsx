@@ -207,7 +207,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
                 onChange={(e) => handleDateChange(e.target.value)}
                 placeholder="TT.MM.JJJJ"
                 required
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               />
               <input
                 type="date"
@@ -303,7 +303,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
             <select
               value={activityId}
               onChange={(e) => setActivityId(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="">Keine Tätigkeit</option>
               {activities.map(activity => (
@@ -328,7 +328,7 @@ export const ManualEntry = ({ onSave, projects, customers, activities }: ManualE
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Was wurde gemacht?"
               rows={4}
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
             />
           </div>
         </div>

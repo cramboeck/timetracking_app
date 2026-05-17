@@ -31,12 +31,12 @@ export const TicketEmailHistory = ({
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <Mail size={16} className="text-blue-500" />
+          <Mail size={16} className="text-accent-primary" />
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             E-Mail-Verlauf
           </span>
           {emails.length > 0 && (
-            <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 rounded">
+            <span className="px-1.5 py-0.5 text-xs bg-accent-lighter text-accent-dark dark:bg-blue-900/50 dark:text-blue-300 rounded">
               {emails.length}
             </span>
           )}
@@ -66,12 +66,12 @@ export const TicketEmailHistory = ({
                   >
                     <div className={`p-1.5 rounded-full ${
                       email.direction === 'inbound'
-                        ? 'bg-blue-100 dark:bg-blue-900/30'
+                        ? 'bg-accent-lighter dark:bg-blue-900/30'
                         : 'bg-green-100 dark:bg-green-900/30'
                     }`}>
                       <Mail size={14} className={
                         email.direction === 'inbound'
-                          ? 'text-blue-600 dark:text-blue-400'
+                          ? 'text-accent-primary dark:text-blue-400'
                           : 'text-green-600 dark:text-green-400'
                       } />
                     </div>
@@ -82,7 +82,7 @@ export const TicketEmailHistory = ({
                         </span>
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
                           email.direction === 'inbound'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                            ? 'bg-accent-lighter text-accent-dark dark:bg-blue-900/50 dark:text-blue-300'
                             : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
                         }`}>
                           {email.direction === 'inbound' ? 'Empfangen' : 'Gesendet'}

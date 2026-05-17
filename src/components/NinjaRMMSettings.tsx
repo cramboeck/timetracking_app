@@ -664,8 +664,8 @@ export const NinjaRMMSettings = () => {
           {/* API Credentials */}
           <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Shield className="text-blue-600 dark:text-blue-400" size={20} />
+              <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
+                <Shield className="text-accent-primary dark:text-blue-400" size={20} />
               </div>
               <div>
                 <h3 className="font-medium text-gray-900 dark:text-white">API Zugangsdaten</h3>
@@ -831,12 +831,12 @@ export const NinjaRMMSettings = () => {
           </div>
 
           {/* Help */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
+          <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
             <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2">Einrichtung</h3>
             <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800 dark:text-blue-300">
               <li>Erstelle eine API Application in NinjaRMM unter Administration &gt; Apps &gt; API</li>
               <li>Wähle "Authorization Code" als Grant Type</li>
-              <li>Füge diese Redirect URI hinzu: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">{window.location.origin}/api/ninjarmm/callback</code></li>
+              <li>Füge diese Redirect URI hinzu: <code className="bg-accent-lighter dark:bg-blue-800 px-1 rounded">{window.location.origin}/api/ninjarmm/callback</code></li>
               <li>Kopiere Client ID und Client Secret hierher</li>
               <li>Klicke auf "Mit NinjaRMM verbinden" um die OAuth-Autorisierung durchzuführen</li>
             </ol>
@@ -844,7 +844,7 @@ export const NinjaRMMSettings = () => {
               href="https://eu.ninjarmm.com/#/administration/apps/api"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              className="inline-flex items-center gap-1 mt-3 text-sm text-accent-primary dark:text-blue-400 hover:underline"
             >
               NinjaRMM API Apps öffnen <ExternalLink size={14} />
             </a>
@@ -1147,7 +1147,7 @@ export const NinjaRMMSettings = () => {
                             alert.severity === 'CRITICAL' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
                             alert.severity === 'MAJOR' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
                             alert.severity === 'MODERATE' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
-                            alert.severity === 'MINOR' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
+                            alert.severity === 'MINOR' ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-300' :
                             'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300'
                           }`}>
                             {alert.severity}
@@ -1271,8 +1271,8 @@ export const NinjaRMMSettings = () => {
               {/* Webhook Settings */}
               <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                    <Settings className="text-blue-600 dark:text-blue-400" size={20} />
+                  <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
+                    <Settings className="text-accent-primary dark:text-blue-400" size={20} />
                   </div>
                   <div>
                     <h3 className="font-medium text-gray-900 dark:text-white">Webhook-Einstellungen</h3>
@@ -1412,7 +1412,7 @@ export const NinjaRMMSettings = () => {
                                 event.status === 'processed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
                                 event.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
                                 event.status === 'ignored' ? 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300' :
-                                'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-300'
                               }`}>
                                 {event.status}
                               </span>
@@ -1436,7 +1436,7 @@ export const NinjaRMMSettings = () => {
                                   event.severity === 'CRITICAL' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
                                   event.severity === 'MAJOR' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
                                   event.severity === 'MODERATE' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
-                                  'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                  'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-300'
                                 }`}>
                                   {event.severity}
                                 </span>
@@ -1677,7 +1677,7 @@ export const NinjaRMMSettings = () => {
               </div>
 
               {/* Help */}
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
+              <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
                 <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2">NinjaRMM Webhook einrichten</h3>
                 <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800 dark:text-blue-300">
                   <li><strong>Secret generieren</strong> (oben) - das Secret wird automatisch in die URL eingebettet</li>
@@ -1688,7 +1688,7 @@ export const NinjaRMMSettings = () => {
                   <li>Speichere den Webhook</li>
                   <li>Weise den Webhook in deinen <strong>Policies</strong> den gewünschten Conditions zu</li>
                 </ol>
-                <p className="text-xs text-blue-700 dark:text-blue-400 mt-3">
+                <p className="text-xs text-accent-dark dark:text-blue-400 mt-3">
                   <strong>Tipp:</strong> Aktiviere bei den Conditions auch "Notify on Reset", damit Tickets automatisch geschlossen werden, wenn der Alert sich auflöst.
                 </p>
               </div>
@@ -1924,7 +1924,7 @@ export const NinjaRMMSettings = () => {
                   href={`${config?.instanceUrl || 'https://eu.ninjarmm.com'}/#/deviceDashboard/${selectedDevice.ninjaId}/overview`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary transition-colors"
                 >
                   <ExternalLink size={16} />
                   In NinjaRMM öffnen
@@ -2007,7 +2007,7 @@ export const NinjaRMMSettings = () => {
                           selectedAlert.severity === 'CRITICAL' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
                           selectedAlert.severity === 'MAJOR' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
                           selectedAlert.severity === 'MODERATE' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
-                          selectedAlert.severity === 'MINOR' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
+                          selectedAlert.severity === 'MINOR' ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-300' :
                           'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300'
                         }`}>
                           {selectedAlert.severity}

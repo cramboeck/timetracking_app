@@ -361,7 +361,7 @@ export default function EngagementBotTab() {
               {settings.targetAccounts.map((account) => (
                 <span
                   key={account}
-                  className="flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-sm"
+                  className="flex items-center gap-1 px-3 py-1 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded-full text-sm"
                 >
                   @{account}
                   <button onClick={() => removeAccount(account)}>

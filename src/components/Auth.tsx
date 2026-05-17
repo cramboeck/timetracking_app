@@ -312,7 +312,7 @@ export const Auth = () => {
                     <span className="text-sm text-gray-600 dark:text-gray-400">Deine Rolle:</span>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                       invitationInfo.role === 'admin'
-                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                        ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400'
                         : invitationInfo.role === 'viewer'
                         ? 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
                         : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
@@ -331,8 +331,8 @@ export const Auth = () => {
                 <div className="space-y-4">
                   {invitationInfo.userAlreadyExists ? (
                     <>
-                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                        <p className="text-sm text-blue-700 dark:text-blue-300 text-center">
+                      <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                        <p className="text-sm text-accent-dark dark:text-blue-300 text-center">
                           <strong>Du hast bereits ein Konto</strong> mit der E-Mail-Adresse {invitationInfo.invitedEmail}. Bitte melde dich an, um der Organisation beizutreten.
                         </p>
                       </div>
@@ -417,7 +417,7 @@ export const Auth = () => {
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-accent-primary rounded-full mb-4">
             <Clock className="text-white" size={32} />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -473,8 +473,8 @@ export const Auth = () => {
               mfaRequired ? (
                 /* MFA Verification Form */
                 <form onSubmit={handleMfaVerify} className="space-y-4">
-                  <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <Shield className="text-blue-600 dark:text-blue-400" size={24} />
+                  <div className="flex items-center gap-3 p-4 bg-accent-light dark:bg-blue-900/20 rounded-lg">
+                    <Shield className="text-accent-primary dark:text-blue-400" size={24} />
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">
                         Zwei-Faktor-Authentifizierung
@@ -494,7 +494,7 @@ export const Auth = () => {
                       value={loginMfaCode}
                       onChange={(e) => setLoginMfaCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
                       placeholder="000000"
-                      className={`w-full px-4 py-3 text-center text-2xl font-mono tracking-widest border rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      className={`w-full px-4 py-3 text-center text-2xl font-mono tracking-widest border rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary ${
                         mfaAttemptsLeft !== undefined && mfaAttemptsLeft <= 2
                           ? 'border-amber-500 dark:border-amber-400'
                           : 'border-gray-300 dark:border-gray-600'
@@ -566,7 +566,7 @@ export const Auth = () => {
                         value={loginUsername}
                         onChange={(e) => setLoginUsername(e.target.value)}
                         placeholder="Benutzername eingeben"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                         required
                         autoFocus
                       />
@@ -594,7 +594,7 @@ export const Auth = () => {
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
                         placeholder="Passwort eingeben"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                         required
                       />
                     </div>
@@ -696,7 +696,7 @@ export const Auth = () => {
                         value={registerOrganizationName}
                         onChange={(e) => setRegisterOrganizationName(e.target.value)}
                         placeholder={registerAccountType === 'business' ? 'z.B. Musterfirma GmbH' : 'z.B. Design Team Alpha'}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                         required
                       />
                     </div>
@@ -714,7 +714,7 @@ export const Auth = () => {
                       value={registerUsername}
                       onChange={(e) => setRegisterUsername(e.target.value)}
                       placeholder="3-20 Zeichen, nur a-z, 0-9, _, -"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                       required
                       autoFocus={registerAccountType === 'personal'}
                     />
@@ -732,7 +732,7 @@ export const Auth = () => {
                       value={registerEmail}
                       onChange={(e) => setRegisterEmail(e.target.value)}
                       placeholder="deine@email.de"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                       required
                     />
                   </div>
@@ -749,7 +749,7 @@ export const Auth = () => {
                       value={registerPassword}
                       onChange={(e) => setRegisterPassword(e.target.value)}
                       placeholder="Min. 8 Zeichen, Groß-/Kleinbuchstaben, Zahl"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                       required
                     />
                   </div>
@@ -766,7 +766,7 @@ export const Auth = () => {
                       value={registerPasswordConfirm}
                       onChange={(e) => setRegisterPasswordConfirm(e.target.value)}
                       placeholder="Passwort wiederholen"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                       required
                     />
                   </div>
@@ -786,7 +786,7 @@ export const Auth = () => {
                       value={registerInviteCode}
                       onChange={(e) => setRegisterInviteCode(e.target.value.toUpperCase())}
                       placeholder="INVITE-XXXXXXXXX"
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary font-mono text-sm"
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                       💡 Du hast einen Einladungscode? Gib ihn hier ein, um einem bestehenden Team beizutreten

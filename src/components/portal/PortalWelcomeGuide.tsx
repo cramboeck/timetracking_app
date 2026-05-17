@@ -145,8 +145,8 @@ export const PortalWelcomeGuide = ({ onClose, onNeverShowAgain, companyName }: P
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Icon size={22} className="text-blue-600 dark:text-blue-400" />
+            <div className="w-10 h-10 rounded-xl bg-accent-lighter dark:bg-blue-900/30 flex items-center justify-center">
+              <Icon size={22} className="text-accent-primary dark:text-blue-400" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -168,7 +168,7 @@ export const PortalWelcomeGuide = ({ onClose, onNeverShowAgain, companyName }: P
         {/* Progress bar */}
         <div className="h-1 bg-gray-200 dark:bg-gray-700">
           <div
-            className="h-full bg-blue-600 transition-all duration-300"
+            className="h-full bg-accent-primary transition-all duration-300"
             style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
           />
         </div>
@@ -205,7 +205,7 @@ export const PortalWelcomeGuide = ({ onClose, onNeverShowAgain, companyName }: P
               onClick={() => setCurrentStep(index)}
               className={`w-2 h-2 rounded-full transition-colors ${
                 index === currentStep
-                  ? 'bg-blue-600'
+                  ? 'bg-accent-primary'
                   : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400'
               }`}
             />
@@ -219,7 +219,7 @@ export const PortalWelcomeGuide = ({ onClose, onNeverShowAgain, companyName }: P
               type="checkbox"
               checked={dontShowAgain}
               onChange={(e) => setDontShowAgain(e.target.checked)}
-              className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+              className="w-4 h-4 rounded text-accent-primary focus:ring-accent-primary"
             />
             Nicht mehr anzeigen
           </label>
@@ -236,7 +236,7 @@ export const PortalWelcomeGuide = ({ onClose, onNeverShowAgain, companyName }: P
             )}
             <button
               onClick={handleNext}
-              className="flex items-center gap-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="flex items-center gap-1 px-4 py-2 bg-accent-primary hover:bg-accent-primary text-white rounded-lg transition-colors"
             >
               {isLastStep ? 'Fertig' : 'Weiter'}
               {!isLastStep && <ChevronRight size={18} />}

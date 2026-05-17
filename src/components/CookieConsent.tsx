@@ -71,7 +71,7 @@ export function CookieConsent() {
           <div className="p-6">
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0">
-                <Shield className="w-8 h-8 text-blue-600" />
+                <Shield className="w-8 h-8 text-accent-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
@@ -109,7 +109,7 @@ export function CookieConsent() {
                 </div>
                 <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
                   Weitere Informationen finden Sie in unserer{' '}
-                  <a href="#datenschutz" className="text-blue-600 hover:underline">
+                  <a href="#datenschutz" className="text-accent-primary hover:underline">
                     Datenschutzerklärung
                   </a>
                   .
@@ -145,7 +145,7 @@ export function CookieConsent() {
                     type="checkbox"
                     checked={true}
                     disabled
-                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                    className="w-5 h-5 rounded border-gray-300 text-accent-primary focus:ring-accent-primary disabled:opacity-50"
                   />
                 </div>
                 <div className="flex-1">
@@ -153,7 +153,7 @@ export function CookieConsent() {
                     <h4 className="font-medium text-gray-900 dark:text-white">
                       Notwendige Cookies
                     </h4>
-                    <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
+                    <span className="px-2 py-0.5 text-xs font-medium bg-accent-lighter text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
                       Erforderlich
                     </span>
                   </div>
@@ -171,7 +171,7 @@ export function CookieConsent() {
                     type="checkbox"
                     checked={preferences.functional}
                     onChange={(e) => setPreferences({ ...preferences, functional: e.target.checked })}
-                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="w-5 h-5 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
                   />
                 </div>
                 <div className="flex-1">
@@ -192,7 +192,7 @@ export function CookieConsent() {
                     type="checkbox"
                     checked={preferences.analytics}
                     onChange={(e) => setPreferences({ ...preferences, analytics: e.target.checked })}
-                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="w-5 h-5 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
                   />
                 </div>
                 <div className="flex-1">
@@ -213,7 +213,7 @@ export function CookieConsent() {
                     type="checkbox"
                     checked={preferences.marketing}
                     onChange={(e) => setPreferences({ ...preferences, marketing: e.target.checked })}
-                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="w-5 h-5 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
                   />
                 </div>
                 <div className="flex-1">

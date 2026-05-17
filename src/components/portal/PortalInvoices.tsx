@@ -11,7 +11,7 @@ type TabType = 'invoices' | 'quotes';
 // sevDesk Invoice Status codes
 const invoiceStatusLabels: Record<number, { label: string; color: string }> = {
   100: { label: 'Entwurf', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
-  200: { label: 'Offen', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  200: { label: 'Offen', color: 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400' },
   1000: { label: 'Bezahlt', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
   // Dunning statuses
   750: { label: '1. Mahnung', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
@@ -22,7 +22,7 @@ const invoiceStatusLabels: Record<number, { label: string; color: string }> = {
 // sevDesk Order (Quote) Status codes
 const quoteStatusLabels: Record<number, { label: string; color: string }> = {
   100: { label: 'Entwurf', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
-  200: { label: 'Versendet', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  200: { label: 'Versendet', color: 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400' },
   300: { label: 'Angenommen', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
   400: { label: 'Abgelehnt', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 };
@@ -160,7 +160,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
           </h2>
           {canViewInvoices && invoices.length > 0 && (
             <div className="flex items-center gap-4 mt-1">
-              <span className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400">
+              <span className="flex items-center gap-1 text-sm text-accent-primary dark:text-blue-400">
                 <Euro size={14} /> {formatCurrency(openInvoicesTotal)} offen
               </span>
               <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
@@ -185,7 +185,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
             onClick={() => setActiveTab('invoices')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'invoices'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                ? 'border-accent-primary text-accent-primary dark:text-blue-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
@@ -196,7 +196,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
             onClick={() => setActiveTab('quotes')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'quotes'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                ? 'border-accent-primary text-accent-primary dark:text-blue-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
@@ -214,7 +214,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
           placeholder={activeTab === 'invoices' ? 'Rechnung suchen...' : 'Angebot suchen...'}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
         />
       </div>
 
@@ -226,7 +226,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
         </div>
       ) : activeTab === 'invoices' ? (
         /* Invoices List */

@@ -70,14 +70,14 @@ export const ModernTimePicker = ({
           border-2 rounded-xl
           transition-all duration-200
           ${isOpen
-            ? 'border-blue-500 ring-2 ring-blue-500/20'
+            ? 'border-accent-primary ring-2 ring-accent-primary/20'
             : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
           }
         `}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-            <Clock size={20} className="text-blue-600 dark:text-blue-400" />
+          <div className="w-10 h-10 rounded-lg bg-accent-light dark:bg-blue-900/20 flex items-center justify-center">
+            <Clock size={20} className="text-accent-primary dark:text-blue-400" />
           </div>
           <span className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums">
             {String(hours).padStart(2, '0')}:{String(minutes).padStart(2, '0')}
@@ -142,7 +142,7 @@ export const ModernTimePicker = ({
                   className={`
                     px-2 py-1 text-sm rounded-md transition-colors
                     ${value === preset
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-accent-primary text-white'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }
                   `}

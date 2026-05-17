@@ -83,7 +83,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 text-white mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-primary text-white mb-4">
             <Loader2 size={32} className="animate-spin" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
@@ -113,7 +113,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
           </p>
           <button
             onClick={onActivated}
-            className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+            className="mt-6 px-6 py-3 bg-accent-primary hover:bg-accent-primary text-white font-medium rounded-lg transition-colors"
           >
             Zur Anmeldung
           </button>
@@ -145,7 +145,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 text-white mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-primary text-white mb-4">
             <Ticket size={32} />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -184,7 +184,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
                   required
                   minLength={8}
                   placeholder="Mindestens 8 Zeichen"
-                  className="w-full pl-10 pr-12 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-12 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
                 <button
                   type="button"
@@ -208,7 +208,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   placeholder="Passwort wiederholen"
-                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               </div>
             </div>
@@ -216,7 +216,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
+              className="w-full py-3 px-4 bg-accent-primary hover:bg-accent-primary disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">

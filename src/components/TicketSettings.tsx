@@ -480,10 +480,10 @@ export const TicketSettings = () => {
           </div>
 
           {/* Variable Info */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
             <button
               onClick={() => setShowVariableInfo(!showVariableInfo)}
-              className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-medium w-full"
+              className="flex items-center gap-2 text-accent-dark dark:text-blue-300 font-medium w-full"
             >
               <Info size={18} />
               Verfügbare Variablen
@@ -494,39 +494,39 @@ export const TicketSettings = () => {
                 <div>
                   <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">Kunden-Variablen:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{customer_name}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{customer_name}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">Name des Kunden</div>
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{customer_email}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{customer_email}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">E-Mail des Kunden</div>
                   </div>
                 </div>
                 <div>
                   <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">Ticket-Variablen:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{ticket_number}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{ticket_number}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">Ticketnummer (z.B. T00001)</div>
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{ticket_title}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{ticket_title}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">Titel des Tickets</div>
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{ticket_description}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{ticket_description}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">Beschreibung des Tickets</div>
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{status}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{status}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">Aktueller Status</div>
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{priority}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{priority}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">Priorität</div>
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{created_date}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{created_date}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">Erstellungsdatum</div>
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{created_time}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{created_time}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">Erstellungszeit</div>
                   </div>
                 </div>
                 <div>
                   <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">Datum/Zeit:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{current_date}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{current_date}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">Heutiges Datum</div>
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{current_time}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{current_time}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">Aktuelle Uhrzeit</div>
-                    <div className="font-mono text-blue-600 dark:text-blue-400">{'{{current_datetime}}'}</div>
+                    <div className="font-mono text-accent-primary dark:text-blue-400">{'{{current_datetime}}'}</div>
                     <div className="text-gray-600 dark:text-gray-400">Aktuelles Datum und Uhrzeit</div>
                   </div>
                 </div>
@@ -637,7 +637,7 @@ export const TicketSettings = () => {
                           </span>
                         )}
                         {response.category && (
-                          <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
+                          <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400 rounded">
                             {response.category}
                           </span>
                         )}
@@ -822,7 +822,7 @@ export const TicketSettings = () => {
                         <span className="font-medium text-gray-900 dark:text-white">
                           {policy.name}
                         </span>
-                        <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
+                        <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400 rounded">
                           {priorityLabels[policy.priority]}
                         </span>
                         {policy.isDefault && (

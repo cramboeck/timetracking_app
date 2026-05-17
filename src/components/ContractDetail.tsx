@@ -751,9 +751,9 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                       {formData.includedHoursMonthly}h
                     </div>
                   </div>
-                  <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/30">
-                    <div className="text-xs text-blue-600 dark:text-blue-400">Diesen Monat</div>
-                    <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                  <div className="p-4 rounded-lg bg-accent-light dark:bg-blue-900/30">
+                    <div className="text-xs text-accent-primary dark:text-blue-400">Diesen Monat</div>
+                    <div className="text-2xl font-bold text-accent-dark dark:text-blue-300">
                       {hourlyTracking[0]?.usedHours || 0}h
                     </div>
                   </div>

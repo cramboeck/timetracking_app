@@ -170,7 +170,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
     switch (priority) {
       case 'urgent': return 'text-red-600 dark:text-red-400';
       case 'high': return 'text-orange-600 dark:text-orange-400';
-      case 'normal': return 'text-blue-600 dark:text-blue-400';
+      case 'normal': return 'text-accent-primary dark:text-blue-400';
       case 'low': return 'text-gray-500 dark:text-gray-400';
     }
   };
@@ -180,7 +180,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
     const colors = {
       urgent: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
       high: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-      normal: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+      normal: 'bg-accent-lighter text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
       low: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400',
     };
     const labels = { urgent: 'Dringend', high: 'Hoch', normal: 'Normal', low: 'Niedrig' };
@@ -234,7 +234,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
         className={`group flex items-start gap-3 p-3 rounded-lg border transition-all ${
           isCompleted
             ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 opacity-60'
-            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm'
+            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-accent-primary hover:shadow-sm'
         }`}
       >
         {/* Checkbox */}
@@ -436,7 +436,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 <TrendingUp className="w-4 h-4" />
                 <span className="text-xs font-medium">In Arbeit</span>
               </div>
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
+              <p className="text-2xl font-bold text-accent-primary dark:text-blue-400 mt-1">
                 {dashboard.myTasks.my_in_progress}
               </p>
             </div>
@@ -457,7 +457,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
               onClick={() => setView(tab.key as any)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                 view === tab.key
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  ? 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
@@ -472,7 +472,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 type="checkbox"
                 checked={showCompleted}
                 onChange={(e) => setShowCompleted(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
               />
               Erledigte anzeigen
             </label>
@@ -484,7 +484,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
       <div className="flex-1 overflow-y-auto p-6">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
           </div>
         ) : tasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
@@ -518,7 +518,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
               'Heute',
               <CalendarDays className="w-4 h-4" />,
               groupedTasks.today || [],
-              'text-blue-600 dark:text-blue-400'
+              'text-accent-primary dark:text-blue-400'
             )}
             {renderGroup(
               'upcoming',

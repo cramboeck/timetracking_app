@@ -210,7 +210,7 @@ export const TicketTasks = ({
                 onClick={() => onToggleTaskVisibility(task)}
                 className={`p-1.5 rounded transition-colors ${
                   task.visibleToCustomer
-                    ? 'text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                    ? 'text-accent-primary hover:bg-accent-light dark:hover:bg-blue-900/30'
                     : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
                 title={task.visibleToCustomer ? 'Für Kunden sichtbar' : 'Nur intern sichtbar'}
@@ -245,7 +245,7 @@ export const TicketTasks = ({
               onClick={() => setNewTaskVisible(!newTaskVisible)}
               className={`p-1.5 rounded transition-colors ${
                 newTaskVisible
-                  ? 'text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                  ? 'text-accent-primary hover:bg-accent-light dark:hover:bg-blue-900/30'
                   : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
               title={newTaskVisible ? 'Für Kunden sichtbar' : 'Nur intern sichtbar'}

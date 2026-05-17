@@ -26,7 +26,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-            <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <div className="text-center p-4 bg-accent-light dark:bg-blue-900/20 rounded-lg">
               <div className="text-3xl mb-2">⏱️</div>
               <div className="text-sm font-medium text-gray-900 dark:text-white">Zeiterfassung</div>
               <div className="text-xs text-gray-600 dark:text-dark-400 mt-1">
@@ -85,7 +85,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
             </div>
           </div>
 
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="p-3 bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <p className="text-sm text-blue-900 dark:text-blue-200">
               💡 <strong>Tipp:</strong> Wähle eine eindeutige Farbe für jeden Kunden, um sie schnell zu unterscheiden
             </p>
@@ -127,7 +127,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
             </div>
           </div>
 
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="p-3 bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <p className="text-sm text-blue-900 dark:text-blue-200">
               💡 <strong>Tipp:</strong> Du kannst mehrere Projekte pro Kunde anlegen, z.B. "Entwicklung" und "Support"
             </p>

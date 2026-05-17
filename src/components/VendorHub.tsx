@@ -223,7 +223,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  ? 'border-accent-primary text-accent-primary dark:text-blue-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
@@ -247,8 +247,8 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                   {/* Stats Cards */}
                   {stats && (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                      <div className="bg-accent-light dark:bg-blue-900/20 rounded-lg p-4">
+                        <div className="text-2xl font-bold text-accent-primary dark:text-blue-400">
                           {stats.totalInvoices}
                         </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">Belege gesamt</div>
@@ -293,7 +293,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                                   <span className={`text-xs px-2 py-0.5 rounded ${
                                     email.mailboxType === 'invoice'
                                       ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
-                                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                                      : 'bg-accent-lighter text-accent-dark dark:bg-blue-900/50 dark:text-blue-300'
                                   }`}>
                                     {email.mailboxType === 'invoice' ? 'Rechnung' : 'Support'}
                                   </span>
@@ -380,7 +380,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                               <span className={`text-xs px-2 py-0.5 rounded ${
                                 email.mailboxType === 'invoice'
                                   ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
-                                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                                  : 'bg-accent-lighter text-accent-dark dark:bg-blue-900/50 dark:text-blue-300'
                               }`}>
                                 {email.mailboxType === 'invoice' ? 'Rechnungs-Postfach' : 'Support-Postfach'}
                               </span>
@@ -506,7 +506,7 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                         type="checkbox"
                         checked={isVendor}
                         onChange={(e) => setIsVendor(e.target.checked)}
-                        className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="w-5 h-5 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
                       />
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">

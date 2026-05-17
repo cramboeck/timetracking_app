@@ -98,7 +98,7 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({
         e.dataTransfer.setData('opportunityId', opportunity.id);
         e.dataTransfer.effectAllowed = 'move';
       }}
-      className={`group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all ${
+      className={`group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 dark:hover:border-accent-primary transition-all ${
         isDragging ? 'opacity-50 rotate-2 scale-105' : ''
       }`}
     >
@@ -281,7 +281,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
   return (
     <div
       className={`flex-shrink-0 w-72 bg-gray-100 dark:bg-gray-800/50 rounded-xl flex flex-col max-h-full ${
-        isDragOver ? 'ring-2 ring-blue-500 ring-opacity-50' : ''
+        isDragOver ? 'ring-2 ring-accent-primary ring-opacity-50' : ''
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -760,7 +760,7 @@ const SalesPipeline: React.FC = () => {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary" />
       </div>
     );
   }
@@ -801,7 +801,7 @@ const SalesPipeline: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Suchen..."
-              className="pl-9 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-48 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="pl-9 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-48 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
             />
           </div>
           <Button

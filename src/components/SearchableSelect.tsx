@@ -133,7 +133,7 @@ export const SearchableSelect = ({
             : 'bg-white dark:bg-dark-100 cursor-pointer'
           }
           ${isOpen
-            ? 'border-blue-500 ring-2 ring-blue-500'
+            ? 'border-accent-primary ring-2 ring-accent-primary'
             : 'border-gray-300 dark:border-dark-200'
           }
           flex items-center gap-2
@@ -206,11 +206,11 @@ export const SearchableSelect = ({
                 className={`
                   px-4 py-3 cursor-pointer transition-colors
                   ${index === highlightedIndex
-                    ? 'bg-blue-50 dark:bg-blue-900/20'
+                    ? 'bg-accent-light dark:bg-blue-900/20'
                     : 'hover:bg-gray-50 dark:hover:bg-dark-200'
                   }
                   ${option.value === value
-                    ? 'bg-blue-100 dark:bg-blue-900/30 font-medium'
+                    ? 'bg-accent-lighter dark:bg-blue-900/30 font-medium'
                     : ''
                   }
                 `}

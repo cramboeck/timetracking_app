@@ -844,7 +844,7 @@ export const KnowledgeBaseSettings = () => {
                             <span className={`px-1.5 py-0.5 text-xs rounded ${
                               ticket.status === 'resolved'
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                                : 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
                             }`}>
                               {ticket.status === 'resolved' ? 'Gelöst' : 'Geschlossen'}
                             </span>
@@ -1041,7 +1041,7 @@ export const KnowledgeBaseSettings = () => {
           title={deleteConfirm.type === 'category' ? 'Kategorie löschen' : 'Artikel löschen'}
           message={`Möchtest du "${deleteConfirm.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`}
           confirmText="Löschen"
-          type="danger"
+          variant="danger"
         />
       )}
     </div>

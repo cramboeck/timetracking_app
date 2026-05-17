@@ -164,10 +164,10 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
           {/* Content */}
           <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
             {/* Info Box */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
+            <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
               <div className="flex gap-2">
-                <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-blue-700 dark:text-blue-300">
+                <Info className="w-5 h-5 text-accent-primary dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-accent-dark dark:text-blue-300">
                   E-Mails von diesen Domains werden automatisch diesem Kunden zugeordnet, wenn ein Ticket aus dem Support-Postfach erstellt wird.
                 </p>
               </div>
@@ -325,10 +325,9 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
         isOpen={!!deleteDomain}
         title="Domain entfernen"
         message={`Möchten Sie die Domain "@${deleteDomain?.domain}" wirklich entfernen? E-Mails von dieser Domain werden dann nicht mehr automatisch diesem Kunden zugeordnet.`}
-        confirmLabel="Entfernen"
+        confirmText="Entfernen"
         onConfirm={handleDelete}
-        onCancel={() => setDeleteDomain(null)}
-        isLoading={deleting}
+        onClose={() => setDeleteDomain(null)}
         variant="danger"
       />
     </>

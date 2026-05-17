@@ -12,7 +12,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Shield className="w-6 h-6 text-blue-600" />
+            <Shield className="w-6 h-6 text-accent-primary" />
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
               Datenschutzerklärung
             </h2>
@@ -44,7 +44,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             {/* Verantwortlicher */}
             <section className="mb-8">
               <div className="flex items-center gap-2 mb-4">
-                <FileText className="w-5 h-5 text-blue-600" />
+                <FileText className="w-5 h-5 text-accent-primary" />
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white m-0">
                   1. Verantwortlicher
                 </h3>
@@ -67,7 +67,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             {/* Erhobene Daten */}
             <section className="mb-8">
               <div className="flex items-center gap-2 mb-4">
-                <Database className="w-5 h-5 text-blue-600" />
+                <Database className="w-5 h-5 text-accent-primary" />
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white m-0">
                   2. Welche Daten werden erhoben?
                 </h3>
@@ -110,7 +110,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             {/* Zweck der Verarbeitung */}
             <section className="mb-8">
               <div className="flex items-center gap-2 mb-4">
-                <Eye className="w-5 h-5 text-blue-600" />
+                <Eye className="w-5 h-5 text-accent-primary" />
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white m-0">
                   3. Zweck der Datenverarbeitung
                 </h3>
@@ -131,7 +131,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             {/* Rechtsgrundlage */}
             <section className="mb-8">
               <div className="flex items-center gap-2 mb-4">
-                <Lock className="w-5 h-5 text-blue-600" />
+                <Lock className="w-5 h-5 text-accent-primary" />
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white m-0">
                   4. Rechtsgrundlage
                 </h3>
@@ -149,7 +149,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             {/* Datenspeicherung */}
             <section className="mb-8">
               <div className="flex items-center gap-2 mb-4">
-                <Database className="w-5 h-5 text-blue-600" />
+                <Database className="w-5 h-5 text-accent-primary" />
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white m-0">
                   5. Datenspeicherung und Sicherheit
                 </h3>
@@ -189,7 +189,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             {/* Ihre Rechte */}
             <section className="mb-8">
               <div className="flex items-center gap-2 mb-4">
-                <Shield className="w-5 h-5 text-blue-600" />
+                <Shield className="w-5 h-5 text-accent-primary" />
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white m-0">
                   6. Ihre Rechte (DSGVO)
                 </h3>
@@ -199,7 +199,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
               </p>
 
               <div className="space-y-3">
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Auskunft (Art. 15 DSGVO)
@@ -210,7 +210,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                   </p>
                 </div>
 
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Berichtigung (Art. 16 DSGVO)
@@ -220,7 +220,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                   </p>
                 </div>
 
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Löschung (Art. 17 DSGVO)
@@ -231,7 +231,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                   </p>
                 </div>
 
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Datenübertragbarkeit (Art. 20 DSGVO)
@@ -242,7 +242,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                   </p>
                 </div>
 
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Widerspruch (Art. 21 DSGVO)
@@ -252,7 +252,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                   </p>
                 </div>
 
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Beschwerde (Art. 77 DSGVO)
@@ -267,7 +267,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             {/* E-Mail-Benachrichtigungen */}
             <section className="mb-8">
               <div className="flex items-center gap-2 mb-4">
-                <Mail className="w-5 h-5 text-blue-600" />
+                <Mail className="w-5 h-5 text-accent-primary" />
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white m-0">
                   7. E-Mail-Benachrichtigungen
                 </h3>
@@ -290,7 +290,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             {/* Cookies */}
             <section className="mb-8">
               <div className="flex items-center gap-2 mb-4">
-                <Database className="w-5 h-5 text-blue-600" />
+                <Database className="w-5 h-5 text-accent-primary" />
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white m-0">
                   8. Cookies und lokaler Speicher
                 </h3>
@@ -311,7 +311,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             {/* Änderungen */}
             <section className="mb-8">
               <div className="flex items-center gap-2 mb-4">
-                <FileText className="w-5 h-5 text-blue-600" />
+                <FileText className="w-5 h-5 text-accent-primary" />
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white m-0">
                   9. Änderungen der Datenschutzerklärung
                 </h3>
@@ -326,7 +326,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
             {/* Kontakt */}
             <section className="mb-8">
               <div className="flex items-center gap-2 mb-4">
-                <Mail className="w-5 h-5 text-blue-600" />
+                <Mail className="w-5 h-5 text-accent-primary" />
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white m-0">
                   10. Kontakt
                 </h3>

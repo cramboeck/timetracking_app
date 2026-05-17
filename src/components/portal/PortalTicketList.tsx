@@ -9,7 +9,7 @@ interface PortalTicketListProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
-  open: { label: 'Offen', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', icon: AlertCircle },
+  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-blue-900 dark:text-blue-200', icon: AlertCircle },
   in_progress: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200', icon: Clock },
   waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', icon: Pause },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', icon: CheckCircle },
@@ -18,7 +18,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
 
 const priorityConfig: Record<string, { label: string; color: string }> = {
   low: { label: 'Niedrig', color: 'text-gray-500' },
-  normal: { label: 'Normal', color: 'text-blue-500' },
+  normal: { label: 'Normal', color: 'text-accent-primary' },
   high: { label: 'Hoch', color: 'text-orange-500' },
   critical: { label: 'Kritisch', color: 'text-red-500' },
 };
@@ -79,7 +79,7 @@ export const PortalTicketList = ({ contact, onTicketSelect, onCreateTicket }: Po
           {contact.canCreateTickets && (
             <button
               onClick={onCreateTicket}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary text-white rounded-lg font-medium transition-colors"
             >
               <Plus size={20} />
               <span className="hidden sm:inline">Neues Ticket</span>
@@ -105,13 +105,13 @@ export const PortalTicketList = ({ contact, onTicketSelect, onCreateTicket }: Po
       {/* Ticket List */}
       {loading ? (
         <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
         </div>
       ) : error ? (
         <div className="text-center text-red-500 py-8">
           <AlertCircle className="mx-auto mb-2" size={32} />
           <p>{error}</p>
-          <button onClick={loadTickets} className="mt-2 text-blue-600 hover:underline">
+          <button onClick={loadTickets} className="mt-2 text-accent-primary hover:underline">
             Erneut versuchen
           </button>
         </div>
@@ -125,7 +125,7 @@ export const PortalTicketList = ({ contact, onTicketSelect, onCreateTicket }: Po
           {contact.canCreateTickets && !statusFilter && (
             <button
               onClick={onCreateTicket}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary text-white rounded-lg font-medium transition-colors"
             >
               <Plus size={20} />
               Erstes Ticket erstellen
@@ -143,7 +143,7 @@ export const PortalTicketList = ({ contact, onTicketSelect, onCreateTicket }: Po
               <button
                 key={ticket.id}
                 onClick={() => onTicketSelect(ticket)}
-                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
+                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-400 dark:hover:border-accent-primary transition-colors"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
