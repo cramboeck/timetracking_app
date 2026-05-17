@@ -100,8 +100,8 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res)
         null, // teamId
         null, // teamRole
         false, // mfaEnabled
-        'blue', // accentColor
-        'medium', // grayTone
+        'ramboeck', // accentColor (RamboFlow brand orange #FF6A00)
+        'ramboeck', // grayTone (RamboFlow dark indigo/purple)
         15, // timeRoundingInterval
         new Date().toISOString(),
         new Date().toISOString(),
