@@ -64,7 +64,7 @@ interface AuthProviderProps {
 const applyAccentColorToRoot = (color: AccentColor) => {
   const root = document.documentElement;
   // Remove all accent color classes
-  root.classList.remove('accent-blue', 'accent-green', 'accent-orange', 'accent-purple', 'accent-red', 'accent-pink');
+  root.classList.remove('accent-blue', 'accent-green', 'accent-orange', 'accent-purple', 'accent-red', 'accent-pink', 'accent-ramboeck');
   // Add selected color class
   root.classList.add(`accent-${color}`);
 };
