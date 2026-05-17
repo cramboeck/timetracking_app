@@ -1,16 +1,15 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List } from 'lucide-react';
+import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TimePicker } from './TimePicker';
 import { useAuth } from '../contexts/AuthContext';
-import { aiApi } from '../services/api';
+import { aiApi, entriesApi, PaginationMeta } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 
 interface TimeEntriesListProps {
-  entries: TimeEntry[];
   projects: Project[];
   customers: Customer[];
   activities: Activity[];
@@ -20,7 +19,53 @@ interface TimeEntriesListProps {
   onBulkUpdate?: (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => Promise<void>;
 }
 
-export const TimeEntriesList = ({ entries, projects, customers, activities, onDelete, onEdit, onRepeatEntry, onBulkUpdate }: TimeEntriesListProps) => {
+const PAGE_SIZE = 500;
+
+// Convert the filter UI state to a {startDate, endDate} pair that the backend
+// understands. The backend filters with startDate <= entry.start_time <= endDate.
+const filterToDateRange = (
+  type: 'month' | 'quarter' | 'year' | 'custom',
+  month: string,
+  quarter: string,
+  year: string,
+  dateFrom: string,
+  dateTo: string,
+): { startDate?: string; endDate?: string } => {
+  if (type === 'month') {
+    const [y, m] = month.split('-').map(Number);
+    if (!y || !m) return {};
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0, 23, 59, 59, 999); // last day of month
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  }
+  if (type === 'quarter') {
+    const match = quarter.match(/^(\d{4})-Q(\d)$/);
+    if (!match) return {};
+    const y = parseInt(match[1], 10);
+    const q = parseInt(match[2], 10);
+    const startMonth = (q - 1) * 3;
+    const start = new Date(y, startMonth, 1);
+    const end = new Date(y, startMonth + 3, 0, 23, 59, 59, 999);
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  }
+  if (type === 'year') {
+    const y = parseInt(year, 10);
+    if (!y) return {};
+    return {
+      startDate: new Date(y, 0, 1).toISOString(),
+      endDate: new Date(y, 11, 31, 23, 59, 59, 999).toISOString(),
+    };
+  }
+  if (type === 'custom') {
+    const out: { startDate?: string; endDate?: string } = {};
+    if (dateFrom) out.startDate = new Date(`${dateFrom}T00:00:00`).toISOString();
+    if (dateTo) out.endDate = new Date(`${dateTo}T23:59:59.999`).toISOString();
+    return out;
+  }
+  return {};
+};
+
+export const TimeEntriesList = ({ projects, customers, activities, onDelete, onEdit, onRepeatEntry, onBulkUpdate }: TimeEntriesListProps) => {
   const { currentUser } = useAuth();
   const use24Hour = (currentUser?.timeFormat || '24h') === '24h';
 
@@ -61,6 +106,18 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       Object.values(descriptionUpdateTimeoutRef.current).forEach(clearTimeout);
     };
   }, []);
+
+  // Server-side pagination state (declared early so the inline-edit-sync
+  // useEffect below — which depends on `entries` — can see it). Backend
+  // filters startDate/endDate/projectId; customer and description filters
+  // are applied client-side on the loaded page.
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [refetchToken, setRefetchToken] = useState(0);
+  const triggerRefetch = useCallback(() => setRefetchToken((t) => t + 1), []);
 
   // Sync inline edit state when entries change
   useEffect(() => {
@@ -105,6 +162,54 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [filterDescription, setFilterDescription] = useState<string>('');
+
+  // Reset to page 1 whenever any backend-relevant filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterProjectId]);
+
+  // Fetch entries when filters/page change. Customer + description filters
+  // are NOT sent to the backend (no support there yet), they apply only to
+  // the page we already have — this is the documented pragmatic trade-off
+  // for the first iteration of paginated list view.
+  useEffect(() => {
+    let cancelled = false;
+    const dateRange = filterToDateRange(
+      filterTimeframeType,
+      filterMonth,
+      filterQuarter,
+      filterYear,
+      filterDateFrom,
+      filterDateTo,
+    );
+    setLoading(true);
+    setFetchError(null);
+    entriesApi
+      .getPaginated({
+        page: currentPage,
+        limit: PAGE_SIZE,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        projectId: filterProjectId || undefined,
+      })
+      .then((response) => {
+        if (cancelled) return;
+        setEntries(response.data);
+        setPagination(response.pagination);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setFetchError(err instanceof Error ? err.message : 'Fehler beim Laden');
+        setEntries([]);
+        setPagination(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPage, filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterProjectId, refetchToken]);
 
   // View mode state
   const [compactView, setCompactView] = useState<boolean>(() => {
@@ -250,50 +355,24 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   }, [entries]);
 
   // Filter entries
+  // Timeframe and projectId are already applied by the backend (see fetch
+  // useEffect above). Customer and description filters are applied here on
+  // the loaded page — backend does not support them yet.
   const filteredEntries = useMemo(() => {
     return entries.filter(entry => {
-      // Customer filter
       if (filterCustomerId) {
         const project = getProjectById(entry.projectId);
         if (!project || project.customerId !== filterCustomerId) return false;
       }
-
-      // Project filter
-      if (filterProjectId && entry.projectId !== filterProjectId) return false;
-
-      // Timeframe filter
-      const entryDate = new Date(entry.startTime);
-      if (filterTimeframeType === 'month') {
-        const entryMonth = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}`;
-        if (entryMonth !== filterMonth) return false;
-      } else if (filterTimeframeType === 'quarter') {
-        const match = filterQuarter.match(/^(\d{4})-Q(\d)$/);
-        if (match) {
-          const filterQYear = parseInt(match[1]);
-          const filterQ = parseInt(match[2]);
-          const entryYear = entryDate.getFullYear();
-          const entryQuarter = Math.floor(entryDate.getMonth() / 3) + 1;
-          if (entryYear !== filterQYear || entryQuarter !== filterQ) return false;
-        }
-      } else if (filterTimeframeType === 'year') {
-        if (entryDate.getFullYear() !== parseInt(filterYear)) return false;
-      } else if (filterTimeframeType === 'custom') {
-        const entryDateStr = entryDate.toISOString().split('T')[0];
-        if (filterDateFrom && entryDateStr < filterDateFrom) return false;
-        if (filterDateTo && entryDateStr > filterDateTo) return false;
-      }
-
-      // Description filter
       if (filterDescription) {
         const searchLower = filterDescription.toLowerCase();
         const descMatch = entry.description?.toLowerCase().includes(searchLower);
         const projectMatch = getProjectDisplay(entry).toLowerCase().includes(searchLower);
         if (!descMatch && !projectMatch) return false;
       }
-
       return true;
     });
-  }, [entries, filterCustomerId, filterProjectId, filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterDescription]);
+  }, [entries, filterCustomerId, filterDescription]);
 
   const sortedEntries = useMemo(() =>
     [...filteredEntries].sort(
@@ -392,6 +471,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       setBulkEditModal(false);
       setSelectedEntries(new Set());
       setSelectionMode(false);
+      triggerRefetch();
     } catch (error) {
       console.error('Bulk update error:', error);
       alert('Fehler beim Aktualisieren der Einträge');
@@ -439,6 +519,10 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     });
 
     setEditingEntry(null);
+    // Refetch the current page so the just-edited entry shows its new
+    // values (and possibly disappears from the page if it now falls
+    // outside the active filter).
+    triggerRefetch();
   };
 
   const handleDeleteClick = (entry: TimeEntry) => {
@@ -451,6 +535,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
   const confirmDelete = () => {
     onDelete(deleteConfirm.id);
+    triggerRefetch();
   };
 
   const exportToCSV = () => {
@@ -496,7 +581,13 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     link.click();
   };
 
-  if (entries.length === 0) {
+  // Empty state: no entries on this page AND nothing loading AND no
+  // filter that could be narrowing the result. If filters are active,
+  // we fall through to the list view (which then shows its own empty
+  // hint inside the table area).
+  const hasActiveBackendFilter =
+    !!filterProjectId || filterTimeframeType !== 'month' || !!filterDateFrom || !!filterDateTo;
+  if (entries.length === 0 && !loading && !fetchError && !hasActiveBackendFilter && pagination?.total === 0) {
     return (
       <div className="flex flex-col h-full p-6">
         <h1 className="text-2xl font-bold mb-6">Übersicht</h1>
@@ -522,7 +613,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               Gesamt: {formatDuration(totalHours)}
               {hasActiveFilters && (
                 <span className="text-xs sm:text-sm font-normal text-gray-500 ml-2">
-                  ({filteredEntries.length}/{entries.length})
+                  ({filteredEntries.length}/{pagination?.total ?? entries.length})
                 </span>
               )}
             </div>
@@ -1381,6 +1472,46 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           confirmText="Timer starten"
           variant="info"
         />
+      )}
+
+      {/* Pagination controls — only shown when the backend reports more than
+          one page for the active filter. Currently-loaded page can be empty
+          and still display these (e.g. after deleting the last entry). */}
+      {pagination && pagination.totalPages > 1 && (
+        <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between gap-3 z-10">
+          <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+            Seite <span className="font-semibold text-gray-700 dark:text-gray-200">{pagination.page}</span> von{' '}
+            <span className="font-semibold text-gray-700 dark:text-gray-200">{pagination.totalPages}</span>
+            <span className="hidden sm:inline"> · {pagination.total} Einträge</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {loading && <Loader2 size={14} className="animate-spin text-gray-400" />}
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={pagination.page <= 1 || loading}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Vorherige Seite"
+            >
+              <ChevronLeft size={14} />
+              <span className="hidden sm:inline">Zurück</span>
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
+              disabled={!pagination.hasMore || loading}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Nächste Seite"
+            >
+              <span className="hidden sm:inline">Weiter</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {fetchError && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 text-red-800 dark:text-red-100 px-4 py-2 rounded-md shadow-md z-20">
+          {fetchError}
+        </div>
       )}
     </div>
   );

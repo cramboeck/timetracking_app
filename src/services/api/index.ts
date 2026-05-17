@@ -32,7 +32,7 @@ export type {
 
 // Core API (entries, projects, customers, activities, tasks)
 export { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi };
-export type { CreateTaskInput, UpdateTaskInput, SimilarTasksResponse } from './core';
+export type { CreateTaskInput, UpdateTaskInput, SimilarTasksResponse, PaginationMeta, EntryFilters } from './core';
 
 // Tickets API
 export { ticketsApi, knowledgeBaseApi, publicKbApi } from './tickets';
