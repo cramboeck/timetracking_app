@@ -1,7 +1,9 @@
 import express from 'express';
 import crypto from 'crypto';
+import { z } from 'zod';
 import { query, getClient } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { emailService } from '../services/emailService';
@@ -10,6 +12,97 @@ import { auditLog } from '../services/auditLog';
 import { logger } from '../utils/logger';
 
 const router = express.Router();
+
+// ============================================================================
+// Zod validation schemas
+// ============================================================================
+
+const ticketPrioritySchema = z.enum(['low', 'normal', 'high', 'critical']);
+const ticketStatusSchema = z.enum(['open', 'in_progress', 'waiting', 'resolved', 'closed', 'archived']);
+
+const createTicketSchema = z.object({
+  customerId: z.string().uuid(),
+  projectId: z.string().uuid().optional().nullable(),
+  title: z.string().trim().min(1).max(500),
+  description: z.string().max(50_000).optional(),
+  priority: ticketPrioritySchema.optional(),
+});
+
+const updateTicketSchema = z.object({
+  customerId: z.string().uuid().optional(),
+  projectId: z.string().uuid().optional().nullable(),
+  title: z.string().trim().min(1).max(500).optional(),
+  description: z.string().max(50_000).optional().nullable(),
+  status: ticketStatusSchema.optional(),
+  priority: ticketPrioritySchema.optional(),
+  assignedToUserId: z.string().uuid().optional().nullable(),
+  solution: z.string().max(50_000).optional().nullable(),
+  resolutionType: z.string().max(100).optional().nullable(),
+});
+
+const mergeTicketsSchema = z.object({
+  sourceTicketIds: z.array(z.string().uuid()).min(1).max(50),
+});
+
+const createCommentSchema = z.object({
+  content: z.string().min(1).max(50_000),
+  isInternal: z.boolean().optional(),
+  notifyCustomer: z.boolean().optional(),
+  replyViaEmail: z.boolean().optional(),
+});
+
+const createContactSchema = z.object({
+  customerId: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+  email: z.string().trim().email().max(200),
+  canCreateTickets: z.boolean().optional(),
+  canViewAllTickets: z.boolean().optional(),
+  notifyTicketCreated: z.boolean().optional(),
+  notifyTicketStatusChanged: z.boolean().optional(),
+  notifyTicketReply: z.boolean().optional(),
+});
+
+const updateContactSchema = createContactSchema.partial();
+
+const cannedResponseSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  content: z.string().min(1).max(50_000),
+  shortcut: z.string().trim().max(50).optional().nullable(),
+  category: z.string().trim().max(100).optional().nullable(),
+});
+
+const tagSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Must be a #RRGGBB color').optional(),
+});
+
+const slaPolicySchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: z.string().max(2_000).optional().nullable(),
+  priority: ticketPrioritySchema,
+  firstResponseMinutes: z.number().int().positive().max(525_600), // ≤ 1 year
+  resolutionMinutes: z.number().int().positive().max(525_600),
+  businessHoursOnly: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+});
+
+const updateSlaPolicySchema = slaPolicySchema.partial();
+
+const ticketTaskSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  description: z.string().max(50_000).optional().nullable(),
+  visibleToCustomer: z.boolean().optional(),
+  assignedTo: z.string().uuid().optional().nullable(),
+  dueDate: z.string().datetime().optional().nullable(),
+});
+
+const updateTicketTaskSchema = ticketTaskSchema.extend({
+  completed: z.boolean().optional(),
+}).partial();
+
+const reorderTasksSchema = z.object({
+  taskIds: z.array(z.string().uuid()).min(1).max(500),
+});
 
 // Portal URL for email links
 const PORTAL_URL = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
@@ -452,7 +545,7 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
 });
 
 // POST /api/tickets - Create new ticket (requires member role)
-router.post('/', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.post('/', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createTicketSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -533,7 +626,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
 });
 
 // PUT /api/tickets/:id - Update ticket (requires member role)
-router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateTicketSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -854,7 +947,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
 });
 
 // POST /api/tickets/:id/merge - Merge source tickets into target ticket (requires admin role)
-router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
+router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(mergeTicketsSchema), async (req, res) => {
   const client = await getClient();
 
   try {
@@ -1079,7 +1172,7 @@ router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole(
 // ============================================================================
 
 // POST /api/tickets/:id/comments - Add comment to ticket (requires member role)
-router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createCommentSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -1565,7 +1658,7 @@ router.get('/contacts/:customerId', authenticateToken, attachOrganization, async
 });
 
 // POST /api/tickets/contacts - Create customer contact
-router.post('/contacts', authenticateToken, attachOrganization, async (req, res) => {
+router.post('/contacts', authenticateToken, attachOrganization, validate(createContactSchema), async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1618,7 +1711,7 @@ router.post('/contacts', authenticateToken, attachOrganization, async (req, res)
 });
 
 // PUT /api/tickets/contacts/:id - Update customer contact
-router.put('/contacts/:id', authenticateToken, attachOrganization, async (req, res) => {
+router.put('/contacts/:id', authenticateToken, attachOrganization, validate(updateContactSchema), async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1697,7 +1790,7 @@ router.get('/canned-responses/list', authenticateToken, attachOrganization, asyn
 });
 
 // POST /api/tickets/canned-responses - Create canned response
-router.post('/canned-responses', authenticateToken, attachOrganization, async (req, res) => {
+router.post('/canned-responses', authenticateToken, attachOrganization, validate(cannedResponseSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -1724,7 +1817,7 @@ router.post('/canned-responses', authenticateToken, attachOrganization, async (r
 });
 
 // PUT /api/tickets/canned-responses/:id - Update canned response
-router.put('/canned-responses/:id', authenticateToken, attachOrganization, async (req, res) => {
+router.put('/canned-responses/:id', authenticateToken, attachOrganization, validate(cannedResponseSchema.partial()), async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -2041,7 +2134,7 @@ router.get('/tags/list', authenticateToken, attachOrganization, async (req, res)
 });
 
 // POST /api/tickets/tags - Create tag
-router.post('/tags', authenticateToken, attachOrganization, async (req, res) => {
+router.post('/tags', authenticateToken, attachOrganization, validate(tagSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2071,7 +2164,7 @@ router.post('/tags', authenticateToken, attachOrganization, async (req, res) => 
 });
 
 // PUT /api/tickets/tags/:id - Update tag
-router.put('/tags/:id', authenticateToken, attachOrganization, async (req, res) => {
+router.put('/tags/:id', authenticateToken, attachOrganization, validate(tagSchema.partial()), async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -2510,7 +2603,7 @@ router.get('/sla/policies', authenticateToken, attachOrganization, async (req, r
 });
 
 // POST /api/tickets/sla/policies - Create SLA policy (requires admin role)
-router.post('/sla/policies', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
+router.post('/sla/policies', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(slaPolicySchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2563,7 +2656,7 @@ router.post('/sla/policies', authenticateToken, attachOrganization, requireOrgRo
 });
 
 // PUT /api/tickets/sla/policies/:id - Update SLA policy (requires admin role)
-router.put('/sla/policies/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
+router.put('/sla/policies/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(updateSlaPolicySchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2876,7 +2969,7 @@ router.get('/:id/tasks', authenticateToken, attachOrganization, async (req, res)
 });
 
 // POST /api/tickets/:id/tasks - Create a new task (requires member role)
-router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole('member'), validate(ticketTaskSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2942,7 +3035,7 @@ router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole(
 });
 
 // PUT /api/tickets/:ticketId/tasks/:taskId - Update a task (requires member role)
-router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateTicketTaskSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -3091,7 +3184,7 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, re
 });
 
 // PUT /api/tickets/:ticketId/tasks/reorder - Reorder tasks (requires member role)
-router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, requireOrgRole('member'), validate(reorderTasksSchema), async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
