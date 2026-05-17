@@ -157,7 +157,7 @@ export async function getContracts(
     FROM contracts c
     LEFT JOIN customers cu ON c.customer_id = cu.id
     LEFT JOIN projects p ON c.project_id = p.id
-    WHERE c.user_id = $1
+    WHERE c.user_id = $1 AND c.deleted_at IS NULL
   `;
   const params: any[] = [userId];
   let paramIndex = 2;
@@ -198,7 +198,7 @@ export async function getContractById(
      FROM contracts c
      LEFT JOIN customers cu ON c.customer_id = cu.id
      LEFT JOIN projects p ON c.project_id = p.id
-     WHERE c.id = $1 AND c.user_id = $2`,
+     WHERE c.id = $1 AND c.user_id = $2 AND c.deleted_at IS NULL`,
     [contractId, userId]
   );
 
@@ -209,7 +209,7 @@ export async function getContractById(
 export async function getNextContractNumber(userId: string): Promise<string> {
   const result = await query(
     `SELECT contract_number FROM contracts
-     WHERE user_id = $1
+     WHERE user_id = $1 AND deleted_at IS NULL
      ORDER BY created_at DESC
      LIMIT 1`,
     [userId]
@@ -321,7 +321,7 @@ export async function updateContract(
       internal_notes = $24,
       project_id = $25,
       updated_at = NOW()
-     WHERE id = $1 AND user_id = $2
+     WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
      RETURNING *`,
     [
       contractId,
@@ -369,7 +369,7 @@ export async function deleteContract(
   const existing = await getContractById(userId, contractId);
   if (!existing) return false;
 
-  await query('DELETE FROM contracts WHERE id = $1 AND user_id = $2', [
+  await query('UPDATE contracts SET deleted_at = NOW() WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL', [
     contractId,
     userId,
   ]);
@@ -519,7 +519,7 @@ export async function updateContractHourlyTracking(
 ): Promise<ContractHourlyTracking> {
   // Get contract to check included hours
   const contractResult = await query(
-    'SELECT included_hours_monthly, overage_rate FROM contracts WHERE id = $1',
+    'SELECT included_hours_monthly, overage_rate FROM contracts WHERE id = $1 AND deleted_at IS NULL',
     [contractId]
   );
 
@@ -577,7 +577,7 @@ export async function getContractSummary(userId: string): Promise<ContractSummar
       SUM(CASE WHEN status = 'active' AND billing_cycle = 'monthly' THEN COALESCE(base_price, 0) ELSE 0 END) as monthly_revenue,
       SUM(CASE WHEN status = 'active' THEN COALESCE(included_hours_monthly, 0) ELSE 0 END) as included_hours
      FROM contracts
-     WHERE user_id = $1`,
+     WHERE user_id = $1 AND deleted_at IS NULL`,
     [userId]
   );
 
@@ -599,7 +599,7 @@ export async function getExpiringContracts(
     `SELECT c.*, cu.name as customer_name
      FROM contracts c
      LEFT JOIN customers cu ON c.customer_id = cu.id
-     WHERE c.user_id = $1
+     WHERE c.user_id = $1 AND c.deleted_at IS NULL
        AND c.status = 'active'
        AND c.end_date IS NOT NULL
        AND c.end_date <= CURRENT_DATE + INTERVAL '1 day' * $2
@@ -619,7 +619,7 @@ export async function getContractsByCustomer(
      FROM contracts c
      LEFT JOIN customers cu ON c.customer_id = cu.id
      LEFT JOIN projects p ON c.project_id = p.id
-     WHERE c.user_id = $1 AND c.customer_id = $2
+     WHERE c.user_id = $1 AND c.customer_id = $2 AND c.deleted_at IS NULL
      ORDER BY c.status, c.created_at DESC`,
     [userId, customerId]
   );
@@ -670,7 +670,7 @@ export async function updateContractStatuses(userId: string): Promise<number> {
   const expiringResult = await query(
     `UPDATE contracts
      SET status = 'expiring', updated_at = NOW()
-     WHERE user_id = $1
+     WHERE user_id = $1 AND deleted_at IS NULL
        AND status = 'active'
        AND end_date IS NOT NULL
        AND end_date <= CURRENT_DATE + INTERVAL '30 days'
@@ -682,7 +682,7 @@ export async function updateContractStatuses(userId: string): Promise<number> {
   const expiredResult = await query(
     `UPDATE contracts
      SET status = 'expired', updated_at = NOW()
-     WHERE user_id = $1
+     WHERE user_id = $1 AND deleted_at IS NULL
        AND status IN ('active', 'expiring')
        AND end_date IS NOT NULL
        AND end_date < CURRENT_DATE`,
