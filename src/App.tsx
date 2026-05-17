@@ -40,6 +40,7 @@ import { useIsDesktop } from './hooks/useMediaQuery';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { haptics } from './utils/haptics';
 import { notificationService } from './utils/notifications';
+import { toLocalDateString } from './utils/time';
 import { addPendingEntry, getRetryableEntries, removePendingEntry, getPendingCount, getFailedCount, markEntryFailed, isRetryableError, resetFailedEntry, discardFailedEntry } from './utils/offlineStorage';
 import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, userApi } from './services/api';
 
@@ -428,9 +429,9 @@ function App() {
       }
 
       // 2. Daily reminder (if no entries today)
-      const today = now.toISOString().split('T')[0];
+      const today = toLocalDateString(now);
       const hasEntriesToday = entries.some(e => {
-        const entryDate = new Date(e.startTime).toISOString().split('T')[0];
+        const entryDate = toLocalDateString(new Date(e.startTime));
         return entryDate === today && !e.isRunning;
       });
 

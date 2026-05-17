@@ -31,6 +31,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
+import { toLocalDateString } from '../utils/time';
 import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, DocumentSearchResult } from '../services/api';
 import { QuoteEditor } from './QuoteEditor';
 import { SevdeskSettings } from './SevdeskSettings';
@@ -214,14 +215,7 @@ const BillingTab = () => {
     loadData();
   }, [selectedMonth, billingPeriodType, selectedQuarter, selectedYear, customStartDate, customEndDate]);
 
-  // Helper to format date as YYYY-MM-DD in local timezone (not UTC)
-  // Using toISOString() would convert to UTC first, causing off-by-one errors in CET/CEST
-  const formatDateLocal = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  const formatDateLocal = toLocalDateString;
 
   // Calculate period dates based on billing type
   const getPeriodDates = () => {

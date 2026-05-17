@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Save, Clock, ArrowRight, Zap } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
-import { calculateDuration } from '../utils/time';
+import { calculateDuration, toLocalDateString } from '../utils/time';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { ModernDatePicker } from './ModernDatePicker';
@@ -36,7 +36,7 @@ export const ManualEntryModern = ({
 }: ManualEntryModernProps) => {
   const { currentUser } = useAuth();
   const { toast, showToast, hideToast } = useToast();
-  const today = new Date().toISOString().split('T')[0];
+  const today = toLocalDateString(new Date());
 
   // Smart defaults
   const now = new Date();

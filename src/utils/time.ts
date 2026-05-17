@@ -39,3 +39,14 @@ export const calculateDuration = (startTime: string, endTime: string): number =>
   const end = new Date(endTime).getTime();
   return Math.floor((end - start) / 1000);
 };
+
+// Format a Date as "YYYY-MM-DD" using the LOCAL timezone (not UTC).
+// Replaces the buggy `date.toISOString().split('T')[0]` pattern, which
+// returns the UTC date and shifts to the previous day for any local time
+// before 02:00 in CET / 02:00–03:00 in CEST (i.e. always at midnight).
+export const toLocalDateString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};

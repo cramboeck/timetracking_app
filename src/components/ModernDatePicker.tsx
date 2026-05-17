@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { IconButton } from './ui';
+import { toLocalDateString } from '../utils/time';
 
 interface ModernDatePickerProps {
   value: string; // Format: "YYYY-MM-DD"
@@ -97,9 +98,7 @@ export const ModernDatePicker = ({
     return days;
   }, [viewMonth]);
 
-  const formatDate = (d: Date) => {
-    return d.toISOString().split('T')[0];
-  };
+  const formatDate = (d: Date) => toLocalDateString(d);
 
   const formatDisplayDate = (dateStr: string) => {
     const d = new Date(dateStr);
