@@ -28,6 +28,7 @@ import { ReportsPage } from './components/ReportsPage';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { OfflineBanner } from './components/OfflineBanner';
+import { ForgottenTimerBanner } from './components/ForgottenTimerBanner';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
@@ -1106,6 +1107,16 @@ function App() {
         onRetryFailed={handleRetryFailedEntry}
         onDiscardFailed={handleDiscardFailedEntry}
         onRetryAll={syncPendingEntries}
+      />
+
+      {/* Forgotten-timer warning (>8h running) */}
+      <ForgottenTimerBanner
+        runningEntry={runningEntry}
+        onGoToTimer={() => {
+          setCurrentArea('arbeiten');
+          setCurrentSubView('stopwatch');
+        }}
+        onStopTimer={handleFABStopTimer}
       />
 
       {/* Global Command Palette (Cmd+K / Ctrl+K) */}
