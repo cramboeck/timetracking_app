@@ -746,15 +746,19 @@ function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [runningEntry]);
 
-  // TIMER SAFETY: Periodic heartbeat - save running timer to backend every 5 minutes
-  // This ensures the server has the latest state even if the client crashes
+  // TIMER SAFETY: Periodic heartbeat — save running timer to backend every
+  // N minutes (configurable per user, default 5). Ensures the server has
+  // the latest state even if the client crashes.
   useEffect(() => {
     if (!runningEntry || !isOnline) return;
+
+    const intervalMinutes = currentUser?.heartbeatIntervalMinutes ?? 5;
+    const intervalMs = intervalMinutes * 60 * 1000;
 
     const heartbeatInterval = setInterval(async () => {
       if (runningEntry && runningEntry.isRunning) {
         try {
-          console.log('💓 [TIMER] Heartbeat: saving running timer state...');
+          console.log(`💓 [TIMER] Heartbeat (every ${intervalMinutes}min): saving running timer state...`);
           await entriesApi.update(runningEntry.id, {
             ...runningEntry,
             duration: Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000),
@@ -766,10 +770,10 @@ function App() {
           addPendingEntry(runningEntry, 'update');
         }
       }
-    }, 5 * 60 * 1000); // Every 5 minutes
+    }, intervalMs);
 
     return () => clearInterval(heartbeatInterval);
-  }, [runningEntry, isOnline]);
+  }, [runningEntry, isOnline, currentUser?.heartbeatIntervalMinutes]);
 
   // TIMER SAFETY: Save running timer to localStorage as backup
   useEffect(() => {

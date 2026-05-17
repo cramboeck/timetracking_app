@@ -18,6 +18,7 @@ export const userApi = {
     darkMode?: boolean;
     timeRoundingInterval?: number;
     timeFormat?: string;
+    heartbeatIntervalMinutes?: 1 | 5 | 15;
     organizationName?: string;
   }) => {
     return authFetch('/user/settings', {
