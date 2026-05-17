@@ -29,8 +29,13 @@ import {
   Lock,
   UserX,
   Terminal,
-  Zap
+  Zap,
+  Mail,
+  Send,
+  XCircle,
+  X
 } from 'lucide-react';
+import { Button, IconButton } from './ui';
 import { adminApi } from '../services/adminApi';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -127,7 +132,47 @@ interface SystemNotification {
   is_active: boolean;
 }
 
-type AdminTab = 'dashboard' | 'users' | 'features' | 'audit' | 'backup' | 'system' | 'database' | 'security' | 'logs' | 'notifications';
+interface EmailStats {
+  today: { total: number; sent: number; failed: number };
+  week: { total: number; sent: number; failed: number };
+  month: { total: number; sent: number; failed: number };
+  byProvider: Array<{ provider: string; total: number; sent: number; failed: number }>;
+  byType: Array<{ type: string; total: number; sent: number; failed: number }>;
+  avgProcessingTime: number;
+  trend: Array<{ date: string; total: number; sent: number; failed: number }>;
+  recentFailures: Array<{ id: string; email_type: string; recipient_email: string; error_message: string; created_at: string }>;
+}
+
+interface EmailLog {
+  id: string;
+  email_type: string;
+  subject: string;
+  recipient_email: string;
+  recipient_name: string | null;
+  sender_email: string;
+  provider: string;
+  status: string;
+  error_message: string | null;
+  processing_time_ms: number | null;
+  created_at: string;
+  username: string | null;
+}
+
+interface EmailConfig {
+  provider: string;
+  status: string;
+  error?: string;
+  details?: any;
+  config: {
+    emailProvider: string;
+    smtpConfigured: boolean;
+    graphConfigured: boolean;
+    testMode: boolean;
+    fromAddress: string;
+  };
+}
+
+type AdminTab = 'dashboard' | 'users' | 'features' | 'audit' | 'backup' | 'system' | 'database' | 'security' | 'logs' | 'notifications' | 'email';
 
 export default function AdminPortal() {
   const { currentUser } = useAuth();
@@ -190,6 +235,19 @@ export default function AdminPortal() {
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [newNotification, setNewNotification] = useState({ title: '', message: '', type: 'info' });
   const [showNotificationForm, setShowNotificationForm] = useState(false);
+
+  // Email Dashboard state
+  const [emailStats, setEmailStats] = useState<EmailStats | null>(null);
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  const [emailConfig, setEmailConfig] = useState<EmailConfig | null>(null);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailLogsPage, setEmailLogsPage] = useState(1);
+  const [emailLogsTotalPages, setEmailLogsTotalPages] = useState(1);
+  const [emailLogsSearch, setEmailLogsSearch] = useState('');
+  const [emailStatusFilter, setEmailStatusFilter] = useState<string>('');
+  const [testEmailAddress, setTestEmailAddress] = useState('');
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Check if user is admin
   const isAdmin = currentUser?.role === 'admin';
@@ -504,6 +562,64 @@ export default function AdminPortal() {
     }
   };
 
+  // Load email dashboard data
+  useEffect(() => {
+    if (activeTab !== 'email' || !isAdmin) return;
+    loadEmailData();
+  }, [activeTab, isAdmin]);
+
+  // Load email logs when page/filter changes
+  useEffect(() => {
+    if (activeTab !== 'email' || !isAdmin) return;
+    loadEmailLogs();
+  }, [emailLogsPage, emailStatusFilter, emailLogsSearch, activeTab, isAdmin]);
+
+  const loadEmailData = async () => {
+    try {
+      setEmailLoading(true);
+      const [statsRes, configRes] = await Promise.all([
+        adminApi.getEmailStats(),
+        adminApi.getEmailConfig()
+      ]);
+      setEmailStats(statsRes);
+      setEmailConfig(configRes);
+    } catch (err: any) {
+      setError(err.message || 'Fehler beim Laden der Email-Daten');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const loadEmailLogs = async () => {
+    try {
+      const response = await adminApi.getEmailLogs(emailLogsPage, 20, {
+        status: emailStatusFilter || undefined,
+        search: emailLogsSearch || undefined
+      });
+      setEmailLogs(response.logs || []);
+      setEmailLogsTotalPages(response.pagination?.pages || 1);
+    } catch (err: any) {
+      console.error('Error loading email logs:', err);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    try {
+      setTestEmailSending(true);
+      setTestEmailResult(null);
+      const response = await adminApi.sendTestEmail(testEmailAddress || undefined);
+      setTestEmailResult({ success: true, message: response.message });
+      setTestEmailAddress('');
+      // Reload data to show the new test email in logs
+      await loadEmailData();
+      await loadEmailLogs();
+    } catch (err: any) {
+      setTestEmailResult({ success: false, message: err.message || 'Fehler beim Senden' });
+    } finally {
+      setTestEmailSending(false);
+    }
+  };
+
   const formatUptime = (seconds: number): string => {
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
@@ -599,12 +715,14 @@ export default function AdminPortal() {
         <div className="bg-red-100 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800 px-4 py-3 flex items-center gap-2">
           <AlertCircle size={18} className="text-red-600 dark:text-red-400" />
           <span className="text-red-700 dark:text-red-300 text-sm">{error}</span>
-          <button
+          <IconButton
+            icon={<X size={18} />}
             onClick={() => setError(null)}
-            className="ml-auto text-red-600 hover:text-red-800 dark:text-red-400"
-          >
-            ×
-          </button>
+            variant="danger"
+            size="sm"
+            tooltip="Fehler schließen"
+            className="ml-auto"
+          />
         </div>
       )}
 
@@ -720,6 +838,17 @@ export default function AdminPortal() {
           >
             <Bell size={18} />
             <span className="hidden sm:inline">Meldungen</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('email')}
+            className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'email'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+            }`}
+          >
+            <Mail size={18} />
+            <span className="hidden sm:inline">E-Mail</span>
           </button>
         </div>
       </div>
@@ -858,14 +987,13 @@ export default function AdminPortal() {
                             {formatDate(user.createdAt)}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <button
+                            <IconButton
+                              icon={<Trash2 size={18} />}
                               onClick={() => handleDeleteUser(user.id, user.username)}
                               disabled={user.id === currentUser?.id}
-                              className="p-1 text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Benutzer löschen"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                              variant="danger"
+                              tooltip="Benutzer löschen"
+                            />
                           </td>
                         </tr>
                       ))}
@@ -877,25 +1005,28 @@ export default function AdminPortal() {
               {/* Pagination */}
               {usersTotalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setUsersPage(p => Math.max(1, p - 1))}
                     disabled={usersPage === 1}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronLeft size={16} />}
                   >
-                    <ChevronLeft size={16} />
                     Zurück
-                  </button>
+                  </Button>
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Seite {usersPage} von {usersTotalPages}
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setUsersPage(p => Math.min(usersTotalPages, p + 1))}
                     disabled={usersPage === usersTotalPages}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronRight size={16} />}
+                    iconPosition="right"
                   >
                     Weiter
-                    <ChevronRight size={16} />
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -980,21 +1111,12 @@ export default function AdminPortal() {
                           </td>
                           {packageDefinitions.map(pkg => (
                             <td key={pkg.name} className="px-4 py-3 text-center">
-                              <button
+                              <IconButton
+                                icon={hasPackage(user, pkg.name) ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
                                 onClick={() => handleFeatureToggle(user.id, pkg.name, hasPackage(user, pkg.name))}
-                                className={`p-1 rounded transition-colors ${
-                                  hasPackage(user, pkg.name)
-                                    ? 'text-green-600 hover:text-green-800 dark:text-green-400'
-                                    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500'
-                                }`}
-                                title={hasPackage(user, pkg.name) ? 'Deaktivieren' : 'Aktivieren'}
-                              >
-                                {hasPackage(user, pkg.name) ? (
-                                  <ToggleRight size={24} />
-                                ) : (
-                                  <ToggleLeft size={24} />
-                                )}
-                              </button>
+                                variant={hasPackage(user, pkg.name) ? 'success' : 'default'}
+                                tooltip={hasPackage(user, pkg.name) ? 'Deaktivieren' : 'Aktivieren'}
+                              />
                             </td>
                           ))}
                         </tr>
@@ -1007,25 +1129,28 @@ export default function AdminPortal() {
               {/* Pagination */}
               {featuresTotalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setFeaturesPage(p => Math.max(1, p - 1))}
                     disabled={featuresPage === 1}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronLeft size={16} />}
                   >
-                    <ChevronLeft size={16} />
                     Zurück
-                  </button>
+                  </Button>
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Seite {featuresPage} von {featuresTotalPages}
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setFeaturesPage(p => Math.min(featuresTotalPages, p + 1))}
                     disabled={featuresPage === featuresTotalPages}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronRight size={16} />}
+                    iconPosition="right"
                   >
                     Weiter
-                    <ChevronRight size={16} />
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -1082,25 +1207,28 @@ export default function AdminPortal() {
               {/* Pagination */}
               {auditTotalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setAuditPage(p => Math.max(1, p - 1))}
                     disabled={auditPage === 1}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronLeft size={16} />}
                   >
-                    <ChevronLeft size={16} />
                     Zurück
-                  </button>
+                  </Button>
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Seite {auditPage} von {auditTotalPages}
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setAuditPage(p => Math.min(auditTotalPages, p + 1))}
                     disabled={auditPage === auditTotalPages}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 disabled:opacity-50"
+                    icon={<ChevronRight size={16} />}
+                    iconPosition="right"
                   >
                     Weiter
-                    <ChevronRight size={16} />
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -1119,26 +1247,26 @@ export default function AdminPortal() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={loadBackups}
                   disabled={backupsLoading}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                  loading={backupsLoading}
+                  icon={<RefreshCw size={16} />}
                 >
-                  <RefreshCw size={16} className={backupsLoading ? 'animate-spin' : ''} />
                   Aktualisieren
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={handleCreateBackup}
                   disabled={backupCreating}
-                  className="flex items-center gap-2 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  loading={backupCreating}
+                  icon={<Archive size={16} />}
                 >
-                  {backupCreating ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Archive size={16} />
-                  )}
                   {backupCreating ? 'Erstelle...' : 'Neues Backup'}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -1199,40 +1327,37 @@ export default function AdminPortal() {
                               {restoreConfirmOpen === backup.filename ? (
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs text-red-600 dark:text-red-400">Wirklich wiederherstellen?</span>
-                                  <button
+                                  <Button
+                                    variant="danger"
+                                    size="sm"
                                     onClick={() => handleRestoreBackup(backup.filename)}
                                     disabled={backupRestoring === backup.filename}
-                                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                                    loading={backupRestoring === backup.filename}
                                   >
-                                    {backupRestoring === backup.filename ? (
-                                      <Loader2 size={12} className="animate-spin" />
-                                    ) : (
-                                      'Ja'
-                                    )}
-                                  </button>
-                                  <button
+                                    Ja
+                                  </Button>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
                                     onClick={() => setRestoreConfirmOpen(null)}
-                                    className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white rounded hover:bg-gray-300"
                                   >
                                     Nein
-                                  </button>
+                                  </Button>
                                 </div>
                               ) : (
                                 <>
-                                  <button
+                                  <IconButton
+                                    icon={<Upload size={18} />}
                                     onClick={() => setRestoreConfirmOpen(backup.filename)}
-                                    className="p-1.5 text-orange-600 hover:text-orange-800 dark:text-orange-400 dark:hover:text-orange-300"
-                                    title="Backup wiederherstellen"
-                                  >
-                                    <Upload size={18} />
-                                  </button>
-                                  <button
+                                    variant="warning"
+                                    tooltip="Backup wiederherstellen"
+                                  />
+                                  <IconButton
+                                    icon={<Trash2 size={18} />}
                                     onClick={() => handleDeleteBackup(backup.filename)}
-                                    className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                                    title="Backup löschen"
-                                  >
-                                    <Trash2 size={18} />
-                                  </button>
+                                    variant="danger"
+                                    tooltip="Backup löschen"
+                                  />
                                 </>
                               )}
                             </div>
@@ -1266,14 +1391,16 @@ export default function AdminPortal() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold dark:text-white">System-Status</h2>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={loadSystemStatus}
                 disabled={systemStatusLoading}
-                className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                loading={systemStatusLoading}
+                icon={<RefreshCw size={16} />}
               >
-                <RefreshCw size={16} className={systemStatusLoading ? 'animate-spin' : ''} />
                 Aktualisieren
-              </button>
+              </Button>
             </div>
 
             {systemStatusLoading ? (
@@ -1398,22 +1525,26 @@ export default function AdminPortal() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold dark:text-white">Datenbank-Statistiken</h2>
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={loadDatabaseStats}
                   disabled={databaseStatsLoading}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                  loading={databaseStatsLoading}
+                  icon={<RefreshCw size={16} />}
                 >
-                  <RefreshCw size={16} className={databaseStatsLoading ? 'animate-spin' : ''} />
                   Aktualisieren
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={handleVacuum}
                   disabled={vacuumRunning}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  loading={vacuumRunning}
+                  icon={<Zap size={16} />}
                 >
-                  {vacuumRunning ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
                   VACUUM
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -1479,14 +1610,16 @@ export default function AdminPortal() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold dark:text-white">Sicherheit & Sessions</h2>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={loadSecurityData}
                 disabled={securityLoading}
-                className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                loading={securityLoading}
+                icon={<RefreshCw size={16} />}
               >
-                <RefreshCw size={16} className={securityLoading ? 'animate-spin' : ''} />
                 Aktualisieren
-              </button>
+              </Button>
             </div>
 
             {securityLoading ? (
@@ -1585,13 +1718,12 @@ export default function AdminPortal() {
                               </td>
                               <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{formatDate(session.created_at)}</td>
                               <td className="px-4 py-2 text-right">
-                                <button
+                                <IconButton
+                                  icon={<UserX size={18} />}
                                   onClick={() => handleInvalidateSessions(session.user_id, session.username)}
-                                  className="p-1 text-red-600 hover:text-red-800 dark:text-red-400"
-                                  title="Sessions invalidieren"
-                                >
-                                  <UserX size={18} />
-                                </button>
+                                  variant="danger"
+                                  tooltip="Sessions invalidieren"
+                                />
                               </td>
                             </tr>
                           ))}
@@ -1622,14 +1754,16 @@ export default function AdminPortal() {
                   <option value="error">Error</option>
                   <option value="access">Access</option>
                 </select>
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={loadLogs}
                   disabled={logsLoading}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                  loading={logsLoading}
+                  icon={<RefreshCw size={16} />}
                 >
-                  <RefreshCw size={16} className={logsLoading ? 'animate-spin' : ''} />
                   Aktualisieren
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -1660,13 +1794,14 @@ export default function AdminPortal() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold dark:text-white">System-Benachrichtigungen</h2>
-              <button
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => setShowNotificationForm(!showNotificationForm)}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                icon={<Plus size={16} />}
               >
-                <Plus size={16} />
                 Neue Meldung
-              </button>
+              </Button>
             </div>
 
             {/* Create Form */}
@@ -1697,18 +1832,18 @@ export default function AdminPortal() {
                     <option value="error">Fehler</option>
                     <option value="success">Erfolg</option>
                   </select>
-                  <button
+                  <Button
+                    variant="primary"
                     onClick={handleCreateNotification}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                   >
                     Erstellen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={() => setShowNotificationForm(false)}
-                    className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white rounded-lg hover:bg-gray-300"
                   >
                     Abbrechen
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -1745,20 +1880,18 @@ export default function AdminPortal() {
                           <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">{formatDate(notification.created_at)}</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
+                          <IconButton
+                            icon={notification.is_active ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
                             onClick={() => handleToggleNotification(notification.id)}
-                            className={`p-1.5 rounded ${notification.is_active ? 'text-green-600 hover:text-green-800' : 'text-gray-400 hover:text-gray-600'}`}
-                            title={notification.is_active ? 'Deaktivieren' : 'Aktivieren'}
-                          >
-                            {notification.is_active ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
-                          </button>
-                          <button
+                            variant={notification.is_active ? 'success' : 'default'}
+                            tooltip={notification.is_active ? 'Deaktivieren' : 'Aktivieren'}
+                          />
+                          <IconButton
+                            icon={<Trash2 size={18} />}
                             onClick={() => handleDeleteNotification(notification.id)}
-                            className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400"
-                            title="Löschen"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                            variant="danger"
+                            tooltip="Löschen"
+                          />
                         </div>
                       </div>
                     </div>
@@ -1766,6 +1899,316 @@ export default function AdminPortal() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Email Dashboard Tab */}
+        {activeTab === 'email' && (
+          <div className="space-y-6">
+            {emailLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="animate-spin text-purple-600" size={32} />
+              </div>
+            ) : (
+              <>
+                {/* Email Configuration Status */}
+                {emailConfig && (
+                  <div className={`p-4 rounded-xl border ${
+                    emailConfig.status === 'connected'
+                      ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
+                      : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {emailConfig.status === 'connected' ? (
+                          <CheckCircle className="text-green-600 dark:text-green-400" size={24} />
+                        ) : (
+                          <XCircle className="text-red-600 dark:text-red-400" size={24} />
+                        )}
+                        <div>
+                          <p className="font-medium dark:text-white">
+                            Provider: {emailConfig.provider}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {emailConfig.config.fromAddress}
+                            {emailConfig.config.testMode && (
+                              <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 rounded text-xs">
+                                TEST MODE
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <IconButton
+                        icon={<RefreshCw size={18} />}
+                        onClick={loadEmailData}
+                        variant="default"
+                        tooltip="Aktualisieren"
+                      />
+                    </div>
+                    {emailConfig.error && (
+                      <p className="mt-2 text-sm text-red-600 dark:text-red-400">{emailConfig.error}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Test Email Section */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <h3 className="font-semibold dark:text-white mb-4">Test-Email senden</h3>
+                  <div className="flex gap-3">
+                    <input
+                      type="email"
+                      value={testEmailAddress}
+                      onChange={(e) => setTestEmailAddress(e.target.value)}
+                      placeholder="Email-Adresse (leer = eigene Email)"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500"
+                    />
+                    <Button
+                      variant="primary"
+                      onClick={handleSendTestEmail}
+                      disabled={testEmailSending}
+                      loading={testEmailSending}
+                      icon={<Send size={18} />}
+                    >
+                      Senden
+                    </Button>
+                  </div>
+                  {testEmailResult && (
+                    <div className={`mt-3 p-3 rounded-lg ${
+                      testEmailResult.success
+                        ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                        : 'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                    }`}>
+                      {testEmailResult.message}
+                    </div>
+                  )}
+                </div>
+
+                {/* Stats Cards */}
+                {emailStats && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <Mail className="text-blue-600 dark:text-blue-400" size={20} />
+                        </div>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Heute</span>
+                      </div>
+                      <p className="text-2xl font-bold dark:text-white">{emailStats.today.total}</p>
+                      <div className="flex gap-4 mt-2 text-sm">
+                        <span className="text-green-600">{emailStats.today.sent} gesendet</span>
+                        {emailStats.today.failed > 0 && (
+                          <span className="text-red-600">{emailStats.today.failed} fehlgeschlagen</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                          <Mail className="text-green-600 dark:text-green-400" size={20} />
+                        </div>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Diese Woche</span>
+                      </div>
+                      <p className="text-2xl font-bold dark:text-white">{emailStats.week.total}</p>
+                      <div className="flex gap-4 mt-2 text-sm">
+                        <span className="text-green-600">{emailStats.week.sent} gesendet</span>
+                        {emailStats.week.failed > 0 && (
+                          <span className="text-red-600">{emailStats.week.failed} fehlgeschlagen</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                          <Mail className="text-purple-600 dark:text-purple-400" size={20} />
+                        </div>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Dieser Monat</span>
+                      </div>
+                      <p className="text-2xl font-bold dark:text-white">{emailStats.month.total}</p>
+                      <div className="flex gap-4 mt-2 text-sm">
+                        <span className="text-green-600">{emailStats.month.sent} gesendet</span>
+                        {emailStats.month.failed > 0 && (
+                          <span className="text-red-600">{emailStats.month.failed} fehlgeschlagen</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Provider & Type Stats */}
+                {emailStats && (emailStats.byProvider.length > 0 || emailStats.byType.length > 0) && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {emailStats.byProvider.length > 0 && (
+                      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                        <h3 className="font-semibold dark:text-white mb-4">Nach Provider</h3>
+                        <div className="space-y-3">
+                          {emailStats.byProvider.map((p) => (
+                            <div key={p.provider} className="flex items-center justify-between">
+                              <span className="text-gray-600 dark:text-gray-400 capitalize">{p.provider}</span>
+                              <div className="flex gap-4 text-sm">
+                                <span className="text-green-600">{p.sent} OK</span>
+                                <span className="text-red-600">{p.failed} Fehler</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {emailStats.byType.length > 0 && (
+                      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                        <h3 className="font-semibold dark:text-white mb-4">Nach Typ</h3>
+                        <div className="space-y-3">
+                          {emailStats.byType.slice(0, 5).map((t) => (
+                            <div key={t.type} className="flex items-center justify-between">
+                              <span className="text-gray-600 dark:text-gray-400">{t.type}</span>
+                              <div className="flex gap-4 text-sm">
+                                <span className="text-green-600">{t.sent} OK</span>
+                                <span className="text-red-600">{t.failed} Fehler</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Recent Failures */}
+                {emailStats && emailStats.recentFailures.length > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-red-200 dark:border-red-800">
+                    <h3 className="font-semibold dark:text-white mb-4 flex items-center gap-2">
+                      <AlertCircle className="text-red-600" size={20} />
+                      Letzte Fehler
+                    </h3>
+                    <div className="space-y-3">
+                      {emailStats.recentFailures.map((f) => (
+                        <div key={f.id} className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                          <div className="flex justify-between">
+                            <span className="font-medium text-red-800 dark:text-red-400">{f.email_type}</span>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">{formatDate(f.created_at)}</span>
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">{f.recipient_email}</p>
+                          <p className="text-sm text-red-600 dark:text-red-400 mt-1">{f.error_message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Email Logs */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+                  <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input
+                          type="text"
+                          value={emailLogsSearch}
+                          onChange={(e) => {
+                            setEmailLogsSearch(e.target.value);
+                            setEmailLogsPage(1);
+                          }}
+                          placeholder="Suchen..."
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500"
+                        />
+                      </div>
+                      <select
+                        value={emailStatusFilter}
+                        onChange={(e) => {
+                          setEmailStatusFilter(e.target.value);
+                          setEmailLogsPage(1);
+                        }}
+                        className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="">Alle Status</option>
+                        <option value="sent">Gesendet</option>
+                        <option value="failed">Fehlgeschlagen</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 dark:bg-gray-700/50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Zeitpunkt</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Typ</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Empfänger</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Provider</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {emailLogs.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                              Keine E-Mails gefunden
+                            </td>
+                          </tr>
+                        ) : (
+                          emailLogs.map((log) => (
+                            <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                                {formatDate(log.created_at)}
+                              </td>
+                              <td className="px-4 py-3 text-sm dark:text-white">
+                                {log.email_type}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                                {log.recipient_email}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 capitalize">
+                                {log.provider}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-1 text-xs font-medium rounded ${
+                                  log.status === 'sent'
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                }`}>
+                                  {log.status === 'sent' ? 'Gesendet' : 'Fehler'}
+                                </span>
+                                {log.error_message && (
+                                  <p className="text-xs text-red-600 dark:text-red-400 mt-1 max-w-xs truncate" title={log.error_message}>
+                                    {log.error_message}
+                                  </p>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* Pagination */}
+                  {emailLogsTotalPages > 1 && (
+                    <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEmailLogsPage(p => Math.max(1, p - 1))}
+                        disabled={emailLogsPage === 1}
+                        icon={<ChevronLeft size={16} />}
+                      >
+                        Zurück
+                      </Button>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        Seite {emailLogsPage} von {emailLogsTotalPages}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEmailLogsPage(p => Math.min(emailLogsTotalPages, p + 1))}
+                        disabled={emailLogsPage === emailLogsTotalPages}
+                        icon={<ChevronRight size={16} />}
+                        iconPosition="right"
+                      >
+                        Weiter
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

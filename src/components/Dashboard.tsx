@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText, PieChart as PieChartIcon, ChevronDown, ChevronRight, Archive, Trash2, X, Loader2, Eye } from 'lucide-react';
+import { Download, Calendar, TrendingUp, Clock, DollarSign, FileText, PieChart as PieChartIcon, ChevronDown, ChevronRight, Archive, Trash2, X, Loader2, Eye, ChevronLeft } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,7 @@ import { ReportAssistant } from './ReportAssistant';
 import { BillingWidget } from './BillingWidget';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { userApi } from '../services/api';
+import { Button, IconButton } from './ui/Button';
 
 interface DashboardProps {
   entries: TimeEntry[];
@@ -996,13 +997,14 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                 </p>
               </div>
             </div>
-            <button
+            <Button
               onClick={() => setReportAssistantOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors text-sm"
+              variant="warning"
+              size="sm"
+              icon={<FileText size={16} />}
             >
-              <FileText size={16} />
               Report-Assistent öffnen
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -1012,28 +1014,33 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Dashboard & Reports</h1>
           <div className="flex flex-wrap gap-2">
-            <button
+            <Button
               onClick={() => setReportAssistantOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors text-sm sm:text-base"
+              variant="secondary"
+              size="sm"
+              icon={<FileText size={16} />}
+              className="bg-gray-600 hover:bg-gray-700 text-white"
             >
-              <FileText size={16} />
               <span className="hidden xs:inline">Report-</span>Assistent
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={openSavedReports}
-              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm sm:text-base"
+              variant="primary"
+              size="sm"
+              icon={<Archive size={16} />}
+              className="bg-blue-600 hover:bg-blue-700"
             >
-              <Archive size={16} />
               <span className="hidden sm:inline">Gespeicherte </span>Reports
-            </button>
+            </Button>
             {filteredEntries.length > 0 && (
-              <button
+              <Button
                 onClick={generatePDF}
-                className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 btn-accent text-sm sm:text-base"
+                variant="primary"
+                size="sm"
+                icon={<Download size={16} />}
               >
-                <Download size={16} />
                 PDF
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -1466,12 +1473,12 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                   Gespeicherte Reports
                 </h3>
               </div>
-              <button
+              <IconButton
                 onClick={() => setShowSavedReports(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-gray-500" />
-              </button>
+                icon={<X size={20} />}
+                variant="default"
+                tooltip="Schließen"
+              />
             </div>
 
             {/* Filter */}
@@ -1538,21 +1545,19 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button
+                        <IconButton
                           onClick={() => previewSavedReport(filteredSavedReports.indexOf(report))}
                           disabled={isGeneratingSavedPreview}
-                          className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors disabled:opacity-50"
-                          title="PDF Vorschau"
-                        >
-                          {isGeneratingSavedPreview ? <Loader2 size={18} className="animate-spin" /> : <Eye size={18} />}
-                        </button>
-                        <button
+                          icon={isGeneratingSavedPreview ? <Loader2 size={18} className="animate-spin" /> : <Eye size={18} />}
+                          variant="primary"
+                          tooltip="PDF Vorschau"
+                        />
+                        <IconButton
                           onClick={() => deleteSavedReport(report.id)}
-                          className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                          title="Report löschen"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                          icon={<Trash2 size={18} />}
+                          variant="danger"
+                          tooltip="Report löschen"
+                        />
                       </div>
                     </div>
                   ))}
@@ -1565,12 +1570,12 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
               <span className="text-sm text-gray-500 dark:text-gray-400">
                 {filteredSavedReports.length} von {savedReports.length} Report(s)
               </span>
-              <button
+              <Button
                 onClick={() => setShowSavedReports(false)}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                variant="secondary"
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1597,31 +1602,31 @@ export const Dashboard = ({ entries, projects, customers, activities, onNavigate
                 {/* Navigation for multiple reports */}
                 {savedReportPreview.totalCount > 1 && (
                   <div className="flex items-center gap-1 mr-4">
-                    <button
+                    <IconButton
                       onClick={() => navigateSavedReportPreview('prev')}
                       disabled={savedReportPreview.currentIndex === 0 || isGeneratingSavedPreview}
-                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
-                    </button>
+                      icon={<ChevronLeft size={20} />}
+                      variant="default"
+                      tooltip="Vorherige"
+                    />
                     <span className="text-sm text-gray-600 dark:text-gray-300 min-w-[60px] text-center">
                       {savedReportPreview.currentIndex + 1} / {savedReportPreview.totalCount}
                     </span>
-                    <button
+                    <IconButton
                       onClick={() => navigateSavedReportPreview('next')}
                       disabled={savedReportPreview.currentIndex === savedReportPreview.totalCount - 1 || isGeneratingSavedPreview}
-                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
-                    </button>
+                      icon={<ChevronRight size={20} />}
+                      variant="default"
+                      tooltip="Nächste"
+                    />
                   </div>
                 )}
-                <button
+                <IconButton
                   onClick={closeSavedReportPreview}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                >
-                  <X size={20} className="text-gray-500" />
-                </button>
+                  icon={<X size={20} />}
+                  variant="default"
+                  tooltip="Schließen"
+                />
               </div>
             </div>
 

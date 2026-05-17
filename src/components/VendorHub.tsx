@@ -16,6 +16,7 @@ import {
   Save,
   Inbox,
 } from 'lucide-react';
+import { Button, IconButton } from './ui';
 import { customersApi } from '../services/api';
 import type { Customer } from '../types';
 
@@ -196,15 +197,16 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <IconButton
               onClick={() => { loadHubData(); loadEmails(); }}
-              className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-            >
-              <RefreshCw size={18} />
-            </button>
-            <button onClick={onClose} className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-              <X size={20} />
-            </button>
+              icon={<RefreshCw size={18} />}
+              size="md"
+            />
+            <IconButton
+              onClick={onClose}
+              icon={<X size={20} />}
+              size="md"
+            />
           </div>
         </div>
 
@@ -547,14 +549,16 @@ export default function VendorHub({ customer, isOpen, onClose, onUpdate }: Vendo
                     />
                   </div>
 
-                  <button
+                  <Button
                     onClick={handleSaveSettings}
                     disabled={saving}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    loading={saving}
+                    variant="primary"
+                    size="md"
+                    icon={<Save size={16} />}
                   >
-                    <Save size={16} />
-                    {saving ? 'Speichern...' : 'Einstellungen speichern'}
-                  </button>
+                    Einstellungen speichern
+                  </Button>
                 </div>
               )}
             </>

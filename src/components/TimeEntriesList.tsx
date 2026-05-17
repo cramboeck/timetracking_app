@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Loader2, Sparkles, LayoutGrid, List } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
@@ -7,6 +7,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { TimePicker } from './TimePicker';
 import { useAuth } from '../contexts/AuthContext';
 import { aiApi } from '../services/api';
+import { Button, IconButton } from './ui/Button';
 
 interface TimeEntriesListProps {
   entries: TimeEntry[];
@@ -16,7 +17,7 @@ interface TimeEntriesListProps {
   onDelete: (id: string) => void;
   onEdit: (id: string, updates: Partial<TimeEntry>) => void;
   onRepeatEntry?: (entry: TimeEntry) => void;
-  onBulkUpdate?: (entryIds: string[], updates: { projectId?: string; description?: string }) => Promise<void>;
+  onBulkUpdate?: (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => Promise<void>;
 }
 
 export const TimeEntriesList = ({ entries, projects, customers, activities, onDelete, onEdit, onRepeatEntry, onBulkUpdate }: TimeEntriesListProps) => {
@@ -31,6 +32,49 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   const [editStartTime, setEditStartTime] = useState('');
   const [editEndTime, setEditEndTime] = useState('');
   const [editIsBillable, setEditIsBillable] = useState(true);
+  const [editActivityId, setEditActivityId] = useState('');
+
+  // Inline editing for running entries
+  const [inlineEditDescriptions, setInlineEditDescriptions] = useState<Record<string, string>>({});
+  const descriptionUpdateTimeoutRef = useRef<Record<string, number>>({});
+
+  // Debounced description update for running entries
+  const handleInlineDescriptionChange = useCallback((entryId: string, newDescription: string) => {
+    // Update local state immediately for responsive UI
+    setInlineEditDescriptions(prev => ({ ...prev, [entryId]: newDescription }));
+
+    // Clear existing timeout for this entry
+    if (descriptionUpdateTimeoutRef.current[entryId]) {
+      clearTimeout(descriptionUpdateTimeoutRef.current[entryId]);
+    }
+
+    // Debounced API update
+    descriptionUpdateTimeoutRef.current[entryId] = window.setTimeout(() => {
+      onEdit(entryId, { description: newDescription });
+      delete descriptionUpdateTimeoutRef.current[entryId];
+    }, 800);
+  }, [onEdit]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(descriptionUpdateTimeoutRef.current).forEach(clearTimeout);
+    };
+  }, []);
+
+  // Sync inline edit state when entries change
+  useEffect(() => {
+    setInlineEditDescriptions(prev => {
+      const newState: Record<string, string> = {};
+      entries.forEach(entry => {
+        if (entry.isRunning) {
+          // Keep existing inline edit value or use entry description
+          newState[entry.id] = prev[entry.id] ?? entry.description;
+        }
+      });
+      return newState;
+    });
+  }, [entries]);
 
   // Confirm dialogs
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string; name: string }>({
@@ -82,7 +126,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     const checkAiConfig = async () => {
       try {
         const response = await aiApi.getConfig();
-        setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
+        setAiConfigured(!!(response.data?.enabled && response.data?.hasApiKey));
       } catch (err) {
         setAiConfigured(false);
       }
@@ -125,6 +169,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   const [bulkProjectId, setBulkProjectId] = useState<string>('');
   const [bulkDescription, setBulkDescription] = useState<string>('');
   const [bulkDescriptionMode, setBulkDescriptionMode] = useState<'keep' | 'replace' | 'append'>('keep');
+  const [bulkActivityId, setBulkActivityId] = useState<string>('');
   const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const getProjectById = (id: string) => projects.find(p => p.id === id);
@@ -315,6 +360,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     setBulkProjectId('');
     setBulkDescription('');
     setBulkDescriptionMode('keep');
+    setBulkActivityId('');
     setBulkEditModal(true);
   };
 
@@ -323,7 +369,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
     setBulkProcessing(true);
     try {
-      const updates: { projectId?: string; description?: string } = {};
+      const updates: { projectId?: string; description?: string; activityId?: string } = {};
 
       if (bulkProjectId) {
         updates.projectId = bulkProjectId;
@@ -335,6 +381,12 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       // For 'append' mode, we handle it differently - we need to update each entry individually
       // For now, we'll just support replace mode in bulk
 
+      if (bulkActivityId) {
+        // Special value '__remove__' means remove the activity
+        updates.activityId = bulkActivityId === '__remove__' ? '' : bulkActivityId;
+      }
+
+      console.log('🔄 [BULK] Sending updates:', updates, 'for entries:', Array.from(selectedEntries));
       await onBulkUpdate(Array.from(selectedEntries), updates);
 
       setBulkEditModal(false);
@@ -353,6 +405,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     setEditProjectId(entry.projectId);
     setEditDescription(entry.description);
     setEditIsBillable(entry.isBillable ?? true);
+    setEditActivityId(entry.activityId || '');
 
     // Extract date and times
     const startDate = new Date(entry.startTime);
@@ -381,7 +434,8 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       startTime: startDateTime,
       endTime: endDateTime,
       duration,
-      isBillable: editIsBillable
+      isBillable: editIsBillable,
+      activityId: editActivityId === '' ? null : editActivityId
     });
 
     setEditingEntry(null);
@@ -475,44 +529,38 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           </div>
           <div className="flex gap-1.5 sm:gap-2">
             {/* View Toggle */}
-            <button
+            <IconButton
               onClick={() => setCompactView(!compactView)}
-              className="flex items-center gap-2 p-2 sm:px-3 sm:py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-              title={compactView ? 'Normale Ansicht' : 'Kompakte Ansicht'}
-            >
-              {compactView ? <LayoutGrid size={18} /> : <List size={18} />}
-            </button>
-            <button
+              icon={compactView ? <LayoutGrid size={18} /> : <List size={18} />}
+              tooltip={compactView ? 'Normale Ansicht' : 'Kompakte Ansicht'}
+              size="md"
+            />
+            <Button
               onClick={toggleSelectionMode}
-              className={`flex items-center gap-2 p-2 sm:px-3 sm:py-2 rounded-lg transition-colors ${
-                selectionMode
-                  ? 'bg-accent-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              variant={selectionMode ? 'primary' : 'secondary'}
+              size="md"
+              icon={<CheckSquare size={18} />}
               title={selectionMode ? 'Auswahl beenden' : 'Mehrfachauswahl'}
             >
-              <CheckSquare size={18} />
               <span className="hidden sm:inline">{selectionMode ? 'Auswahl aktiv' : 'Auswählen'}</span>
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 p-2 sm:px-3 sm:py-2 rounded-lg transition-colors ${
-                showFilters || hasActiveFilters
-                  ? 'bg-accent-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              variant={showFilters || hasActiveFilters ? 'primary' : 'secondary'}
+              size="md"
+              icon={<Filter size={18} />}
             >
-              <Filter size={18} />
               <span className="hidden sm:inline">Filter</span>
               {hasActiveFilters && <span className="w-2 h-2 bg-white rounded-full" />}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={exportToCSV}
-              className="flex items-center gap-2 p-2 sm:px-3 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              variant="success"
+              size="md"
+              icon={<Download size={18} />}
             >
-              <Download size={18} />
               <span className="hidden sm:inline">CSV Export</span>
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -522,13 +570,14 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium text-gray-700 dark:text-gray-300">Filter</h3>
               {hasActiveFilters && (
-                <button
+                <Button
                   onClick={clearFilters}
-                  className="text-sm text-accent-primary hover:underline flex items-center gap-1"
+                  variant="ghost"
+                  size="sm"
+                  icon={<X size={14} />}
                 >
-                  <X size={14} />
                   Filter zurücksetzen
-                </button>
+                </Button>
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
@@ -691,29 +740,32 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               <span className="text-sm font-medium text-accent-primary">
                 {selectedEntries.size} ausgewählt
               </span>
-              <button
+              <Button
                 onClick={selectAllVisible}
-                className="text-sm text-accent-primary hover:underline"
+                variant="ghost"
+                size="sm"
               >
                 Alle auswählen ({filteredEntries.length})
-              </button>
+              </Button>
               {selectedEntries.size > 0 && (
-                <button
+                <Button
                   onClick={deselectAll}
-                  className="text-sm text-gray-500 hover:underline"
+                  variant="ghost"
+                  size="sm"
                 >
                   Auswahl aufheben
-                </button>
+                </Button>
               )}
             </div>
             {selectedEntries.size > 0 && onBulkUpdate && (
-              <button
+              <Button
                 onClick={openBulkEditModal}
-                className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 text-sm font-medium"
+                variant="primary"
+                size="md"
+                icon={<Edit2 size={16} />}
               >
-                <Edit2 size={16} />
                 Massenbearbeitung
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -725,12 +777,14 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <Filter size={48} className="mx-auto mb-4 opacity-50" />
             <p>Keine Einträge für die gewählten Filter gefunden</p>
-            <button
+            <Button
               onClick={clearFilters}
-              className="mt-2 text-accent-primary hover:underline"
+              variant="ghost"
+              size="sm"
+              className="mt-2"
             >
               Filter zurücksetzen
-            </button>
+            </Button>
           </div>
         ) : (
           Object.entries(groupedEntries).map(([date, dateEntries]) => (
@@ -743,29 +797,36 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
                   // Compact View
                   if (compactView) {
+                    const isRunning = entry.isRunning;
                     return (
                       <div
                         key={entry.id}
                         className={`bg-white dark:bg-gray-800 rounded border px-3 py-1.5 sm:py-1.5 transition-colors ${
                           selectedEntries.has(entry.id)
                             ? 'border-accent-primary ring-1 ring-accent-primary/20'
-                            : 'border-gray-200 dark:border-gray-700'
+                            : isRunning
+                              ? 'border-green-400 dark:border-green-500 ring-1 ring-green-400/30 dark:ring-green-500/30 bg-green-50/50 dark:bg-green-900/10'
+                              : 'border-gray-200 dark:border-gray-700'
                         }`}
                       >
                         {/* Mobile: Two rows layout */}
                         <div className="flex sm:hidden flex-col gap-1">
                           <div className="flex items-center gap-2">
                             {selectionMode && (
-                              <button
+                              <IconButton
                                 onClick={() => toggleEntrySelection(entry.id)}
-                                className="text-gray-400 hover:text-accent-primary transition-colors flex-shrink-0"
-                              >
-                                {selectedEntries.has(entry.id) ? (
+                                icon={selectedEntries.has(entry.id) ? (
                                   <CheckSquare size={16} className="text-accent-primary" />
                                 ) : (
                                   <Square size={16} />
                                 )}
-                              </button>
+                                variant={selectedEntries.has(entry.id) ? 'primary' : 'default'}
+                                size="sm"
+                              />
+                            )}
+                            {/* Running indicator */}
+                            {isRunning && (
+                              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
                             )}
                             {customer && (
                               <div
@@ -778,106 +839,139 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                             </span>
                             {!selectionMode && (
                               <div className="flex gap-0.5 flex-shrink-0">
-                                {onRepeatEntry && !entry.isRunning && (
-                                  <button
+                                {onRepeatEntry && !isRunning && (
+                                  <IconButton
                                     onClick={() => setRepeatConfirm({ isOpen: true, entry })}
-                                    className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                    title="Wiederholen"
-                                  >
-                                    <RotateCcw size={14} />
-                                  </button>
+                                    icon={<RotateCcw size={14} />}
+                                    variant="primary"
+                                    size="sm"
+                                    tooltip="Wiederholen"
+                                  />
                                 )}
-                                <button
+                                <IconButton
                                   onClick={() => openEditModal(entry)}
-                                  className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                                  title="Bearbeiten"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                                <button
+                                  icon={<Edit2 size={14} />}
+                                  variant="default"
+                                  size="sm"
+                                  tooltip="Bearbeiten"
+                                />
+                                <IconButton
                                   onClick={() => handleDeleteClick(entry)}
-                                  className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                  title="Löschen"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                                  icon={<Trash2 size={14} />}
+                                  variant="danger"
+                                  size="sm"
+                                  tooltip="Löschen"
+                                />
                               </div>
                             )}
                           </div>
-                          <div className="flex items-center justify-between pl-5">
-                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex-1">
-                              {entry.description || ''}
+                          {/* Time and duration row */}
+                          <div className={`flex items-center justify-between ${isRunning ? 'pl-7' : 'pl-5'}`}>
+                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                              {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
                             </span>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <span className="text-xs text-gray-400 dark:text-gray-500">
-                                {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
-                              </span>
-                              <span className="font-semibold text-sm text-accent-primary">
-                                {formatDuration(entry.duration)}
-                              </span>
-                            </div>
+                            <span className={`font-semibold text-sm ${isRunning ? 'text-green-600 dark:text-green-400' : 'text-accent-primary'}`}>
+                              {formatDuration(entry.duration)}
+                            </span>
                           </div>
+                          {/* Description row */}
+                          {(isRunning || entry.description) && (
+                            <div className={`${isRunning ? 'pl-7' : 'pl-5'}`}>
+                              {isRunning ? (
+                                <input
+                                  type="text"
+                                  value={inlineEditDescriptions[entry.id] ?? entry.description}
+                                  onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
+                                  placeholder="Beschreibung eingeben..."
+                                  className="text-xs text-gray-700 dark:text-gray-300 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
+                                />
+                              ) : (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 whitespace-pre-wrap">
+                                  {entry.description}
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
 
-                        {/* Desktop: Single row layout */}
-                        <div className="hidden sm:flex items-center gap-2">
-                          {selectionMode && (
-                            <button
-                              onClick={() => toggleEntrySelection(entry.id)}
-                              className="text-gray-400 hover:text-accent-primary transition-colors flex-shrink-0"
-                            >
-                              {selectedEntries.has(entry.id) ? (
-                                <CheckSquare size={16} className="text-accent-primary" />
-                              ) : (
-                                <Square size={16} />
-                              )}
-                            </button>
-                          )}
-                          {customer && (
-                            <div
-                              className="w-3 h-3 rounded flex-shrink-0"
-                              style={{ backgroundColor: customer.color }}
-                            />
-                          )}
-                          <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-shrink-0 max-w-[200px]">
-                            {getProjectDisplay(entry)}
-                          </span>
-                          {entry.description && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate flex-1 min-w-0">
-                              {entry.description}
+                        {/* Desktop: Two row layout for better description visibility */}
+                        <div className="hidden sm:flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            {selectionMode && (
+                              <IconButton
+                                onClick={() => toggleEntrySelection(entry.id)}
+                                icon={selectedEntries.has(entry.id) ? (
+                                  <CheckSquare size={16} className="text-accent-primary" />
+                                ) : (
+                                  <Square size={16} />
+                                )}
+                                variant={selectedEntries.has(entry.id) ? 'primary' : 'default'}
+                                size="sm"
+                              />
+                            )}
+                            {/* Running indicator */}
+                            {isRunning && (
+                              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                            )}
+                            {customer && (
+                              <div
+                                className="w-3 h-3 rounded flex-shrink-0"
+                                style={{ backgroundColor: customer.color }}
+                              />
+                            )}
+                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-1">
+                              {getProjectDisplay(entry)}
                             </span>
-                          )}
-                          <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 ml-auto">
-                            {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
-                          </span>
-                          <span className="font-semibold text-sm text-accent-primary flex-shrink-0 w-16 text-right">
-                            {formatDuration(entry.duration)}
-                          </span>
-                          {!selectionMode && (
+                            <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
+                              {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
+                            </span>
+                            <span className={`font-semibold text-sm flex-shrink-0 w-16 text-right ${isRunning ? 'text-green-600 dark:text-green-400' : 'text-accent-primary'}`}>
+                              {formatDuration(entry.duration)}
+                            </span>
+                            {!selectionMode && (
                             <div className="flex gap-0.5 flex-shrink-0">
                               {onRepeatEntry && !entry.isRunning && (
-                                <button
+                                <IconButton
                                   onClick={() => setRepeatConfirm({ isOpen: true, entry })}
-                                  className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                  title="Wiederholen"
-                                >
-                                  <RotateCcw size={14} />
-                                </button>
+                                  icon={<RotateCcw size={14} />}
+                                  variant="primary"
+                                  size="sm"
+                                  tooltip="Wiederholen"
+                                />
                               )}
-                              <button
+                              <IconButton
                                 onClick={() => openEditModal(entry)}
-                                className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                                title="Bearbeiten"
-                              >
-                                <Edit2 size={14} />
-                              </button>
-                              <button
+                                icon={<Edit2 size={14} />}
+                                variant="default"
+                                size="sm"
+                                tooltip="Bearbeiten"
+                              />
+                              <IconButton
                                 onClick={() => handleDeleteClick(entry)}
-                                className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                title="Löschen"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                                icon={<Trash2 size={14} />}
+                                variant="danger"
+                                size="sm"
+                                tooltip="Löschen"
+                              />
+                            </div>
+                          )}
+                          </div>
+                          {/* Description row */}
+                          {(isRunning || entry.description) && (
+                            <div className="pl-5">
+                              {isRunning ? (
+                                <input
+                                  type="text"
+                                  value={inlineEditDescriptions[entry.id] ?? entry.description}
+                                  onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
+                                  placeholder="Beschreibung eingeben..."
+                                  className="text-xs text-gray-700 dark:text-gray-300 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
+                                />
+                              ) : (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 whitespace-pre-wrap">
+                                  {entry.description}
+                                </p>
+                              )}
                             </div>
                           )}
                         </div>
@@ -886,68 +980,95 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                   }
 
                   // Normal View
+                  const isRunningNormal = entry.isRunning;
                   return (
                     <div
                       key={entry.id}
                       className={`bg-white dark:bg-gray-800 rounded-lg border p-4 shadow-sm transition-colors ${
                         selectedEntries.has(entry.id)
                           ? 'border-accent-primary ring-2 ring-accent-primary/20'
-                          : 'border-gray-200 dark:border-gray-700'
+                          : isRunningNormal
+                            ? 'border-green-400 dark:border-green-500 ring-2 ring-green-400/30 dark:ring-green-500/30 bg-green-50/50 dark:bg-green-900/10'
+                            : 'border-gray-200 dark:border-gray-700'
                       }`}
                     >
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-start gap-3 flex-1">
                           {selectionMode && (
-                            <button
+                            <IconButton
                               onClick={() => toggleEntrySelection(entry.id)}
-                              className="mt-1 text-gray-400 hover:text-accent-primary transition-colors"
-                            >
-                              {selectedEntries.has(entry.id) ? (
+                              icon={selectedEntries.has(entry.id) ? (
                                 <CheckSquare size={20} className="text-accent-primary" />
                               ) : (
                                 <Square size={20} />
                               )}
-                            </button>
+                              variant={selectedEntries.has(entry.id) ? 'primary' : 'default'}
+                              size="md"
+                              className="mt-1"
+                            />
                           )}
-                          {customer && (
+                          {/* Running indicator for normal view */}
+                          {isRunningNormal && (
+                            <div className="w-10 h-10 rounded-lg flex-shrink-0 bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                              <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+                            </div>
+                          )}
+                          {!isRunningNormal && customer && (
                             <div
                               className="w-10 h-10 rounded-lg flex-shrink-0"
                               style={{ backgroundColor: customer.color }}
                             />
                           )}
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">{getProjectDisplay(entry)}</h3>
-                            {entry.description && (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{entry.description}</p>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-gray-900 dark:text-white">{getProjectDisplay(entry)}</h3>
+                              {isRunningNormal && (
+                                <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+                                  Läuft
+                                </span>
+                              )}
+                            </div>
+                            {isRunningNormal ? (
+                              <input
+                                type="text"
+                                value={inlineEditDescriptions[entry.id] ?? entry.description}
+                                onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
+                                placeholder="Beschreibung eingeben..."
+                                className="w-full text-sm text-gray-700 dark:text-gray-300 mt-1 bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
+                              />
+                            ) : entry.description ? (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 whitespace-pre-wrap">{entry.description}</p>
+                            ) : null}
                           </div>
                         </div>
                         {!selectionMode && (
                           <div className="flex gap-2">
-                            {onRepeatEntry && !entry.isRunning && (
-                              <button
+                            {onRepeatEntry && !isRunningNormal && (
+                              <IconButton
                                 onClick={() => setRepeatConfirm({ isOpen: true, entry })}
-                                className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors touch-manipulation"
+                                icon={<RotateCcw size={18} />}
+                                variant="primary"
+                                size="lg"
+                                tooltip="Eintrag wiederholen"
                                 aria-label="Wiederholen"
-                                title="Eintrag wiederholen"
-                              >
-                                <RotateCcw size={18} />
-                              </button>
+                              />
                             )}
-                            <button
+                            <IconButton
                               onClick={() => openEditModal(entry)}
-                              className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors touch-manipulation"
+                              icon={<Edit2 size={18} />}
+                              variant="default"
+                              size="lg"
+                              tooltip="Bearbeiten"
                               aria-label="Bearbeiten"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button
+                            />
+                            <IconButton
                               onClick={() => handleDeleteClick(entry)}
-                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors touch-manipulation"
+                              icon={<Trash2 size={18} />}
+                              variant="danger"
+                              size="lg"
+                              tooltip="Löschen"
                               aria-label="Löschen"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            />
                           </div>
                         )}
                       </div>
@@ -956,7 +1077,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                           {formatTime(entry.startTime, use24Hour)}
                           {entry.endTime && ` - ${formatTime(entry.endTime, use24Hour)}`}
                         </span>
-                        <span className="font-semibold text-accent-primary">
+                        <span className={`font-semibold ${isRunningNormal ? 'text-green-600 dark:text-green-400' : 'text-accent-primary'}`}>
                           {formatDuration(entry.duration)}
                         </span>
                       </div>
@@ -976,19 +1097,21 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
         title="Eintrag bearbeiten"
         footer={
           <div className="flex gap-3">
-            <button
+            <Button
               onClick={() => setEditingEntry(null)}
-              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors"
+              variant="secondary"
+              fullWidth
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSaveEdit}
               disabled={!editProjectId || !editDate || !editStartTime || !editEndTime}
-              className="flex-1 px-4 py-2 btn-accent"
+              variant="primary"
+              fullWidth
             >
               Speichern
-            </button>
+            </Button>
           </div>
         }
       >
@@ -1010,6 +1133,24 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                   </option>
                 );
               })}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Tätigkeit
+            </label>
+            <select
+              value={editActivityId}
+              onChange={(e) => setEditActivityId(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+            >
+              <option value="">— Keine Tätigkeit —</option>
+              {activities.map(activity => (
+                <option key={activity.id} value={activity.id}>
+                  {activity.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -1055,19 +1196,18 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                 Beschreibung
               </label>
               {aiConfigured && editProjectId && (
-                <button
+                <Button
                   onClick={generateEditAiDescription}
                   disabled={generatingDescription}
-                  className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
+                  loading={generatingDescription}
+                  variant="ghost"
+                  size="sm"
+                  icon={!generatingDescription ? <Sparkles size={12} /> : undefined}
                   title="KI-Vorschlag generieren"
+                  className="text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30"
                 >
-                  {generatingDescription ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Sparkles size={12} />
-                  )}
                   KI-Vorschlag
-                </button>
+                </Button>
               )}
             </div>
             <textarea
@@ -1082,19 +1222,22 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Abrechenbar
             </label>
-            <button
+            <IconButton
               type="button"
               onClick={() => setEditIsBillable(!editIsBillable)}
+              icon={
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    editIsBillable ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              }
+              variant={editIsBillable ? 'success' : 'default'}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                 editIsBillable ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
               }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  editIsBillable ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+              tooltip={editIsBillable ? 'Als nicht abrechenbar markieren' : 'Als abrechenbar markieren'}
+            />
           </div>
         </div>
       </Modal>
@@ -1106,20 +1249,22 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
         title={`Massenbearbeitung (${selectedEntries.size} Einträge)`}
         footer={
           <div className="flex gap-3">
-            <button
+            <Button
               onClick={() => setBulkEditModal(false)}
-              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors"
+              variant="secondary"
+              fullWidth
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleBulkEdit}
-              disabled={bulkProcessing || (!bulkProjectId && bulkDescriptionMode === 'keep')}
-              className="flex-1 px-4 py-2 btn-accent flex items-center justify-center gap-2"
+              disabled={bulkProcessing || (!bulkProjectId && bulkDescriptionMode === 'keep' && !bulkActivityId)}
+              loading={bulkProcessing}
+              variant="primary"
+              fullWidth
             >
-              {bulkProcessing && <Loader2 size={16} className="animate-spin" />}
               {selectedEntries.size} Einträge aktualisieren
-            </button>
+            </Button>
           </div>
         }
       >
@@ -1186,6 +1331,25 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                 />
               )}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Tätigkeit zuweisen
+            </label>
+            <select
+              value={bulkActivityId}
+              onChange={(e) => setBulkActivityId(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+            >
+              <option value="">— Nicht ändern —</option>
+              <option value="__remove__">— Tätigkeit entfernen —</option>
+              {activities.map(activity => (
+                <option key={activity.id} value={activity.id}>
+                  {activity.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </Modal>

@@ -3,6 +3,7 @@ import { Plus, Filter, AlertCircle, Clock, CheckCircle, Pause, X, ChevronRight, 
 import { Ticket, TicketStatus, TicketPriority, Customer, Project } from '../types';
 import { ticketsApi } from '../services/api';
 import { SlaStatus } from './SlaStatus';
+import { Button } from './ui';
 
 export interface TicketListHandle {
   selectNext: () => void;
@@ -223,13 +224,13 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
       <div className="flex-shrink-0 p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Tickets</h1>
-          <button
+          <Button
             onClick={onCreateTicket}
-            className="flex items-center gap-2 px-4 py-2 btn-accent rounded-lg"
+            variant="primary"
+            icon={<Plus size={20} />}
           >
-            <Plus size={20} />
             <span className="hidden sm:inline">Neues Ticket</span>
-          </button>
+          </Button>
         </div>
 
         {/* Stats Cards */}
@@ -346,12 +347,13 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                 Archivierte Tickets anzeigen
               </label>
               {hasActiveFilters && (
-                <button
+                <Button
                   onClick={clearFilters}
-                  className="text-sm text-accent-primary hover:underline"
+                  variant="ghost"
+                  size="sm"
                 >
                   Filter zurücksetzen
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -368,9 +370,9 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
           <div className="text-center text-red-500 py-8">
             <AlertCircle className="mx-auto mb-2" size={32} />
             <p>{error}</p>
-            <button onClick={loadData} className="mt-2 text-accent-primary hover:underline">
+            <Button onClick={loadData} variant="ghost" size="sm" className="mt-2">
               Erneut versuchen
-            </button>
+            </Button>
           </div>
         ) : filteredTickets.length === 0 ? (
           <div className="text-center text-gray-500 dark:text-gray-400 py-8">
@@ -380,12 +382,12 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                 : 'Noch keine Tickets vorhanden'}
             </p>
             {!hasActiveFilters && (
-              <button
+              <Button
                 onClick={onCreateTicket}
-                className="text-accent-primary hover:underline"
+                variant="ghost"
               >
                 Erstes Ticket erstellen
-              </button>
+              </Button>
             )}
           </div>
         ) : (

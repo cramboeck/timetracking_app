@@ -9,6 +9,7 @@
  */
 
 import { query } from '../config/database';
+import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { mailboxMonitorService, EmailMessage, EmailAttachment } from './mailboxMonitorService';
 import { getConfig } from './microsoft365ConfigService';
@@ -22,26 +23,53 @@ import { pdf } from 'pdf-to-img';
 
 // Interface for invoice line items (for MSP rebilling)
 export interface InvoiceLineItem {
+  position: number | null;        // Position number on invoice
   description: string;
-  customerName: string | null;  // Customer name extracted from invoice (e.g. "Mustermann GmbH")
+  articleNumber: string | null;   // Article/SKU number
+  customerName: string | null;    // End customer name (e.g. for MSP/reseller invoices)
   quantity: number | null;
+  unit: string | null;            // Unit (Stück, Monat, GB, etc.)
   unitPrice: number | null;
   totalPrice: number | null;
-  period: string | null;        // e.g. "01.12.2024 - 31.12.2024"
-  productType: string | null;   // e.g. "Microsoft 365", "Azure", "License"
+  vatRate: number | null;         // VAT rate for this line item if different
+  period: string | null;          // e.g. "01.12.2024 - 31.12.2024"
+  productType: string | null;     // e.g. "Microsoft 365", "Azure", "Cloud Server"
 }
 
 // Interface for extracted invoice data
 export interface ExtractedInvoiceData {
+  // Supplier/vendor info
   supplierName: string | null;
+  supplierAddress: string | null;
+  taxId: string | null;           // USt-IdNr. of supplier
+
+  // Recipient info
+  recipientName: string | null;   // Invoice recipient (your customer)
+  recipientAddress: string | null;
+  customerNumber: string | null;  // Customer number at supplier
+
+  // Invoice identifiers
   invoiceNumber: string | null;
+  orderNumber: string | null;     // Order/reference number
+
+  // Dates
   invoiceDate: string | null;
   dueDate: string | null;
+  deliveryDate: string | null;    // Delivery/service date or period
+
+  // Amounts
   netAmount: number | null;
   grossAmount: number | null;
   vatAmount: number | null;
   vatRate: number | null;
   currency: string;
+
+  // Payment info
+  paymentMethod: string | null;   // Bank transfer, direct debit, etc.
+  iban: string | null;
+  bic: string | null;
+
+  // Metadata
   confidence: number;
   rawText?: string;
   lineItems?: InvoiceLineItem[];  // Line items for MSP rebilling
@@ -73,6 +101,114 @@ export interface InvoiceDocument {
   size: number;
   storagePath: string;
   createdAt: string;
+}
+
+// Validation result for OCR data before sevDesk submission
+export interface InvoiceDataValidation {
+  isValid: boolean;
+  warnings: string[];
+  errors: string[];
+  correctedData: {
+    netAmount: number | null;
+    grossAmount: number | null;
+    vatAmount: number | null;
+    vatRate: number | null;
+  };
+}
+
+/**
+ * Validate extracted invoice data before sending to sevDesk
+ * Checks consistency between net, gross, and VAT amounts
+ */
+export function validateInvoiceData(data: ExtractedInvoiceData): InvoiceDataValidation {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+  const correctedData = {
+    netAmount: data.netAmount,
+    grossAmount: data.grossAmount,
+    vatAmount: data.vatAmount,
+    vatRate: data.vatRate,
+  };
+
+  const netAmount = data.netAmount;
+  const grossAmount = data.grossAmount;
+  const vatAmount = data.vatAmount;
+  const vatRate = data.vatRate ?? 19;
+
+  // Check if we have at least gross or net amount
+  if (grossAmount === null && netAmount === null) {
+    errors.push('Weder Brutto- noch Nettobetrag erkannt');
+    return { isValid: false, warnings, errors, correctedData };
+  }
+
+  // If we have both net and gross, validate consistency
+  if (netAmount !== null && grossAmount !== null) {
+    // Calculate expected gross from net + vatRate
+    const expectedGrossFromNet = netAmount * (1 + vatRate / 100);
+    const grossDiff = Math.abs(grossAmount - expectedGrossFromNet);
+
+    // Allow 1 cent tolerance for rounding
+    if (grossDiff > 0.02) {
+      // Check if vatAmount helps explain the difference
+      if (vatAmount !== null) {
+        const calculatedGross = netAmount + vatAmount;
+        const grossDiffWithVat = Math.abs(grossAmount - calculatedGross);
+
+        if (grossDiffWithVat <= 0.02) {
+          // VAT amount is correct, but vatRate might be wrong
+          const actualVatRate = (vatAmount / netAmount) * 100;
+          if (Math.abs(actualVatRate - vatRate) > 0.5) {
+            warnings.push(
+              `MwSt-Satz inkonsistent: ${vatRate}% angegeben, aber ${actualVatRate.toFixed(1)}% berechnet (${vatAmount.toFixed(2)}€ von ${netAmount.toFixed(2)}€)`
+            );
+            correctedData.vatRate = Math.round(actualVatRate);
+          }
+        } else {
+          // Amounts don't match
+          warnings.push(
+            `Beträge inkonsistent: Netto ${netAmount.toFixed(2)}€ + MwSt ${vatAmount?.toFixed(2) ?? '?'}€ ≠ Brutto ${grossAmount.toFixed(2)}€ (Differenz: ${(grossAmount - calculatedGross).toFixed(2)}€)`
+          );
+        }
+      } else {
+        // No vatAmount, calculate it
+        const calculatedVat = grossAmount - netAmount;
+        const impliedVatRate = (calculatedVat / netAmount) * 100;
+
+        if (Math.abs(impliedVatRate - vatRate) > 0.5) {
+          warnings.push(
+            `MwSt-Satz prüfen: ${vatRate}% angegeben, aber ${impliedVatRate.toFixed(1)}% aus Beträgen berechnet`
+          );
+          correctedData.vatRate = Math.round(impliedVatRate);
+        }
+        correctedData.vatAmount = calculatedVat;
+      }
+    }
+  } else if (grossAmount !== null && netAmount === null) {
+    // Only gross - calculate net
+    correctedData.netAmount = grossAmount / (1 + vatRate / 100);
+    correctedData.vatAmount = grossAmount - correctedData.netAmount;
+  } else if (netAmount !== null && grossAmount === null) {
+    // Only net - calculate gross
+    correctedData.grossAmount = netAmount * (1 + vatRate / 100);
+    correctedData.vatAmount = correctedData.grossAmount - netAmount;
+  }
+
+  // Validate VAT rate is reasonable
+  if (vatRate !== null && ![0, 7, 19].includes(vatRate)) {
+    const nearestValid = [0, 7, 19].reduce((prev, curr) =>
+      Math.abs(curr - vatRate) < Math.abs(prev - vatRate) ? curr : prev
+    );
+    warnings.push(
+      `Ungewöhnlicher MwSt-Satz: ${vatRate}% (Standard: 0%, 7%, 19%). Nächster Standardsatz: ${nearestValid}%`
+    );
+  }
+
+  return {
+    isValid: errors.length === 0,
+    warnings,
+    errors,
+    correctedData,
+  };
 }
 
 export interface ProcessingResult {
@@ -128,10 +264,108 @@ class InvoiceProcessorService {
   }
 
   /**
-   * Find vendor by email address
+   * Known vendor patterns for automatic matching
+   * Maps email domain patterns to canonical vendor names
+   */
+  private static readonly KNOWN_VENDORS: Array<{
+    patterns: string[];           // Email domain patterns (lowercase)
+    canonicalName: string;        // Standard vendor name
+    aliases: string[];            // Alternative names to search for
+  }> = [
+    {
+      patterns: ['microsoft.com', 'microsoftonline.com', 'azure.com', 'office365.com'],
+      canonicalName: 'Microsoft',
+      aliases: ['Microsoft Ireland Operations', 'Microsoft Corporation', 'Microsoft Deutschland', 'MS'],
+    },
+    {
+      patterns: ['hetzner.com', 'hetzner.de', 'hetzner-cloud.de'],
+      canonicalName: 'Hetzner',
+      aliases: ['Hetzner Online', 'Hetzner Online GmbH'],
+    },
+    {
+      patterns: ['amazon.com', 'amazon.de', 'aws.amazon.com', 'amazonses.com'],
+      canonicalName: 'Amazon Web Services',
+      aliases: ['AWS', 'Amazon', 'Amazon.com'],
+    },
+    {
+      patterns: ['google.com', 'googlemail.com', 'cloud.google.com'],
+      canonicalName: 'Google',
+      aliases: ['Google Cloud', 'Google LLC', 'Google Ireland'],
+    },
+    {
+      patterns: ['ovh.com', 'ovh.de', 'ovhcloud.com'],
+      canonicalName: 'OVH',
+      aliases: ['OVHcloud', 'OVH GmbH'],
+    },
+    {
+      patterns: ['ionos.de', 'ionos.com', '1und1.de', '1and1.com'],
+      canonicalName: 'IONOS',
+      aliases: ['1&1 IONOS', '1und1', 'United Internet'],
+    },
+    {
+      patterns: ['strato.de', 'strato.com'],
+      canonicalName: 'STRATO',
+      aliases: ['STRATO AG'],
+    },
+    {
+      patterns: ['hosteurope.de', 'hosteurope.com'],
+      canonicalName: 'Host Europe',
+      aliases: ['Host Europe GmbH'],
+    },
+    {
+      patterns: ['cloudflare.com'],
+      canonicalName: 'Cloudflare',
+      aliases: ['Cloudflare Inc.', 'Cloudflare, Inc.'],
+    },
+    {
+      patterns: ['digitalocean.com'],
+      canonicalName: 'DigitalOcean',
+      aliases: ['DigitalOcean LLC'],
+    },
+  ];
+
+  /**
+   * Find vendor by email address with enhanced matching
    */
   async findVendorByEmail(organizationId: string, email: string): Promise<{ id: string; name: string } | null> {
     const domain = email.split('@')[1]?.toLowerCase();
+
+    // First check if this matches a known vendor pattern
+    const knownVendor = this.findKnownVendor(domain);
+    if (knownVendor) {
+      logger.info(`Matched known vendor pattern: ${domain} -> ${knownVendor.canonicalName}`);
+
+      // Try to find this vendor in the database by any of its names
+      const allNames = [knownVendor.canonicalName, ...knownVendor.aliases];
+      for (const name of allNames) {
+        const result = await query(
+          `SELECT id, name FROM customers
+           WHERE organization_id = $1
+           AND (LOWER(name) LIKE $2 OR LOWER(display_name) LIKE $2)
+           LIMIT 1`,
+          [organizationId, `%${name.toLowerCase()}%`]
+        );
+
+        if (result.rows.length > 0) {
+          return { id: result.rows[0].id, name: result.rows[0].name };
+        }
+      }
+
+      // Also try vendor_domain for known vendors
+      for (const pattern of knownVendor.patterns) {
+        const result = await query(
+          `SELECT id, name FROM customers
+           WHERE organization_id = $1
+           AND LOWER(vendor_domain) = $2
+           LIMIT 1`,
+          [organizationId, pattern]
+        );
+
+        if (result.rows.length > 0) {
+          return { id: result.rows[0].id, name: result.rows[0].name };
+        }
+      }
+    }
 
     // First try exact match on vendor_domain (most reliable)
     if (domain) {
@@ -196,6 +430,33 @@ class InvoiceProcessorService {
   }
 
   /**
+   * Find known vendor by email domain pattern
+   */
+  private findKnownVendor(domain: string | undefined): typeof InvoiceProcessorService.KNOWN_VENDORS[0] | null {
+    if (!domain) return null;
+
+    for (const vendor of InvoiceProcessorService.KNOWN_VENDORS) {
+      for (const pattern of vendor.patterns) {
+        // Exact match or subdomain match (e.g., mail.hetzner.com matches hetzner.com)
+        if (domain === pattern || domain.endsWith(`.${pattern}`)) {
+          return vendor;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get canonical vendor name from email domain
+   * Useful for suggesting vendor names during invoice review
+   */
+  getCanonicalVendorName(email: string): string | null {
+    const domain = email.split('@')[1]?.toLowerCase();
+    const knownVendor = this.findKnownVendor(domain);
+    return knownVendor?.canonicalName || null;
+  }
+
+  /**
    * Save attachment to filesystem
    */
   async saveAttachment(
@@ -204,7 +465,7 @@ class InvoiceProcessorService {
     emailId: string
   ): Promise<{ path: string; filename: string } | null> {
     if (!attachment.contentBytes) {
-      console.log(`No content bytes for attachment: ${attachment.name}`);
+      logger.info(`No content bytes for attachment: ${attachment.name}`);
       return null;
     }
 
@@ -221,10 +482,10 @@ class InvoiceProcessorService {
       const buffer = Buffer.from(attachment.contentBytes, 'base64');
       await fs.promises.writeFile(filePath, buffer);
 
-      console.log(`Saved attachment: ${filePath} (${buffer.length} bytes)`);
+      logger.info(`Saved attachment: ${filePath} (${buffer.length} bytes)`);
       return { path: filePath, filename };
     } catch (error: any) {
-      console.error(`Failed to save attachment ${attachment.name}:`, error.message);
+      logger.error(`Failed to save attachment ${attachment.name}:`, error.message);
       return null;
     }
   }
@@ -335,11 +596,11 @@ class InvoiceProcessorService {
       // Mark email as read
       await mailboxMonitorService.markAsRead(organizationId, email.id, 'invoice');
 
-      console.log(`Created invoice draft: ${email.subject} (${documentIds.length} documents)`);
+      logger.info(`Created invoice draft: ${email.subject} (${documentIds.length} documents)`);
       return { status: 'draft', documentsCreated: documentIds.length };
 
     } catch (error: any) {
-      console.error(`Failed to process email ${email.id}:`, error.message);
+      logger.error(`Failed to process email ${email.id}:`, error.message);
       await this.recordProcessedEmail(organizationId, email, [], 'failed', error.message);
       return { status: 'failed', documentsCreated: 0, error: error.message };
     }
@@ -397,7 +658,7 @@ class InvoiceProcessorService {
     options: { includeRead?: boolean } = {}
   ): Promise<ProcessingResult> {
     const { includeRead = false } = options;
-    console.log(`Starting invoice mailbox processing for organization: ${organizationId} (includeRead: ${includeRead})`);
+    logger.info(`Starting invoice mailbox processing for organization: ${organizationId} (includeRead: ${includeRead})`);
 
     // Check if invoice mailbox is configured
     const config = await getConfig(organizationId);
@@ -419,7 +680,7 @@ class InvoiceProcessorService {
     });
 
     if (!emailResult.success) {
-      console.error('Failed to get emails:', emailResult.error);
+      logger.error('Failed to get emails:', emailResult.error);
       return {
         success: false,
         processedCount: 0,
@@ -459,7 +720,7 @@ class InvoiceProcessorService {
       }
     }
 
-    console.log(`Invoice processing complete: ${processedCount} processed, ${skippedCount} skipped, ${failedCount} failed`);
+    logger.info(`Invoice processing complete: ${processedCount} processed, ${skippedCount} skipped, ${failedCount} failed`);
 
     return {
       success: true,
@@ -642,10 +903,10 @@ class InvoiceProcessorService {
           );
 
           sevdeskVoucherId = voucherResult.voucherId;
-          console.log(`Created sevDesk voucher ${sevdeskVoucherId} for invoice ${processedInvoiceId}`);
+          logger.info(`Created sevDesk voucher ${sevdeskVoucherId} for invoice ${processedInvoiceId}`);
         }
       } catch (err) {
-        console.error(`Failed to create sevDesk voucher for invoice ${processedInvoiceId}:`, err);
+        logger.error(`Failed to create sevDesk voucher for invoice ${processedInvoiceId}:`, err);
         // Continue anyway - we still mark as processed even if sevDesk fails
       }
     }
@@ -692,7 +953,7 @@ class InvoiceProcessorService {
       try {
         await fs.promises.unlink(doc.storage_path);
       } catch (err) {
-        console.error(`Failed to delete file: ${doc.storage_path}`);
+        logger.error(`Failed to delete file: ${doc.storage_path}`);
       }
     }
 
@@ -745,7 +1006,7 @@ class InvoiceProcessorService {
           await fs.promises.unlink(doc.storage_path);
         }
       } catch (err) {
-        console.error(`Failed to delete file: ${doc.storage_path}`);
+        logger.error(`Failed to delete file: ${doc.storage_path}`);
       }
     }
 
@@ -779,7 +1040,7 @@ class InvoiceProcessorService {
     );
 
     if (invoiceResult.rows.length === 0) {
-      console.log('Invoice not found:', processedInvoiceId);
+      logger.info('Invoice not found:', processedInvoiceId);
       return null;
     }
 
@@ -796,10 +1057,10 @@ class InvoiceProcessorService {
 
     // Start with fallback extraction from email metadata
     let result = this.extractFromEmailMetadata(invoice);
-    console.log('Email metadata extraction:', result);
+    logger.info('Email metadata extraction:', result);
 
     if (docResult.rows.length === 0) {
-      console.log('No documents found for invoice', processedInvoiceId);
+      logger.info('No documents found for invoice', processedInvoiceId);
       return result;
     }
 
@@ -807,7 +1068,7 @@ class InvoiceProcessorService {
 
     // Only process PDFs
     if (!doc.mime_type?.includes('pdf') && !doc.original_filename?.toLowerCase().endsWith('.pdf')) {
-      console.log('Document is not a PDF:', doc.mime_type);
+      logger.info('Document is not a PDF:', doc.mime_type);
       return result;
     }
 
@@ -818,21 +1079,22 @@ class InvoiceProcessorService {
       // Extract text from PDF
       const pdfData = await pdfParse(fileBuffer);
       const rawText = pdfData.text;
-      console.log('PDF text length:', rawText?.length || 0);
-      console.log('PDF text preview:', rawText?.substring(0, 500));
+      logger.info('PDF text length:', rawText?.length || 0);
+      logger.info('PDF text preview:', rawText?.substring(0, 500));
 
       if (!rawText || rawText.trim().length < 50) {
-        console.log('PDF has insufficient text content');
+        logger.info('PDF has insufficient text content');
         result.rawText = 'PDF enthält keinen extrahierbaren Text';
         return result;
       }
 
       // Try to extract data using regex patterns first (faster, no API cost)
       const regexExtraction = this.extractWithRegex(rawText);
-      console.log('Regex extraction:', regexExtraction);
+      logger.info('Regex extraction:', regexExtraction);
 
       // Merge regex extraction with email fallback (prefer regex if found)
       result = {
+        ...result,
         supplierName: regexExtraction.supplierName || result.supplierName,
         invoiceNumber: regexExtraction.invoiceNumber || result.invoiceNumber,
         invoiceDate: regexExtraction.invoiceDate || result.invoiceDate,
@@ -842,6 +1104,10 @@ class InvoiceProcessorService {
         vatAmount: regexExtraction.vatAmount ?? result.vatAmount,
         vatRate: regexExtraction.vatRate ?? result.vatRate,
         currency: regexExtraction.currency || result.currency,
+        iban: regexExtraction.iban || result.iban,
+        bic: regexExtraction.bic || result.bic,
+        taxId: regexExtraction.taxId || result.taxId,
+        customerNumber: regexExtraction.customerNumber || result.customerNumber,
         confidence: Math.max(regexExtraction.confidence, result.confidence),
         rawText: rawText.substring(0, 2000),
       };
@@ -855,63 +1121,51 @@ class InvoiceProcessorService {
         [organizationId]
       );
 
-      console.log('AI config found:', aiConfigResult.rows.length > 0 ? 'Yes' : 'No');
+      logger.info('AI config found:', aiConfigResult.rows.length > 0 ? 'Yes' : 'No');
 
       // If OpenAI is configured, always use Vision for best results (includes line items)
       if (aiConfigResult.rows.length > 0) {
         const aiConfig = aiConfigResult.rows[0];
-        console.log('AI provider:', aiConfig.provider);
+        logger.info('AI provider:', aiConfig.provider);
 
         if (aiConfig.provider === 'openai') {
           // Use Vision directly for best extraction (handles scanned PDFs, extracts line items)
-          console.log('Using OpenAI Vision for comprehensive extraction...');
+          logger.info('Using OpenAI Vision for comprehensive extraction...');
           const visionExtraction = await this.extractWithVision(fileBuffer, aiConfig);
-          console.log('Vision extraction result:', visionExtraction);
+          logger.info('Vision extraction result:', visionExtraction);
 
           if (visionExtraction.confidence > 0) {
+            // Merge Vision extraction with existing data (Vision takes precedence)
             result = {
-              supplierName: visionExtraction.supplierName || result.supplierName,
-              invoiceNumber: visionExtraction.invoiceNumber || result.invoiceNumber,
-              invoiceDate: visionExtraction.invoiceDate || result.invoiceDate,
-              dueDate: visionExtraction.dueDate || result.dueDate,
-              netAmount: visionExtraction.netAmount ?? result.netAmount,
-              grossAmount: visionExtraction.grossAmount ?? result.grossAmount,
-              vatAmount: visionExtraction.vatAmount ?? result.vatAmount,
-              vatRate: visionExtraction.vatRate ?? result.vatRate,
-              currency: visionExtraction.currency || result.currency,
-              confidence: visionExtraction.confidence,
+              ...result,
+              ...visionExtraction,
+              // Keep rawText from PDF parsing
               rawText: result.rawText,
-              lineItems: visionExtraction.lineItems,
+              // Use higher confidence from Vision
+              confidence: visionExtraction.confidence,
             };
           }
         } else {
           // For Anthropic, use text-based extraction
-          console.log('Using text-based AI extraction...');
+          logger.info('Using text-based AI extraction...');
           const aiExtraction = await this.extractWithAI(rawText, aiConfig);
-          console.log('AI extraction:', aiExtraction);
+          logger.info('AI extraction:', aiExtraction);
 
           result = {
-            supplierName: aiExtraction.supplierName || result.supplierName,
-            invoiceNumber: aiExtraction.invoiceNumber || result.invoiceNumber,
-            invoiceDate: aiExtraction.invoiceDate || result.invoiceDate,
-            dueDate: aiExtraction.dueDate || result.dueDate,
-            netAmount: aiExtraction.netAmount ?? result.netAmount,
-            grossAmount: aiExtraction.grossAmount ?? result.grossAmount,
-            vatAmount: aiExtraction.vatAmount ?? result.vatAmount,
-            vatRate: aiExtraction.vatRate ?? result.vatRate,
-            currency: aiExtraction.currency || result.currency,
-            confidence: aiExtraction.confidence > 0 ? aiExtraction.confidence : result.confidence,
+            ...result,
+            ...aiExtraction,
             rawText: rawText.substring(0, 2000),
+            confidence: aiExtraction.confidence > 0 ? aiExtraction.confidence : result.confidence,
           };
         }
       } else {
-        console.log('No AI config found - using regex/email extraction only');
+        logger.info('No AI config found - using regex/email extraction only');
       }
 
       return result;
 
     } catch (error: any) {
-      console.error('Error extracting invoice data:', error.message);
+      logger.error('Error extracting invoice data:', error.message);
       result.rawText = `Fehler: ${error.message}`;
       return result;
     }
@@ -923,14 +1177,24 @@ class InvoiceProcessorService {
   private extractFromEmailMetadata(invoice: any): ExtractedInvoiceData {
     const result: ExtractedInvoiceData = {
       supplierName: null,
+      supplierAddress: null,
+      taxId: null,
+      recipientName: null,
+      recipientAddress: null,
+      customerNumber: null,
       invoiceNumber: null,
+      orderNumber: null,
       invoiceDate: null,
       dueDate: null,
+      deliveryDate: null,
       netAmount: null,
       grossAmount: null,
       vatAmount: null,
       vatRate: 19,
       currency: 'EUR',
+      paymentMethod: null,
+      iban: null,
+      bic: null,
       confidence: 0.2,
     };
 
@@ -1008,14 +1272,24 @@ class InvoiceProcessorService {
   private createEmptyExtraction(reason: string): ExtractedInvoiceData {
     return {
       supplierName: null,
+      supplierAddress: null,
+      taxId: null,
+      recipientName: null,
+      recipientAddress: null,
+      customerNumber: null,
       invoiceNumber: null,
+      orderNumber: null,
       invoiceDate: null,
       dueDate: null,
+      deliveryDate: null,
       netAmount: null,
       grossAmount: null,
       vatAmount: null,
       vatRate: null,
       currency: 'EUR',
+      paymentMethod: null,
+      iban: null,
+      bic: null,
       confidence: 0,
       rawText: reason,
     };
@@ -1031,14 +1305,24 @@ class InvoiceProcessorService {
   private extractWithRegex(text: string): ExtractedInvoiceData {
     const result: ExtractedInvoiceData = {
       supplierName: null,
+      supplierAddress: null,
+      taxId: null,
+      recipientName: null,
+      recipientAddress: null,
+      customerNumber: null,
       invoiceNumber: null,
+      orderNumber: null,
       invoiceDate: null,
       dueDate: null,
+      deliveryDate: null,
       netAmount: null,
       grossAmount: null,
       vatAmount: null,
       vatRate: null,
       currency: 'EUR',
+      paymentMethod: null,
+      iban: null,
+      bic: null,
       confidence: 0.3, // Low confidence for regex-only extraction
     };
 
@@ -1086,14 +1370,22 @@ class InvoiceProcessorService {
     // Extract amounts (German format with comma as decimal separator)
     const amountPatterns = {
       gross: [
-        /(?:Gesamt(?:betrag)?|Brutto|Total|Endbetrag|Rechnungsbetrag|Zu\s*zahlen)\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
-        /(?:EUR|€)\s*([\d\.,]+)\s*(?:Gesamt|Brutto|Total)/i,
+        /(?:Gesamt(?:betrag|summe)?|Brutto(?:betrag)?|Total|Endbetrag|Rechnungsbetrag|Zu\s*zahlen(?:der\s*Betrag)?|Zahlbar|Fälliger\s*Betrag|Summe\s*brutto|Gesamtpreis)\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+        /(?:EUR|€)\s*([\d\.,]+)\s*(?:Gesamt|Brutto|Total|Summe)/i,
+        // Amount before label (common in tables)
+        /([\d\.,]+)\s*(?:EUR|€)\s*(?:Gesamt|Brutto|Total|inkl\.?\s*MwSt)/i,
+        // Simple "Summe:" or "Betrag:" patterns
+        /(?:Summe|Betrag)\s*[:#]\s*(?:EUR|€)?\s*([\d\.,]+)/i,
       ],
       net: [
-        /(?:Netto(?:betrag)?|Zwischensumme|Subtotal)\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+        /(?:Netto(?:betrag|summe)?|Zwischensumme|Subtotal|Summe\s*netto|Warenwert)\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+        // Amount before label
+        /([\d\.,]+)\s*(?:EUR|€)\s*(?:Netto|netto|exkl\.?\s*MwSt)/i,
       ],
       vat: [
-        /(?:MwSt\.?|USt\.?|VAT|Mehrwertsteuer)\s*(?:\d+%?)?\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+        /(?:MwSt\.?|USt\.?|VAT|Mehrwertsteuer|Umsatzsteuer)\s*(?:\d+\s*%?)?\s*[:#]?\s*(?:EUR|€)?\s*([\d\.,]+)\s*(?:EUR|€)?/i,
+        // Amount before label
+        /([\d\.,]+)\s*(?:EUR|€)\s*(?:MwSt|USt|Steuer)/i,
       ],
     };
 
@@ -1130,6 +1422,41 @@ class InvoiceProcessorService {
       result.vatRate = parseInt(vatRateMatch[1], 10);
     }
 
+    // Fallback: If no amounts found, try to find EUR amounts in the text
+    if (!result.grossAmount && !result.netAmount) {
+      // Find all EUR amounts in the text (format: X,XX € or € X,XX or X.XXX,XX EUR)
+      const allAmounts: number[] = [];
+      const eurPattern = /(?:EUR|€)\s*([\d\.,]+)|([\d\.,]+)\s*(?:EUR|€)/gi;
+      let eurMatch;
+      while ((eurMatch = eurPattern.exec(cleanText)) !== null) {
+        const amountStr = eurMatch[1] || eurMatch[2];
+        if (amountStr) {
+          const amount = this.parseGermanNumber(amountStr);
+          if (amount && amount > 0 && amount < 1000000) {
+            allAmounts.push(amount);
+          }
+        }
+      }
+
+      // If we found amounts, use the largest as gross (likely total)
+      if (allAmounts.length > 0) {
+        allAmounts.sort((a, b) => b - a);
+        result.grossAmount = allAmounts[0];
+
+        // If we have multiple amounts and a VAT rate, try to calculate net
+        if (allAmounts.length > 1 && result.vatRate) {
+          const expectedNet = result.grossAmount / (1 + result.vatRate / 100);
+          // Find the closest amount to expected net
+          const closestNet = allAmounts.find(a =>
+            Math.abs(a - expectedNet) < expectedNet * 0.02 // Within 2%
+          );
+          if (closestNet && closestNet !== result.grossAmount) {
+            result.netAmount = closestNet;
+          }
+        }
+      }
+    }
+
     // Try to extract supplier name (usually at the top of the invoice)
     const firstLines = text.split('\n').slice(0, 10).join(' ').trim();
     // Look for company patterns
@@ -1143,6 +1470,30 @@ class InvoiceProcessorService {
         result.supplierName = match[1].trim();
         break;
       }
+    }
+
+    // Extract IBAN (German format: DE followed by 20 characters)
+    const ibanMatch = cleanText.match(/IBAN[:\s]*([A-Z]{2}\d{2}[\s]?(?:\d{4}[\s]?){4}\d{2}|\b[A-Z]{2}\d{20,22}\b)/i);
+    if (ibanMatch) {
+      result.iban = ibanMatch[1].replace(/\s/g, '').toUpperCase();
+    }
+
+    // Extract BIC/SWIFT
+    const bicMatch = cleanText.match(/(?:BIC|SWIFT)[:\s]*([A-Z]{6}[A-Z0-9]{2,5})/i);
+    if (bicMatch) {
+      result.bic = bicMatch[1].toUpperCase();
+    }
+
+    // Extract Tax ID (USt-IdNr.)
+    const taxIdMatch = cleanText.match(/(?:USt[.-]?(?:Id)?Nr\.?|VAT[- ]?ID|Steuernummer)[:\s]*([A-Z]{2}\d{9,12}|\d{2,3}\/?\d{3}\/?\d{5})/i);
+    if (taxIdMatch) {
+      result.taxId = taxIdMatch[1];
+    }
+
+    // Extract customer number
+    const customerNoMatch = cleanText.match(/(?:Kunden(?:nummer|nr\.?)|Customer\s*(?:No\.?|Number))[:\s]*([A-Z0-9\-]+)/i);
+    if (customerNoMatch) {
+      result.customerNumber = customerNoMatch[1];
     }
 
     // Calculate confidence based on what we found
@@ -1227,19 +1578,29 @@ Wichtig:
         const parsed = JSON.parse(jsonMatch[0]);
         return {
           supplierName: parsed.supplierName || null,
+          supplierAddress: parsed.supplierAddress || null,
+          taxId: parsed.taxId || null,
+          recipientName: parsed.recipientName || null,
+          recipientAddress: parsed.recipientAddress || null,
+          customerNumber: parsed.customerNumber || null,
           invoiceNumber: parsed.invoiceNumber || null,
+          orderNumber: parsed.orderNumber || null,
           invoiceDate: parsed.invoiceDate || null,
           dueDate: parsed.dueDate || null,
+          deliveryDate: parsed.deliveryDate || null,
           netAmount: typeof parsed.netAmount === 'number' ? parsed.netAmount : null,
           grossAmount: typeof parsed.grossAmount === 'number' ? parsed.grossAmount : null,
           vatAmount: typeof parsed.vatAmount === 'number' ? parsed.vatAmount : null,
           vatRate: typeof parsed.vatRate === 'number' ? parsed.vatRate : null,
           currency: parsed.currency || 'EUR',
+          paymentMethod: parsed.paymentMethod || null,
+          iban: parsed.iban || null,
+          bic: parsed.bic || null,
           confidence: 0.85, // Higher confidence for AI extraction
         };
       }
     } catch (error: any) {
-      console.error('AI extraction failed:', error.message);
+      logger.error('AI extraction failed:', error.message);
     }
 
     return this.createEmptyExtraction('KI-Extraktion fehlgeschlagen');
@@ -1249,53 +1610,72 @@ Wichtig:
    * Extract invoice data using OpenAI Vision API (for scanned/image PDFs)
    */
   private async extractWithVision(pdfBuffer: Buffer, aiConfig: any): Promise<ExtractedInvoiceData> {
-    console.log('=== Starting Vision extraction ===');
-    console.log('AI Config:', { provider: aiConfig.provider, hasApiKey: !!aiConfig.api_key });
+    logger.info('=== Starting Vision extraction ===');
+    logger.info('AI Config:', { provider: aiConfig.provider, hasApiKey: !!aiConfig.api_key });
 
     // Only works with OpenAI
     if (aiConfig.provider !== 'openai') {
-      console.log('Vision extraction only available with OpenAI, got:', aiConfig.provider);
+      logger.info('Vision extraction only available with OpenAI, got:', aiConfig.provider);
       return this.createEmptyExtraction('Vision nur mit OpenAI verfügbar');
     }
 
     const apiKey = aiConfig.api_key;
     if (!apiKey) {
-      console.log('No API key found in config');
+      logger.info('No API key found in config');
       return this.createEmptyExtraction('Kein API-Key konfiguriert');
     }
 
-    console.log('API key found, length:', apiKey.length);
+    logger.info('API key found, length:', apiKey.length);
 
     try {
-      // Convert first page of PDF to image
-      console.log('Converting PDF to image, buffer size:', pdfBuffer.length);
+      // Convert ALL pages of PDF to images (max 5 pages to avoid token limits)
+      logger.info('Converting PDF to images, buffer size:', pdfBuffer.length);
       let document;
       try {
         document = await pdf(pdfBuffer, { scale: 2.0 });
       } catch (pdfError: any) {
-        console.error('PDF to image conversion failed:', pdfError.message);
-        console.error('Full error:', pdfError);
+        logger.error('PDF to image conversion failed:', pdfError.message);
+        logger.error('Full error:', pdfError);
         return this.createEmptyExtraction(`PDF-Konvertierung fehlgeschlagen: ${pdfError.message}`);
       }
 
-      let firstPageImage: Buffer | null = null;
+      const pageImages: Buffer[] = [];
+      const MAX_PAGES = 5; // Limit to avoid token overflow
 
       for await (const image of document) {
-        firstPageImage = image;
-        console.log('Got first page image, size:', image.length);
-        break; // Only take first page
+        pageImages.push(image);
+        logger.info(`Got page ${pageImages.length} image, size: ${image.length} bytes`);
+        if (pageImages.length >= MAX_PAGES) {
+          logger.info(`Reached max pages limit (${MAX_PAGES})`);
+          break;
+        }
       }
 
-      if (!firstPageImage) {
-        console.log('Failed to convert PDF to image - no pages extracted');
+      if (pageImages.length === 0) {
+        logger.info('Failed to convert PDF to image - no pages extracted');
         return this.createEmptyExtraction('PDF konnte nicht in Bild konvertiert werden');
       }
 
-      // Convert to base64
-      const base64Image = firstPageImage.toString('base64');
-      console.log('PDF converted to image, size:', Math.round(base64Image.length / 1024), 'KB');
+      logger.info(`Extracted ${pageImages.length} page(s) from PDF`);
 
-      // Call OpenAI Vision API
+      // Build image content array for all pages
+      const imageContents: Array<{ type: 'image_url'; image_url: { url: string; detail: string } }> = [];
+      for (let i = 0; i < pageImages.length; i++) {
+        const base64Image = pageImages[i].toString('base64');
+        logger.info(`Page ${i + 1} converted to base64, size: ${Math.round(base64Image.length / 1024)} KB`);
+        imageContents.push({
+          type: 'image_url',
+          image_url: {
+            url: `data:image/png;base64,${base64Image}`,
+            detail: 'high',
+          },
+        });
+      }
+
+      // Build the prompt with improved field recognition
+      const extractionPrompt = this.buildExtractionPrompt(pageImages.length);
+
+      // Call OpenAI Vision API with all pages
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -1310,59 +1690,20 @@ Wichtig:
               content: [
                 {
                   type: 'text',
-                  text: `Analysiere diese Rechnung und extrahiere die folgenden Informationen.
-
-Antworte NUR im folgenden JSON-Format (keine anderen Texte):
-{
-  "supplierName": "Name des Lieferanten/Absenders (Firma die die Rechnung stellt)",
-  "invoiceNumber": "Rechnungsnummer",
-  "invoiceDate": "YYYY-MM-DD",
-  "dueDate": "YYYY-MM-DD oder null",
-  "netAmount": Nettobetrag als Zahl oder null,
-  "grossAmount": Bruttobetrag als Zahl oder null,
-  "vatAmount": MwSt-Betrag als Zahl oder null,
-  "vatRate": MwSt-Satz als Zahl (z.B. 19) oder null,
-  "currency": "EUR" oder andere Währung,
-  "lineItems": [
-    {
-      "description": "Beschreibung der Position",
-      "customerName": "Name des Endkunden falls angegeben oder null",
-      "quantity": Anzahl als Zahl oder null,
-      "unitPrice": Einzelpreis als Zahl oder null,
-      "totalPrice": Gesamtpreis der Position als Zahl oder null,
-      "period": "Abrechnungszeitraum z.B. 01.12.2024 - 31.12.2024 oder null",
-      "productType": "Produkttyp z.B. Microsoft 365, Azure, License, Hosting oder null"
-    }
-  ]
-}
-
-Wichtig:
-- Beträge als Zahlen ohne Währungssymbol (z.B. 119.00 nicht "119,00 €")
-- Daten im ISO-Format (YYYY-MM-DD)
-- Bei nicht gefundenen Werten: null
-- supplierName ist der ABSENDER/Lieferant, nicht der Empfänger der Rechnung
-- lineItems: Extrahiere ALLE Positionen/Zeilen der Rechnung
-- customerName in lineItems: Falls die Position einem bestimmten Kunden/Mandanten zugeordnet ist (z.B. bei Microsoft CSP Rechnungen), extrahiere den Kundennamen
-- Bei Sammelrechnungen für mehrere Kunden: Jede Position mit dem zugehörigen Kundennamen extrahieren`,
+                  text: extractionPrompt,
                 },
-                {
-                  type: 'image_url',
-                  image_url: {
-                    url: `data:image/png;base64,${base64Image}`,
-                    detail: 'high',
-                  },
-                },
+                ...imageContents,
               ],
             },
           ],
-          max_tokens: 4000,
+          max_tokens: 6000,
           temperature: 0.1,
         }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Vision API error:', response.status, errorText);
+        logger.error('Vision API error:', { status: response.status, body: errorText });
         return this.createEmptyExtraction(`Vision API Fehler: ${response.status}`);
       }
 
@@ -1371,7 +1712,7 @@ Wichtig:
       };
 
       const content = data.choices?.[0]?.message?.content || '';
-      console.log('Vision API response:', content);
+      logger.info('Vision API response:', content);
 
       // Parse JSON from response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -1382,29 +1723,56 @@ Wichtig:
         let lineItems: InvoiceLineItem[] | undefined = undefined;
         if (Array.isArray(parsed.lineItems) && parsed.lineItems.length > 0) {
           const parsedItems: InvoiceLineItem[] = parsed.lineItems.map((item: any) => ({
+            position: this.parseNumberFromAny(item.position),
             description: item.description || '',
+            articleNumber: item.articleNumber || null,
             customerName: item.customerName || null,
             quantity: this.parseNumberFromAny(item.quantity),
+            unit: item.unit || null,
             unitPrice: this.parseNumberFromAny(item.unitPrice),
             totalPrice: this.parseNumberFromAny(item.totalPrice),
+            vatRate: this.parseNumberFromAny(item.vatRate),
             period: item.period || null,
             productType: item.productType || null,
           }));
           lineItems = parsedItems;
-          console.log(`Extracted ${parsedItems.length} line items`);
+          logger.info(`Extracted ${parsedItems.length} line items from ${pageImages.length} page(s)`);
         }
 
         return {
+          // Supplier info
           supplierName: parsed.supplierName || null,
+          supplierAddress: parsed.supplierAddress || null,
+          taxId: parsed.taxId || null,
+
+          // Recipient info
+          recipientName: parsed.recipientName || null,
+          recipientAddress: parsed.recipientAddress || null,
+          customerNumber: parsed.customerNumber || null,
+
+          // Invoice identifiers
           invoiceNumber: parsed.invoiceNumber || null,
+          orderNumber: parsed.orderNumber || null,
+
+          // Dates
           invoiceDate: parsed.invoiceDate || null,
           dueDate: parsed.dueDate || null,
+          deliveryDate: parsed.deliveryDate || null,
+
+          // Amounts
           netAmount: typeof parsed.netAmount === 'number' ? parsed.netAmount : this.parseNumberFromAny(parsed.netAmount),
           grossAmount: typeof parsed.grossAmount === 'number' ? parsed.grossAmount : this.parseNumberFromAny(parsed.grossAmount),
           vatAmount: typeof parsed.vatAmount === 'number' ? parsed.vatAmount : this.parseNumberFromAny(parsed.vatAmount),
-          vatRate: typeof parsed.vatRate === 'number' ? parsed.vatRate : null,
+          vatRate: typeof parsed.vatRate === 'number' ? parsed.vatRate : this.parseNumberFromAny(parsed.vatRate),
           currency: parsed.currency || 'EUR',
-          confidence: 0.9, // High confidence for Vision extraction
+
+          // Payment info
+          paymentMethod: parsed.paymentMethod || null,
+          iban: parsed.iban || null,
+          bic: parsed.bic || null,
+
+          // Metadata
+          confidence: 0.95, // High confidence for multi-page Vision extraction
           lineItems,
         };
       }
@@ -1412,11 +1780,87 @@ Wichtig:
       return this.createEmptyExtraction('Keine JSON-Antwort von Vision API');
 
     } catch (error: any) {
-      console.error('=== Vision extraction error ===');
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+      logger.error('=== Vision extraction error ===');
+      logger.error('Error message:', error.message);
+      logger.error('Error stack:', error.stack);
       return this.createEmptyExtraction(`Vision Fehler: ${error.message}`);
     }
+  }
+
+  /**
+   * Build extraction prompt optimized for various invoice types
+   */
+  private buildExtractionPrompt(pageCount: number): string {
+    const multiPageNote = pageCount > 1
+      ? `\n\nDies ist eine mehrseitige Rechnung mit ${pageCount} Seiten. Analysiere ALLE Seiten um die vollständigen Informationen zu extrahieren. Positionen/Line Items können auf Folgeseiten sein!`
+      : '';
+
+    return `Analysiere diese Rechnung und extrahiere die folgenden Informationen.${multiPageNote}
+
+Antworte NUR im folgenden JSON-Format (keine anderen Texte):
+{
+  "supplierName": "Name des Lieferanten/Rechnungsstellers",
+  "supplierAddress": "Vollständige Adresse des Lieferanten oder null",
+  "recipientName": "Name des Rechnungsempfängers (Kunde)",
+  "recipientAddress": "Adresse des Empfängers oder null",
+  "invoiceNumber": "Rechnungsnummer (auch: Belegnummer, RE-Nr., Invoice No.)",
+  "orderNumber": "Bestellnummer/Auftragsnummer falls vorhanden oder null",
+  "invoiceDate": "Rechnungsdatum im Format YYYY-MM-DD",
+  "dueDate": "Fälligkeitsdatum YYYY-MM-DD oder null",
+  "deliveryDate": "Lieferdatum/Leistungszeitraum oder null",
+  "netAmount": Nettobetrag als Zahl,
+  "grossAmount": Bruttobetrag/Gesamtbetrag als Zahl,
+  "vatAmount": MwSt-Betrag als Zahl oder null,
+  "vatRate": MwSt-Satz als Zahl (0, 7, oder 19) oder null,
+  "currency": "EUR",
+  "paymentMethod": "Zahlungsart (Überweisung, Lastschrift, etc.) oder null",
+  "iban": "IBAN falls angegeben oder null",
+  "bic": "BIC falls angegeben oder null",
+  "taxId": "USt-IdNr. des Lieferanten oder null",
+  "customerNumber": "Kundennummer beim Lieferanten oder null",
+  "lineItems": [
+    {
+      "position": Positionsnummer als Zahl oder null,
+      "description": "Beschreibung der Position/des Artikels",
+      "articleNumber": "Artikelnummer falls vorhanden oder null",
+      "customerName": "Endkunde falls MSP/Reseller-Rechnung oder null",
+      "quantity": Menge als Zahl,
+      "unit": "Einheit (Stück, Monat, GB, etc.) oder null",
+      "unitPrice": Einzelpreis als Zahl,
+      "totalPrice": Gesamtpreis dieser Position als Zahl,
+      "vatRate": MwSt-Satz dieser Position falls abweichend oder null,
+      "period": "Leistungszeitraum z.B. 01.03.2026 - 31.03.2026 oder null",
+      "productType": "Produktkategorie (Cloud Server, Microsoft 365, Hosting, Lizenz, etc.) oder null"
+    }
+  ]
+}
+
+WICHTIGE REGELN:
+1. Beträge als Dezimalzahlen OHNE Währungssymbol (z.B. 21.60 statt "21,60 €")
+2. Deutsche Zahlenformate umwandeln: "1.234,56" → 1234.56
+3. Daten im ISO-Format: YYYY-MM-DD
+4. Bei nicht gefundenen Werten: null (nicht "" oder 0)
+
+LIEFERANTEN-ERKENNUNG:
+- supplierName ist die RECHNUNGSSTELLENDE Firma (z.B. "Microsoft Ireland Operations Ltd", "Hetzner Online GmbH")
+- NICHT der Empfänger der Rechnung
+- Bei Microsoft Rechnungen: Microsoft ist der Lieferant, der "Rechnungsempfänger" ist dein Kunde
+
+RECHNUNGSNUMMER-MUSTER erkennen:
+- Hetzner: "Rechnung 086000699276" → "086000699276"
+- Microsoft: "Rechnungsnummer: E0300ZADA1" → "E0300ZADA1"
+- Allgemein: RE-12345, INV-2024-001, Belegnr. 123456
+
+LINE ITEMS - VOLLSTÄNDIG EXTRAHIEREN:
+- ALLE Positionen von ALLEN Seiten erfassen
+- Bei Cloud-Rechnungen (Hetzner, AWS, Azure): Server, IPs, Traffic, Storage einzeln
+- Bei Microsoft CSP: Jede Lizenz/Subscription als eigene Position
+- "Rechnungsempfänger" in der Kopfzeile kann der Endkunde sein → in customerName
+
+SPEZIELLE RECHNUNGSTYPEN:
+- Microsoft 365/CSP: "Dienstnutzungsadresse" enthält oft den Endkunden
+- Hetzner: Projektname kann Kundenreferenz sein (z.B. "Projekt Test")
+- Hosting-Rechnungen: Domain/Server als Beschreibung extrahieren`;
   }
 
   /**
@@ -1553,30 +1997,38 @@ Wichtig:
             doc.mime_type
           );
 
+          // Validate extracted data before sending to sevDesk
+          const validation = validateInvoiceData(extractedData);
+          if (validation.warnings.length > 0) {
+            logger.info(`Invoice ${processedInvoiceId} validation warnings:`, validation.warnings);
+          }
+
           // Use extracted data for voucher creation
           const voucherDate = extractedData.invoiceDate || invoice.received_at || new Date().toISOString();
           const supplierName = extractedData.supplierName || invoice.vendor_name || invoice.sender_name || undefined;
 
-          // Create voucher with extracted amount
+          // Create voucher with extracted amount - now including vatAmount and invoiceNumber
           const voucherResult = await createVoucherFromFile(
             apiToken,
             uploadResult.id,
             {
               voucherDate,
               description: invoice.email_subject || 'Eingangsrechnung',
+              invoiceNumber: extractedData.invoiceNumber || undefined,
               supplierName,
               creditDebit: 'D', // Debit = Ausgabe (Eingangsrechnung)
-              taxRate: extractedData.vatRate || 19,
-              sumGross: extractedData.grossAmount ?? undefined,
-              sumNet: extractedData.netAmount ?? undefined,
+              taxRate: validation.correctedData.vatRate ?? extractedData.vatRate ?? 19,
+              sumGross: validation.correctedData.grossAmount ?? extractedData.grossAmount ?? undefined,
+              sumNet: validation.correctedData.netAmount ?? extractedData.netAmount ?? undefined,
+              sumTax: validation.correctedData.vatAmount ?? extractedData.vatAmount ?? undefined,
             }
           );
 
           sevdeskVoucherId = voucherResult.voucherId;
-          console.log(`Created sevDesk voucher ${sevdeskVoucherId} for invoice ${processedInvoiceId}`);
+          logger.info(`Created sevDesk voucher ${sevdeskVoucherId} for invoice ${processedInvoiceId}`);
         }
       } catch (err) {
-        console.error(`Failed to create sevDesk voucher for invoice ${processedInvoiceId}:`, err);
+        logger.error(`Failed to create sevDesk voucher for invoice ${processedInvoiceId}:`, err);
         // Continue anyway - we still mark as processed even if sevDesk fails
       }
     }

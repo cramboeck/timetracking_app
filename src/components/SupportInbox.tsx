@@ -2,9 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Mail, Loader2, AlertTriangle, RefreshCw, Ticket, Eye,
   CheckCircle, Link2, Paperclip, Clock, X, ExternalLink,
-  ChevronDown, ChevronUp, AlertCircle
+  ChevronDown, ChevronUp, AlertCircle, Users, MessageSquare
 } from 'lucide-react';
-import { microsoft365Api, SupportEmail } from '../services/api';
+import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
+import { UnknownCustomerDialog } from './UnknownCustomerDialog';
+import { Button, IconButton } from './ui/Button';
+import { sanitizeEmailHtml } from '../utils/sanitize';
 
 interface TicketInfo {
   linked: boolean;
@@ -34,6 +37,18 @@ export const SupportInbox = () => {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
+
+  // Unknown customer dialog state
+  const [showUnknownCustomerDialog, setShowUnknownCustomerDialog] = useState(false);
+  const [pendingPriority, setPendingPriority] = useState<string>('normal');
+  const [senderInfo, setSenderInfo] = useState<{
+    email: string;
+    name: string;
+    domain: string | null;
+  } | null>(null);
+
+  // Save as interaction state
+  const [savingInteraction, setSavingInteraction] = useState(false);
 
   const loadConfig = async () => {
     try {
@@ -117,13 +132,43 @@ export const SupportInbox = () => {
 
     setCreating(true);
     try {
-      const response = await microsoft365Api.createTicketFromEmail(selectedEmail.id, { priority });
+      // First, check if customer exists for this email
+      const lookupResponse = await microsoft365Api.lookupCustomerForEmail(selectedEmail.id);
+
+      if (lookupResponse.success && !lookupResponse.found) {
+        // No customer found - show dialog
+        setPendingPriority(priority);
+        setSenderInfo(lookupResponse.sender);
+        setShowUnknownCustomerDialog(true);
+        setCreating(false);
+        return;
+      }
+
+      // Customer found or lookup failed - proceed with ticket creation
+      await createTicketWithCustomer(priority);
+    } catch (err: any) {
+      console.error('Customer lookup error:', err);
+      // On error, proceed with ticket creation anyway
+      await createTicketWithCustomer(priority);
+    }
+  };
+
+  const createTicketWithCustomer = async (priority: string, customerId?: string) => {
+    if (!selectedEmail) return;
+
+    setCreating(true);
+    try {
+      const response = await microsoft365Api.createTicketFromEmail(selectedEmail.id, {
+        priority,
+        customerId
+      });
       if (response.success && response.data) {
-        const { ticketNumber, linkedToExisting } = response.data;
+        const { ticketNumber, linkedToExisting, customerName } = response.data;
+        const customerInfo = customerName ? ` (Kunde: ${customerName})` : '';
         alert(
           linkedToExisting
-            ? `E-Mail wurde zu bestehendem Ticket ${ticketNumber} hinzugefügt`
-            : `Ticket ${ticketNumber} wurde erstellt`
+            ? `E-Mail wurde zu bestehendem Ticket ${ticketNumber} hinzugefügt${customerInfo}`
+            : `Ticket ${ticketNumber} wurde erstellt${customerInfo}`
         );
         // Reload emails and ticket info
         await loadEmails();
@@ -135,6 +180,65 @@ export const SupportInbox = () => {
       alert(err.message || 'Fehler beim Erstellen des Tickets');
     } finally {
       setCreating(false);
+      setShowUnknownCustomerDialog(false);
+    }
+  };
+
+  // Handler: Navigate to Settings to create new customer
+  const handleNavigateToCreateCustomer = () => {
+    // Close dialog without creating ticket
+    setShowUnknownCustomerDialog(false);
+
+    // Build params with optional domain
+    const params: Record<string, string> = { tab: 'customers' };
+    if (senderInfo?.domain) {
+      params.domain = senderInfo.domain;
+    }
+
+    // Dispatch custom event to navigate to settings
+    window.dispatchEvent(new CustomEvent('navigate-to-view', {
+      detail: {
+        subView: 'settings',
+        params
+      }
+    }));
+  };
+
+  // Handler: Select existing customer
+  const handleSelectCustomer = async (customerId: string) => {
+    setShowUnknownCustomerDialog(false);
+
+    // Check if this is for interaction or ticket
+    if (pendingPriority === 'interaction') {
+      // Save as interaction with selected customer
+      if (selectedEmail) {
+        setSavingInteraction(true);
+        try {
+          const response = await microsoft365Api.saveEmailAsInteraction(selectedEmail.id, customerId);
+          if (response.success && response.data) {
+            alert(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`);
+            await loadEmails();
+          } else {
+            alert(response.error || 'Fehler beim Speichern der Interaktion');
+          }
+        } catch (err: any) {
+          alert(err.message || 'Fehler beim Speichern');
+        } finally {
+          setSavingInteraction(false);
+        }
+      }
+    } else {
+      // Create ticket with selected customer
+      await createTicketWithCustomer(pendingPriority, customerId);
+    }
+  };
+
+  // Handler: Continue without customer
+  const handleContinueWithoutCustomer = async () => {
+    setShowUnknownCustomerDialog(false);
+    // Only for ticket creation - interactions require a customer
+    if (pendingPriority !== 'interaction') {
+      await createTicketWithCustomer(pendingPriority);
     }
   };
 
@@ -158,6 +262,40 @@ export const SupportInbox = () => {
       alert(err.message || 'Fehler beim Verknüpfen');
     } finally {
       setCreating(false);
+    }
+  };
+
+  // Save email as CRM interaction
+  const handleSaveAsInteraction = async () => {
+    if (!selectedEmail) return;
+
+    setSavingInteraction(true);
+    try {
+      const response = await microsoft365Api.saveEmailAsInteraction(selectedEmail.id);
+
+      if (response.success) {
+        if (response.alreadyExists) {
+          alert('Diese E-Mail wurde bereits als Interaktion gespeichert.');
+        } else if (response.data) {
+          alert(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`);
+          await loadEmails();
+        }
+      } else if (response.requiresCustomer) {
+        // Need to select customer first - open dialog
+        const lookupResponse = await microsoft365Api.lookupCustomerForEmail(selectedEmail.id);
+        if (lookupResponse.success) {
+          setSenderInfo(lookupResponse.sender);
+          setShowUnknownCustomerDialog(true);
+          // Store action type for when customer is selected
+          setPendingPriority('interaction');
+        }
+      } else {
+        alert(response.error || 'Fehler beim Speichern der Interaktion');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Fehler beim Speichern der Interaktion');
+    } finally {
+      setSavingInteraction(false);
     }
   };
 
@@ -234,14 +372,13 @@ export const SupportInbox = () => {
             />
             Gelesene anzeigen
           </label>
-          <button
+          <Button
             onClick={() => loadEmails()}
             disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+            icon={<RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />}
           >
-            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
             Aktualisieren
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -275,7 +412,7 @@ export const SupportInbox = () => {
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-dark-300 max-h-[600px] overflow-y-auto">
+            <div className="divide-y divide-gray-100 dark:divide-dark-300 max-h-[50vh] md:max-h-[600px] overflow-y-auto scroll-touch touch-manipulation">
               {emails.map((email) => (
                 <div
                   key={email.id}
@@ -342,12 +479,12 @@ export const SupportInbox = () => {
                   <h3 className="font-semibold text-gray-900 dark:text-white line-clamp-2">
                     {selectedEmail.subject}
                   </h3>
-                  <button
+                  <IconButton
                     onClick={() => setSelectedEmail(null)}
-                    className="p-1 text-gray-400 hover:text-gray-600"
-                  >
-                    <X size={18} />
-                  </button>
+                    icon={<X size={18} />}
+                    size="sm"
+                    tooltip="Schliessen"
+                  />
                 </div>
                 <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                   <p>
@@ -382,13 +519,16 @@ export const SupportInbox = () => {
                       <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
                         {selectedTicketInfo.suggestedTicket.ticket_number}: {selectedTicketInfo.suggestedTicket.title}
                       </p>
-                      <button
+                      <Button
                         onClick={handleLinkToTicket}
                         disabled={creating}
-                        className="mt-2 w-full py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        loading={creating}
+                        fullWidth
+                        size="sm"
+                        className="mt-2"
                       >
-                        {creating ? 'Verknüpfe...' : 'Mit Ticket verknüpfen'}
-                      </button>
+                        Mit Ticket verknüpfen
+                      </Button>
                     </div>
                   ) : (
                     <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3">
@@ -401,21 +541,23 @@ export const SupportInbox = () => {
               )}
 
               {/* Email Body */}
-              <div className="flex-1 p-4 overflow-y-auto max-h-[300px]">
-                <button
+              <div className="flex-1 p-4 overflow-y-auto max-h-[40vh] md:max-h-[300px] scroll-touch touch-manipulation">
+                <Button
                   onClick={() => setExpandedEmail(expandedEmail === selectedEmail.id ? null : selectedEmail.id)}
-                  className="flex items-center gap-2 text-sm text-accent-primary mb-2"
+                  variant="ghost"
+                  size="sm"
+                  icon={<Eye size={14} />}
+                  className="mb-2 text-accent-primary"
                 >
-                  <Eye size={14} />
                   {expandedEmail === selectedEmail.id ? 'Vorschau' : 'Vollständige E-Mail anzeigen'}
                   {expandedEmail === selectedEmail.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </button>
+                </Button>
 
                 {expandedEmail === selectedEmail.id ? (
                   selectedEmail.body.contentType === 'html' ? (
                     <div
                       className="prose prose-sm dark:prose-invert max-w-none"
-                      dangerouslySetInnerHTML={{ __html: selectedEmail.body.content }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(selectedEmail.body.content) }}
                     />
                   ) : (
                     <pre className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-sans">
@@ -431,30 +573,55 @@ export const SupportInbox = () => {
 
               {/* Actions */}
               {(!selectedTicketInfo?.linked) && (
-                <div className="p-4 border-t border-gray-200 dark:border-dark-300 space-y-2">
-                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">Ticket erstellen:</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => handleCreateTicket('normal')}
-                      disabled={creating}
-                      className="py-2 px-3 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50"
+                <div className="p-4 border-t border-gray-200 dark:border-dark-300 space-y-4">
+                  {/* Ticket Creation */}
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">Ticket erstellen:</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        onClick={() => handleCreateTicket('normal')}
+                        disabled={creating || savingInteraction}
+                        loading={creating}
+                        size="sm"
+                      >
+                        Normal
+                      </Button>
+                      <Button
+                        onClick={() => handleCreateTicket('high')}
+                        disabled={creating || savingInteraction}
+                        variant="warning"
+                        size="sm"
+                      >
+                        Hoch
+                      </Button>
+                      <Button
+                        onClick={() => handleCreateTicket('urgent')}
+                        disabled={creating || savingInteraction}
+                        variant="danger"
+                        size="sm"
+                      >
+                        Dringend
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Save as Interaction */}
+                  <div className="pt-2 border-t border-gray-100 dark:border-dark-200">
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">Als Kunden-Interaktion speichern:</p>
+                    <Button
+                      onClick={handleSaveAsInteraction}
+                      disabled={creating || savingInteraction}
+                      loading={savingInteraction}
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                      icon={<MessageSquare size={16} />}
                     >
-                      {creating ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Normal'}
-                    </button>
-                    <button
-                      onClick={() => handleCreateTicket('high')}
-                      disabled={creating}
-                      className="py-2 px-3 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
-                    >
-                      Hoch
-                    </button>
-                    <button
-                      onClick={() => handleCreateTicket('urgent')}
-                      disabled={creating}
-                      className="py-2 px-3 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
-                    >
-                      Dringend
-                    </button>
+                      Im Kunden-CRM speichern
+                    </Button>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Die E-Mail wird automatisch dem Kunden zugeordnet und in der Timeline angezeigt.
+                    </p>
                   </div>
                 </div>
               )}
@@ -500,6 +667,18 @@ export const SupportInbox = () => {
           </p>
         </div>
       </div>
+
+      {/* Unknown Customer Dialog */}
+      <UnknownCustomerDialog
+        isOpen={showUnknownCustomerDialog}
+        senderEmail={senderInfo?.email || ''}
+        senderName={senderInfo?.name || ''}
+        senderDomain={senderInfo?.domain || null}
+        onCustomerSelected={handleSelectCustomer}
+        onNavigateToCreateCustomer={handleNavigateToCreateCustomer}
+        onContinueWithoutCustomer={handleContinueWithoutCustomer}
+        onCancel={() => setShowUnknownCustomerDialog(false)}
+      />
     </div>
   );
 };

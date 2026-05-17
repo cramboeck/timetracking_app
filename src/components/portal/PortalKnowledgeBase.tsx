@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { publicKbApi, KbCategory, KbArticle } from '../../services/api';
 import { MarkdownRenderer } from '../MarkdownRenderer';
+import { Button, IconButton } from '../ui/Button';
 
 interface PortalKnowledgeBaseProps {
   userId: string;
@@ -121,12 +122,11 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
         {/* Header */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
-            <button
+            <IconButton
+              icon={<ArrowLeft size={24} />}
               onClick={selectedCategory ? handleBackToCategory : handleBackToHome}
-              className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
-            >
-              <ArrowLeft size={24} />
-            </button>
+              tooltip="Zurück"
+            />
             <div className="flex-1">
               {selectedArticle.categoryName && (
                 <p className="text-sm text-blue-600 dark:text-blue-400 mb-1">
@@ -166,20 +166,22 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
             </p>
           ) : (
             <div className="flex justify-center gap-4">
-              <button
+              <Button
                 onClick={() => handleFeedback(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 text-green-700 dark:text-green-400 rounded-xl font-medium transition-colors"
+                variant="success"
+                icon={<ThumbsUp size={20} />}
+                className="px-6 py-3 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 text-green-700 dark:text-green-400 rounded-xl"
               >
-                <ThumbsUp size={20} />
                 Ja
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => handleFeedback(false)}
-                className="flex items-center gap-2 px-6 py-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors"
+                variant="secondary"
+                icon={<ThumbsDown size={20} />}
+                className="px-6 py-3 rounded-xl"
               >
-                <ThumbsDown size={20} />
                 Nein
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -194,12 +196,11 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
         {/* Header */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
           <div className="flex items-center gap-4">
-            <button
+            <IconButton
+              icon={<ArrowLeft size={24} />}
               onClick={handleBackToHome}
-              className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
-            >
-              <ArrowLeft size={24} />
-            </button>
+              tooltip="Zurück"
+            />
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                 {view === 'search' ? `Suchergebnisse: "${searchQuery}"` : selectedCategory?.name}
@@ -224,13 +225,14 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
         ) : (
           <div className="grid gap-3">
             {articles.map((article) => (
-              <button
+              <Button
                 key={article.id}
                 onClick={() => handleArticleSelect(article)}
-                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+                variant="ghost"
+                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 h-auto"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
+                <div className="flex items-start justify-between gap-4 w-full">
+                  <div className="flex-1 text-left">
                     <h3 className="font-medium text-gray-900 dark:text-white">
                       {article.title}
                     </h3>
@@ -251,7 +253,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
                   </div>
                   <ChevronRight size={20} className="text-gray-400 flex-shrink-0" />
                 </div>
-              </button>
+              </Button>
             ))}
           </div>
         )}
@@ -265,12 +267,12 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-6 text-white">
         <div className="flex items-center gap-4 mb-4">
-          <button
+          <IconButton
+            icon={<ArrowLeft size={24} />}
             onClick={onBack}
-            className="p-2 rounded-xl hover:bg-white/20 transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </button>
+            tooltip="Zurück"
+            className="hover:bg-white/20"
+          />
           <div>
             <h1 className="text-2xl font-bold">Wissensdatenbank</h1>
             <p className="text-blue-100">
@@ -304,14 +306,15 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
           </div>
           <div className="grid gap-3">
             {featuredArticles.map((article) => (
-              <button
+              <Button
                 key={article.id}
                 onClick={() => handleArticleSelect(article)}
-                className="w-full text-left p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                variant="ghost"
+                className="w-full text-left p-3 rounded-xl h-auto"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 w-full">
                   <FileText size={20} className="text-blue-500 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 text-left">
                     <p className="font-medium text-gray-900 dark:text-white truncate">
                       {article.title}
                     </p>
@@ -323,7 +326,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
                   </div>
                   <ChevronRight size={16} className="text-gray-400" />
                 </div>
-              </button>
+              </Button>
             ))}
           </div>
         </div>

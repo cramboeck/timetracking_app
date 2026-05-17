@@ -59,9 +59,9 @@ export interface Activity {
 
 export type AccountType = 'personal' | 'business' | 'team';
 
-export type AccentColor = 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'pink';
+export type AccentColor = 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'pink' | 'ramboeck';
 
-export type GrayTone = 'light' | 'medium' | 'dark';
+export type GrayTone = 'light' | 'medium' | 'dark' | 'ramboeck';
 
 export type TimeRoundingInterval = 1 | 5 | 10 | 15 | 30 | 60; // minutes
 
@@ -179,6 +179,8 @@ export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'cl
 export type TicketPriority = 'low' | 'normal' | 'high' | 'critical';
 export type TicketResolutionType = 'solved' | 'not_reproducible' | 'duplicate' | 'wont_fix' | 'resolved_itself' | 'workaround';
 
+export type TicketSource = 'manual' | 'portal' | 'email' | 'ninja_alert';
+
 export interface Ticket {
   id: string;
   ticketNumber: string; // e.g., TKT-000001
@@ -205,6 +207,16 @@ export interface Ticket {
   firstResponseAt?: string;
   slaFirstResponseBreached?: boolean;
   slaResolutionBreached?: boolean;
+  // Source & Email tracking
+  source?: TicketSource;
+  emailConversationId?: string;
+  emailFrom?: string;
+  contactId?: string; // Customer contact linked to ticket
+  // Related names (from joins)
+  customerName?: string;
+  projectName?: string;
+  creatorName?: string;
+  assigneeName?: string;
 }
 
 export interface TicketTask {
@@ -443,6 +455,18 @@ export interface CustomerContact {
   isActivated?: boolean; // Computed: has set password
   lastLogin?: string;
   createdAt: string;
+}
+
+// Customer Email Domain - For automatic ticket assignment from support inbox
+export interface CustomerEmailDomain {
+  id: string;
+  customerId: string;
+  organizationId: string;
+  domain: string;
+  isPrimary: boolean;
+  notes?: string;
+  createdAt: string;
+  createdByName?: string;
 }
 
 export type ViewMode = 'stopwatch' | 'manual' | 'list' | 'calendar' | 'dashboard' | 'settings' | 'tickets' | 'billing' | 'tasks';

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Search, Merge, AlertTriangle, Check } from 'lucide-react';
 import { Ticket } from '../types';
 import { ticketsApi } from '../services/api';
+import { Button, IconButton } from './ui';
 
 interface TicketMergeDialogProps {
   isOpen: boolean;
@@ -110,12 +111,11 @@ export const TicketMergeDialog = ({
               </p>
             </div>
           </div>
-          <button
+          <IconButton
+            icon={<X size={20} />}
             onClick={onClose}
-            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-          >
-            <X size={20} />
-          </button>
+            size="md"
+          />
         </div>
 
         {/* Content */}
@@ -208,12 +208,12 @@ export const TicketMergeDialog = ({
                         {ticket.title}
                       </span>
                     </div>
-                    <button
+                    <IconButton
+                      icon={<X size={16} />}
                       onClick={() => handleRemoveTicket(ticket.id)}
-                      className="p-1 text-gray-500 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
-                    >
-                      <X size={16} />
-                    </button>
+                      variant="danger"
+                      size="sm"
+                    />
                   </div>
                 ))}
               </div>
@@ -230,30 +230,24 @@ export const TicketMergeDialog = ({
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-          <button
+          <Button
+            variant="secondary"
             onClick={onClose}
             disabled={merging}
-            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50"
           >
             Abbrechen
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleMerge}
             disabled={selectedTickets.length === 0 || merging}
-            className="flex items-center gap-2 px-4 py-2 btn-accent rounded-lg disabled:opacity-50"
+            loading={merging}
+            icon={!merging ? <Merge size={18} /> : undefined}
           >
-            {merging ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Zusammenführen...
-              </>
-            ) : (
-              <>
-                <Merge size={18} />
-                {selectedTickets.length} Ticket{selectedTickets.length !== 1 ? 's' : ''} zusammenführen
-              </>
-            )}
-          </button>
+            {merging
+              ? 'Zusammenführen...'
+              : `${selectedTickets.length} Ticket${selectedTickets.length !== 1 ? 's' : ''} zusammenführen`}
+          </Button>
         </div>
       </div>
     </div>

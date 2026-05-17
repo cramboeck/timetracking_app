@@ -246,11 +246,24 @@ export const customerPortalApi = {
   },
 
   setPassword: async (token: string, password: string): Promise<{ success: boolean; message: string }> => {
-    const response = await fetch(`${API_BASE_URL}/customer-portal/set-password`, {
+    const response = await fetch(`${API_BASE_URL}/customer-portal/invitation/activate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, password }),
     });
+    return handleResponse(response);
+  },
+
+  verifyInvitation: async (token: string): Promise<{
+    valid: boolean;
+    email?: string;
+    name?: string;
+    customerName?: string;
+    error?: string;
+    expired?: boolean;
+    already_activated?: boolean;
+  }> => {
+    const response = await fetch(`${API_BASE_URL}/customer-portal/invitation/verify/${token}`);
     return handleResponse(response);
   },
 

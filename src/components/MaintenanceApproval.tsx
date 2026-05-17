@@ -5,6 +5,7 @@ import {
   Shield, Server, RefreshCw, Wrench
 } from 'lucide-react';
 import { maintenanceApi, MaintenanceApprovalDetails, MaintenanceType } from '../services/api';
+import { Button } from './ui';
 
 const MAINTENANCE_TYPE_LABELS: Record<MaintenanceType, string> = {
   patch: 'Patch/Update',
@@ -297,26 +298,29 @@ export default function MaintenanceApproval() {
 
               {!showRejectForm ? (
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <button
+                  <Button
+                    variant="success"
+                    size="lg"
                     onClick={handleApprove}
                     disabled={submitting}
-                    className="flex-1 px-6 py-3 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    loading={submitting}
+                    icon={!submitting ? <CheckCircle className="w-5 h-5" /> : undefined}
+                    fullWidth
+                    className="rounded-xl"
                   >
-                    {submitting ? (
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <CheckCircle className="w-5 h-5" />
-                    )}
                     Wartung genehmigen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
                     onClick={() => setShowRejectForm(true)}
                     disabled={submitting}
-                    className="flex-1 px-6 py-3 border-2 border-red-200 text-red-600 font-medium rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    icon={<XCircle className="w-5 h-5" />}
+                    fullWidth
+                    className="rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50"
                   >
-                    <XCircle className="w-5 h-5" />
                     Ablehnen
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -333,25 +337,28 @@ export default function MaintenanceApproval() {
                     />
                   </div>
                   <div className="flex gap-3">
-                    <button
+                    <Button
+                      variant="outline"
+                      size="lg"
                       onClick={() => setShowRejectForm(false)}
                       disabled={submitting}
-                      className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                      fullWidth
+                      className="rounded-xl"
                     >
                       Zurück
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="lg"
                       onClick={handleReject}
                       disabled={submitting}
-                      className="flex-1 px-6 py-3 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      loading={submitting}
+                      icon={!submitting ? <XCircle className="w-5 h-5" /> : undefined}
+                      fullWidth
+                      className="rounded-xl"
                     >
-                      {submitting ? (
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <XCircle className="w-5 h-5" />
-                      )}
                       Ablehnung bestätigen
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}

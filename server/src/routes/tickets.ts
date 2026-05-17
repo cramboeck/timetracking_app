@@ -7,6 +7,7 @@ import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { emailService } from '../services/emailService';
 import { sendTicketNotification, sendPortalTicketNotification } from '../services/pushNotifications';
 import { auditLog } from '../services/auditLog';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
 
@@ -76,9 +77,16 @@ function transformTicket(row: any) {
     firstResponseAt: row.first_response_at?.toISOString(),
     slaFirstResponseBreached: row.sla_first_response_breached,
     slaResolutionBreached: row.sla_resolution_breached,
+    // Source & Email tracking
+    source: row.source,
+    emailConversationId: row.email_conversation_id,
+    emailFrom: row.email_from,
+    contactId: row.contact_id,
     // Include related data if joined
     customerName: row.customer_name,
     projectName: row.project_name,
+    creatorName: row.creator_name,
+    assigneeName: row.assignee_name,
   };
 }
 
@@ -108,7 +116,7 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
     const organizationId = orgReq.organization.id;
     const { status, customerId, priority } = req.query;
 
-    console.log(`📋 Fetching tickets for organization_id: ${organizationId}`);
+    logger.info(`📋 Fetching tickets for organization_id: ${organizationId}`);
 
     let queryText = `
       SELECT t.*, c.name as customer_name, p.name as project_name
@@ -141,10 +149,10 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
     queryText += ' ORDER BY t.created_at DESC';
 
     const result = await query(queryText, params);
-    console.log(`📋 Found ${result.rows.length} tickets for organization_id: ${organizationId}`);
+    logger.info(`📋 Found ${result.rows.length} tickets for organization_id: ${organizationId}`);
     res.json({ success: true, data: result.rows.map(transformTicket) });
   } catch (error) {
-    console.error('Error fetching tickets:', error);
+    logger.error('Error fetching tickets:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch tickets' });
   }
 });
@@ -171,7 +179,7 @@ router.get('/stats', authenticateToken, attachOrganization, async (req, res) => 
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error fetching ticket stats:', error);
+    logger.error('Error fetching ticket stats:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch ticket stats' });
   }
 });
@@ -258,7 +266,7 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req, res)
       SELECT ta.id, ta.ticket_id, ta.action_type as action, ta.old_value, ta.new_value, ta.created_at,
              t.ticket_number, t.title,
              COALESCE(u.display_name, u.username) as actor_name,
-             cc.name as contact_name
+             COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as contact_name
       FROM ticket_activities ta
       JOIN tickets t ON ta.ticket_id = t.id
       LEFT JOIN users u ON ta.user_id = u.id
@@ -362,7 +370,7 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req, res)
       }
     });
   } catch (error) {
-    console.error('Error fetching dashboard data:', error);
+    logger.error('Error fetching dashboard data:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch dashboard data' });
   }
 });
@@ -376,10 +384,14 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
 
     // Get ticket
     const ticketResult = await query(`
-      SELECT t.*, c.name as customer_name, p.name as project_name
+      SELECT t.*, c.name as customer_name, p.name as project_name,
+             COALESCE(creator.display_name, creator.username) as creator_name,
+             COALESCE(assignee.display_name, assignee.username) as assignee_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN users creator ON t.user_id = creator.id
+      LEFT JOIN users assignee ON t.assigned_to_user_id = assignee.id
       WHERE t.id = $1 AND t.organization_id = $2
     `, [id, organizationId]);
 
@@ -434,7 +446,7 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching ticket:', error);
+    logger.error('Error fetching ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch ticket' });
   }
 });
@@ -506,16 +518,16 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
             { id, ticketNumber, title },
             'push_on_new_ticket',
             `Neues Ticket erstellt: ${title}`
-          ).catch(err => console.error('Push notification error:', err));
+          ).catch(err => logger.error('Push notification error:', err));
         }
       } catch (err) {
-        console.error('Error sending push notifications:', err);
+        logger.error('Error sending push notifications:', err);
       }
     })();
 
     res.status(201).json({ success: true, data: transformTicket(ticketResult.rows[0]) });
   } catch (error) {
-    console.error('Error creating ticket:', error);
+    logger.error('Error creating ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to create ticket' });
   }
 });
@@ -644,7 +656,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       // Send email and push notification for status change (except archived)
       if (status !== 'archived') {
         const contactInfo = await query(`
-          SELECT t.title, t.ticket_number, t.contact_id, cc.email, cc.name, cc.notify_ticket_status_changed
+          SELECT t.title, t.ticket_number, t.contact_id, cc.email, COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as name, cc.notify_ticket_status_changed
           FROM tickets t
           LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
           WHERE t.id = $1
@@ -661,7 +673,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
             oldStatus: oldValues.status,
             newStatus: status,
             portalUrl: portalTicketUrl,
-          }).catch(err => console.error('Failed to send status change notification:', err));
+          }).catch(err => logger.error('Failed to send status change notification:', err));
 
           // Send push notification for status change
           if (ticket.contact_id) {
@@ -677,7 +689,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
               { id, ticketNumber: ticket.ticket_number, title: ticket.title },
               'push_on_status_change',
               `Status geändert: ${statusNames[status] || status}`
-            ).catch(err => console.error('Failed to send portal status change push:', err));
+            ).catch(err => logger.error('Failed to send portal status change push:', err));
           }
         }
       }
@@ -699,6 +711,77 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (assignedToUserId !== undefined && assignedToUserId !== oldValues.assigned_to_user_id) {
       if (assignedToUserId) {
         await logTicketActivity(id, userId, null, 'assigned', oldValues.assigned_to_user_id, assignedToUserId);
+
+        // Send notification to the newly assigned user (async, don't block response)
+        (async () => {
+          try {
+            // Get assignee info
+            const assigneeResult = await query(
+              'SELECT id, username, email FROM users WHERE id = $1',
+              [assignedToUserId]
+            );
+            if (assigneeResult.rows.length === 0) return;
+            const assignee = assigneeResult.rows[0];
+
+            // Get assigner (current user) info
+            const assignerResult = await query(
+              'SELECT username FROM users WHERE id = $1',
+              [userId]
+            );
+            const assignerName = assignerResult.rows[0]?.username || 'Ein Teammitglied';
+
+            // Get ticket details with customer name
+            const ticketDetails = await query(`
+              SELECT t.ticket_number, t.title, t.description, t.priority, c.name as customer_name
+              FROM tickets t
+              LEFT JOIN customers c ON t.customer_id = c.id
+              WHERE t.id = $1
+            `, [id]);
+            if (ticketDetails.rows.length === 0) return;
+            const ticket = ticketDetails.rows[0];
+
+            // Check notification preferences for assignee
+            const prefsResult = await query(
+              'SELECT * FROM notification_preferences WHERE user_id = $1',
+              [assignedToUserId]
+            );
+            // Default preferences if not set
+            const prefs = prefsResult.rows[0] || {
+              push_enabled: true,
+              push_on_ticket_assigned: true,
+              email_enabled: true,
+              email_on_ticket_assigned: true
+            };
+
+            // Send push notification
+            if (prefs.push_enabled !== false && prefs.push_on_ticket_assigned !== false) {
+              sendTicketNotification(
+                assignedToUserId,
+                { id, ticketNumber: ticket.ticket_number, title: ticket.title },
+                'push_on_ticket_assigned',
+                `${assignerName} hat Ihnen Ticket #${ticket.ticket_number} zugewiesen`
+              ).catch(err => logger.error('Push notification error (assigned):', err));
+            }
+
+            // Send email notification
+            if (prefs.email_enabled !== false && prefs.email_on_ticket_assigned !== false && assignee.email) {
+              const ticketUrl = `${PORTAL_URL}/?ticket=${id}`;
+              emailService.sendTicketAssignedNotification({
+                to: assignee.email,
+                assigneeName: assignee.username,
+                assignedByName: assignerName,
+                ticketNumber: ticket.ticket_number,
+                ticketTitle: ticket.title,
+                ticketDescription: ticket.description || '',
+                customerName: ticket.customer_name || 'Unbekannt',
+                priority: ticket.priority,
+                ticketUrl
+              }).catch(err => logger.error('Email notification error (assigned):', err));
+            }
+          } catch (err) {
+            logger.error('Error sending assignment notifications:', err);
+          }
+        })();
       } else {
         await logTicketActivity(id, userId, null, 'unassigned', oldValues.assigned_to_user_id, null);
       }
@@ -729,7 +812,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
     res.json({ success: true, data: transformTicket(ticketResult.rows[0]) });
   } catch (error) {
-    console.error('Error updating ticket:', error);
+    logger.error('Error updating ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to update ticket' });
   }
 });
@@ -765,7 +848,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
 
     res.json({ success: true, message: 'Ticket deleted' });
   } catch (error) {
-    console.error('Error deleting ticket:', error);
+    logger.error('Error deleting ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to delete ticket' });
   }
 });
@@ -984,7 +1067,7 @@ router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole(
       throw txError;
     }
   } catch (error) {
-    console.error('Error merging tickets:', error);
+    logger.error('Error merging tickets:', error);
     res.status(500).json({ success: false, error: 'Failed to merge tickets' });
   } finally {
     client.release();
@@ -1002,7 +1085,12 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { id: ticketId } = req.params;
-    const { content, isInternal = false } = req.body;
+    const {
+      content,
+      isInternal = false,
+      notifyCustomer = true,  // Default: send email notification
+      replyViaEmail = false   // If true, reply in original email thread
+    } = req.body;
 
     if (!content) {
       return res.status(400).json({ success: false, error: 'Content is required' });
@@ -1034,47 +1122,140 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
         WHERE id = $1
       `, [ticketId]);
 
-      // Send email notification to customer (async, non-blocking)
-      try {
-        const ticketInfo = await query(`
-          SELECT t.title, t.ticket_number, t.contact_id, cc.email as contact_email, cc.name as contact_name,
-                 cc.notify_ticket_reply, COALESCE(u.display_name, u.username) as replier_name
-          FROM tickets t
-          LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
-          LEFT JOIN users u ON u.id = $2
-          WHERE t.id = $1
-        `, [ticketId, userId]);
+      // Only send email notification if notifyCustomer is true
+      if (notifyCustomer) {
+        try {
+          // Get ticket info with contact - try direct contact first, then fallback to customer's primary contact
+          const ticketInfo = await query(`
+            SELECT t.title, t.ticket_number, t.contact_id, t.customer_id, t.email_conversation_id, t.email_from, t.source,
+                   COALESCE(cc.email, primary_contact.email) as contact_email,
+                   COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name, primary_contact.first_name || ' ' || primary_contact.last_name, primary_contact.last_name) as contact_name,
+                   COALESCE(cc.notify_ticket_reply, primary_contact.notify_ticket_reply, true) as notify_ticket_reply,
+                   COALESCE(cc.id, primary_contact.id) as resolved_contact_id,
+                   COALESCE(u.display_name, u.username) as replier_name
+            FROM tickets t
+            LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+            LEFT JOIN customer_contacts primary_contact ON t.customer_id = primary_contact.customer_id AND primary_contact.is_primary = true
+            LEFT JOIN users u ON u.id = $2
+            WHERE t.id = $1
+          `, [ticketId, userId]);
 
-        if (ticketInfo.rows.length > 0 && ticketInfo.rows[0].contact_email && ticketInfo.rows[0].notify_ticket_reply !== false) {
-          const ticket = ticketInfo.rows[0];
-          const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${ticketId}`;
-          emailService.sendTicketReplyNotification({
-            to: ticket.contact_email,
-            customerName: ticket.contact_name || 'Kunde',
-            ticketNumber: ticket.ticket_number,
-            ticketTitle: ticket.title,
-            replyContent: content,
-            replierName: ticket.replier_name || 'Support',
-            portalUrl: portalTicketUrl,
-          }).catch(err => console.error('Failed to send ticket reply notification:', err));
+          if (ticketInfo.rows.length > 0) {
+            const ticket = ticketInfo.rows[0];
+            const recipientEmail = ticket.contact_email || ticket.email_from;
+            const recipientName = ticket.contact_name || (ticket.email_from ? ticket.email_from.split('@')[0] : 'Kunde');
 
-          // Send push notification to customer (async, non-blocking)
-          if (ticketInfo.rows[0].contact_id) {
-            sendPortalTicketNotification(
-              ticketInfo.rows[0].contact_id,
-              { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
-              'push_on_ticket_reply',
-              `Neue Antwort von ${ticket.replier_name || 'Support'}`
-            ).catch(err => console.error('Failed to send portal push notification:', err));
+            // Only send if we have an email and customer hasn't disabled notifications
+            if (recipientEmail && ticket.notify_ticket_reply !== false) {
+
+              // If replyViaEmail is true and ticket has email conversation, reply via Graph API
+              if (replyViaEmail && ticket.source === 'email' && ticket.email_conversation_id) {
+                // Reply via email thread (Graph API) - handled by mailboxMonitorService
+                const { mailboxMonitorService } = await import('../services/mailboxMonitorService');
+                mailboxMonitorService.replyToTicketEmail(organizationId, ticketId, content, ticket.replier_name || 'Support')
+                  .catch(err => logger.error('Failed to send email reply via Graph API:', err));
+              } else {
+                // Send standard notification email via SMTP
+                const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${ticketId}`;
+                emailService.sendTicketReplyNotification({
+                  to: recipientEmail,
+                  customerName: recipientName,
+                  ticketNumber: ticket.ticket_number,
+                  ticketTitle: ticket.title,
+                  replyContent: content,
+                  replierName: ticket.replier_name || 'Support',
+                  portalUrl: portalTicketUrl,
+                }).catch(err => logger.error('Failed to send ticket reply notification:', err));
+              }
+
+              // Send push notification to customer (async, non-blocking)
+              const contactIdForPush = ticket.resolved_contact_id || ticket.contact_id;
+              if (contactIdForPush) {
+                sendPortalTicketNotification(
+                  contactIdForPush,
+                  { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
+                  'push_on_ticket_reply',
+                  `Neue Antwort von ${ticket.replier_name || 'Support'}`
+                ).catch(err => logger.error('Failed to send portal push notification:', err));
+              }
+            }
           }
+        } catch (emailErr) {
+          logger.error('Error preparing ticket notification email:', emailErr);
+          // Don't fail the comment creation if email fails
         }
-      } catch (emailErr) {
-        console.error('Error preparing ticket notification email:', emailErr);
-        // Don't fail the comment creation if email fails
       }
     } else {
       await query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
     }
+
+    // Send notification to assignee (if not the commenter) - async, non-blocking
+    (async () => {
+      try {
+        // Get ticket with assignee info
+        const ticketWithAssignee = await query(`
+          SELECT t.ticket_number, t.title, t.assigned_to_user_id, t.customer_id,
+                 c.name as customer_name, u.email as assignee_email, u.username as assignee_name
+          FROM tickets t
+          LEFT JOIN customers c ON t.customer_id = c.id
+          LEFT JOIN users u ON t.assigned_to_user_id = u.id
+          WHERE t.id = $1
+        `, [ticketId]);
+
+        if (ticketWithAssignee.rows.length === 0) return;
+        const ticket = ticketWithAssignee.rows[0];
+
+        // Only notify if there's an assignee and it's not the commenter
+        if (!ticket.assigned_to_user_id || ticket.assigned_to_user_id === userId) return;
+
+        // Get commenter name
+        const commenterResult = await query(
+          "SELECT COALESCE(display_name, username) as name FROM users WHERE id = $1",
+          [userId]
+        );
+        const commenterName = commenterResult.rows[0]?.name || 'Ein Teammitglied';
+
+        // Check notification preferences for assignee
+        const prefsResult = await query(
+          'SELECT * FROM notification_preferences WHERE user_id = $1',
+          [ticket.assigned_to_user_id]
+        );
+        const prefs = prefsResult.rows[0] || {
+          push_enabled: true,
+          push_on_ticket_comment: true,
+          email_enabled: true,
+          email_on_ticket_comment: true
+        };
+
+        // Send push notification
+        if (prefs.push_enabled !== false && prefs.push_on_ticket_comment !== false) {
+          sendTicketNotification(
+            ticket.assigned_to_user_id,
+            { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
+            'push_on_ticket_comment',
+            `${commenterName}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+          ).catch(err => logger.error('Push notification error (comment to assignee):', err));
+        }
+
+        // Send email notification
+        if (prefs.email_enabled !== false && prefs.email_on_ticket_comment !== false && ticket.assignee_email) {
+          const ticketUrl = `${PORTAL_URL}/?ticket=${ticketId}`;
+          emailService.sendTicketCommentNotificationToAssignee({
+            to: ticket.assignee_email,
+            assigneeName: ticket.assignee_name,
+            commenterName,
+            ticketNumber: ticket.ticket_number,
+            ticketTitle: ticket.title,
+            commentContent: content,
+            customerName: ticket.customer_name || 'Unbekannt',
+            isFromCustomer: false, // Internal comment
+            ticketUrl
+          }).catch(err => logger.error('Email notification error (comment to assignee):', err));
+        }
+      } catch (err) {
+        logger.error('Error sending comment notification to assignee:', err);
+      }
+    })();
 
     // Log activity
     await logTicketActivity(
@@ -1104,7 +1285,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
 
     res.status(201).json({ success: true, data: transformComment(result.rows[0]) });
   } catch (error) {
-    console.error('Error adding comment:', error);
+    logger.error('Error adding comment:', error);
     res.status(500).json({ success: false, error: 'Failed to add comment' });
   }
 });
@@ -1138,7 +1319,7 @@ router.get('/:ticketId/attachments', authenticateToken, attachOrganization, asyn
         ta.file_size,
         ta.mime_type,
         ta.created_at,
-        COALESCE(u.display_name, u.username, cc.name) as uploaded_by_name,
+        COALESCE(u.display_name, u.username, cc.first_name || ' ' || cc.last_name, cc.last_name) as uploaded_by_name,
         CASE WHEN ta.uploaded_by_user_id IS NOT NULL THEN 'user' ELSE 'customer' END as uploaded_by_type
       FROM ticket_attachments ta
       LEFT JOIN users u ON ta.uploaded_by_user_id = u.id
@@ -1160,7 +1341,7 @@ router.get('/:ticketId/attachments', authenticateToken, attachOrganization, asyn
 
     res.json({ success: true, data: attachments });
   } catch (error) {
-    console.error('Get attachments error:', error);
+    logger.error('Get attachments error:', error);
     res.status(500).json({ success: false, error: 'Failed to get attachments' });
   }
 });
@@ -1227,7 +1408,7 @@ router.post('/:ticketId/attachments', authenticateToken, attachOrganization, req
 
     res.status(201).json({ success: true, data: attachments });
   } catch (error) {
-    console.error('Upload attachments error:', error);
+    logger.error('Upload attachments error:', error);
     res.status(500).json({ success: false, error: 'Failed to upload attachments' });
   }
 });
@@ -1277,7 +1458,7 @@ router.delete('/:ticketId/attachments/:attachmentId', authenticateToken, attachO
 
     res.json({ success: true, message: 'Attachment deleted' });
   } catch (error) {
-    console.error('Delete attachment error:', error);
+    logger.error('Delete attachment error:', error);
     res.status(500).json({ success: false, error: 'Failed to delete attachment' });
   }
 });
@@ -1293,7 +1474,7 @@ router.get('/debug/check', authenticateToken, attachOrganization, async (req, re
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
 
-    console.log(`🔍 Debug check for organization_id: ${organizationId}`);
+    logger.info(`🔍 Debug check for organization_id: ${organizationId}`);
 
     // Get user info
     const userResult = await query('SELECT id, username FROM users WHERE id = $1', [userId]);
@@ -1341,7 +1522,7 @@ router.get('/debug/check', authenticateToken, attachOrganization, async (req, re
       }
     });
   } catch (error) {
-    console.error('Debug check error:', error);
+    logger.error('Debug check error:', error);
     res.status(500).json({ success: false, error: 'Debug check failed' });
   }
 });
@@ -1378,7 +1559,7 @@ router.get('/contacts/:customerId', authenticateToken, attachOrganization, async
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error fetching contacts:', error);
+    logger.error('Error fetching contacts:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch contacts' });
   }
 });
@@ -1418,10 +1599,10 @@ router.post('/contacts', authenticateToken, attachOrganization, async (req, res)
     const isPrimary = parseInt(existingContacts.rows[0].count) === 0;
 
     const result = await query(`
-      INSERT INTO customer_contacts (id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+      INSERT INTO customer_contacts (id, customer_id, organization_id, last_name, email, is_primary, can_create_tickets, can_view_all_tickets,
                                      notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+      VALUES ($1, $2, (SELECT organization_id FROM customers WHERE id = $2), $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, customer_id, last_name as name, email, is_primary, can_create_tickets, can_view_all_tickets,
                 notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply, created_at
     `, [id, customerId, name, email, isPrimary, canCreateTickets, canViewAllTickets,
         notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply]);
@@ -1431,7 +1612,7 @@ router.post('/contacts', authenticateToken, attachOrganization, async (req, res)
     if (error.code === '23505') { // Unique violation
       return res.status(400).json({ success: false, error: 'Email already exists for this customer' });
     }
-    console.error('Error creating contact:', error);
+    logger.error('Error creating contact:', error);
     res.status(500).json({ success: false, error: 'Failed to create contact' });
   }
 });
@@ -1478,7 +1659,7 @@ router.put('/contacts/:id', authenticateToken, attachOrganization, async (req, r
     if (error.code === '23505') {
       return res.status(400).json({ success: false, error: 'Email already exists for this customer' });
     }
-    console.error('Error updating contact:', error);
+    logger.error('Error updating contact:', error);
     res.status(500).json({ success: false, error: 'Failed to update contact' });
   }
 });
@@ -1510,7 +1691,7 @@ router.get('/canned-responses/list', authenticateToken, attachOrganization, asyn
     const result = await query(queryText, params);
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error fetching canned responses:', error);
+    logger.error('Error fetching canned responses:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch canned responses' });
   }
 });
@@ -1537,7 +1718,7 @@ router.post('/canned-responses', authenticateToken, attachOrganization, async (r
 
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error creating canned response:', error);
+    logger.error('Error creating canned response:', error);
     res.status(500).json({ success: false, error: 'Failed to create canned response' });
   }
 });
@@ -1567,7 +1748,7 @@ router.put('/canned-responses/:id', authenticateToken, attachOrganization, async
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error updating canned response:', error);
+    logger.error('Error updating canned response:', error);
     res.status(500).json({ success: false, error: 'Failed to update canned response' });
   }
 });
@@ -1590,7 +1771,7 @@ router.delete('/canned-responses/:id', authenticateToken, attachOrganization, as
 
     res.json({ success: true, message: 'Canned response deleted' });
   } catch (error) {
-    console.error('Error deleting canned response:', error);
+    logger.error('Error deleting canned response:', error);
     res.status(500).json({ success: false, error: 'Failed to delete canned response' });
   }
 });
@@ -1615,7 +1796,7 @@ router.post('/canned-responses/:id/use', authenticateToken, attachOrganization, 
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error updating canned response usage:', error);
+    logger.error('Error updating canned response usage:', error);
     res.status(500).json({ success: false, error: 'Failed to update usage count' });
   }
 });
@@ -1828,7 +2009,7 @@ Mit freundlichen Grüßen`,
 
     res.json({ success: true, message: `${defaultResponses.length} Standard-Vorlagen erstellt`, seeded: true, count: defaultResponses.length });
   } catch (error) {
-    console.error('Error seeding canned responses:', error);
+    logger.error('Error seeding canned responses:', error);
     res.status(500).json({ success: false, error: 'Failed to seed canned responses' });
   }
 });
@@ -1854,7 +2035,7 @@ router.get('/tags/list', authenticateToken, attachOrganization, async (req, res)
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error fetching tags:', error);
+    logger.error('Error fetching tags:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch tags' });
   }
 });
@@ -1884,7 +2065,7 @@ router.post('/tags', authenticateToken, attachOrganization, async (req, res) => 
     if (error.code === '23505') {
       return res.status(400).json({ success: false, error: 'Tag with this name already exists' });
     }
-    console.error('Error creating tag:', error);
+    logger.error('Error creating tag:', error);
     res.status(500).json({ success: false, error: 'Failed to create tag' });
   }
 });
@@ -1914,7 +2095,7 @@ router.put('/tags/:id', authenticateToken, attachOrganization, async (req, res) 
     if (error.code === '23505') {
       return res.status(400).json({ success: false, error: 'Tag with this name already exists' });
     }
-    console.error('Error updating tag:', error);
+    logger.error('Error updating tag:', error);
     res.status(500).json({ success: false, error: 'Failed to update tag' });
   }
 });
@@ -1937,7 +2118,7 @@ router.delete('/tags/:id', authenticateToken, attachOrganization, async (req, re
 
     res.json({ success: true, message: 'Tag deleted' });
   } catch (error) {
-    console.error('Error deleting tag:', error);
+    logger.error('Error deleting tag:', error);
     res.status(500).json({ success: false, error: 'Failed to delete tag' });
   }
 });
@@ -1969,7 +2150,7 @@ router.get('/:ticketId/tags', authenticateToken, attachOrganization, async (req,
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error fetching ticket tags:', error);
+    logger.error('Error fetching ticket tags:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch ticket tags' });
   }
 });
@@ -2035,7 +2216,7 @@ router.post('/:ticketId/tags/:tagId', authenticateToken, attachOrganization, asy
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error adding tag to ticket:', error);
+    logger.error('Error adding tag to ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to add tag to ticket' });
   }
 });
@@ -2090,7 +2271,7 @@ router.delete('/:ticketId/tags/:tagId', authenticateToken, attachOrganization, a
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Error removing tag from ticket:', error);
+    logger.error('Error removing tag from ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to remove tag from ticket' });
   }
 });
@@ -2116,7 +2297,7 @@ export async function logTicketActivity(
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `, [id, ticketId, userId, customerContactId, actionType, oldValue, newValue, metadata ? JSON.stringify(metadata) : null]);
   } catch (error) {
-    console.error('Error logging ticket activity:', error);
+    logger.error('Error logging ticket activity:', error);
     // Don't throw - activity logging should not break main operations
   }
 }
@@ -2143,7 +2324,7 @@ router.get('/:ticketId/activities', authenticateToken, attachOrganization, async
       SELECT
         ta.*,
         COALESCE(u.display_name, u.username) as user_name,
-        cc.name as contact_name
+        COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as contact_name
       FROM ticket_activities ta
       LEFT JOIN users u ON ta.user_id = u.id
       LEFT JOIN customer_contacts cc ON ta.customer_contact_id = cc.id
@@ -2169,7 +2350,7 @@ router.get('/:ticketId/activities', authenticateToken, attachOrganization, async
 
     res.json({ success: true, data: activities });
   } catch (error) {
-    console.error('Error fetching ticket activities:', error);
+    logger.error('Error fetching ticket activities:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch ticket activities' });
   }
 });
@@ -2275,7 +2456,7 @@ router.get('/search/query', authenticateToken, attachOrganization, async (req, r
 
     res.json({ success: true, data: allTickets.map(transformTicket) });
   } catch (error) {
-    console.error('Error searching tickets:', error);
+    logger.error('Error searching tickets:', error);
     res.status(500).json({ success: false, error: 'Failed to search tickets' });
   }
 });
@@ -2323,7 +2504,7 @@ router.get('/sla/policies', authenticateToken, attachOrganization, async (req, r
 
     res.json({ success: true, data: result.rows.map(transformSlaPolicy) });
   } catch (error) {
-    console.error('Error fetching SLA policies:', error);
+    logger.error('Error fetching SLA policies:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch SLA policies' });
   }
 });
@@ -2376,7 +2557,7 @@ router.post('/sla/policies', authenticateToken, attachOrganization, requireOrgRo
 
     res.status(201).json({ success: true, data: transformSlaPolicy(result.rows[0]) });
   } catch (error) {
-    console.error('Error creating SLA policy:', error);
+    logger.error('Error creating SLA policy:', error);
     res.status(500).json({ success: false, error: 'Failed to create SLA policy' });
   }
 });
@@ -2437,7 +2618,7 @@ router.put('/sla/policies/:id', authenticateToken, attachOrganization, requireOr
 
     res.json({ success: true, data: transformSlaPolicy(result.rows[0]) });
   } catch (error) {
-    console.error('Error updating SLA policy:', error);
+    logger.error('Error updating SLA policy:', error);
     res.status(500).json({ success: false, error: 'Failed to update SLA policy' });
   }
 });
@@ -2473,7 +2654,7 @@ router.delete('/sla/policies/:id', authenticateToken, attachOrganization, requir
 
     res.json({ success: true, message: 'SLA policy deleted' });
   } catch (error) {
-    console.error('Error deleting SLA policy:', error);
+    logger.error('Error deleting SLA policy:', error);
     res.status(500).json({ success: false, error: 'Failed to delete SLA policy' });
   }
 });
@@ -2549,7 +2730,7 @@ router.post('/sla/apply/:ticketId', authenticateToken, attachOrganization, async
 
     res.json({ success: true, data: deadlines });
   } catch (error) {
-    console.error('Error applying SLA:', error);
+    logger.error('Error applying SLA:', error);
     res.status(500).json({ success: false, error: 'Failed to apply SLA' });
   }
 });
@@ -2649,7 +2830,7 @@ router.get('/tasks/all', authenticateToken, attachOrganization, async (req, res)
 
     res.json({ success: true, data: tasks });
   } catch (error) {
-    console.error('Error fetching all tasks:', error);
+    logger.error('Error fetching all tasks:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch tasks' });
   }
 });
@@ -2689,7 +2870,7 @@ router.get('/:id/tasks', authenticateToken, attachOrganization, async (req, res)
 
     res.json({ success: true, data: tasks });
   } catch (error) {
-    console.error('Error fetching ticket tasks:', error);
+    logger.error('Error fetching ticket tasks:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch tasks' });
   }
 });
@@ -2755,7 +2936,7 @@ router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole(
 
     res.status(201).json({ success: true, data: taskData });
   } catch (error) {
-    console.error('Error creating ticket task:', error);
+    logger.error('Error creating ticket task:', error);
     res.status(500).json({ success: false, error: 'Failed to create task' });
   }
 });
@@ -2904,7 +3085,7 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, re
 
     res.json({ success: true, data: taskData });
   } catch (error) {
-    console.error('Error updating ticket task:', error);
+    logger.error('Error updating ticket task:', error);
     res.status(500).json({ success: false, error: 'Failed to update task' });
   }
 });
@@ -2947,7 +3128,7 @@ router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, re
 
     res.json({ success: true, data: result.rows.map(transformTask) });
   } catch (error) {
-    console.error('Error reordering ticket tasks:', error);
+    logger.error('Error reordering ticket tasks:', error);
     res.status(500).json({ success: false, error: 'Failed to reorder tasks' });
   }
 });
@@ -2997,7 +3178,7 @@ router.delete('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization,
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting ticket task:', error);
+    logger.error('Error deleting ticket task:', error);
     res.status(500).json({ success: false, error: 'Failed to delete task' });
   }
 });

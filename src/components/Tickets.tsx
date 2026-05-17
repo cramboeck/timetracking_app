@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { LayoutDashboard, List, Keyboard, Columns, CheckSquare } from 'lucide-react';
+import { IconButton } from './ui';
 import { Ticket, Customer, Project } from '../types';
 import { TicketList } from './TicketList';
 import { TicketDetail } from './TicketDetail';
@@ -21,6 +22,7 @@ interface TicketsProps {
 }
 
 export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, onTicketIdHandled }: TicketsProps) => {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(initialTicketId || null);
 
   // Handle initial ticket ID from URL
@@ -33,7 +35,10 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    return (localStorage.getItem('ticketViewMode') as ViewMode) || 'dashboard';
+    const saved = (localStorage.getItem('ticketViewMode') as ViewMode) || 'dashboard';
+    // Kanban is not usable on mobile – fall back to list
+    if (isMobile && saved === 'kanban') return 'list';
+    return saved;
   });
 
   // Reference to TicketList for keyboard navigation
@@ -231,7 +236,8 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
               <List size={16} />
               <span className="hidden sm:inline">Liste</span>
             </button>
-            <button
+            {/* Kanban is hidden on mobile – not touch-friendly */}
+            {!isMobile && <button
               onClick={() => handleViewModeChange('kanban')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                 viewMode === 'kanban'
@@ -241,7 +247,7 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
             >
               <Columns size={16} />
               <span className="hidden sm:inline">Kanban</span>
-            </button>
+            </button>}
             <button
               onClick={() => handleViewModeChange('tasks')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
@@ -255,14 +261,14 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
             </button>
           </div>
           {/* Keyboard shortcuts hint */}
-          <button
+          <IconButton
             onClick={() => setShowHelp(true)}
-            className="hidden sm:flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-            title="Tastenkürzel anzeigen"
-          >
-            <Keyboard size={14} />
-            <span>?</span>
-          </button>
+            icon={<><Keyboard size={14} /><span className="text-xs">?</span></>}
+            variant="default"
+            size="sm"
+            tooltip="Tastenkürzel anzeigen"
+            className="hidden sm:flex items-center gap-1.5"
+          />
         </div>
       </div>
 

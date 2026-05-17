@@ -5,10 +5,13 @@
  * Uses Microsoft Graph API with application permissions.
  */
 
+import crypto from 'crypto';
 import { ClientSecretCredential } from '@azure/identity';
 import { Client } from '@microsoft/microsoft-graph-client';
 import { TokenCredentialAuthenticationProvider } from '@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials';
 import { getConfig, Microsoft365Config } from './microsoft365ConfigService';
+import { query } from '../config/database';
+import { logger } from '../utils/logger';
 
 export interface EmailMessage {
   id: string;
@@ -61,7 +64,7 @@ class MailboxMonitorService {
     const config = await getConfig(organizationId);
 
     if (!config || !config.tenantId || !config.clientId || !config.clientSecret) {
-      console.error('Microsoft 365 not configured for organization:', organizationId);
+      logger.error('Microsoft 365 not configured for organization:', organizationId);
       return null;
     }
 
@@ -80,7 +83,7 @@ class MailboxMonitorService {
 
       return { client, config };
     } catch (error) {
-      console.error('Failed to create Graph client:', error);
+      logger.error('Failed to create Graph client:', error);
       return null;
     }
   }
@@ -169,15 +172,173 @@ class MailboxMonitorService {
       }));
 
       const status = includeRead ? 'all' : 'unread';
-      console.log(`📬 Found ${emails.length} ${status} emails in ${mailbox}`);
+      logger.info(`📬 Found ${emails.length} ${status} emails in ${mailbox}`);
       return { success: true, emails };
     } catch (error: any) {
-      console.error('Failed to get unread emails:', error.message);
+      logger.error('Failed to get unread emails:', error.message);
       return {
         success: false,
         emails: [],
         error: `Fehler beim Abrufen der E-Mails: ${error.message}`
       };
+    }
+  }
+
+  /**
+   * Get emails from a specific mailbox (e.g., user's personal mailbox)
+   * @param organizationId - Organization ID
+   * @param mailboxEmail - The email address of the mailbox to query
+   * @param options - Options for fetching emails
+   */
+  async getEmailsFromMailbox(
+    organizationId: string,
+    mailboxEmail: string,
+    options: {
+      maxResults?: number;
+      folder?: string;
+      includeRead?: boolean;
+    } = {}
+  ): Promise<MailboxMonitorResult> {
+    const clientData = await this.createClient(organizationId);
+
+    if (!clientData) {
+      return { success: false, emails: [], error: 'Microsoft 365 nicht konfiguriert' };
+    }
+
+    const { client } = clientData;
+    const { maxResults = 50, folder = 'inbox', includeRead = false } = options;
+
+    try {
+      let apiRequest = client
+        .api(`/users/${mailboxEmail}/mailFolders/${folder}/messages`)
+        .top(maxResults)
+        .orderby('receivedDateTime desc')
+        .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance');
+
+      // Only filter by unread if not including read emails
+      if (!includeRead) {
+        apiRequest = apiRequest.filter('isRead eq false');
+      }
+
+      const response = await apiRequest.get();
+
+      const emails: EmailMessage[] = (response.value || []).map((msg: any) => ({
+        id: msg.id,
+        conversationId: msg.conversationId,
+        subject: msg.subject || '(Kein Betreff)',
+        bodyPreview: msg.bodyPreview || '',
+        body: {
+          contentType: msg.body?.contentType?.toLowerCase() || 'text',
+          content: msg.body?.content || '',
+        },
+        from: {
+          name: msg.from?.emailAddress?.name || '',
+          email: msg.from?.emailAddress?.address || '',
+        },
+        toRecipients: (msg.toRecipients || []).map((r: any) => ({
+          name: r.emailAddress?.name || '',
+          email: r.emailAddress?.address || '',
+        })),
+        ccRecipients: (msg.ccRecipients || []).map((r: any) => ({
+          name: r.emailAddress?.name || '',
+          email: r.emailAddress?.address || '',
+        })),
+        receivedDateTime: msg.receivedDateTime,
+        hasAttachments: msg.hasAttachments || false,
+        isRead: msg.isRead || false,
+        importance: msg.importance || 'normal',
+      }));
+
+      return { success: true, emails };
+    } catch (error: any) {
+      logger.error('Failed to get emails from mailbox:', error.message);
+      return {
+        success: false,
+        emails: [],
+        error: `Fehler beim Abrufen der E-Mails: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Get a specific email by ID from a mailbox
+   */
+  async getEmailFromMailbox(
+    organizationId: string,
+    mailboxEmail: string,
+    messageId: string
+  ): Promise<EmailMessage | null> {
+    const clientData = await this.createClient(organizationId);
+
+    if (!clientData) {
+      return null;
+    }
+
+    const { client } = clientData;
+
+    try {
+      const msg = await client
+        .api(`/users/${mailboxEmail}/messages/${messageId}`)
+        .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance')
+        .get();
+
+      return {
+        id: msg.id,
+        conversationId: msg.conversationId,
+        subject: msg.subject || '(Kein Betreff)',
+        bodyPreview: msg.bodyPreview || '',
+        body: {
+          contentType: msg.body?.contentType?.toLowerCase() || 'text',
+          content: msg.body?.content || '',
+        },
+        from: {
+          name: msg.from?.emailAddress?.name || '',
+          email: msg.from?.emailAddress?.address || '',
+        },
+        toRecipients: (msg.toRecipients || []).map((r: any) => ({
+          name: r.emailAddress?.name || '',
+          email: r.emailAddress?.address || '',
+        })),
+        ccRecipients: (msg.ccRecipients || []).map((r: any) => ({
+          name: r.emailAddress?.name || '',
+          email: r.emailAddress?.address || '',
+        })),
+        receivedDateTime: msg.receivedDateTime,
+        hasAttachments: msg.hasAttachments || false,
+        isRead: msg.isRead || false,
+        importance: msg.importance || 'normal',
+      };
+    } catch (error: any) {
+      logger.error('Failed to get email from mailbox:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Mark email as read in a specific mailbox
+   */
+  async markAsReadInMailbox(
+    organizationId: string,
+    mailboxEmail: string,
+    messageId: string
+  ): Promise<boolean> {
+    const clientData = await this.createClient(organizationId);
+
+    if (!clientData) {
+      return false;
+    }
+
+    const { client } = clientData;
+
+    try {
+      await client
+        .api(`/users/${mailboxEmail}/messages/${messageId}`)
+        .patch({ isRead: true });
+
+      return true;
+    } catch (error: any) {
+      logger.error('Failed to mark email as read:', error.message);
+      return false;
     }
   }
 
@@ -235,7 +396,7 @@ class MailboxMonitorService {
         importance: msg.importance || 'normal',
       };
     } catch (error: any) {
-      console.error('Failed to get email:', error.message);
+      logger.error('Failed to get email:', error.message);
       return null;
     }
   }
@@ -274,7 +435,7 @@ class MailboxMonitorService {
       for (const att of response.value || []) {
         // Skip non-file attachments (like item attachments or reference attachments)
         if (att['@odata.type'] !== '#microsoft.graph.fileAttachment') {
-          console.log(`Skipping non-file attachment: ${att.name} (${att['@odata.type']})`);
+          logger.info(`Skipping non-file attachment: ${att.name} (${att['@odata.type']})`);
           continue;
         }
 
@@ -292,15 +453,15 @@ class MailboxMonitorService {
             contentBytes: fullAttachment.contentBytes,
           });
 
-          console.log(`Fetched attachment: ${fullAttachment.name} (${fullAttachment.size} bytes)`);
+          logger.info(`Fetched attachment: ${fullAttachment.name} (${fullAttachment.size} bytes)`);
         } catch (attError: any) {
-          console.error(`Failed to fetch attachment ${att.name}:`, attError.message);
+          logger.error(`Failed to fetch attachment ${att.name}:`, attError.message);
         }
       }
 
       return attachments;
     } catch (error: any) {
-      console.error('Failed to get attachments:', error.message);
+      logger.error('Failed to get attachments:', error.message);
       return [];
     }
   }
@@ -333,7 +494,7 @@ class MailboxMonitorService {
 
       return true;
     } catch (error: any) {
-      console.error('Failed to mark email as read:', error.message);
+      logger.error('Failed to mark email as read:', error.message);
       return false;
     }
   }
@@ -364,10 +525,10 @@ class MailboxMonitorService {
         .api(`/users/${mailbox}/messages/${messageId}`)
         .patch({ isRead: false });
 
-      console.log(`📧 Marked email ${messageId} as unread`);
+      logger.info(`📧 Marked email ${messageId} as unread`);
       return true;
     } catch (error: any) {
-      console.error('Failed to mark email as unread:', error.message);
+      logger.error('Failed to mark email as unread:', error.message);
       return false;
     }
   }
@@ -392,7 +553,7 @@ class MailboxMonitorService {
       }
     }
 
-    console.log(`📧 Marked ${success}/${messageIds.length} emails as unread`);
+    logger.info(`📧 Marked ${success}/${messageIds.length} emails as unread`);
     return { success, failed };
   }
 
@@ -426,7 +587,7 @@ class MailboxMonitorService {
         .get();
 
       if (!folders.value || folders.value.length === 0) {
-        console.error(`Folder '${folderName}' not found`);
+        logger.error(`Folder '${folderName}' not found`);
         return false;
       }
 
@@ -439,7 +600,7 @@ class MailboxMonitorService {
 
       return true;
     } catch (error: any) {
-      console.error('Failed to move email:', error.message);
+      logger.error('Failed to move email:', error.message);
       return false;
     }
   }
@@ -481,10 +642,64 @@ class MailboxMonitorService {
         },
       });
 
-      console.log(`📧 Reply sent for message ${messageId}`);
+      logger.info(`📧 Reply sent for message ${messageId}`);
       return true;
     } catch (error: any) {
-      console.error('Failed to reply to email:', error.message);
+      logger.error('Failed to reply to email:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Reply to a ticket's email thread
+   * Looks up the last inbound email for the ticket and replies to it
+   */
+  async replyToTicketEmail(
+    organizationId: string,
+    ticketId: string,
+    replyContent: string,
+    senderName: string = 'Support'
+  ): Promise<boolean> {
+    try {
+      // Get the last inbound email for this ticket
+      const result = await query(`
+        SELECT message_id, subject
+        FROM ticket_emails
+        WHERE ticket_id = $1 AND organization_id = $2 AND direction = 'inbound'
+        ORDER BY received_at DESC
+        LIMIT 1
+      `, [ticketId, organizationId]);
+
+      if (result.rows.length === 0) {
+        logger.error(`No inbound email found for ticket ${ticketId}`);
+        return false;
+      }
+
+      const lastEmail = result.rows[0];
+
+      // Format the reply content as HTML with proper signature
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+          ${replyContent.replace(/\n/g, '<br>')}
+          <br><br>
+          <p style="color: #666; font-size: 12px;">
+            Mit freundlichen Grüßen,<br>
+            <strong>${senderName}</strong>
+          </p>
+        </div>
+      `;
+
+      // Save the outbound email to ticket_emails
+      const emailId = crypto.randomUUID();
+      await query(`
+        INSERT INTO ticket_emails (id, ticket_id, organization_id, message_id, direction, subject, body_preview, sender_email, sender_name, received_at)
+        VALUES ($1, $2, $3, $4, 'outbound', $5, $6, $7, $8, NOW())
+      `, [emailId, ticketId, organizationId, `reply-${emailId}`, lastEmail.subject, replyContent.substring(0, 250), 'support', senderName]);
+
+      // Send the reply via Graph API
+      return await this.replyToEmail(organizationId, lastEmail.message_id, htmlContent, false, 'support');
+    } catch (error: any) {
+      logger.error('Failed to reply to ticket email:', error.message);
       return false;
     }
   }

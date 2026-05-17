@@ -3,6 +3,7 @@ import { pool } from '../config/database';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/adminAuth';
 import { auditLog } from '../services/auditLog';
+import { logger } from '../utils/logger';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
@@ -69,7 +70,7 @@ router.get('/stats', async (req, res) => {
       todayEntries
     });
   } catch (error) {
-    console.error('Error fetching admin stats:', error);
+    logger.error('Error fetching admin stats:', error);
     res.status(500).json({ error: 'Failed to fetch statistics' });
   }
 });
@@ -132,7 +133,7 @@ router.get('/users', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching users:', error);
+    logger.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
@@ -188,7 +189,7 @@ router.get('/users/:id', async (req, res) => {
       recent_entries: entriesResult.rows
     });
   } catch (error) {
-    console.error('Error fetching user details:', error);
+    logger.error('Error fetching user details:', error);
     res.status(500).json({ error: 'Failed to fetch user details' });
   }
 });
@@ -204,7 +205,7 @@ router.put('/users/:id/role', async (req: AuthRequest, res) => {
     }
 
     // Check if user exists
-    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    const userResult = await pool.query('SELECT id FROM users WHERE id = $1', [id]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -223,7 +224,7 @@ router.put('/users/:id/role', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: 'User role updated' });
   } catch (error) {
-    console.error('Error updating user role:', error);
+    logger.error('Error updating user role:', error);
     res.status(500).json({ error: 'Failed to update user role' });
   }
 });
@@ -260,7 +261,7 @@ router.delete('/users/:id', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
-    console.error('Error deleting user:', error);
+    logger.error('Error deleting user:', error);
     res.status(500).json({ error: 'Failed to delete user' });
   }
 });
@@ -331,7 +332,7 @@ router.get('/audit-logs', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching audit logs:', error);
+    logger.error('Error fetching audit logs:', error);
     res.status(500).json({ error: 'Failed to fetch audit logs' });
   }
 });
@@ -392,7 +393,7 @@ router.get('/analytics', async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error fetching analytics:', error);
+    logger.error('Error fetching analytics:', error);
     res.status(500).json({ error: 'Failed to fetch analytics' });
   }
 });
@@ -473,7 +474,7 @@ router.get('/maintenance', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching maintenance announcements:', error);
+    logger.error('Error fetching maintenance announcements:', error);
     res.status(500).json({ error: 'Failed to fetch maintenance announcements' });
   }
 });
@@ -508,7 +509,7 @@ router.get('/maintenance/stats', async (req, res) => {
       notifications: customerStats.rows[0]
     });
   } catch (error) {
-    console.error('Error fetching maintenance stats:', error);
+    logger.error('Error fetching maintenance stats:', error);
     res.status(500).json({ error: 'Failed to fetch maintenance stats' });
   }
 });
@@ -553,7 +554,7 @@ router.delete('/maintenance/:id', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: 'Wartungsankündigung gelöscht' });
   } catch (error) {
-    console.error('Error deleting maintenance announcement:', error);
+    logger.error('Error deleting maintenance announcement:', error);
     res.status(500).json({ error: 'Failed to delete maintenance announcement' });
   }
 });
@@ -615,7 +616,7 @@ router.delete('/maintenance/bulk', async (req: AuthRequest, res) => {
       message: `${deletedCount} Wartungsankündigung(en) gelöscht`
     });
   } catch (error) {
-    console.error('Error bulk deleting maintenance announcements:', error);
+    logger.error('Error bulk deleting maintenance announcements:', error);
     res.status(500).json({ error: 'Failed to delete maintenance announcements' });
   }
 });
@@ -701,7 +702,7 @@ router.get('/features', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching features:', error);
+    logger.error('Error fetching features:', error);
     res.status(500).json({ error: 'Failed to fetch features' });
   }
 });
@@ -757,7 +758,7 @@ router.put('/features/:userId/:packageName', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: `Package ${packageName} ${enabled ? 'enabled' : 'disabled'} for user` });
   } catch (error) {
-    console.error('Error updating feature:', error);
+    logger.error('Error updating feature:', error);
     res.status(500).json({ error: 'Failed to update feature' });
   }
 });
@@ -815,7 +816,7 @@ router.post('/features/bulk', async (req: AuthRequest, res) => {
       message: `Package ${packageName} ${enabled ? 'enabled' : 'disabled'} for ${updatedCount} users`
     });
   } catch (error) {
-    console.error('Error bulk updating features:', error);
+    logger.error('Error bulk updating features:', error);
     res.status(500).json({ error: 'Failed to bulk update features' });
   }
 });
@@ -876,7 +877,7 @@ router.get('/backups', async (req, res) => {
 
     res.json({ backups, backupDir: BACKUP_DIR });
   } catch (error) {
-    console.error('Error listing backups:', error);
+    logger.error('Error listing backups:', error);
     res.status(500).json({ error: 'Failed to list backups' });
   }
 });
@@ -943,7 +944,7 @@ router.post('/backups', async (req: AuthRequest, res) => {
       }
     });
   } catch (error: any) {
-    console.error('Error creating backup:', error);
+    logger.error('Error creating backup:', error);
     res.status(500).json({ error: `Backup fehlgeschlagen: ${error.message}` });
   }
 });
@@ -1016,7 +1017,7 @@ router.post('/backups/:filename/restore', async (req: AuthRequest, res) => {
       message: 'Datenbank erfolgreich wiederhergestellt. Server-Neustart empfohlen.'
     });
   } catch (error: any) {
-    console.error('Error restoring backup:', error);
+    logger.error('Error restoring backup:', error);
     res.status(500).json({ error: `Wiederherstellung fehlgeschlagen: ${error.message}` });
   }
 });
@@ -1056,7 +1057,7 @@ router.delete('/backups/:filename', async (req: AuthRequest, res) => {
       message: 'Backup gelöscht'
     });
   } catch (error: any) {
-    console.error('Error deleting backup:', error);
+    logger.error('Error deleting backup:', error);
     res.status(500).json({ error: `Löschen fehlgeschlagen: ${error.message}` });
   }
 });
@@ -1105,7 +1106,7 @@ router.delete('/backups', async (req: AuthRequest, res) => {
       message: `${deletedCount} alte Backup(s) gelöscht`
     });
   } catch (error: any) {
-    console.error('Error cleaning up backups:', error);
+    logger.error('Error cleaning up backups:', error);
     res.status(500).json({ error: `Aufräumen fehlgeschlagen: ${error.message}` });
   }
 });
@@ -1194,7 +1195,7 @@ router.get('/system/status', async (req, res) => {
 
     res.json(status);
   } catch (error: any) {
-    console.error('Error fetching system status:', error);
+    logger.error('Error fetching system status:', error);
     res.status(500).json({ error: 'Failed to fetch system status' });
   }
 });
@@ -1280,7 +1281,7 @@ router.get('/database/stats', async (req, res) => {
       slowQueries
     });
   } catch (error: any) {
-    console.error('Error fetching database stats:', error);
+    logger.error('Error fetching database stats:', error);
     res.status(500).json({ error: 'Failed to fetch database statistics' });
   }
 });
@@ -1314,7 +1315,7 @@ router.post('/database/vacuum', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: 'VACUUM ANALYZE erfolgreich ausgeführt' });
   } catch (error: any) {
-    console.error('Error running vacuum:', error);
+    logger.error('Error running vacuum:', error);
     res.status(500).json({ error: `VACUUM fehlgeschlagen: ${error.message}` });
   }
 });
@@ -1410,7 +1411,7 @@ router.get('/security/sessions', async (req, res) => {
       }
     });
   } catch (error: any) {
-    console.error('Error fetching security data:', error);
+    logger.error('Error fetching security data:', error);
     res.status(500).json({ error: 'Failed to fetch security data' });
   }
 });
@@ -1438,7 +1439,7 @@ router.delete('/security/sessions/:userId', async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: 'Sessions invalidiert' });
   } catch (error: any) {
-    console.error('Error invalidating sessions:', error);
+    logger.error('Error invalidating sessions:', error);
     res.status(500).json({ error: 'Failed to invalidate sessions' });
   }
 });
@@ -1489,7 +1490,7 @@ router.get('/system/logs', async (req, res) => {
 
     res.json({ logs, logType });
   } catch (error: any) {
-    console.error('Error fetching logs:', error);
+    logger.error('Error fetching logs:', error);
     res.status(500).json({ error: 'Failed to fetch logs' });
   }
 });
@@ -1512,7 +1513,7 @@ router.get('/notifications', async (req, res) => {
     if (error.code === '42P01') {
       res.json({ notifications: [], tableExists: false });
     } else {
-      console.error('Error fetching notifications:', error);
+      logger.error('Error fetching notifications:', error);
       res.status(500).json({ error: 'Failed to fetch notifications' });
     }
   }
@@ -1557,7 +1558,7 @@ router.post('/notifications', async (req: AuthRequest, res) => {
 
     res.json({ success: true, notification: result.rows[0] });
   } catch (error: any) {
-    console.error('Error creating notification:', error);
+    logger.error('Error creating notification:', error);
     res.status(500).json({ error: 'Failed to create notification' });
   }
 });
@@ -1578,7 +1579,7 @@ router.delete('/notifications/:id', async (req: AuthRequest, res) => {
 
     res.json({ success: true });
   } catch (error: any) {
-    console.error('Error deleting notification:', error);
+    logger.error('Error deleting notification:', error);
     res.status(500).json({ error: 'Failed to delete notification' });
   }
 });
@@ -1596,8 +1597,339 @@ router.put('/notifications/:id/toggle', async (req: AuthRequest, res) => {
 
     res.json({ success: true, notification: result.rows[0] });
   } catch (error: any) {
-    console.error('Error toggling notification:', error);
+    logger.error('Error toggling notification:', error);
     res.status(500).json({ error: 'Failed to toggle notification' });
+  }
+});
+
+// ============================================
+// Email Dashboard Routes
+// ============================================
+
+// GET /api/admin/email/stats - Get email statistics
+router.get('/email/stats', async (req, res) => {
+  try {
+    // Get stats for different time periods
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const monthAgo = new Date(today);
+    monthAgo.setDate(monthAgo.getDate() - 30);
+
+    // Total emails today
+    const todayResult = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+    `, [today.toISOString()]);
+
+    // Emails this week
+    const weekResult = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+    `, [weekAgo.toISOString()]);
+
+    // Emails this month
+    const monthResult = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+    `, [monthAgo.toISOString()]);
+
+    // By provider
+    const providerResult = await pool.query(`
+      SELECT
+        provider,
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+      GROUP BY provider
+    `, [monthAgo.toISOString()]);
+
+    // By email type
+    const typeResult = await pool.query(`
+      SELECT
+        email_type,
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+      GROUP BY email_type
+      ORDER BY total DESC
+      LIMIT 10
+    `, [monthAgo.toISOString()]);
+
+    // Average processing time
+    const avgTimeResult = await pool.query(`
+      SELECT AVG(processing_time_ms) as avg_time
+      FROM email_logs
+      WHERE created_at >= $1 AND processing_time_ms IS NOT NULL
+    `, [monthAgo.toISOString()]);
+
+    // Daily trend (last 7 days)
+    const trendResult = await pool.query(`
+      SELECT
+        DATE(created_at) as date,
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+      FROM email_logs
+      WHERE created_at >= $1
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+    `, [weekAgo.toISOString()]);
+
+    // Recent failures
+    const recentFailuresResult = await pool.query(`
+      SELECT id, email_type, recipient_email, error_message, created_at
+      FROM email_logs
+      WHERE status = 'failed'
+      ORDER BY created_at DESC
+      LIMIT 5
+    `);
+
+    res.json({
+      today: {
+        total: parseInt(todayResult.rows[0]?.total || 0),
+        sent: parseInt(todayResult.rows[0]?.sent || 0),
+        failed: parseInt(todayResult.rows[0]?.failed || 0),
+      },
+      week: {
+        total: parseInt(weekResult.rows[0]?.total || 0),
+        sent: parseInt(weekResult.rows[0]?.sent || 0),
+        failed: parseInt(weekResult.rows[0]?.failed || 0),
+      },
+      month: {
+        total: parseInt(monthResult.rows[0]?.total || 0),
+        sent: parseInt(monthResult.rows[0]?.sent || 0),
+        failed: parseInt(monthResult.rows[0]?.failed || 0),
+      },
+      byProvider: providerResult.rows.map(r => ({
+        provider: r.provider,
+        total: parseInt(r.total),
+        sent: parseInt(r.sent),
+        failed: parseInt(r.failed),
+      })),
+      byType: typeResult.rows.map(r => ({
+        type: r.email_type,
+        total: parseInt(r.total),
+        sent: parseInt(r.sent),
+        failed: parseInt(r.failed),
+      })),
+      avgProcessingTime: Math.round(parseFloat(avgTimeResult.rows[0]?.avg_time || 0)),
+      trend: trendResult.rows.map(r => ({
+        date: r.date,
+        total: parseInt(r.total),
+        sent: parseInt(r.sent),
+        failed: parseInt(r.failed),
+      })),
+      recentFailures: recentFailuresResult.rows,
+    });
+  } catch (error: any) {
+    // Table might not exist yet
+    if (error.code === '42P01') {
+      res.json({
+        today: { total: 0, sent: 0, failed: 0 },
+        week: { total: 0, sent: 0, failed: 0 },
+        month: { total: 0, sent: 0, failed: 0 },
+        byProvider: [],
+        byType: [],
+        avgProcessingTime: 0,
+        trend: [],
+        recentFailures: [],
+        tableExists: false,
+      });
+    } else {
+      logger.error('Error fetching email stats:', error);
+      res.status(500).json({ error: 'Failed to fetch email statistics' });
+    }
+  }
+});
+
+// GET /api/admin/email/logs - Get email logs with pagination
+router.get('/email/logs', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+    const status = req.query.status as string;
+    const emailType = req.query.type as string;
+    const search = req.query.search as string;
+
+    let whereClause = '1=1';
+    const params: any[] = [];
+    let paramIndex = 0;
+
+    if (status) {
+      paramIndex++;
+      whereClause += ` AND status = $${paramIndex}`;
+      params.push(status);
+    }
+
+    if (emailType) {
+      paramIndex++;
+      whereClause += ` AND email_type = $${paramIndex}`;
+      params.push(emailType);
+    }
+
+    if (search) {
+      paramIndex++;
+      whereClause += ` AND (recipient_email ILIKE $${paramIndex} OR subject ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+    }
+
+    // Get total count
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM email_logs WHERE ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    // Get logs
+    const logsResult = await pool.query(`
+      SELECT
+        el.*,
+        u.username,
+        u.email as user_email
+      FROM email_logs el
+      LEFT JOIN users u ON el.user_id = u.id
+      WHERE ${whereClause}
+      ORDER BY el.created_at DESC
+      LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+    `, [...params, limit, offset]);
+
+    res.json({
+      logs: logsResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error: any) {
+    if (error.code === '42P01') {
+      res.json({ logs: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 }, tableExists: false });
+    } else {
+      logger.error('Error fetching email logs:', error);
+      res.status(500).json({ error: 'Failed to fetch email logs' });
+    }
+  }
+});
+
+// GET /api/admin/email/config - Get current email configuration
+router.get('/email/config', async (req, res) => {
+  try {
+    // Import emailService dynamically to get current state
+    const { emailService } = await import('../services/emailService');
+    const result = await emailService.testConnection();
+
+    res.json({
+      provider: result.provider,
+      status: result.success ? 'connected' : 'disconnected',
+      error: result.error,
+      details: result.details,
+      config: {
+        emailProvider: process.env.EMAIL_PROVIDER || 'auto',
+        smtpConfigured: !!process.env.EMAIL_HOST,
+        graphConfigured: !!process.env.AZURE_CLIENT_ID && !!process.env.GRAPH_MAIL_FROM,
+        testMode: process.env.EMAIL_TEST_MODE === 'true',
+        fromAddress: process.env.EMAIL_FROM || process.env.GRAPH_MAIL_FROM || 'Not configured',
+      },
+    });
+  } catch (error: any) {
+    logger.error('Error fetching email config:', error);
+    res.status(500).json({ error: 'Failed to fetch email configuration' });
+  }
+});
+
+// POST /api/admin/email/test - Send a test email
+router.post('/email/test', async (req: AuthRequest, res) => {
+  try {
+    const { to } = req.body;
+    const testEmail = to || req.user?.email;
+
+    if (!testEmail) {
+      return res.status(400).json({ error: 'Email address required' });
+    }
+
+    // Import emailService
+    const { emailService } = await import('../services/emailService');
+
+    const success = await emailService.sendEmail({
+      to: testEmail,
+      subject: '🧪 Test-Email von RamboFlow Admin',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #7c3aed;">Test-Email erfolgreich!</h2>
+          <p>Diese Test-Email wurde vom Admin Portal gesendet.</p>
+          <p><strong>Zeitpunkt:</strong> ${new Date().toLocaleString('de-DE')}</p>
+          <p><strong>Gesendet von:</strong> ${req.user?.username}</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+          <p style="color: #6b7280; font-size: 12px;">
+            Diese E-Mail wurde automatisch von RamboFlow generiert.
+          </p>
+        </div>
+      `,
+      text: `Test-Email erfolgreich!\n\nDiese Test-Email wurde vom Admin Portal gesendet.\nZeitpunkt: ${new Date().toLocaleString('de-DE')}\nGesendet von: ${req.user?.username}`,
+    }, {
+      emailType: 'admin_test',
+      subject: '🧪 Test-Email von RamboFlow Admin',
+      recipientEmail: testEmail,
+      userId: req.user?.id,
+      metadata: { sentBy: req.user?.username },
+    });
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'email.test',
+      details: JSON.stringify({ to: testEmail, success }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    if (success) {
+      res.json({ success: true, message: `Test-Email wurde an ${testEmail} gesendet` });
+    } else {
+      res.status(500).json({ success: false, error: 'Email konnte nicht gesendet werden' });
+    }
+  } catch (error: any) {
+    logger.error('Error sending test email:', error);
+    res.status(500).json({ error: error.message || 'Failed to send test email' });
+  }
+});
+
+// GET /api/admin/email/types - Get distinct email types
+router.get('/email/types', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT email_type, COUNT(*) as count
+      FROM email_logs
+      GROUP BY email_type
+      ORDER BY count DESC
+    `);
+    res.json({ types: result.rows });
+  } catch (error: any) {
+    if (error.code === '42P01') {
+      res.json({ types: [], tableExists: false });
+    } else {
+      logger.error('Error fetching email types:', error);
+      res.status(500).json({ error: 'Failed to fetch email types' });
+    }
   }
 });
 

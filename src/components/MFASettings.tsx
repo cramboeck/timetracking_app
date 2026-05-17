@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Check, X, Copy, Key, AlertTriangle, RefreshCw, Eye, EyeOff, Smartphone, Trash2, Monitor } from 'lucide-react';
 import { mfaApi, TrustedDevice } from '../services/api';
 import { Modal } from './Modal';
+import { Button, IconButton } from './ui/Button';
 
 interface MFASettingsProps {
   onStatusChange?: (enabled: boolean) => void;
@@ -260,7 +261,7 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
             )}
 
             <div className="flex flex-wrap gap-3">
-              <button
+              <Button
                 onClick={() => {
                   setRegeneratePassword('');
                   setRegenerateCode('');
@@ -268,23 +269,23 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
                   setNewRecoveryCodes(null);
                   setRegenerateModalOpen(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg transition-colors"
+                variant="secondary"
+                icon={<RefreshCw size={18} />}
               >
-                <RefreshCw size={18} />
                 Neue Wiederherstellungscodes
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setDisablePassword('');
                   setDisableCode('');
                   setDisableError('');
                   setDisableModalOpen(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg transition-colors"
+                variant="danger"
+                icon={<X size={18} />}
               >
-                <X size={18} />
                 2FA deaktivieren
-              </button>
+              </Button>
             </div>
 
             {/* Trusted Devices Section */}
@@ -297,13 +298,15 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
                   </h4>
                 </div>
                 {trustedDevices.length > 0 && (
-                  <button
+                  <Button
                     onClick={handleRemoveAllDevices}
-                    disabled={trustedDevicesLoading}
-                    className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50"
+                    loading={trustedDevicesLoading}
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 dark:text-red-400"
                   >
                     Alle entfernen
-                  </button>
+                  </Button>
                 )}
               </div>
 
@@ -340,14 +343,13 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
                           </div>
                         </div>
                       </div>
-                      <button
+                      <IconButton
                         onClick={() => handleRemoveDevice(device.id)}
                         disabled={removingDeviceId === device.id}
-                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
-                        title="Gerät entfernen"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                        icon={<Trash2 size={18} />}
+                        variant="danger"
+                        tooltip="Gerät entfernen"
+                      />
                     </div>
                   ))}
                 </div>
@@ -366,14 +368,14 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
               <li>Authy</li>
             </ul>
 
-            <button
+            <Button
               onClick={handleStartSetup}
-              disabled={setupLoading}
-              className="flex items-center gap-2 px-5 py-2.5 bg-accent-primary hover:bg-accent-dark text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md disabled:opacity-50"
+              loading={setupLoading}
+              icon={<Key size={18} />}
+              size="lg"
             >
-              <Key size={18} />
               {setupLoading ? 'Wird eingerichtet...' : '2FA aktivieren'}
-            </button>
+            </Button>
 
             {setupError && (
               <p className="text-red-600 dark:text-red-400 text-sm">{setupError}</p>
@@ -416,22 +418,21 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
                   <code className="px-3 py-2 bg-gray-100 dark:bg-dark-200 rounded font-mono text-sm">
                     {setupData.secret}
                   </code>
-                  <button
+                  <IconButton
                     onClick={() => copyToClipboard(setupData.secret)}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded transition-colors"
-                    title="Kopieren"
-                  >
-                    <Copy size={16} className="text-gray-500" />
-                  </button>
+                    icon={<Copy size={16} />}
+                    tooltip="Kopieren"
+                  />
                 </div>
               </div>
 
-              <button
+              <Button
                 onClick={() => setSetupStep('verify')}
-                className="w-full px-4 py-3 bg-accent-primary hover:bg-accent-dark text-white rounded-lg font-medium transition-all"
+                fullWidth
+                size="lg"
               >
                 Weiter
-              </button>
+              </Button>
             </>
           )}
 
@@ -455,19 +456,23 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
               )}
 
               <div className="flex gap-3">
-                <button
+                <Button
                   onClick={() => setSetupStep('qr')}
-                  className="flex-1 px-4 py-3 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg font-medium transition-all"
+                  variant="secondary"
+                  size="lg"
+                  fullWidth
                 >
                   Zurück
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleVerifySetup}
-                  disabled={setupLoading || verifyCode.length !== 6}
-                  className="flex-1 px-4 py-3 bg-accent-primary hover:bg-accent-dark text-white rounded-lg font-medium transition-all disabled:opacity-50"
+                  disabled={verifyCode.length !== 6}
+                  loading={setupLoading}
+                  size="lg"
+                  fullWidth
                 >
                   {setupLoading ? 'Wird überprüft...' : 'Bestätigen'}
-                </button>
+                </Button>
               </div>
             </>
           )}
@@ -502,21 +507,24 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
                     </div>
                   ))}
                 </div>
-                <button
+                <Button
                   onClick={() => copyAllRecoveryCodes(setupData.recoveryCodes)}
-                  className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-dark-300 hover:bg-gray-300 dark:hover:bg-dark-400 rounded-lg transition-colors"
+                  variant="secondary"
+                  fullWidth
+                  icon={<Copy size={16} />}
+                  className="mt-3"
                 >
-                  <Copy size={16} />
                   Alle Codes kopieren
-                </button>
+                </Button>
               </div>
 
-              <button
+              <Button
                 onClick={handleCompleteSetup}
-                className="w-full px-4 py-3 bg-accent-primary hover:bg-accent-dark text-white rounded-lg font-medium transition-all"
+                fullWidth
+                size="lg"
               >
                 Fertig
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -550,13 +558,12 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
                 placeholder="Dein Passwort"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white pr-10"
               />
-              <button
+              <IconButton
                 type="button"
                 onClick={() => setShowDisablePassword(!showDisablePassword)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
-              >
-                {showDisablePassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
+                icon={showDisablePassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                className="absolute right-2 top-1/2 -translate-y-1/2"
+              />
             </div>
           </div>
 
@@ -578,19 +585,21 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
           )}
 
           <div className="flex gap-3 pt-2">
-            <button
+            <Button
               onClick={() => setDisableModalOpen(false)}
-              className="flex-1 px-4 py-2 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg transition-colors"
+              variant="secondary"
+              fullWidth
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleDisable}
-              disabled={disableLoading}
-              className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
+              loading={disableLoading}
+              variant="danger"
+              fullWidth
             >
               {disableLoading ? 'Wird deaktiviert...' : 'Deaktivieren'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -624,13 +633,12 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
                     placeholder="Dein Passwort"
                     className="w-full px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white pr-10"
                   />
-                  <button
+                  <IconButton
                     type="button"
                     onClick={() => setShowRegeneratePassword(!showRegeneratePassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
-                  >
-                    {showRegeneratePassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
+                    icon={showRegeneratePassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    className="absolute right-2 top-1/2 -translate-y-1/2"
+                  />
                 </div>
               </div>
 
@@ -652,19 +660,20 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
               )}
 
               <div className="flex gap-3 pt-2">
-                <button
+                <Button
                   onClick={() => setRegenerateModalOpen(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-900 dark:text-white rounded-lg transition-colors"
+                  variant="secondary"
+                  fullWidth
                 >
                   Abbrechen
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleRegenerateRecoveryCodes}
-                  disabled={regenerateLoading}
-                  className="flex-1 px-4 py-2 bg-accent-primary hover:bg-accent-dark text-white rounded-lg transition-colors disabled:opacity-50"
+                  loading={regenerateLoading}
+                  fullWidth
                 >
                   {regenerateLoading ? 'Wird generiert...' : 'Generieren'}
-                </button>
+                </Button>
               </div>
             </>
           ) : (
@@ -691,24 +700,27 @@ export const MFASettings: React.FC<MFASettingsProps> = ({ onStatusChange }) => {
                     </div>
                   ))}
                 </div>
-                <button
+                <Button
                   onClick={() => copyAllRecoveryCodes(newRecoveryCodes)}
-                  className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-dark-300 hover:bg-gray-300 dark:hover:bg-dark-400 rounded-lg transition-colors"
+                  variant="secondary"
+                  fullWidth
+                  icon={<Copy size={16} />}
+                  className="mt-3"
                 >
-                  <Copy size={16} />
                   Alle Codes kopieren
-                </button>
+                </Button>
               </div>
 
-              <button
+              <Button
                 onClick={() => {
                   setRegenerateModalOpen(false);
                   setNewRecoveryCodes(null);
                 }}
-                className="w-full px-4 py-3 bg-accent-primary hover:bg-accent-dark text-white rounded-lg font-medium transition-all"
+                fullWidth
+                size="lg"
               >
                 Fertig
-              </button>
+              </Button>
             </>
           )}
         </div>

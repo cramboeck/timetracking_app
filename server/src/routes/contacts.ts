@@ -1,0 +1,625 @@
+/**
+ * Customer Contacts Routes
+ *
+ * CRUD operations for CRM contacts - people associated with customers
+ */
+
+import { Router, Request, Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
+import { query } from '../config/database';
+import { authenticateToken } from '../middleware/auth';
+import { validate } from '../middleware/validation';
+import { getUserOrganizationId } from '../middleware/organization';
+import { emailService } from '../services/emailService';
+import { logger } from '../utils/logger';
+
+const router = Router();
+
+// All routes require authentication
+router.use(authenticateToken);
+
+// ============================================
+// VALIDATION SCHEMAS
+// ============================================
+
+const contactRoleSchema = z.enum(['contact', 'decision_maker', 'technical', 'billing', 'other']);
+const preferredContactMethodSchema = z.enum(['email', 'phone', 'mobile']);
+
+const createContactSchema = z.object({
+  customer_id: z.string().uuid('customer_id must be a valid UUID'),
+  last_name: z.string().min(1, 'last_name is required').max(100),
+  first_name: z.string().max(100).optional().nullable(),
+  email: z.string().email('Invalid email').max(255).optional().nullable(),
+  phone: z.string().max(50).optional().nullable(),
+  mobile: z.string().max(50).optional().nullable(),
+  job_title: z.string().max(150).optional().nullable(),
+  department: z.string().max(150).optional().nullable(),
+  role: contactRoleSchema.optional(),
+  is_primary: z.boolean().optional(),
+  preferred_contact_method: preferredContactMethodSchema.optional(),
+  notify_on_ticket_update: z.boolean().optional(),
+  notify_on_maintenance: z.boolean().optional(),
+  linkedin_url: z.string().url('Invalid URL').max(500).optional().nullable(),
+  notes: z.string().max(5000).optional().nullable(),
+});
+
+const updateContactSchema = createContactSchema.partial().omit({ customer_id: true });
+
+const portalAccessSchema = z.object({
+  send_invitation: z.boolean().optional(),
+});
+
+const resendInvitationSchema = z.object({}).strict();
+
+// ============================================
+// GET /api/contacts - List all contacts
+// ============================================
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const {
+      customer_id,
+      role,
+      search,
+      limit = '50',
+      offset = '0'
+    } = req.query;
+
+    let sql = `
+      SELECT
+        cc.*,
+        c.name as customer_name,
+        c.color as customer_color,
+        CASE WHEN cc.password_hash IS NOT NULL OR cpu.id IS NOT NULL THEN true ELSE false END as has_portal_access
+      FROM customer_contacts cc
+      LEFT JOIN customers c ON cc.customer_id = c.id
+      LEFT JOIN customer_portal_users cpu ON cc.portal_user_id = cpu.id
+      WHERE cc.organization_id = $1
+    `;
+    const params: any[] = [organizationId];
+    let paramIndex = 2;
+
+    if (customer_id) {
+      sql += ` AND cc.customer_id = $${paramIndex}`;
+      params.push(customer_id);
+      paramIndex++;
+    }
+
+    if (role) {
+      sql += ` AND cc.role = $${paramIndex}`;
+      params.push(role);
+      paramIndex++;
+    }
+
+    if (search) {
+      sql += ` AND (
+        cc.first_name ILIKE $${paramIndex} OR
+        cc.last_name ILIKE $${paramIndex} OR
+        cc.email ILIKE $${paramIndex} OR
+        cc.job_title ILIKE $${paramIndex} OR
+        c.name ILIKE $${paramIndex}
+      )`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    sql += ` ORDER BY cc.is_primary DESC, cc.last_name ASC, cc.first_name ASC`;
+    sql += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit as string), parseInt(offset as string));
+
+    const result = await query(sql, params);
+
+    // Get total count
+    let countSql = `
+      SELECT COUNT(*) as total
+      FROM customer_contacts cc
+      LEFT JOIN customers c ON cc.customer_id = c.id
+      WHERE cc.organization_id = $1
+    `;
+    const countParams: any[] = [organizationId];
+    let countParamIndex = 2;
+
+    if (customer_id) {
+      countSql += ` AND cc.customer_id = $${countParamIndex}`;
+      countParams.push(customer_id);
+      countParamIndex++;
+    }
+
+    if (role) {
+      countSql += ` AND cc.role = $${countParamIndex}`;
+      countParams.push(role);
+      countParamIndex++;
+    }
+
+    if (search) {
+      countSql += ` AND (
+        cc.first_name ILIKE $${countParamIndex} OR
+        cc.last_name ILIKE $${countParamIndex} OR
+        cc.email ILIKE $${countParamIndex} OR
+        cc.job_title ILIKE $${countParamIndex} OR
+        c.name ILIKE $${countParamIndex}
+      )`;
+      countParams.push(`%${search}%`);
+    }
+
+    const countResult = await query(countSql, countParams);
+
+    res.json({
+      contacts: result.rows,
+      total: parseInt(countResult.rows[0].total),
+      limit: parseInt(limit as string),
+      offset: parseInt(offset as string)
+    });
+  } catch (error) {
+    logger.error('Error fetching contacts:', error);
+    res.status(500).json({ error: 'Failed to fetch contacts' });
+  }
+});
+
+// ============================================
+// GET /api/contacts/:id - Get single contact
+// ============================================
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const { id } = req.params;
+
+    const result = await query(`
+      SELECT
+        cc.*,
+        c.name as customer_name,
+        c.color as customer_color,
+        CASE WHEN cc.password_hash IS NOT NULL OR cpu.id IS NOT NULL THEN true ELSE false END as has_portal_access,
+        cpu.last_login as portal_last_login
+      FROM customer_contacts cc
+      LEFT JOIN customers c ON cc.customer_id = c.id
+      LEFT JOIN customer_portal_users cpu ON cc.portal_user_id = cpu.id
+      WHERE cc.id = $1 AND cc.organization_id = $2
+    `, [id, organizationId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    // Get recent interactions for this contact
+    const interactions = await query(`
+      SELECT id, type, subject, occurred_at, outcome
+      FROM customer_interactions
+      WHERE contact_id = $1
+      ORDER BY occurred_at DESC
+      LIMIT 5
+    `, [id]);
+
+    res.json({
+      ...result.rows[0],
+      recent_interactions: interactions.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching contact:', error);
+    res.status(500).json({ error: 'Failed to fetch contact' });
+  }
+});
+
+// ============================================
+// POST /api/contacts - Create contact
+// ============================================
+router.post('/', validate(createContactSchema), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const {
+      customer_id,
+      first_name,
+      last_name,
+      email,
+      phone,
+      mobile,
+      job_title,
+      department,
+      role = 'contact',
+      is_primary = false,
+      preferred_contact_method = 'email',
+      notify_on_ticket_update = true,
+      notify_on_maintenance = true,
+      linkedin_url,
+      notes
+    } = req.body;
+
+    // Verify customer belongs to organization
+    const customerCheck = await query(
+      'SELECT id FROM customers WHERE id = $1 AND organization_id = $2',
+      [customer_id, organizationId]
+    );
+
+    if (customerCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const id = uuidv4();
+
+    // If this is set as primary, unset other primary contacts for this customer
+    if (is_primary) {
+      await query(
+        'UPDATE customer_contacts SET is_primary = false WHERE customer_id = $1 AND organization_id = $2',
+        [customer_id, organizationId]
+      );
+    }
+
+    const result = await query(`
+      INSERT INTO customer_contacts (
+        id, organization_id, customer_id, first_name, last_name, email, phone, mobile,
+        job_title, department, role, is_primary, preferred_contact_method,
+        notify_on_ticket_update, notify_on_maintenance, linkedin_url, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      RETURNING *
+    `, [
+      id, organizationId, customer_id, first_name, last_name, email, phone, mobile,
+      job_title, department, role, is_primary, preferred_contact_method,
+      notify_on_ticket_update, notify_on_maintenance, linkedin_url, notes
+    ]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    logger.error('Error creating contact:', error);
+    res.status(500).json({ error: 'Failed to create contact' });
+  }
+});
+
+// ============================================
+// PUT /api/contacts/:id - Update contact
+// ============================================
+router.put('/:id', validate(updateContactSchema), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const { id } = req.params;
+    const {
+      first_name,
+      last_name,
+      email,
+      phone,
+      mobile,
+      job_title,
+      department,
+      role,
+      is_primary,
+      preferred_contact_method,
+      notify_on_ticket_update,
+      notify_on_maintenance,
+      linkedin_url,
+      notes
+    } = req.body;
+
+    // Get current contact to check customer_id for primary handling
+    const current = await query(
+      'SELECT customer_id FROM customer_contacts WHERE id = $1 AND organization_id = $2',
+      [id, organizationId]
+    );
+
+    if (current.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    // If setting as primary, unset other primary contacts
+    if (is_primary === true) {
+      await query(
+        'UPDATE customer_contacts SET is_primary = false WHERE customer_id = $1 AND organization_id = $2 AND id != $3',
+        [current.rows[0].customer_id, organizationId, id]
+      );
+    }
+
+    const result = await query(`
+      UPDATE customer_contacts SET
+        first_name = COALESCE($3, first_name),
+        last_name = COALESCE($4, last_name),
+        email = COALESCE($5, email),
+        phone = COALESCE($6, phone),
+        mobile = COALESCE($7, mobile),
+        job_title = COALESCE($8, job_title),
+        department = COALESCE($9, department),
+        role = COALESCE($10, role),
+        is_primary = COALESCE($11, is_primary),
+        preferred_contact_method = COALESCE($12, preferred_contact_method),
+        notify_on_ticket_update = COALESCE($13, notify_on_ticket_update),
+        notify_on_maintenance = COALESCE($14, notify_on_maintenance),
+        linkedin_url = COALESCE($15, linkedin_url),
+        notes = COALESCE($16, notes),
+        updated_at = NOW()
+      WHERE id = $1 AND organization_id = $2
+      RETURNING *
+    `, [
+      id, organizationId, first_name, last_name, email, phone, mobile,
+      job_title, department, role, is_primary, preferred_contact_method,
+      notify_on_ticket_update, notify_on_maintenance, linkedin_url, notes
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    logger.error('Error updating contact:', error);
+    res.status(500).json({ error: 'Failed to update contact' });
+  }
+});
+
+// ============================================
+// DELETE /api/contacts/:id - Delete contact
+// ============================================
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const { id } = req.params;
+
+    const result = await query(
+      'DELETE FROM customer_contacts WHERE id = $1 AND organization_id = $2 RETURNING id',
+      [id, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    res.json({ success: true, deleted: id });
+  } catch (error) {
+    logger.error('Error deleting contact:', error);
+    res.status(500).json({ error: 'Failed to delete contact' });
+  }
+});
+
+// ============================================
+// POST /api/contacts/:id/portal-access - Enable portal access
+// ============================================
+router.post('/:id/portal-access', validate(portalAccessSchema), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    const userId = (req as any).user.id;
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const { id } = req.params;
+    const { send_invitation = true } = req.body;
+
+    // Get contact info
+    const contact = await query(`
+      SELECT cc.*, c.id as customer_id
+      FROM customer_contacts cc
+      JOIN customers c ON cc.customer_id = c.id
+      WHERE cc.id = $1 AND cc.organization_id = $2
+    `, [id, organizationId]);
+
+    if (contact.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const contactData = contact.rows[0];
+
+    if (!contactData.email) {
+      return res.status(400).json({ error: 'Contact must have an email address for portal access' });
+    }
+
+    // Check if portal user already exists (via old system or new direct password)
+    if (contactData.portal_user_id || contactData.password_hash) {
+      return res.status(400).json({ error: 'Contact already has portal access' });
+    }
+
+    // Check if email is already used by another portal user
+    const existingPortalUser = await query(
+      'SELECT id FROM customer_portal_users WHERE email = $1 AND organization_id = $2',
+      [contactData.email, organizationId]
+    );
+
+    if (existingPortalUser.rows.length > 0) {
+      // Link to existing portal user
+      await query(
+        'UPDATE customer_contacts SET portal_user_id = $1 WHERE id = $2',
+        [existingPortalUser.rows[0].id, id]
+      );
+
+      return res.json({
+        success: true,
+        portal_user_id: existingPortalUser.rows[0].id,
+        message: 'Linked to existing portal user'
+      });
+    }
+
+    // Create new portal user
+    const portalUserId = uuidv4();
+    const resetToken = uuidv4();
+    const resetExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    // Temporary placeholder hash - user must set password via reset link
+    const temporaryPasswordHash = '$2a$10$PLACEHOLDER_HASH_USER_MUST_RESET_PASSWORD';
+
+    await query(`
+      INSERT INTO customer_portal_users (
+        id, owner_user_id, organization_id, customer_id, email, password_hash, name,
+        is_primary_contact, is_active, password_reset_token, password_reset_expires
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, $10)
+    `, [
+      portalUserId, userId, organizationId, contactData.customer_id,
+      contactData.email, temporaryPasswordHash,
+      `${contactData.first_name || ''} ${contactData.last_name}`.trim(),
+      contactData.is_primary, resetToken, resetExpires
+    ]);
+
+    // Link contact to portal user
+    await query(
+      'UPDATE customer_contacts SET portal_user_id = $1 WHERE id = $2',
+      [portalUserId, id]
+    );
+
+    // Send invitation email if requested
+    let emailSent = false;
+    if (send_invitation) {
+      // Get sender name (current user)
+      const senderResult = await query(
+        'SELECT username, email FROM users WHERE id = $1',
+        [userId]
+      );
+      const senderName = senderResult.rows[0]?.username || senderResult.rows[0]?.email || undefined;
+
+      // Get customer name
+      const customerResult = await query(
+        'SELECT name FROM customers WHERE id = $1',
+        [contactData.customer_id]
+      );
+      const customerName = customerResult.rows[0]?.name || 'Unser Unternehmen';
+
+      emailSent = await emailService.sendPortalInvitationEmail({
+        to: contactData.email,
+        contactName: `${contactData.first_name || ''} ${contactData.last_name || ''}`.trim() || contactData.email,
+        customerName,
+        invitationToken: resetToken,
+        expiresAt: resetExpires,
+        senderName,
+        organizationId,
+      });
+
+      logger.info(`📧 Portal invitation email ${emailSent ? 'sent' : 'failed'} for contact: ${contactData.email}`);
+    }
+
+    res.json({
+      success: true,
+      portal_user_id: portalUserId,
+      invitation_token: resetToken,
+      email_sent: emailSent,
+      message: send_invitation
+        ? (emailSent ? 'Portal access created and invitation sent' : 'Portal access created but email failed')
+        : 'Portal access created'
+    });
+  } catch (error) {
+    logger.error('Error enabling portal access:', error);
+    res.status(500).json({ error: 'Failed to enable portal access' });
+  }
+});
+
+// ============================================
+// POST /api/contacts/:id/resend-invitation - Resend portal invitation
+// ============================================
+router.post('/:id/resend-invitation', validate(resendInvitationSchema), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    const userId = (req as any).user.id;
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const { id } = req.params;
+
+    // Get contact with portal user info
+    const contact = await query(`
+      SELECT cc.*, cpu.id as portal_user_id, cpu.email as portal_email,
+             c.id as customer_id, c.name as customer_name
+      FROM customer_contacts cc
+      LEFT JOIN customer_portal_users cpu ON cc.portal_user_id = cpu.id
+      JOIN customers c ON cc.customer_id = c.id
+      WHERE cc.id = $1 AND cc.organization_id = $2
+    `, [id, organizationId]);
+
+    if (contact.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const contactData = contact.rows[0];
+
+    if (!contactData.portal_user_id) {
+      return res.status(400).json({ error: 'Contact does not have portal access' });
+    }
+
+    // Generate new reset token
+    const resetToken = uuidv4();
+    const resetExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    // Update portal user with new token
+    await query(
+      `UPDATE customer_portal_users
+       SET password_reset_token = $1, password_reset_expires = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [resetToken, resetExpires, contactData.portal_user_id]
+    );
+
+    // Get sender name
+    const senderResult = await query(
+      'SELECT username, email FROM users WHERE id = $1',
+      [userId]
+    );
+    const senderName = senderResult.rows[0]?.username || senderResult.rows[0]?.email || undefined;
+
+    // Send invitation email
+    const emailSent = await emailService.resendPortalInvitationEmail({
+      to: contactData.portal_email || contactData.email,
+      contactName: `${contactData.first_name || ''} ${contactData.last_name || ''}`.trim() || contactData.email,
+      customerName: contactData.customer_name,
+      invitationToken: resetToken,
+      expiresAt: resetExpires,
+      senderName,
+      organizationId,
+    });
+
+    logger.info(`📧 Portal invitation resend ${emailSent ? 'sent' : 'failed'} for contact: ${contactData.email}`);
+
+    res.json({
+      success: true,
+      email_sent: emailSent,
+      invitation_token: resetToken,
+      expires_at: resetExpires.toISOString(),
+      message: emailSent ? 'Invitation resent successfully' : 'Failed to send invitation email'
+    });
+  } catch (error) {
+    logger.error('Error resending portal invitation:', error);
+    res.status(500).json({ error: 'Failed to resend invitation' });
+  }
+});
+
+// ============================================
+// GET /api/contacts/customer/:customerId - Get contacts for customer
+// ============================================
+router.get('/customer/:customerId', async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const { customerId } = req.params;
+
+    const result = await query(`
+      SELECT
+        cc.*,
+        CASE WHEN cc.password_hash IS NOT NULL OR cpu.id IS NOT NULL THEN true ELSE false END as has_portal_access,
+        cpu.last_login as portal_last_login
+      FROM customer_contacts cc
+      LEFT JOIN customer_portal_users cpu ON cc.portal_user_id = cpu.id
+      WHERE cc.customer_id = $1 AND cc.organization_id = $2
+      ORDER BY cc.is_primary DESC, cc.last_name ASC
+    `, [customerId, organizationId]);
+
+    res.json(result.rows);
+  } catch (error) {
+    logger.error('Error fetching customer contacts:', error);
+    res.status(500).json({ error: 'Failed to fetch customer contacts' });
+  }
+});
+
+export default router;

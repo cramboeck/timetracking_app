@@ -1,23 +1,28 @@
 import {
   Clock, List, Calendar,
   Ticket, Monitor, Bell, Wrench, Mail,
-  BarChart3, Wallet, FileText, FileSignature, Share2, FileInput,
-  Settings, Briefcase, HeadphonesIcon, TrendingUp, ListTodo, Shield
+  BarChart3, Wallet, FileText, FileSignature, FileInput,
+  Settings, Briefcase, HeadphonesIcon, ListTodo,
+  Target, Users, LayoutDashboard, Building2, Receipt
 } from 'lucide-react';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { DesktopSidebar } from './DesktopSidebar';
 
-// Area definitions
-export type Area = 'arbeiten' | 'support' | 'business';
+// Area definitions - New structure for market-ready product
+export type Area = 'dashboard' | 'arbeiten' | 'support' | 'crm' | 'finanzen';
 export type SubView =
+  // Dashboard (standalone)
+  | 'overview'
   // Arbeiten
   | 'stopwatch' | 'list' | 'calendar' | 'manual' | 'tasks'
   // Support
   | 'tickets' | 'devices' | 'alerts' | 'maintenance' | 'inbox'
-  // Business
-  | 'dashboard' | 'billing' | 'reports' | 'contracts' | 'social-media' | 'invoices'
+  // CRM
+  | 'crm-dashboard' | 'customers' | 'leads' | 'pipeline' | 'contracts'
+  // Finanzen
+  | 'invoices' | 'billing' | 'reports'
   // Settings & Admin (special)
-  | 'settings' | 'admin';
+  | 'settings' | 'admin' | 'social-media';
 
 interface AreaNavigationProps {
   currentArea: Area;
@@ -27,6 +32,13 @@ interface AreaNavigationProps {
 }
 
 const areaConfig = {
+  dashboard: {
+    icon: LayoutDashboard,
+    label: 'Dashboard',
+    subViews: [
+      { view: 'overview' as SubView, icon: BarChart3, label: 'Übersicht' },
+    ],
+  },
   arbeiten: {
     icon: Briefcase,
     label: 'Arbeiten',
@@ -48,15 +60,23 @@ const areaConfig = {
       { view: 'maintenance' as SubView, icon: Wrench, label: 'Wartung' },
     ],
   },
-  business: {
-    icon: TrendingUp,
-    label: 'Business',
+  crm: {
+    icon: Building2,
+    label: 'CRM',
     subViews: [
-      { view: 'dashboard' as SubView, icon: BarChart3, label: 'Dashboard' },
-      { view: 'invoices' as SubView, icon: FileInput, label: 'Rechnungen' },
+      { view: 'crm-dashboard' as SubView, icon: BarChart3, label: 'Dashboard' },
+      { view: 'customers' as SubView, icon: Users, label: 'Kunden' },
+      { view: 'leads' as SubView, icon: Target, label: 'Leads' },
+      { view: 'pipeline' as SubView, icon: BarChart3, label: 'Pipeline' },
       { view: 'contracts' as SubView, icon: FileSignature, label: 'Verträge' },
-      { view: 'billing' as SubView, icon: Wallet, label: 'Finanzen' },
-      { view: 'social-media' as SubView, icon: Share2, label: 'Social Media' },
+    ],
+  },
+  finanzen: {
+    icon: Receipt,
+    label: 'Finanzen',
+    subViews: [
+      { view: 'invoices' as SubView, icon: FileInput, label: 'Rechnungen' },
+      { view: 'billing' as SubView, icon: Wallet, label: 'Abrechnung' },
       { view: 'reports' as SubView, icon: FileText, label: 'Berichte' },
     ],
   },
@@ -70,8 +90,8 @@ export const AreaNavigation = ({
 }: AreaNavigationProps) => {
   const isDesktop = useIsDesktop();
 
-  // Show all areas - swipe navigation allows access to all
-  const visibleAreas: Area[] = ['arbeiten', 'support', 'business'];
+  // Show areas based on packages - dashboard always visible as entry point
+  const visibleAreas: Area[] = ['dashboard', 'arbeiten', 'support', 'crm', 'finanzen'];
 
   const currentAreaConfig = areaConfig[currentArea];
 
@@ -178,18 +198,22 @@ export const AreaNavigation = ({
 
 // Helper to get area from subView
 export const getAreaFromSubView = (subView: SubView): Area => {
+  if (['overview'].includes(subView)) return 'dashboard';
   if (['stopwatch', 'list', 'calendar', 'manual', 'tasks'].includes(subView)) return 'arbeiten';
   if (['tickets', 'devices', 'alerts', 'maintenance', 'inbox'].includes(subView)) return 'support';
-  if (['dashboard', 'billing', 'reports', 'contracts', 'social-media', 'invoices'].includes(subView)) return 'business';
-  return 'arbeiten'; // Default
+  if (['crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts'].includes(subView)) return 'crm';
+  if (['invoices', 'billing', 'reports'].includes(subView)) return 'finanzen';
+  return 'dashboard'; // Default to dashboard
 };
 
 // Helper to get default subView for area
 export const getDefaultSubView = (area: Area): SubView => {
   switch (area) {
+    case 'dashboard': return 'overview';
     case 'arbeiten': return 'stopwatch';
     case 'support': return 'tickets';
-    case 'business': return 'dashboard';
-    default: return 'stopwatch';
+    case 'crm': return 'crm-dashboard';
+    case 'finanzen': return 'invoices';
+    default: return 'overview';
   }
 };

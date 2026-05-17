@@ -4,6 +4,7 @@ import {
   X, Ticket, Monitor, Clock
 } from 'lucide-react';
 import { ninjaApi, NinjaAlert, NinjaRMMConfig } from '../services/api';
+import { Button, IconButton } from './ui/Button';
 
 export const AlertsView = () => {
   const [alerts, setAlerts] = useState<NinjaAlert[]>([]);
@@ -180,14 +181,14 @@ export const AlertsView = () => {
             {alerts.length} Alerts synchronisiert
           </p>
         </div>
-        <button
+        <Button
           onClick={handleSync}
           disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+          loading={syncing}
+          icon={!syncing ? <RefreshCw size={16} /> : undefined}
         >
-          <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
           {syncing ? 'Sync...' : 'Sync'}
-        </button>
+        </Button>
       </div>
 
       {error && (
@@ -319,12 +320,12 @@ export const AlertsView = () => {
                   </p>
                 </div>
               </div>
-              <button
+              <IconButton
                 onClick={() => setSelectedAlert(null)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-gray-500" />
-              </button>
+                icon={<X size={20} />}
+                size="lg"
+                tooltip="Schliessen"
+              />
             </div>
 
             {/* Modal Content */}
@@ -380,32 +381,33 @@ export const AlertsView = () => {
             <div className="flex justify-between gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
               <div className="flex gap-2">
                 {!selectedAlert.ticketId && (
-                  <button
+                  <Button
                     onClick={() => handleCreateTicket(selectedAlert.id)}
                     disabled={creatingTicket}
-                    className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+                    loading={creatingTicket}
+                    icon={<Ticket size={16} />}
                   >
-                    <Ticket size={16} />
                     {creatingTicket ? 'Erstelle...' : 'Ticket erstellen'}
-                  </button>
+                  </Button>
                 )}
                 {!selectedAlert.resolved && (
-                  <button
+                  <Button
                     onClick={() => handleResolve(selectedAlert.id)}
                     disabled={resolvingAlert}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    loading={resolvingAlert}
+                    variant="success"
+                    icon={<CheckCircle size={16} />}
                   >
-                    <CheckCircle size={16} />
-                    {resolvingAlert ? 'Markiere...' : 'Als gelöst markieren'}
-                  </button>
+                    {resolvingAlert ? 'Markiere...' : 'Als gelost markieren'}
+                  </Button>
                 )}
               </div>
-              <button
+              <Button
                 onClick={() => setSelectedAlert(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                variant="secondary"
               >
-                Schließen
-              </button>
+                Schliessen
+              </Button>
             </div>
           </div>
         </div>

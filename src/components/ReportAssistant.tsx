@@ -1,7 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
-import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2, Send, Copy, Link, CheckCircle, XCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2, Send, Copy, Link, CheckCircle, XCircle, AlertCircle, ExternalLink, Table, FileSpreadsheet } from 'lucide-react';
+import { Button, IconButton } from './ui';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
+import * as Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../contexts/AuthContext';
 import { userApi } from '../services/api';
 import { roundTimeUp } from '../utils/timeRounding';
@@ -199,7 +202,7 @@ export const ReportAssistant = ({
     total_hours: number;
     entry_count: number;
     project_count: number;
-    status: 'saved' | 'pending' | 'approved' | 'rejected';
+    status: 'saved' | 'pending' | 'approved' | 'rejected' | 'revision_requested' | 'superseded';
     created_at: string;
     reviewed_at: string | null;
     expires_at: string | null;
@@ -212,6 +215,13 @@ export const ReportAssistant = ({
   const [savedReportsFilter, setSavedReportsFilter] = useState<'all' | 'saved' | 'pending' | 'approved' | 'rejected'>('all');
 
   // Send for approval state
+  interface CustomerContact {
+    id: string;
+    name: string;
+    email: string;
+    position?: string;
+    isPrimary?: boolean;
+  }
   const [sendApprovalDialog, setSendApprovalDialog] = useState<{
     show: boolean;
     report: SavedReport | null;
@@ -219,7 +229,11 @@ export const ReportAssistant = ({
     name: string;
     isSending: boolean;
     testMode: boolean;
-  }>({ show: false, report: null, email: '', name: '', isSending: false, testMode: true });
+    contacts: CustomerContact[];
+    loadingContacts: boolean;
+    includePdf: boolean;
+    revisionOfId?: string;
+  }>({ show: false, report: null, email: '', name: '', isSending: false, testMode: true, contacts: [], loadingContacts: false, includePdf: true });
 
   // Calculate effective date range
   const dateRange = useMemo(() => {
@@ -964,6 +978,146 @@ export const ReportAssistant = ({
     openPdfConfigModal();
   };
 
+  // CSV Export function
+  const exportCSV = () => {
+    for (const customerId of Array.from(selectedCustomers)) {
+      const customerData = reportData.find(d => d.customer.id === customerId);
+      if (customerData) {
+        const customerEntries = getCustomerEntries(customerId);
+
+        // Prepare CSV data with German headers
+        const csvData = customerEntries.map(entry => ({
+          'Datum': entry.date.toLocaleDateString('de-DE'),
+          'Wochentag': entry.weekday,
+          'Projekt': entry.project.name,
+          'Aktivität': entry.activity?.name || '-',
+          'Beschreibung': entry.description,
+          'Stunden': entry.hours.toFixed(2).replace('.', ','),
+          ...(showAmounts && { 'Betrag (€)': entry.amount.toFixed(2).replace('.', ',') })
+        }));
+
+        // Add summary row
+        const totalHours = customerEntries.reduce((sum, e) => sum + e.hours, 0);
+        const totalAmount = customerEntries.reduce((sum, e) => sum + e.amount, 0);
+        csvData.push({
+          'Datum': '',
+          'Wochentag': '',
+          'Projekt': '',
+          'Aktivität': '',
+          'Beschreibung': 'GESAMT',
+          'Stunden': totalHours.toFixed(2).replace('.', ','),
+          ...(showAmounts && { 'Betrag (€)': totalAmount.toFixed(2).replace('.', ',') })
+        });
+
+        // Generate CSV with papaparse
+        const csv = Papa.unparse(csvData, {
+          delimiter: ';', // German Excel default
+          quotes: true
+        });
+
+        // Add BOM for proper Excel encoding
+        const bom = '\uFEFF';
+        const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+
+        // Generate filename
+        let dateStr: string;
+        switch (dateRangeType) {
+          case 'month':
+            dateStr = selectedMonth.replace('-', '_');
+            break;
+          case 'quarter':
+            dateStr = selectedQuarter.replace('-', '_');
+            break;
+          case 'year':
+            dateStr = selectedYear;
+            break;
+          default:
+            dateStr = `${customStartDate}_${customEndDate}`;
+        }
+
+        // Download file
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Zeiten_${customerData.customer.name.replace(/\s+/g, '_')}_${dateStr}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    }
+  };
+
+  // Excel Export function
+  const exportExcel = () => {
+    for (const customerId of Array.from(selectedCustomers)) {
+      const customerData = reportData.find(d => d.customer.id === customerId);
+      if (customerData) {
+        const customerEntries = getCustomerEntries(customerId);
+
+        // Prepare Excel data with German headers
+        const excelData = customerEntries.map(entry => ({
+          'Datum': entry.date.toLocaleDateString('de-DE'),
+          'Wochentag': entry.weekday,
+          'Projekt': entry.project.name,
+          'Aktivität': entry.activity?.name || '-',
+          'Beschreibung': entry.description,
+          'Stunden': entry.hours,
+          ...(showAmounts && { 'Betrag (€)': entry.amount })
+        }));
+
+        // Add summary row
+        const totalHours = customerEntries.reduce((sum, e) => sum + e.hours, 0);
+        const totalAmount = customerEntries.reduce((sum, e) => sum + e.amount, 0);
+        excelData.push({
+          'Datum': '',
+          'Wochentag': '',
+          'Projekt': '',
+          'Aktivität': '',
+          'Beschreibung': 'GESAMT',
+          'Stunden': totalHours,
+          ...(showAmounts && { 'Betrag (€)': totalAmount })
+        });
+
+        // Create workbook and worksheet
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        const wb = XLSX.utils.book_new();
+
+        // Set column widths
+        ws['!cols'] = [
+          { wch: 12 },  // Datum
+          { wch: 8 },   // Wochentag
+          { wch: 25 },  // Projekt
+          { wch: 20 },  // Aktivität
+          { wch: 50 },  // Beschreibung
+          { wch: 10 },  // Stunden
+          ...(showAmounts ? [{ wch: 12 }] : [])  // Betrag
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Zeiterfassung');
+
+        // Generate filename
+        let dateStr: string;
+        switch (dateRangeType) {
+          case 'month':
+            dateStr = selectedMonth.replace('-', '_');
+            break;
+          case 'quarter':
+            dateStr = selectedQuarter.replace('-', '_');
+            break;
+          case 'year':
+            dateStr = selectedYear;
+            break;
+          default:
+            dateStr = `${customStartDate}_${customEndDate}`;
+        }
+
+        // Download file
+        XLSX.writeFile(wb, `Zeiten_${customerData.customer.name.replace(/\s+/g, '_')}_${dateStr}.xlsx`);
+      }
+    }
+  };
+
   // Check for existing reports before saving
   const checkForDuplicates = async (): Promise<ExistingReport[]> => {
     const token = localStorage.getItem('auth_token');
@@ -1233,16 +1387,300 @@ export const ReportAssistant = ({
     }
   };
 
+  // Download saved report as PDF
+  const downloadSavedReport = async (report: SavedReport) => {
+    try {
+      // Convert saved time_entries to ReportEntry format
+      const reportEntries: ReportEntry[] = report.time_entries.map((entry: any) => ({
+        date: new Date(entry.date),
+        weekday: entry.weekday || getWeekdayAbbr(new Date(entry.date)),
+        project: {
+          id: '',
+          name: entry.projectName || 'Projekt',
+          customerId: report.customer_id,
+          hourlyRate: 0,
+          color: '#6b7280'
+        } as Project,
+        activity: entry.activityName && entry.activityName !== '-'
+          ? { id: '', name: entry.activityName } as Activity
+          : undefined,
+        description: entry.description || '',
+        hours: entry.hours || 0,
+        amount: 0
+      }));
+
+      // Create customer data object
+      const customerData: CustomerReportData = {
+        customer: {
+          id: report.customer_id,
+          name: report.customer_name,
+          reportTitle: report.report_title,
+        } as Customer,
+        totalHours: report.total_hours,
+        totalAmount: 0,
+        projectCount: report.project_count,
+        entryCount: report.entry_count
+      };
+
+      // Create PDF config for this report
+      const config: PdfConfig = {
+        ...pdfConfig,
+        reportTitle: report.report_title || 'Dienstleistungsnachweis'
+      };
+
+      // Generate PDF using saved entries
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+
+      // Page dimensions
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+
+      // Colors
+      const dark = { r: 17, g: 24, b: 39 };
+      const gray = { r: 107, g: 114, b: 128 };
+      const lightGray = { r: 243, g: 244, b: 246 };
+      const accent = { r: 249, g: 115, b: 22 };
+
+      let y = 25;
+      let pageNum = 1;
+
+      // Header with company info
+      if (companyInfo?.name) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        doc.text(companyInfo.name, margin, y + 8);
+      }
+
+      // Main title section
+      y = 60;
+      doc.setFillColor(accent.r, accent.g, accent.b);
+      doc.rect(margin, y, 4, 35, 'F');
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(13);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(report.report_title || 'Dienstleistungsnachweis', margin + 12, y + 8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(report.customer_name, margin + 12, y + 24);
+
+      // Date range
+      const startDate = new Date(report.start_date).toLocaleDateString('de-DE');
+      const endDate = new Date(report.end_date).toLocaleDateString('de-DE');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(`${startDate} - ${endDate}`, margin + 12, y + 35);
+
+      // Summary cards
+      y = 120;
+      const cardWidth = (contentWidth - 16) / 3;
+      const cardHeight = 45;
+
+      // Card 1: Total Hours
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.roundedRect(margin, y, cardWidth, cardHeight, 4, 4, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text('Gesamtzeit', margin + 10, y + 15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(formatHoursMinutes(report.total_hours), margin + 10, y + 32);
+
+      // Card 2: Entry Count
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.roundedRect(margin + cardWidth + 8, y, cardWidth, cardHeight, 4, 4, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text('Einträge', margin + cardWidth + 18, y + 15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(report.entry_count.toString(), margin + cardWidth + 18, y + 32);
+
+      // Card 3: Projects
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.roundedRect(margin + (cardWidth + 8) * 2, y, cardWidth, cardHeight, 4, 4, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text('Projekte', margin + (cardWidth + 8) * 2 + 10, y + 15);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text(report.project_count.toString(), margin + (cardWidth + 8) * 2 + 10, y + 32);
+
+      // Add new page for entries table
+      doc.addPage();
+      pageNum++;
+
+      // Table header
+      y = 25;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+      doc.rect(margin, y - 5, contentWidth, 12, 'F');
+
+      const colPositions = {
+        date: margin + 2,
+        weekday: margin + 25,
+        project: margin + 40,
+        description: margin + 85,
+        hours: margin + contentWidth - 2
+      };
+
+      doc.setTextColor(dark.r, dark.g, dark.b);
+      doc.text('Datum', colPositions.date, y + 2);
+      doc.text('Tag', colPositions.weekday, y + 2);
+      doc.text('Projekt', colPositions.project, y + 2);
+      doc.text('Beschreibung', colPositions.description, y + 2);
+      doc.text('Stunden', colPositions.hours, y + 2, { align: 'right' });
+
+      y += 15;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+
+      // Table rows
+      let totalHours = 0;
+      for (const entry of reportEntries) {
+        const lineHeight = 5;
+        const maxDescWidth = colPositions.hours - colPositions.description - 15;
+        const descLines = doc.splitTextToSize(entry.description || '-', maxDescWidth);
+        const rowHeight = Math.max(lineHeight, descLines.length * lineHeight) + 3;
+
+        // Check page break
+        if (y + rowHeight > pageHeight - 25) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(gray.r, gray.g, gray.b);
+          doc.text(`Seite ${pageNum}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+
+          doc.addPage();
+          pageNum++;
+          y = 25;
+
+          // Repeat header
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
+          doc.rect(margin, y - 5, contentWidth, 12, 'F');
+          doc.setTextColor(dark.r, dark.g, dark.b);
+          doc.text('Datum', colPositions.date, y + 2);
+          doc.text('Tag', colPositions.weekday, y + 2);
+          doc.text('Projekt', colPositions.project, y + 2);
+          doc.text('Beschreibung', colPositions.description, y + 2);
+          doc.text('Stunden', colPositions.hours, y + 2, { align: 'right' });
+          y += 15;
+          doc.setFont('helvetica', 'normal');
+        }
+
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        doc.text(entry.date.toLocaleDateString('de-DE'), colPositions.date, y);
+
+        doc.setTextColor(gray.r, gray.g, gray.b);
+        doc.text(entry.weekday, colPositions.weekday, y);
+
+        doc.setTextColor(dark.r, dark.g, dark.b);
+        const maxProjectWidth = colPositions.description - colPositions.project - 5;
+        let projectName = entry.project.name;
+        while (doc.getTextWidth(projectName) > maxProjectWidth && projectName.length > 3) {
+          projectName = projectName.substring(0, projectName.length - 4) + '...';
+        }
+        doc.text(projectName, colPositions.project, y);
+
+        doc.text(descLines, colPositions.description, y);
+
+        doc.setFont('helvetica', 'bold');
+        doc.text(formatHoursMinutes(entry.hours), colPositions.hours, y, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+
+        totalHours += entry.hours;
+        y += rowHeight;
+      }
+
+      // Total row
+      y += 5;
+      doc.setDrawColor(dark.r, dark.g, dark.b);
+      doc.setLineWidth(0.5);
+      doc.line(colPositions.hours - 50, y, pageWidth - margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('Gesamt:', colPositions.hours - 50, y);
+      doc.setFontSize(11);
+      doc.text(formatHoursMinutes(totalHours), colPositions.hours, y, { align: 'right' });
+
+      // Footer
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(gray.r, gray.g, gray.b);
+      doc.text(`Seite ${pageNum}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+
+      // Generate filename and download
+      const dateStr = `${startDate.replace(/\./g, '-')}_${endDate.replace(/\./g, '-')}`;
+      const filename = `${report.report_title}_${report.customer_name.replace(/\s+/g, '_')}_${dateStr}.pdf`;
+      doc.save(filename);
+
+    } catch (error) {
+      console.error('Error downloading saved report:', error);
+      alert('Fehler beim Herunterladen des Reports');
+    }
+  };
+
   // Send report for approval
-  const openSendApprovalDialog = (report: SavedReport) => {
+  const openSendApprovalDialog = async (report: SavedReport, revisionOfId?: string) => {
     setSendApprovalDialog({
       show: true,
       report,
       email: report.recipient_email || '',
       name: '',
       isSending: false,
-      testMode: true
+      testMode: true,
+      contacts: [],
+      loadingContacts: true,
+      includePdf: true,
+      revisionOfId
     });
+
+    // Load customer contacts
+    if (report.customer_id) {
+      try {
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch(`/api/report-approvals/customer-contacts/${report.customer_id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setSendApprovalDialog(prev => ({
+            ...prev,
+            contacts: data.contacts || [],
+            loadingContacts: false,
+            // Pre-select primary contact email if no email set
+            email: prev.email || (data.contacts?.find((c: CustomerContact) => c.isPrimary)?.email || prev.email)
+          }));
+        } else {
+          setSendApprovalDialog(prev => ({ ...prev, loadingContacts: false }));
+        }
+      } catch {
+        setSendApprovalDialog(prev => ({ ...prev, loadingContacts: false }));
+      }
+    } else {
+      setSendApprovalDialog(prev => ({ ...prev, loadingContacts: false }));
+    }
+  };
+
+  // Create revision from rejected report
+  const createRevision = async (report: SavedReport) => {
+    // Open the send dialog with revision flag
+    openSendApprovalDialog(report, report.id);
   };
 
   const sendForApproval = async () => {
@@ -1273,9 +1711,12 @@ export const ReportAssistant = ({
             totalHours: report.total_hours,
             entryCount: report.entry_count,
             projectCount: report.project_count
+            // Note: PDF attachment would be generated here if includePdf is true
+            // For now, the PDF generation happens server-side or would need separate implementation
           },
           expiresInDays: 7,
-          testMode: sendApprovalDialog.testMode
+          testMode: sendApprovalDialog.testMode,
+          revisionOfId: sendApprovalDialog.revisionOfId
         })
       });
 
@@ -1290,7 +1731,7 @@ export const ReportAssistant = ({
         setTimeout(() => setSaveMessage(null), 5000);
 
         // Close dialog and refresh list
-        setSendApprovalDialog({ show: false, report: null, email: '', name: '', isSending: false, testMode: true });
+        setSendApprovalDialog({ show: false, report: null, email: '', name: '', isSending: false, testMode: true, contacts: [], loadingContacts: false, includePdf: true });
         loadSavedReports();
       } else {
         const error = await response.json();
@@ -1328,6 +1769,10 @@ export const ReportAssistant = ({
         return { label: 'Genehmigt', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle };
       case 'rejected':
         return { label: 'Abgelehnt', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: XCircle };
+      case 'revision_requested':
+        return { label: 'Änderung gewünscht', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400', icon: AlertCircle };
+      case 'superseded':
+        return { label: 'Ersetzt', color: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500', icon: Archive };
       default:
         return { label: status, color: 'bg-gray-100 text-gray-700', icon: AlertCircle };
     }
@@ -1431,12 +1876,11 @@ ${companyInfo?.phone || ''}`;
               </p>
             </div>
           </div>
-          <button
+          <IconButton
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-          >
-            <X size={20} className="text-gray-500" />
-          </button>
+            icon={<X size={20} />}
+            tooltip="Schließen"
+          />
         </div>
 
         {/* Options */}
@@ -1602,18 +2046,20 @@ ${companyInfo?.phone || ''}`;
                   {selectedCustomers.size} von {reportData.length} Kunde(n) ausgewählt
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     onClick={selectAll}
-                    className="text-sm px-3 py-1 text-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/10 rounded-lg transition-colors"
+                    variant="ghost"
+                    size="sm"
                   >
                     Alle auswählen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={deselectAll}
-                    className="text-sm px-3 py-1 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                    variant="ghost"
+                    size="sm"
                   >
                     Abwählen
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -1670,12 +2116,14 @@ ${companyInfo?.phone || ''}`;
                       <Mail size={18} />
                       E-Mail Vorlage
                     </h3>
-                    <button
+                    <Button
                       onClick={copyToClipboard}
-                      className="text-sm px-3 py-1 btn-accent"
+                      variant="primary"
+                      size="sm"
+                      icon={<Copy size={14} />}
                     >
                       Kopieren
-                    </button>
+                    </Button>
                   </div>
                   <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono bg-white dark:bg-dark-100 p-3 rounded border border-gray-200 dark:border-dark-200">
                     {emailTemplate}
@@ -1707,31 +2155,28 @@ ${companyInfo?.phone || ''}`;
                   {/* Navigation for multiple reports */}
                   {pdfPreview.totalCount > 1 && (
                     <div className="flex items-center gap-1 mr-4">
-                      <button
+                      <IconButton
                         onClick={() => navigatePreview('prev')}
                         disabled={pdfPreview.currentIndex === 0 || isGeneratingPreview}
-                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
-                      </button>
+                        icon={<ChevronLeft size={20} />}
+                        tooltip="Vorheriger"
+                      />
                       <span className="text-sm text-gray-600 dark:text-gray-300 min-w-[60px] text-center">
                         {pdfPreview.currentIndex + 1} / {pdfPreview.totalCount}
                       </span>
-                      <button
+                      <IconButton
                         onClick={() => navigatePreview('next')}
                         disabled={pdfPreview.currentIndex === pdfPreview.totalCount - 1 || isGeneratingPreview}
-                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
-                      </button>
+                        icon={<ChevronRight size={20} />}
+                        tooltip="Nächster"
+                      />
                     </div>
                   )}
-                  <button
+                  <IconButton
                     onClick={closePreview}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-                  >
-                    <X size={20} className="text-gray-500" />
-                  </button>
+                    icon={<X size={20} />}
+                    tooltip="Schließen"
+                  />
                 </div>
               </div>
 
@@ -1810,19 +2255,20 @@ ${companyInfo?.phone || ''}`;
                   ))}
                 </ul>
                 <div className="flex gap-3">
-                  <button
+                  <Button
                     onClick={cancelDuplicateOverwrite}
-                    className="px-4 py-2 text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-lg font-medium transition-colors"
+                    variant="secondary"
                   >
                     Abbrechen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => saveReports(true)}
                     disabled={isSaving}
-                    className="px-4 py-2 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 transition-colors disabled:opacity-50"
+                    variant="warning"
+                    loading={isSaving}
                   >
                     {isSaving ? 'Überschreibe...' : 'Überschreiben'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1844,67 +2290,79 @@ ${companyInfo?.phone || ''}`;
             )}
             {/* Mobile: Icon-only compact buttons, Desktop: Full buttons with text */}
             <div className="flex gap-1.5 sm:gap-3 sm:flex-wrap justify-center sm:justify-start">
-              <button
+              <Button
                 onClick={onClose}
-                title="Schließen"
-                className="p-2.5 sm:px-4 sm:py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 rounded-lg font-medium transition-colors"
+                variant="secondary"
+                size="sm"
+                icon={<X size={18} className="sm:hidden" />}
               >
-                <X size={18} className="sm:hidden" />
                 <span className="hidden sm:inline">Schließen</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={openSavedReports}
-                title="Gespeicherte Reports"
-                className="p-2.5 sm:px-4 sm:py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+                variant="secondary"
+                size="sm"
+                icon={<Archive size={18} />}
               >
-                <Archive size={18} />
                 <span className="hidden sm:inline">Gespeicherte Reports</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => openPreview()}
-                disabled={selectedCustomers.size === 0 || isGeneratingPreview}
-                title="Vorschau"
-                className="p-2.5 sm:px-4 sm:py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                disabled={selectedCustomers.size === 0}
+                loading={isGeneratingPreview}
+                variant="secondary"
+                size="sm"
+                icon={<Eye size={18} />}
               >
-                {isGeneratingPreview ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <Eye size={18} />
-                )}
                 <span className="hidden sm:inline">Vorschau</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => saveReports()}
-                disabled={selectedCustomers.size === 0 || isSaving}
-                title="Als Nachweis speichern"
-                className="p-2.5 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                disabled={selectedCustomers.size === 0}
+                loading={isSaving}
+                variant="primary"
+                size="sm"
+                icon={<Save size={18} />}
               >
-                {isSaving ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <Save size={18} />
-                )}
                 <span className="hidden sm:inline">Als Nachweis Speichern</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={generateEmailTemplate}
                 disabled={selectedCustomers.size === 0}
-                title="E-Mail Vorlage"
-                className="p-2.5 sm:px-4 sm:py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                variant="secondary"
+                size="sm"
+                icon={<Mail size={18} />}
               >
-                <Mail size={18} />
                 <span className="hidden sm:inline">E-Mail</span>
-              </button>
-              <button
+              </Button>
+              <Button
+                onClick={exportCSV}
+                disabled={selectedCustomers.size === 0}
+                variant="secondary"
+                size="sm"
+                icon={<Table size={18} />}
+              >
+                <span className="hidden sm:inline">CSV</span>
+              </Button>
+              <Button
+                onClick={exportExcel}
+                disabled={selectedCustomers.size === 0}
+                variant="secondary"
+                size="sm"
+                icon={<FileSpreadsheet size={18} />}
+              >
+                <span className="hidden sm:inline">Excel</span>
+              </Button>
+              <Button
                 onClick={exportSelected}
                 disabled={selectedCustomers.size === 0}
-                title={`PDF exportieren (${selectedCustomers.size})`}
-                className="p-2.5 sm:px-4 sm:py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                variant="primary"
+                size="sm"
+                icon={<Download size={18} />}
               >
-                <Download size={18} />
                 <span className="hidden sm:inline">PDF ({selectedCustomers.size})</span>
                 <span className="sm:hidden text-xs font-bold">{selectedCustomers.size}</span>
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -1938,12 +2396,11 @@ ${companyInfo?.phone || ''}`;
                     <option value="approved">Genehmigt</option>
                     <option value="rejected">Abgelehnt</option>
                   </select>
-                  <button
+                  <IconButton
                     onClick={() => setShowSavedReports(false)}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-                  >
-                    <X size={20} className="text-gray-500" />
-                  </button>
+                    icon={<X size={20} />}
+                    tooltip="Schließen"
+                  />
                 </div>
               </div>
 
@@ -2016,25 +2473,37 @@ ${companyInfo?.phone || ''}`;
                             </div>
                             {/* Actions */}
                             <div className="flex items-center gap-1 flex-shrink-0">
+                              {/* Download PDF */}
+                              <IconButton
+                                onClick={() => downloadSavedReport(report)}
+                                icon={<Download size={18} />}
+                                tooltip="PDF herunterladen"
+                              />
                               {/* Send for approval (only for saved reports) */}
                               {report.status === 'saved' && (
-                                <button
+                                <IconButton
                                   onClick={() => openSendApprovalDialog(report)}
-                                  className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                                  title="Zur Genehmigung senden"
-                                >
-                                  <Send size={18} />
-                                </button>
+                                  icon={<Send size={18} />}
+                                  variant="primary"
+                                  tooltip="Zur Genehmigung senden"
+                                />
+                              )}
+                              {/* Revision button (for rejected or revision_requested reports) */}
+                              {(report.status === 'rejected' || report.status === 'revision_requested') && (
+                                <IconButton
+                                  onClick={() => createRevision(report)}
+                                  icon={<FileText size={18} />}
+                                  variant="primary"
+                                  tooltip="Überarbeiten und erneut senden"
+                                />
                               )}
                               {/* Copy approval link (for pending reports) */}
                               {report.status === 'pending' && report.token && (
-                                <button
+                                <IconButton
                                   onClick={() => copyApprovalLink(report)}
-                                  className="p-2 text-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
-                                  title="Freigabe-Link kopieren"
-                                >
-                                  <Link size={18} />
-                                </button>
+                                  icon={<Link size={18} />}
+                                  tooltip="Freigabe-Link kopieren"
+                                />
                               )}
                               {/* Open approval page (for pending reports) */}
                               {report.status === 'pending' && report.token && (
@@ -2050,13 +2519,12 @@ ${companyInfo?.phone || ''}`;
                               )}
                               {/* Delete (only for saved or rejected) */}
                               {(report.status === 'saved' || report.status === 'rejected') && (
-                                <button
+                                <IconButton
                                   onClick={() => deleteSavedReport(report.id)}
-                                  className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                                  title="Report löschen"
-                                >
-                                  <Trash2 size={18} />
-                                </button>
+                                  icon={<Trash2 size={18} />}
+                                  variant="danger"
+                                  tooltip="Report löschen"
+                                />
                               )}
                             </div>
                           </div>
@@ -2072,12 +2540,12 @@ ${companyInfo?.phone || ''}`;
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   {savedReports.length} Report(s)
                 </span>
-                <button
+                <Button
                   onClick={() => setShowSavedReports(false)}
-                  className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
+                  variant="secondary"
                 >
                   Schließen
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -2100,12 +2568,11 @@ ${companyInfo?.phone || ''}`;
                     </p>
                   </div>
                 </div>
-                <button
+                <IconButton
                   onClick={() => setPdfConfigModal({ show: false, customerId: null, customerName: '' })}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-                >
-                  <X size={20} className="text-gray-500" />
-                </button>
+                  icon={<X size={20} />}
+                  tooltip="Schließen"
+                />
               </div>
 
               {/* Content */}
@@ -2196,20 +2663,20 @@ ${companyInfo?.phone || ''}`;
 
               {/* Footer */}
               <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-200 flex justify-end gap-3">
-                <button
+                <Button
                   onClick={() => setPdfConfigModal({ show: false, customerId: null, customerName: '' })}
-                  className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
+                  variant="secondary"
                 >
                   Abbrechen
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={exportWithConfig}
                   disabled={!pdfConfig.includeCoverPage && !pdfConfig.includeTimeEntries}
-                  className="px-4 py-2 btn-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  variant="primary"
+                  icon={<Download size={18} />}
                 >
-                  <Download size={18} />
                   PDF erstellen
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -2218,13 +2685,21 @@ ${companyInfo?.phone || ''}`;
         {/* Send for Approval Dialog */}
         {sendApprovalDialog.show && sendApprovalDialog.report && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[90vw] max-w-md p-6">
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-[90vw] max-w-md p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center gap-3 mb-4">
                 <Send size={24} className="text-blue-600" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Zur Genehmigung senden
+                  {sendApprovalDialog.revisionOfId ? 'Überarbeiteten Report senden' : 'Zur Genehmigung senden'}
                 </h3>
               </div>
+
+              {sendApprovalDialog.revisionOfId && (
+                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                    Dies ist eine Überarbeitung eines abgelehnten Reports. Der ursprüngliche Report wird als "Ersetzt" markiert.
+                  </p>
+                </div>
+              )}
 
               <div className="mb-4 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -2236,6 +2711,39 @@ ${companyInfo?.phone || ''}`;
               </div>
 
               <div className="space-y-4">
+                {/* Contact Selection */}
+                {sendApprovalDialog.loadingContacts ? (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    <Loader2 size={16} className="inline animate-spin mr-2" />
+                    Lade Kontakte...
+                  </div>
+                ) : sendApprovalDialog.contacts.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Kontakt auswählen
+                    </label>
+                    <select
+                      value={sendApprovalDialog.email}
+                      onChange={(e) => {
+                        const contact = sendApprovalDialog.contacts.find(c => c.email === e.target.value);
+                        setSendApprovalDialog(prev => ({
+                          ...prev,
+                          email: e.target.value,
+                          name: contact?.name || prev.name
+                        }));
+                      }}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                    >
+                      <option value="">-- Kontakt wählen oder manuell eingeben --</option>
+                      {sendApprovalDialog.contacts.map(contact => (
+                        <option key={contact.id} value={contact.email}>
+                          {contact.name} {contact.position ? `(${contact.position})` : ''} - {contact.email}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     E-Mail Adresse des Empfängers *
@@ -2290,30 +2798,24 @@ ${companyInfo?.phone || ''}`;
               </div>
 
               <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setSendApprovalDialog({ show: false, report: null, email: '', name: '', isSending: false, testMode: true })}
+                <Button
+                  onClick={() => setSendApprovalDialog({ show: false, report: null, email: '', name: '', isSending: false, testMode: true, contacts: [], loadingContacts: false, includePdf: true })}
                   disabled={sendApprovalDialog.isSending}
-                  className="flex-1 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors disabled:opacity-50"
+                  variant="secondary"
+                  fullWidth
                 >
                   Abbrechen
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={sendForApproval}
-                  disabled={!sendApprovalDialog.email || sendApprovalDialog.isSending}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled={!sendApprovalDialog.email}
+                  loading={sendApprovalDialog.isSending}
+                  variant="primary"
+                  icon={<Send size={18} />}
+                  fullWidth
                 >
-                  {sendApprovalDialog.isSending ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Wird gesendet...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={18} />
-                      {sendApprovalDialog.testMode ? 'Link erstellen' : 'Senden'}
-                    </>
-                  )}
-                </button>
+                  {sendApprovalDialog.isSending ? 'Wird gesendet...' : (sendApprovalDialog.testMode ? 'Link erstellen' : (sendApprovalDialog.revisionOfId ? 'Überarbeitung senden' : 'Senden'))}
+                </Button>
               </div>
             </div>
           </div>

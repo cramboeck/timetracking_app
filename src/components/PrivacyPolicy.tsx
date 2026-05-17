@@ -1,4 +1,5 @@
-import { Shield, Lock, Eye, Database, Mail, FileText, ChevronRight } from 'lucide-react';
+import { Shield, Lock, Eye, Database, Mail, FileText, ChevronRight, X } from 'lucide-react';
+import { Button, IconButton } from './ui';
 
 interface PrivacyPolicyProps {
   onClose: () => void;
@@ -16,12 +17,11 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
               Datenschutzerklärung
             </h2>
           </div>
-          <button
+          <IconButton
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            ✕
-          </button>
+            icon={<X className="w-5 h-5" />}
+            size="md"
+          />
         </div>
 
         {/* Content */}
@@ -347,12 +347,13 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-          <button
+          <Button
             onClick={onClose}
-            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            variant="primary"
+            size="lg"
           >
             Schließen
-          </button>
+          </Button>
         </div>
       </div>
     </div>

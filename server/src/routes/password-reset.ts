@@ -23,7 +23,7 @@ router.post('/request', validate(requestResetSchema), async (req, res) => {
     const { email } = req.body;
 
     // Find user by email
-    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const userResult = await pool.query('SELECT id, username, email FROM users WHERE email = $1', [email]);
 
     if (userResult.rows.length === 0) {
       // Don't reveal if email exists or not for security
@@ -52,7 +52,7 @@ router.post('/request', validate(requestResetSchema), async (req, res) => {
 
     const emailSent = await emailService.sendEmail({
       to: user.email,
-      subject: '🔑 Passwort zurücksetzen - RamboFlow',
+      subject: 'Passwort zurücksetzen - RamboFlow',
       html: generatePasswordResetEmailHTML(user.username || user.email, resetUrl, expiresAt),
       text: generatePasswordResetEmailText(user.username || user.email, resetUrl, expiresAt)
     });
@@ -160,69 +160,90 @@ router.get('/verify/:token', async (req, res) => {
 function generatePasswordResetEmailHTML(userName: string, resetUrl: string, expiresAt: Date): string {
   return `
     <!DOCTYPE html>
-    <html>
+    <html lang="de">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Passwort zurücksetzen</title>
       </head>
-      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6; -webkit-font-smoothing: antialiased;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
           <tr>
             <td align="center">
-              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                 <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 40px 20px; text-align: center;">
-                    <h1 style="color: #ffffff; margin: 0; font-size: 32px;">🔑 Passwort zurücksetzen</h1>
+                  <td style="background-color: #F27024; padding: 32px 40px;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">RamboFlow</h1>
                   </td>
                 </tr>
 
                 <!-- Content -->
                 <tr>
-                  <td style="padding: 40px 30px;">
-                    <h2 style="color: #1f2937; margin-top: 0;">Hallo ${userName}!</h2>
-                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                      Du hast eine Anfrage zum Zurücksetzen deines Passworts gestellt.
-                      Klicke auf den Button unten, um ein neues Passwort zu vergeben.
+                  <td style="padding: 40px;">
+                    <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${userName},</h2>
+                    <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+                      Sie haben eine Anfrage zum Zurücksetzen Ihres Passworts gestellt.
+                      Klicken Sie auf den Button unten, um ein neues Passwort zu vergeben.
                     </p>
 
-                    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
-                      <p style="color: #92400e; margin: 0; font-size: 14px;">
-                        ⚠️ <strong>Dieser Link ist nur 1 Stunde gültig!</strong><br>
+                    <div style="background-color: #fef3c7; border-radius: 8px; padding: 20px; margin: 24px 0;">
+                      <p style="color: #92400e; font-size: 15px; line-height: 1.6; margin: 0;">
+                        <strong>Dieser Link ist nur 1 Stunde gültig!</strong><br>
                         Gültig bis: ${expiresAt.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr
                       </p>
                     </div>
 
                     <div style="text-align: center; margin: 30px 0;">
-                      <a href="${resetUrl}" style="display: inline-block; background-color: #ef4444; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: bold; font-size: 16px;">
-                        Passwort zurücksetzen →
+                      <a href="${resetUrl}" style="display: inline-block; background-color: #F27024; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 15px;">
+                        Passwort zurücksetzen
                       </a>
                     </div>
 
-                    <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 15px; margin: 20px 0;">
-                      <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">
-                        Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:
+                    <div style="background-color: #f9fafb; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+                      <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">
+                        Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:
                       </p>
-                      <p style="color: #3b82f6; font-size: 12px; word-break: break-all; margin: 0;">
-                        ${resetUrl}
+                      <p style="color: #F27024; font-size: 12px; word-break: break-all; margin: 0;">
+                        <a href="${resetUrl}" style="color: #F27024; text-decoration: none;">${resetUrl}</a>
                       </p>
                     </div>
 
-                    <p style="color: #6b7280; font-size: 14px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                      <strong>Du hast diese E-Mail nicht angefordert?</strong><br>
-                      Falls du keine Passwort-Zurücksetzung angefordert hast, ignoriere diese E-Mail einfach.
-                      Dein Passwort bleibt unverändert.
+                    <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; line-height: 1.6;">
+                      <strong>Sie haben diese E-Mail nicht angefordert?</strong><br>
+                      Falls Sie keine Passwort-Zurücksetzung angefordert haben, ignorieren Sie diese E-Mail einfach.
+                      Ihr Passwort bleibt unverändert.
                     </p>
                   </td>
                 </tr>
 
                 <!-- Footer -->
                 <tr>
-                  <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                    <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                      RamboFlow - Professionelle Zeiterfassung<br>
-                      © ${new Date().getFullYear()} Alle Rechte vorbehalten
+                  <td style="background-color: #f9fafb; padding: 24px 40px; border-top: 1px solid #e5e7eb;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td>
+                          <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0; line-height: 1.5;">
+                            <strong>ramboeck.IT</strong><br>
+                            IT-Dienstleistungen & Consulting
+                          </p>
+                          <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                            Diese E-Mail wurde automatisch von RamboFlow generiert.<br>
+                            Bei Fragen wenden Sie sich an <a href="mailto:support@ramboeck-it.com" style="color: #F27024; text-decoration: none;">support@ramboeck-it.com</a>
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Legal Footer -->
+              <table width="600" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding: 20px 0; text-align: center;">
+                    <p style="color: #9ca3af; font-size: 11px; margin: 0;">
+                      © ${new Date().getFullYear()} ramboeck.IT - Alle Rechte vorbehalten
                     </p>
                   </td>
                 </tr>
@@ -239,25 +260,24 @@ function generatePasswordResetEmailText(userName: string, resetUrl: string, expi
   return `
 Passwort zurücksetzen
 
-Hallo ${userName}!
+Hallo ${userName},
 
-Du hast eine Anfrage zum Zurücksetzen deines Passworts gestellt.
-Klicke auf den Link unten, um ein neues Passwort zu vergeben.
+Sie haben eine Anfrage zum Zurücksetzen Ihres Passworts gestellt.
+Klicken Sie auf den Link unten, um ein neues Passwort zu vergeben.
 
-⚠️ Dieser Link ist nur 1 Stunde gültig!
+Dieser Link ist nur 1 Stunde gültig!
 Gültig bis: ${expiresAt.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr
 
 Passwort zurücksetzen:
 ${resetUrl}
 
-Du hast diese E-Mail nicht angefordert?
-Falls du keine Passwort-Zurücksetzung angefordert hast, ignoriere diese E-Mail einfach.
-Dein Passwort bleibt unverändert.
+Sie haben diese E-Mail nicht angefordert?
+Falls Sie keine Passwort-Zurücksetzung angefordert haben, ignorieren Sie diese E-Mail einfach.
+Ihr Passwort bleibt unverändert.
 
 --
-RamboFlow - Professionelle Zeiterfassung
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-  `;
+RamboFlow von ramboeck.IT
+  `.trim();
 }
 
 export default router;

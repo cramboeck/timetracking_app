@@ -1,6 +1,8 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import { pool } from '../config/database';
 import { microsoftGraphService } from './microsoftGraphService';
+import { logger } from '../utils/logger';
+import crypto from 'crypto';
 
 interface EmailOptions {
   to: string;
@@ -12,6 +14,16 @@ interface EmailOptions {
     content: Buffer | string;
     contentType?: string;
   }>;
+}
+
+interface EmailLogOptions {
+  emailType: string;
+  subject: string;
+  recipientEmail: string;
+  recipientName?: string;
+  userId?: string;
+  organizationId?: string;
+  metadata?: Record<string, any>;
 }
 
 interface NotificationData {
@@ -39,18 +51,18 @@ class EmailService {
 
     // Log which provider will be used
     if (this.provider === 'graph' && microsoftGraphService.isAvailable()) {
-      console.log('📧 Email provider: Microsoft Graph API');
+      logger.info('📧 Email provider: Microsoft Graph API');
     } else if (this.provider === 'auto' && microsoftGraphService.isAvailable()) {
-      console.log('📧 Email provider: Microsoft Graph API (auto-detected)');
+      logger.info('📧 Email provider: Microsoft Graph API (auto-detected)');
     } else if (this.transporter) {
-      console.log('📧 Email provider: SMTP');
+      logger.info('📧 Email provider: SMTP');
     }
   }
 
   private initializeTransporter() {
     // Only initialize SMTP if not using Graph API exclusively
     if (this.provider === 'graph' && microsoftGraphService.isAvailable()) {
-      console.log('ℹ️ Skipping SMTP initialization (using Graph API)');
+      logger.info('ℹ️ Skipping SMTP initialization (using Graph API)');
       return;
     }
 
@@ -67,12 +79,12 @@ class EmailService {
           secure: process.env.EMAIL_SECURE === 'true',
           auth: { user, pass },
         });
-        console.log('✅ SMTP email transporter initialized');
+        logger.info('✅ SMTP email transporter initialized');
       } else {
-        console.log('ℹ️ SMTP not configured (missing EMAIL_HOST/USER/PASSWORD)');
+        logger.info('ℹ️ SMTP not configured (missing EMAIL_HOST/USER/PASSWORD)');
       }
     } catch (error) {
-      console.error('❌ Failed to initialize SMTP transporter:', error);
+      logger.error('❌ Failed to initialize SMTP transporter:', error);
     }
   }
 
@@ -132,15 +144,21 @@ class EmailService {
     };
   }
 
-  async sendEmail(options: EmailOptions): Promise<boolean> {
+  async sendEmail(options: EmailOptions, logOptions?: EmailLogOptions): Promise<boolean> {
     const originalTo = options.to;
+    const startTime = Date.now();
+    let usedProvider: 'smtp' | 'graph' | 'test' = 'smtp';
+    let messageId: string | undefined;
+    let errorMessage: string | undefined;
+    let errorCode: string | undefined;
 
     try {
       // In test mode, override recipient
       if (this.testMode) {
-        console.log(`📧 TEST MODE: Email would be sent to ${options.to}`);
-        console.log(`📧 TEST MODE: Redirecting to ${this.testRecipient}`);
+        logger.info(`📧 TEST MODE: Email would be sent to ${options.to}`);
+        logger.info(`📧 TEST MODE: Redirecting to ${this.testRecipient}`);
         options.to = this.testRecipient;
+        usedProvider = 'test';
 
         // Add test mode indicator to subject
         options.subject = `[TEST] ${options.subject}`;
@@ -162,6 +180,7 @@ class EmailService {
       // Try Graph API first if configured
       if (useGraph) {
         try {
+          usedProvider = 'graph';
           await microsoftGraphService.sendEmail({
             to: options.to,
             subject: options.subject,
@@ -169,15 +188,38 @@ class EmailService {
             text: options.text,
             attachments: options.attachments,
           });
-          console.log('✅ Email sent via Graph API to:', options.to);
+          logger.info('✅ Email sent via Graph API to:', options.to);
+
+          // Log success
+          if (logOptions) {
+            await this.logEmailDetailed({
+              ...logOptions,
+              provider: usedProvider,
+              status: 'sent',
+              processingTimeMs: Date.now() - startTime,
+            });
+          }
           return true;
         } catch (graphError: any) {
-          console.error('❌ Graph API email failed:', graphError.message);
+          logger.error('❌ Graph API email failed:', graphError.message);
+          errorMessage = graphError.message;
+          errorCode = graphError.code;
 
           // Fallback to SMTP if available and provider is 'auto'
           if (this.provider === 'auto' && this.transporter) {
-            console.log('⚠️ Falling back to SMTP...');
+            logger.info('⚠️ Falling back to SMTP...');
           } else {
+            // Log failure
+            if (logOptions) {
+              await this.logEmailDetailed({
+                ...logOptions,
+                provider: usedProvider,
+                status: 'failed',
+                errorMessage,
+                errorCode,
+                processingTimeMs: Date.now() - startTime,
+              });
+            }
             throw graphError;
           }
         }
@@ -185,19 +227,38 @@ class EmailService {
 
       // Use SMTP
       if (!this.transporter && !this.testMode) {
-        console.error('❌ No email provider available');
+        logger.error('❌ No email provider available');
+        errorMessage = 'No email provider available';
+        if (logOptions) {
+          await this.logEmailDetailed({
+            ...logOptions,
+            provider: 'smtp',
+            status: 'failed',
+            errorMessage,
+            processingTimeMs: Date.now() - startTime,
+          });
+        }
         return false;
       }
 
       // In test mode with no provider configured, just log
       if (this.testMode && !this.transporter && !useGraph) {
-        console.log('📧 TEST MODE (No Provider): Email simulation');
-        console.log('To:', options.to);
-        console.log('Subject:', options.subject);
+        logger.info('📧 TEST MODE (No Provider): Email simulation');
+        logger.info('To:', options.to);
+        logger.info('Subject:', options.subject);
+        if (logOptions) {
+          await this.logEmailDetailed({
+            ...logOptions,
+            provider: 'test',
+            status: 'sent',
+            processingTimeMs: Date.now() - startTime,
+          });
+        }
         return true;
       }
 
       if (this.transporter) {
+        usedProvider = 'smtp';
         const mailOptions: any = {
           from: process.env.EMAIL_FROM,
           to: options.to,
@@ -216,29 +277,115 @@ class EmailService {
         }
 
         const info = await this.transporter.sendMail(mailOptions);
-        console.log('✅ Email sent via SMTP:', info.messageId);
+        messageId = info.messageId;
+        logger.info('✅ Email sent via SMTP:', messageId);
+
+        // Log success
+        if (logOptions) {
+          await this.logEmailDetailed({
+            ...logOptions,
+            provider: usedProvider,
+            status: 'sent',
+            providerMessageId: messageId,
+            processingTimeMs: Date.now() - startTime,
+          });
+        }
         return true;
       }
 
       return false;
-    } catch (error) {
-      console.error('❌ Failed to send email:', error);
+    } catch (error: any) {
+      logger.error('❌ Failed to send email:', error);
+      errorMessage = error.message || 'Unknown error';
+      errorCode = error.code;
+
+      // Log failure
+      if (logOptions) {
+        await this.logEmailDetailed({
+          ...logOptions,
+          provider: usedProvider,
+          status: 'failed',
+          errorMessage,
+          errorCode,
+          processingTimeMs: Date.now() - startTime,
+        });
+      }
       return false;
+    }
+  }
+
+  /**
+   * Log detailed email information to email_logs table
+   */
+  private async logEmailDetailed(options: {
+    emailType: string;
+    subject: string;
+    recipientEmail: string;
+    recipientName?: string;
+    userId?: string;
+    organizationId?: string;
+    provider: 'smtp' | 'graph' | 'test';
+    status: 'pending' | 'sent' | 'failed' | 'bounced';
+    providerMessageId?: string;
+    errorMessage?: string;
+    errorCode?: string;
+    processingTimeMs?: number;
+    metadata?: Record<string, any>;
+  }): Promise<void> {
+    try {
+      const senderEmail = options.provider === 'graph'
+        ? microsoftGraphService.getSenderEmail()
+        : process.env.EMAIL_FROM || '';
+
+      await pool.query(
+        `INSERT INTO email_logs (
+          id, organization_id, user_id, email_type, subject, recipient_email, recipient_name,
+          sender_email, provider, provider_message_id, status, error_message, error_code,
+          processing_time_ms, metadata, sent_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+        [
+          crypto.randomUUID(),
+          options.organizationId || null,
+          options.userId || null,
+          options.emailType,
+          options.subject,
+          options.recipientEmail,
+          options.recipientName || null,
+          senderEmail,
+          options.provider,
+          options.providerMessageId || null,
+          options.status,
+          options.errorMessage || null,
+          options.errorCode || null,
+          options.processingTimeMs || null,
+          JSON.stringify(options.metadata || {}),
+          options.status === 'sent' ? new Date().toISOString() : null,
+        ]
+      );
+    } catch (error) {
+      logger.error('Failed to log email details:', error);
     }
   }
 
   async sendWelcomeEmail(data: NotificationData): Promise<boolean> {
     const html = this.generateWelcomeEmailHTML(data);
     const text = this.generateWelcomeEmailText(data);
+    const subject = 'Willkommen bei RamboFlow';
 
     const success = await this.sendEmail({
       to: data.userEmail,
-      subject: 'Willkommen bei TimeTrack! 🎉',
+      subject,
       html,
       text,
+    }, {
+      emailType: 'welcome',
+      subject,
+      recipientEmail: data.userEmail,
+      recipientName: data.userName,
+      userId: data.userId,
     });
 
-    // Log notification
+    // Log notification (legacy)
     await this.logNotification(data.userId, 'welcome', success);
 
     return success;
@@ -247,12 +394,19 @@ class EmailService {
   async sendMonthEndReminderEmail(data: NotificationData & { daysRemaining: number }): Promise<boolean> {
     const html = this.generateMonthEndReminderHTML(data);
     const text = this.generateMonthEndReminderText(data);
+    const subject = `Erinnerung: Noch ${data.daysRemaining} Tag(e) bis Monatsende`;
 
     const success = await this.sendEmail({
       to: data.userEmail,
-      subject: `📅 Monatsende naht! Noch ${data.daysRemaining} Tag(e)`,
+      subject,
       html,
       text,
+    }, {
+      emailType: 'month_end_reminder',
+      subject,
+      recipientEmail: data.userEmail,
+      recipientName: data.userName,
+      userId: data.userId,
     });
 
     await this.logNotification(data.userId, 'month_end', success);
@@ -262,12 +416,19 @@ class EmailService {
   async sendDailyReminderEmail(data: NotificationData): Promise<boolean> {
     const html = this.generateDailyReminderHTML(data);
     const text = this.generateDailyReminderText(data);
+    const subject = 'Erinnerung: Zeiterfassung ausstehend';
 
     const success = await this.sendEmail({
       to: data.userEmail,
-      subject: '⏰ Zeiterfassung vergessen?',
+      subject,
       html,
       text,
+    }, {
+      emailType: 'daily_reminder',
+      subject,
+      recipientEmail: data.userEmail,
+      recipientName: data.userName,
+      userId: data.userId,
     });
 
     await this.logNotification(data.userId, 'daily_reminder', success);
@@ -277,12 +438,20 @@ class EmailService {
   async sendQualityCheckEmail(data: NotificationData & { missingCount: number }): Promise<boolean> {
     const html = this.generateQualityCheckHTML(data);
     const text = this.generateQualityCheckText(data);
+    const subject = `${data.missingCount} Zeiteinträge ohne Beschreibung`;
 
     const success = await this.sendEmail({
       to: data.userEmail,
-      subject: '✍️ Beschreibungen fehlen',
+      subject,
       html,
       text,
+    }, {
+      emailType: 'quality_check',
+      subject,
+      recipientEmail: data.userEmail,
+      recipientName: data.userName,
+      userId: data.userId,
+      metadata: { missingCount: data.missingCount },
     });
 
     await this.logNotification(data.userId, 'quality_check', success);
@@ -292,76 +461,93 @@ class EmailService {
   async sendWeeklyReportEmail(data: NotificationData & { totalHours: number; entries: any[] }): Promise<boolean> {
     const html = this.generateWeeklyReportHTML(data);
     const text = this.generateWeeklyReportText(data);
+    const subject = 'Ihr Wochenreport ist verfügbar';
 
     const success = await this.sendEmail({
       to: data.userEmail,
-      subject: '📊 Dein Wochenreport ist da!',
+      subject,
       html,
       text,
+    }, {
+      emailType: 'weekly_report',
+      subject,
+      recipientEmail: data.userEmail,
+      recipientName: data.userName,
+      userId: data.userId,
+      metadata: { totalHours: data.totalHours, entriesCount: data.entries.length },
     });
 
     await this.logNotification(data.userId, 'weekly_report', success);
     return success;
   }
 
-  // HTML Email Templates
-  private generateWelcomeEmailHTML(data: NotificationData): string {
+  // ===========================================
+  // Base Email Template
+  // ===========================================
+  private generateEmailWrapper(title: string, content: string, ctaButton?: { text: string; url: string }): string {
+    const ctaHtml = ctaButton ? `
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${ctaButton.url}" style="display: inline-block; background-color: #F27024; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 15px;">
+          ${ctaButton.text}
+        </a>
+      </div>
+    ` : '';
+
     return `
       <!DOCTYPE html>
-      <html>
+      <html lang="de">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Willkommen bei TimeTrack</title>
+          <title>${title}</title>
         </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6; -webkit-font-smoothing: antialiased;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
             <tr>
               <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                   <!-- Header -->
                   <tr>
-                    <td style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 40px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 32px;">🎉 Willkommen bei TimeTrack!</h1>
+                    <td style="background-color: #F27024; padding: 32px 40px;">
+                      <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">RamboFlow</h1>
                     </td>
                   </tr>
 
                   <!-- Content -->
                   <tr>
-                    <td style="padding: 40px 30px;">
-                      <h2 style="color: #1f2937; margin-top: 0;">Hallo ${data.userName}!</h2>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        Schön, dass du bei TimeTrack dabei bist! Wir freuen uns, dich bei deiner professionellen Zeiterfassung zu unterstützen.
-                      </p>
-
-                      <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; margin: 30px 0;">
-                        <h3 style="color: #1e40af; margin-top: 0;">Deine nächsten Schritte:</h3>
-                        <ul style="color: #4b5563; line-height: 1.8; margin-bottom: 0;">
-                          <li><strong>Kunden anlegen:</strong> Erstelle deine Kunden in den Einstellungen</li>
-                          <li><strong>Projekte erstellen:</strong> Lege Projekte mit Stundensätzen an</li>
-                          <li><strong>Zeit erfassen:</strong> Starte deine erste Zeiterfassung</li>
-                          <li><strong>Reports generieren:</strong> Erstelle professionelle PDF-Reports</li>
-                        </ul>
-                      </div>
-
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: bold; font-size: 16px;">
-                          Jetzt loslegen →
-                        </a>
-                      </div>
-
-                      <p style="color: #6b7280; font-size: 14px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                        Bei Fragen stehen wir dir gerne zur Verfügung. Viel Erfolg mit TimeTrack!
-                      </p>
+                    <td style="padding: 40px;">
+                      ${content}
+                      ${ctaHtml}
                     </td>
                   </tr>
 
                   <!-- Footer -->
                   <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        TimeTrack - Professionelle Zeiterfassung<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
+                    <td style="background-color: #f9fafb; padding: 24px 40px; border-top: 1px solid #e5e7eb;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td>
+                            <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0; line-height: 1.5;">
+                              <strong>ramboeck.IT</strong><br>
+                              IT-Dienstleistungen & Consulting
+                            </p>
+                            <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                              Diese E-Mail wurde automatisch von RamboFlow generiert.<br>
+                              Bei Fragen wenden Sie sich an <a href="mailto:support@ramboeck-it.com" style="color: #F27024; text-decoration: none;">support@ramboeck-it.com</a>
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Legal Footer -->
+                <table width="600" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="padding: 20px 0; text-align: center;">
+                      <p style="color: #9ca3af; font-size: 11px; margin: 0;">
+                        © ${new Date().getFullYear()} ramboeck.IT - Alle Rechte vorbehalten
                       </p>
                     </td>
                   </tr>
@@ -372,266 +558,254 @@ class EmailService {
         </body>
       </html>
     `;
+  }
+
+  // HTML Email Templates
+  private generateWelcomeEmailHTML(data: NotificationData): string {
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        schön, dass Sie dabei sind! Mit RamboFlow haben Sie ab sofort Ihre Arbeitszeiten im Griff –
+        übersichtlich, einfach und professionell.
+      </p>
+
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <h3 style="color: #36313E; margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">So starten Sie durch:</h3>
+        <table style="width: 100%;">
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #F27024;">1.</strong> Legen Sie Ihre Kunden und Projekte an
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #F27024;">2.</strong> Erfassen Sie Ihre Arbeitszeiten mit einem Klick
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #F27024;">3.</strong> Erstellen Sie professionelle Reports für Ihre Kunden
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; line-height: 1.6;">
+        Bei Fragen sind wir jederzeit für Sie da. Wir wünschen Ihnen viel Erfolg!
+      </p>
+    `;
+
+    return this.generateEmailWrapper('Willkommen bei RamboFlow', content, {
+      text: 'Jetzt einloggen',
+      url: process.env.FRONTEND_URL || 'http://localhost:5173'
+    });
   }
 
   private generateWelcomeEmailText(data: NotificationData): string {
     return `
-Willkommen bei TimeTrack!
+Willkommen bei RamboFlow!
 
-Hallo ${data.userName}!
+Hallo ${data.userName},
 
-Schön, dass du bei TimeTrack dabei bist! Wir freuen uns, dich bei deiner professionellen Zeiterfassung zu unterstützen.
+schön, dass Sie dabei sind! Mit RamboFlow haben Sie ab sofort Ihre Arbeitszeiten im Griff – übersichtlich, einfach und professionell.
 
-Deine nächsten Schritte:
-- Kunden anlegen: Erstelle deine Kunden in den Einstellungen
-- Projekte erstellen: Lege Projekte mit Stundensätzen an
-- Zeit erfassen: Starte deine erste Zeiterfassung
-- Reports generieren: Erstelle professionelle PDF-Reports
+So starten Sie durch:
+1. Legen Sie Ihre Kunden und Projekte an
+2. Erfassen Sie Ihre Arbeitszeiten mit einem Klick
+3. Erstellen Sie professionelle Reports für Ihre Kunden
 
-Jetzt loslegen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}
+Jetzt einloggen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}
 
-Bei Fragen stehen wir dir gerne zur Verfügung. Viel Erfolg mit TimeTrack!
+Bei Fragen sind wir jederzeit für Sie da. Wir wünschen Ihnen viel Erfolg!
 
 --
-TimeTrack - Professionelle Zeiterfassung
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateMonthEndReminderHTML(data: NotificationData & { daysRemaining: number }): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Monatsende naht</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">📅 Monatsende naht!</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 18px; margin-top: 0;">Hallo ${data.userName},</p>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        Noch <strong style="color: #d97706;">${data.daysRemaining} Tag(e)</strong> bis zum Monatsende!
-                        Zeit, deine Reports zu erstellen und Zeiten zu prüfen.
-                      </p>
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard" style="display: inline-block; background-color: #f59e0b; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold;">
-                          Zum Dashboard →
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+    const dayText = data.daysRemaining === 1 ? 'Tag' : 'Tage';
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        der Monat neigt sich dem Ende zu – noch <strong style="color: #F27024;">${data.daysRemaining} ${dayText}</strong> bis zum Monatsabschluss.
+      </p>
+
+      <div style="background-color: #fef3c7; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="color: #92400e; font-size: 15px; line-height: 1.6; margin: 0;">
+          <strong>Kurze Erinnerung:</strong> Prüfen Sie jetzt Ihre erfassten Zeiten und erstellen Sie bei Bedarf
+          Ihre Monatsreports, damit Sie pünktlich abrechnen können.
+        </p>
+      </div>
     `;
+
+    return this.generateEmailWrapper('Monatsende-Erinnerung', content, {
+      text: 'Zeiten prüfen',
+      url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard`
+    });
   }
 
   private generateMonthEndReminderText(data: NotificationData & { daysRemaining: number }): string {
-    return `Monatsende naht!
+    const dayText = data.daysRemaining === 1 ? 'Tag' : 'Tage';
+    return `
+Monatsende-Erinnerung
 
 Hallo ${data.userName},
 
-Noch ${data.daysRemaining} Tag(e) bis zum Monatsende! Zeit, deine Reports zu erstellen und Zeiten zu prüfen.
+der Monat neigt sich dem Ende zu – noch ${data.daysRemaining} ${dayText} bis zum Monatsabschluss.
 
-Zum Dashboard: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard
-    `;
+Kurze Erinnerung: Prüfen Sie jetzt Ihre erfassten Zeiten und erstellen Sie bei Bedarf Ihre Monatsreports, damit Sie pünktlich abrechnen können.
+
+Zeiten prüfen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateDailyReminderHTML(data: NotificationData): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Zeiterfassung vergessen?</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">⏰ Zeiterfassung vergessen?</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 18px; margin-top: 0;">Hallo ${data.userName},</p>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        Du hast heute noch keine Zeiten erfasst. Vergiss nicht, deine Arbeitsstunden einzutragen!
-                      </p>
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" style="display: inline-block; background-color: #8b5cf6; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold;">
-                          Zeiten eintragen →
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        für heute haben wir noch keine Zeiteinträge von Ihnen gesehen. Damit am Ende des Monats
+        alles stimmt, tragen Sie Ihre Arbeitszeiten am besten gleich ein – es dauert nur einen Moment.
+      </p>
+
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="color: #36313E; font-size: 15px; line-height: 1.6; margin: 0;">
+          <strong>Tipp:</strong> Regelmäßiges Erfassen spart Zeit bei der Monatsabrechnung und sorgt für lückenlose Dokumentation.
+        </p>
+      </div>
     `;
+
+    return this.generateEmailWrapper('Zeiterfassung ausstehend', content, {
+      text: 'Zeiten eintragen',
+      url: process.env.FRONTEND_URL || 'http://localhost:5173'
+    });
   }
 
   private generateDailyReminderText(data: NotificationData): string {
-    return `Zeiterfassung vergessen?
+    return `
+Zeiterfassung ausstehend
 
 Hallo ${data.userName},
 
-Du hast heute noch keine Zeiten erfasst. Vergiss nicht, deine Arbeitsstunden einzutragen!
+für heute haben wir noch keine Zeiteinträge von Ihnen gesehen. Damit am Ende des Monats alles stimmt, tragen Sie Ihre Arbeitszeiten am besten gleich ein – es dauert nur einen Moment.
+
+Tipp: Regelmäßiges Erfassen spart Zeit bei der Monatsabrechnung und sorgt für lückenlose Dokumentation.
 
 Zeiten eintragen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}
-    `;
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateQualityCheckHTML(data: NotificationData & { missingCount: number }): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Beschreibungen fehlen</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">✍️ Beschreibungen fehlen</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 18px; margin-top: 0;">Hallo ${data.userName},</p>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        <strong style="color: #dc2626;">${data.missingCount} Zeiteinträge</strong> haben keine Beschreibung.
-                        Vervollständige sie jetzt für bessere Reports!
-                      </p>
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/list" style="display: inline-block; background-color: #ef4444; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold;">
-                          Einträge prüfen →
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+    const eintraegeText = data.missingCount === 1 ? 'Zeiteintrag' : 'Zeiteinträge';
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        bei <strong style="color: #F27024;">${data.missingCount} ${eintraegeText}</strong> fehlt noch eine Beschreibung.
+        Für aussagekräftige Reports und eine transparente Abrechnung lohnt es sich, diese kurz zu ergänzen.
+      </p>
+
+      <div style="background-color: #fef3c7; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="color: #92400e; font-size: 15px; line-height: 1.6; margin: 0;">
+          <strong>Warum Beschreibungen wichtig sind:</strong> Sie helfen Ihnen und Ihren Kunden nachzuvollziehen,
+          welche Arbeiten durchgeführt wurden – auch Monate später noch.
+        </p>
+      </div>
     `;
+
+    return this.generateEmailWrapper('Beschreibungen vervollständigen', content, {
+      text: 'Einträge bearbeiten',
+      url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/list`
+    });
   }
 
   private generateQualityCheckText(data: NotificationData & { missingCount: number }): string {
-    return `Beschreibungen fehlen
+    const eintraegeText = data.missingCount === 1 ? 'Zeiteintrag' : 'Zeiteinträge';
+    return `
+Beschreibungen vervollständigen
 
 Hallo ${data.userName},
 
-${data.missingCount} Zeiteinträge haben keine Beschreibung. Vervollständige sie jetzt für bessere Reports!
+bei ${data.missingCount} ${eintraegeText} fehlt noch eine Beschreibung. Für aussagekräftige Reports und eine transparente Abrechnung lohnt es sich, diese kurz zu ergänzen.
 
-Einträge prüfen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/list
-    `;
+Warum Beschreibungen wichtig sind: Sie helfen Ihnen und Ihren Kunden nachzuvollziehen, welche Arbeiten durchgeführt wurden – auch Monate später noch.
+
+Einträge bearbeiten: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/list
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateWeeklyReportHTML(data: NotificationData & { totalHours: number; entries: any[] }): string {
     const entriesHTML = data.entries.slice(0, 10).map(entry => `
       <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">
-          ${new Date(entry.start_time).toLocaleDateString('de-DE')}
+        <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">
+          ${new Date(entry.start_time).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
         </td>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; color: #1f2937; font-size: 14px;">
-          ${entry.project_name || 'Unbekannt'}
+        <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; color: #1f2937; font-size: 14px;">
+          ${entry.project_name || 'Ohne Projekt'}
         </td>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; color: #4b5563; font-size: 14px; text-align: right;">
-          ${(entry.duration / 3600).toFixed(2)}h
+        <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; color: #F27024; font-size: 14px; text-align: right; font-weight: 600;">
+          ${(entry.duration / 3600).toFixed(1)}h
         </td>
       </tr>
     `).join('');
 
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Dein Wochenreport</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">📊 Dein Wochenreport</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 18px; margin-top: 0;">Hallo ${data.userName},</p>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        Diese Woche hast du <strong style="color: #059669;">${data.totalHours.toFixed(1)} Stunden</strong> erfasst. Hier ist deine Zusammenfassung:
-                      </p>
+    const moreEntriesNote = data.entries.length > 10
+      ? `<p style="color: #9ca3af; font-size: 13px; margin: 16px 0 0 0; text-align: center;">
+          ... und ${data.entries.length - 10} weitere Einträge
+        </p>`
+      : '';
 
-                      <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
-                        <tr style="background-color: #f9fafb;">
-                          <th style="padding: 12px 8px; text-align: left; color: #6b7280; font-size: 14px; font-weight: 600;">Datum</th>
-                          <th style="padding: 12px 8px; text-align: left; color: #6b7280; font-size: 14px; font-weight: 600;">Projekt</th>
-                          <th style="padding: 12px 8px; text-align: right; color: #6b7280; font-size: 14px; font-weight: 600;">Stunden</th>
-                        </tr>
-                        ${entriesHTML}
-                      </table>
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${data.userName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        hier ist Ihre Wochenübersicht: Sie haben diese Woche <strong style="color: #F27024;">${data.totalHours.toFixed(1)} Stunden</strong> erfasst.
+      </p>
 
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold;">
-                          Vollständigen Report ansehen →
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+        <tr style="background-color: #f9fafb;">
+          <th style="padding: 12px 8px; text-align: left; color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Datum</th>
+          <th style="padding: 12px 8px; text-align: left; color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Projekt</th>
+          <th style="padding: 12px 8px; text-align: right; color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Zeit</th>
+        </tr>
+        ${entriesHTML}
+      </table>
+      ${moreEntriesNote}
     `;
+
+    return this.generateEmailWrapper('Ihr Wochenreport', content, {
+      text: 'Zum Dashboard',
+      url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard`
+    });
   }
 
   private generateWeeklyReportText(data: NotificationData & { totalHours: number; entries: any[] }): string {
     const entriesText = data.entries.slice(0, 10).map(entry =>
-      `${new Date(entry.start_time).toLocaleDateString('de-DE')} - ${entry.project_name || 'Unbekannt'}: ${(entry.duration / 3600).toFixed(2)}h`
+      `${new Date(entry.start_time).toLocaleDateString('de-DE')} - ${entry.project_name || 'Ohne Projekt'}: ${(entry.duration / 3600).toFixed(1)}h`
     ).join('\n');
 
-    return `Dein Wochenreport
+    return `
+Ihr Wochenreport
 
 Hallo ${data.userName},
 
-Diese Woche hast du ${data.totalHours.toFixed(1)} Stunden erfasst. Hier ist deine Zusammenfassung:
+hier ist Ihre Wochenübersicht: Sie haben diese Woche ${data.totalHours.toFixed(1)} Stunden erfasst.
 
 ${entriesText}
+${data.entries.length > 10 ? `\n... und ${data.entries.length - 10} weitere Einträge` : ''}
 
-Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard
-    `;
+Zum Dashboard: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   // Helper methods
@@ -650,7 +824,7 @@ Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5
         ]
       );
     } catch (error) {
-      console.error('Failed to log email notification:', error);
+      logger.error('Failed to log email notification:', error);
     }
   }
 
@@ -675,7 +849,7 @@ Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5
 
       return hoursPassed >= minHoursBetween;
     } catch (error) {
-      console.error('Error checking notification eligibility:', error);
+      logger.error('Error checking notification eligibility:', error);
       return true; // Allow sending if check fails
     }
   }
@@ -687,18 +861,120 @@ Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5
     reportData: any;
     approvalUrl: string;
     expiresAt: Date;
+    pdfAttachment?: { filename: string; content: Buffer };
   }): Promise<boolean> {
-    const { to, recipientName, senderName, reportData, approvalUrl, expiresAt } = data;
+    const { to, recipientName, senderName, reportData, approvalUrl, expiresAt, pdfAttachment } = data;
 
     const html = this.generateReportApprovalRequestHTML(recipientName, senderName, reportData, approvalUrl, expiresAt);
     const text = this.generateReportApprovalRequestText(recipientName, senderName, reportData, approvalUrl, expiresAt);
 
+    const attachments = pdfAttachment ? [{
+      filename: pdfAttachment.filename,
+      content: pdfAttachment.content,
+      contentType: 'application/pdf'
+    }] : undefined;
+
     return await this.sendEmail({
       to,
-      subject: `📊 Freigabe-Anfrage von ${senderName} - RamboFlow`,
+      subject: `Freigabe-Anfrage: Zeiterfassungs-Report von ${senderName}`,
+      html,
+      text,
+      attachments
+    });
+  }
+
+  // Send reminder for pending approval
+  async sendReportApprovalReminder(data: {
+    to: string;
+    recipientName: string;
+    senderName: string;
+    reportData: any;
+    approvalUrl: string;
+    expiresAt: Date;
+    daysUntilExpiry: number;
+  }): Promise<boolean> {
+    const { to, recipientName, senderName, reportData, approvalUrl, expiresAt, daysUntilExpiry } = data;
+
+    const html = this.generateReportApprovalReminderHTML(recipientName, senderName, reportData, approvalUrl, expiresAt, daysUntilExpiry);
+    const text = this.generateReportApprovalReminderText(recipientName, senderName, reportData, approvalUrl, expiresAt, daysUntilExpiry);
+
+    return await this.sendEmail({
+      to,
+      subject: `Erinnerung: Report-Freigabe von ${senderName} läuft in ${daysUntilExpiry} Tag(en) ab`,
       html,
       text
     });
+  }
+
+  private generateReportApprovalReminderHTML(
+    recipientName: string,
+    senderName: string,
+    reportData: any,
+    approvalUrl: string,
+    expiresAt: Date,
+    daysUntilExpiry: number
+  ): string {
+    const totalHours = reportData.totalHours?.toFixed(2) || '0';
+    const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
+    const urgencyColor = daysUntilExpiry <= 1 ? '#dc2626' : '#f59e0b';
+
+    const content = `
+      <div style="background-color: ${urgencyColor}; color: white; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+        <strong>⏰ Erinnerung: Dieser Link läuft in ${daysUntilExpiry} Tag(en) ab!</strong>
+      </div>
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${recipientName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        <strong>${senderName}</strong> wartet noch auf Ihre Freigabe für den folgenden Zeiterfassungs-Report:
+      </p>
+      <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+        ${reportData.customerName ? `<p style="margin: 0 0 8px 0;"><strong>Kunde:</strong> ${reportData.customerName}</p>` : ''}
+        <p style="margin: 0 0 8px 0;"><strong>Zeitraum:</strong> ${dateRange}</p>
+        <p style="margin: 0;"><strong>Gesamtstunden:</strong> ${totalHours} h</p>
+      </div>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        Der Link ist gültig bis: <strong>${expiresAt.toLocaleDateString('de-DE', { dateStyle: 'full' })}</strong>
+      </p>
+      <p style="color: #9ca3af; font-size: 13px; margin: 24px 0 0 0; text-align: center;">
+        Falls der Button nicht funktioniert:<br>
+        <a href="${approvalUrl}" style="color: #F27024; word-break: break-all;">${approvalUrl}</a>
+      </p>
+    `;
+
+    return this.generateEmailWrapper('Erinnerung: Report-Freigabe', content, {
+      text: 'Report jetzt prüfen',
+      url: approvalUrl
+    });
+  }
+
+  private generateReportApprovalReminderText(
+    recipientName: string,
+    senderName: string,
+    reportData: any,
+    approvalUrl: string,
+    expiresAt: Date,
+    daysUntilExpiry: number
+  ): string {
+    const totalHours = reportData.totalHours?.toFixed(2) || '0';
+    const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
+
+    return `
+ERINNERUNG: Report-Freigabe läuft in ${daysUntilExpiry} Tag(en) ab!
+
+Hallo ${recipientName},
+
+${senderName} wartet noch auf Ihre Freigabe für den folgenden Zeiterfassungs-Report:
+
+${reportData.customerName ? `Kunde: ${reportData.customerName}` : ''}
+Zeitraum: ${dateRange}
+Gesamtstunden: ${totalHours} h
+
+Der Link ist gültig bis: ${expiresAt.toLocaleDateString('de-DE')}
+
+Prüfen und freigeben: ${approvalUrl}
+
+---
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   async sendReportApprovalNotification(data: {
@@ -715,8 +991,8 @@ Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5
     const text = this.generateReportApprovalNotificationText(senderName, recipientName, status, comment, reportData);
 
     const subject = status === 'approved'
-      ? `✅ Report freigegeben von ${recipientName} - RamboFlow`
-      : `❌ Report abgelehnt von ${recipientName} - RamboFlow`;
+      ? `Report freigegeben von ${recipientName}`
+      : `Report abgelehnt von ${recipientName}`;
 
     return await this.sendEmail({
       to,
@@ -736,101 +1012,61 @@ Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5
     const totalHours = reportData.totalHours?.toFixed(2) || '0';
     const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
 
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Freigabe-Anfrage</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${recipientName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        <strong>${senderName}</strong> bittet Sie, den folgenden Zeiterfassungs-Report zu prüfen und freizugeben.
+      </p>
+
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <h3 style="color: #36313E; margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Report-Details</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Zeitraum:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${dateRange}</td>
+          </tr>
+          ${reportData.customerName ? `
             <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 40px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 32px;">📊 Freigabe-Anfrage</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 40px 30px;">
-                      <h2 style="color: #1f2937; margin-top: 0;">Hallo ${recipientName}!</h2>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        <strong>${senderName}</strong> hat dir einen Zeiterfassungs-Report zur Freigabe geschickt.
-                      </p>
-
-                      <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 25px 0;">
-                        <h3 style="color: #1f2937; margin-top: 0; font-size: 18px;">Report-Details</h3>
-                        <table style="width: 100%; border-collapse: collapse;">
-                          <tr>
-                            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Zeitraum:</td>
-                            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${dateRange}</td>
-                          </tr>
-                          ${reportData.customerName ? `
-                            <tr>
-                              <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Kunde:</td>
-                              <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${reportData.customerName}</td>
-                            </tr>
-                          ` : ''}
-                          ${reportData.projectName ? `
-                            <tr>
-                              <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Projekt:</td>
-                              <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${reportData.projectName}</td>
-                            </tr>
-                          ` : ''}
-                          <tr>
-                            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Gesamtstunden:</td>
-                            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${totalHours}h</td>
-                          </tr>
-                          ${reportData.totalAmount ? `
-                            <tr>
-                              <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Gesamtbetrag:</td>
-                              <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${reportData.totalAmount.toFixed(2)}€</td>
-                            </tr>
-                          ` : ''}
-                        </table>
-                      </div>
-
-                      <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
-                        <p style="color: #92400e; margin: 0; font-size: 14px;">
-                          ⚠️ <strong>Dieser Link läuft ab am:</strong><br>
-                          ${expiresAt.toLocaleString('de-DE', { dateStyle: 'full', timeStyle: 'short' })} Uhr
-                        </p>
-                      </div>
-
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${approvalUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: bold; font-size: 16px;">
-                          Report prüfen und freigeben →
-                        </a>
-                      </div>
-
-                      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 15px; margin: 20px 0;">
-                        <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">
-                          Falls der Button nicht funktioniert, kopiere diesen Link:
-                        </p>
-                        <p style="color: #3b82f6; font-size: 12px; word-break: break-all; margin: 0;">
-                          ${approvalUrl}
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow - Professionelle Zeiterfassung<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
+              <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Kunde:</td>
+              <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${reportData.customerName}</td>
             </tr>
-          </table>
-        </body>
-      </html>
+          ` : ''}
+          ${reportData.projectName ? `
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Projekt:</td>
+              <td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">${reportData.projectName}</td>
+            </tr>
+          ` : ''}
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Gesamtstunden:</td>
+            <td style="padding: 8px 0; color: #F27024; font-weight: 600; text-align: right;">${totalHours}h</td>
+          </tr>
+          ${reportData.totalAmount ? `
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Gesamtbetrag:</td>
+              <td style="padding: 8px 0; color: #F27024; font-weight: 600; text-align: right;">${reportData.totalAmount.toFixed(2)} €</td>
+            </tr>
+          ` : ''}
+        </table>
+      </div>
+
+      <div style="background-color: #fef3c7; border-radius: 8px; padding: 16px; margin: 24px 0;">
+        <p style="color: #92400e; margin: 0; font-size: 14px; line-height: 1.5;">
+          <strong>Bitte beachten:</strong> Dieser Freigabe-Link ist gültig bis<br>
+          ${expiresAt.toLocaleString('de-DE', { dateStyle: 'full', timeStyle: 'short' })} Uhr
+        </p>
+      </div>
+
+      <p style="color: #9ca3af; font-size: 13px; margin: 24px 0 0 0; text-align: center;">
+        Falls der Button nicht funktioniert:<br>
+        <a href="${approvalUrl}" style="color: #F27024; word-break: break-all;">${approvalUrl}</a>
+      </p>
     `;
+
+    return this.generateEmailWrapper('Freigabe-Anfrage', content, {
+      text: 'Report prüfen und freigeben',
+      url: approvalUrl
+    });
   }
 
   private generateReportApprovalRequestText(
@@ -844,28 +1080,27 @@ Vollständigen Report ansehen: ${process.env.FRONTEND_URL || 'http://localhost:5
     const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
 
     return `
-Freigabe-Anfrage von ${senderName}
+Freigabe-Anfrage
 
-Hallo ${recipientName}!
+Hallo ${recipientName},
 
-${senderName} hat dir einen Zeiterfassungs-Report zur Freigabe geschickt.
+${senderName} bittet Sie, den folgenden Zeiterfassungs-Report zu prüfen und freizugeben.
 
 Report-Details:
 - Zeitraum: ${dateRange}
 ${reportData.customerName ? `- Kunde: ${reportData.customerName}` : ''}
 ${reportData.projectName ? `- Projekt: ${reportData.projectName}` : ''}
 - Gesamtstunden: ${totalHours}h
-${reportData.totalAmount ? `- Gesamtbetrag: ${reportData.totalAmount.toFixed(2)}€` : ''}
+${reportData.totalAmount ? `- Gesamtbetrag: ${reportData.totalAmount.toFixed(2)} €` : ''}
 
-⚠️ Dieser Link läuft ab am: ${expiresAt.toLocaleString('de-DE', { dateStyle: 'full', timeStyle: 'short' })} Uhr
+Bitte beachten: Dieser Link ist gültig bis ${expiresAt.toLocaleString('de-DE', { dateStyle: 'full', timeStyle: 'short' })} Uhr
 
 Report prüfen und freigeben:
 ${approvalUrl}
 
 --
-RamboFlow - Professionelle Zeiterfassung
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateReportApprovalNotificationHTML(
@@ -876,83 +1111,52 @@ RamboFlow - Professionelle Zeiterfassung
     reportData: any
   ): string {
     const isApproved = status === 'approved';
-    const statusColor = isApproved ? '#10b981' : '#ef4444';
-    const statusIcon = isApproved ? '✅' : '❌';
     const statusText = isApproved ? 'freigegeben' : 'abgelehnt';
     const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
 
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Report ${statusText}</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, ${statusColor} 0%, ${statusColor}dd 100%); padding: 40px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 32px;">${statusIcon} Report ${statusText}</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 40px 30px;">
-                      <h2 style="color: #1f2937; margin-top: 0;">Hallo ${senderName}!</h2>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        <strong>${recipientName}</strong> hat deinen Report <strong>${statusText}</strong>.
-                      </p>
+    const statusBox = isApproved
+      ? `<div style="background-color: #d1fae5; border-radius: 8px; padding: 20px; margin: 24px 0; text-align: center;">
+          <p style="color: #065f46; font-size: 16px; font-weight: 600; margin: 0;">
+            Ihr Report wurde freigegeben. Sie können jetzt mit der Rechnungserstellung fortfahren.
+          </p>
+        </div>`
+      : `<div style="background-color: #fee2e2; border-radius: 8px; padding: 20px; margin: 24px 0; text-align: center;">
+          <p style="color: #991b1b; font-size: 16px; font-weight: 600; margin: 0;">
+            Bitte überarbeiten Sie den Report entsprechend dem Feedback.
+          </p>
+        </div>`;
 
-                      <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 25px 0;">
-                        <h3 style="color: #1f2937; margin-top: 0; font-size: 18px;">Report-Details</h3>
-                        <p style="color: #6b7280; font-size: 14px; margin: 5px 0;">
-                          <strong>Zeitraum:</strong> ${dateRange}
-                        </p>
-                        ${reportData.customerName ? `
-                          <p style="color: #6b7280; font-size: 14px; margin: 5px 0;">
-                            <strong>Kunde:</strong> ${reportData.customerName}
-                          </p>
-                        ` : ''}
-                      </div>
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${senderName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        <strong>${recipientName}</strong> hat Ihren Report <strong style="color: ${isApproved ? '#059669' : '#dc2626'}">${statusText}</strong>.
+      </p>
 
-                      ${comment ? `
-                        <div style="background-color: #f9fafb; border-left: 4px solid ${statusColor}; padding: 15px; margin: 20px 0;">
-                          <h4 style="color: #1f2937; margin: 0 0 10px 0; font-size: 16px;">Kommentar:</h4>
-                          <p style="color: #4b5563; margin: 0; font-size: 14px; line-height: 1.5;">
-                            ${comment}
-                          </p>
-                        </div>
-                      ` : ''}
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <h3 style="color: #36313E; margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Report-Details</h3>
+        <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">
+          <strong>Zeitraum:</strong> ${dateRange}
+        </p>
+        ${reportData.customerName ? `
+          <p style="color: #6b7280; font-size: 14px; margin: 0;">
+            <strong>Kunde:</strong> ${reportData.customerName}
+          </p>
+        ` : ''}
+      </div>
 
-                      ${isApproved ? `
-                        <p style="color: #10b981; font-size: 16px; font-weight: 600; margin: 25px 0;">
-                          ✅ Du kannst jetzt mit der Rechnungserstellung fortfahren!
-                        </p>
-                      ` : `
-                        <p style="color: #ef4444; font-size: 16px; font-weight: 600; margin: 25px 0;">
-                          ℹ️ Bitte überarbeite den Report entsprechend dem Feedback.
-                        </p>
-                      `}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow - Professionelle Zeiterfassung<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      ${comment ? `
+        <div style="background-color: #f9fafb; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+          <h4 style="color: #1f2937; margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">Kommentar:</h4>
+          <p style="color: #4b5563; margin: 0; font-size: 14px; line-height: 1.6;">
+            ${comment}
+          </p>
+        </div>
+      ` : ''}
+
+      ${statusBox}
     `;
+
+    return this.generateEmailWrapper(`Report ${statusText}`, content);
   }
 
   private generateReportApprovalNotificationText(
@@ -962,17 +1166,15 @@ RamboFlow - Professionelle Zeiterfassung
     comment: string | undefined,
     reportData: any
   ): string {
-    const isApproved = status === 'approved';
-    const statusIcon = isApproved ? '✅' : '❌';
-    const statusText = isApproved ? 'freigegeben' : 'abgelehnt';
+    const statusText = status === 'approved' ? 'freigegeben' : 'abgelehnt';
     const dateRange = `${new Date(reportData.startDate).toLocaleDateString('de-DE')} - ${new Date(reportData.endDate).toLocaleDateString('de-DE')}`;
 
     return `
-${statusIcon} Report ${statusText}
+Report ${statusText}
 
-Hallo ${senderName}!
+Hallo ${senderName},
 
-${recipientName} hat deinen Report ${statusText}.
+${recipientName} hat Ihren Report ${statusText}.
 
 Report-Details:
 - Zeitraum: ${dateRange}
@@ -980,15 +1182,13 @@ ${reportData.customerName ? `- Kunde: ${reportData.customerName}` : ''}
 
 ${comment ? `Kommentar:\n${comment}\n` : ''}
 
-${isApproved
-      ? '✅ Du kannst jetzt mit der Rechnungserstellung fortfahren!'
-      : 'ℹ️ Bitte überarbeite den Report entsprechend dem Feedback.'
-    }
+${status === 'approved'
+  ? 'Ihr Report wurde freigegeben. Sie können jetzt mit der Rechnungserstellung fortfahren.'
+  : 'Bitte überarbeiten Sie den Report entsprechend dem Feedback.'}
 
 --
-RamboFlow - Professionelle Zeiterfassung
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   // ============================================================================
@@ -1011,7 +1211,7 @@ RamboFlow - Professionelle Zeiterfassung
 
     return await this.sendEmail({
       to,
-      subject: `💬 Neue Antwort zu Ticket #${ticketNumber}: ${ticketTitle}`,
+      subject: `Neue Antwort zu Ticket #${ticketNumber}: ${ticketTitle}`,
       html,
       text
     });
@@ -1031,11 +1231,9 @@ RamboFlow - Professionelle Zeiterfassung
     const html = this.generateTicketStatusChangeHTML(customerName, ticketNumber, ticketTitle, oldStatus, newStatus, portalUrl);
     const text = this.generateTicketStatusChangeText(customerName, ticketNumber, ticketTitle, oldStatus, newStatus, portalUrl);
 
-    const statusEmoji = newStatus === 'resolved' ? '✅' : newStatus === 'closed' ? '🔒' : '🔄';
-
     return await this.sendEmail({
       to,
-      subject: `${statusEmoji} Ticket #${ticketNumber} Status: ${this.getStatusLabel(newStatus)}`,
+      subject: `Ticket #${ticketNumber} Status: ${this.getStatusLabel(newStatus)}`,
       html,
       text
     });
@@ -1056,7 +1254,7 @@ RamboFlow - Professionelle Zeiterfassung
 
     return await this.sendEmail({
       to,
-      subject: `🎫 Ticket #${ticketNumber} erstellt: ${ticketTitle}`,
+      subject: `Ticket #${ticketNumber} erstellt: ${ticketTitle}`,
       html,
       text
     });
@@ -1081,66 +1279,270 @@ RamboFlow - Professionelle Zeiterfassung
       high: 'Hoch',
       critical: 'Kritisch',
     };
+    const priorityColors: Record<string, string> = {
+      low: '#10b981',
+      normal: '#F27024',
+      high: '#f59e0b',
+      critical: '#ef4444',
+    };
     const priorityLabel = priorityLabels[priority] || priority;
+    const priorityColor = priorityColors[priority] || '#F27024';
 
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Neues Ticket erstellt</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">🎫 Neues Ticket von Kunde</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Ein neues Ticket wurde erstellt:</p>
+    const content = `
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        Ein neuer Support-Fall wurde von einem Kunden eingereicht.
+      </p>
 
-                      <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                        <p style="margin: 0 0 10px 0;"><strong>Ticket:</strong> #${ticketNumber}</p>
-                        <p style="margin: 0 0 10px 0;"><strong>Kunde:</strong> ${customerName}</p>
-                        <p style="margin: 0 0 10px 0;"><strong>Erstellt von:</strong> ${contactName}</p>
-                        <p style="margin: 0 0 10px 0;"><strong>Priorität:</strong> ${priorityLabel}</p>
-                        <p style="margin: 0 0 10px 0;"><strong>Betreff:</strong> ${ticketTitle}</p>
-                        ${ticketDescription ? `<p style="margin: 0;"><strong>Beschreibung:</strong><br>${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}</p>` : ''}
-                      </div>
-
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${adminUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold;">
-                          Ticket öffnen
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #6b7280; font-size: 12px; margin: 0;">
-                        Diese E-Mail wurde automatisch generiert.
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 120px;">Ticket:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">#${ticketNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Kunde:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${customerName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Erstellt von:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${contactName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Priorität:</td>
+            <td style="padding: 8px 0;">
+              <span style="display: inline-block; padding: 4px 12px; background-color: ${priorityColor}20; color: ${priorityColor}; border-radius: 4px; font-size: 13px; font-weight: 600;">
+                ${priorityLabel}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; vertical-align: top;">Betreff:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${ticketTitle}</td>
+          </tr>
+        </table>
+        ${ticketDescription ? `
+          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+            <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0;">Beschreibung:</p>
+            <p style="color: #4b5563; font-size: 14px; margin: 0; line-height: 1.6; white-space: pre-wrap;">${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}</p>
+          </div>
+        ` : ''}
+      </div>
     `;
 
-    const text = `Neues Ticket von Kunde\n\nTicket: #${ticketNumber}\nKunde: ${customerName}\nErstellt von: ${contactName}\nPriorität: ${priorityLabel}\nBetreff: ${ticketTitle}\n${ticketDescription ? `\nBeschreibung: ${ticketDescription.substring(0, 500)}` : ''}\n\nTicket öffnen: ${adminUrl}`;
+    const html = this.generateEmailWrapper('Neues Support-Ticket', content, {
+      text: 'Ticket bearbeiten',
+      url: adminUrl
+    });
+
+    const text = `
+Neues Support-Ticket
+
+Ein neuer Support-Fall wurde von einem Kunden eingereicht.
+
+Ticket: #${ticketNumber}
+Kunde: ${customerName}
+Erstellt von: ${contactName}
+Priorität: ${priorityLabel}
+Betreff: ${ticketTitle}
+${ticketDescription ? `\nBeschreibung:\n${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}` : ''}
+
+Ticket bearbeiten: ${adminUrl}
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
 
     return await this.sendEmail({
       to,
-      subject: `🎫 Neues Ticket #${ticketNumber} von ${customerName}: ${ticketTitle}`,
+      subject: `Neues Ticket #${ticketNumber} von ${customerName}: ${ticketTitle}`,
+      html,
+      text
+    });
+  }
+
+  // ============================================================================
+  // ASSIGNEE (BEARBEITER) NOTIFICATION EMAILS
+  // ============================================================================
+
+  /**
+   * Send notification to user when they are assigned to a ticket
+   */
+  async sendTicketAssignedNotification(data: {
+    to: string;
+    assigneeName: string;
+    assignedByName: string;
+    ticketNumber: string;
+    ticketTitle: string;
+    ticketDescription: string;
+    customerName: string;
+    priority: string;
+    ticketUrl: string;
+  }): Promise<boolean> {
+    const { to, assigneeName, assignedByName, ticketNumber, ticketTitle, ticketDescription, customerName, priority, ticketUrl } = data;
+
+    const priorityLabels: Record<string, string> = {
+      low: 'Niedrig',
+      normal: 'Normal',
+      high: 'Hoch',
+      critical: 'Kritisch',
+    };
+    const priorityColors: Record<string, string> = {
+      low: '#10b981',
+      normal: '#F27024',
+      high: '#f59e0b',
+      critical: '#ef4444',
+    };
+    const priorityLabel = priorityLabels[priority] || priority;
+    const priorityColor = priorityColors[priority] || '#F27024';
+
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${assigneeName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        <strong>${assignedByName}</strong> hat Ihnen ein Ticket zugewiesen.
+      </p>
+
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 120px;">Ticket:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">#${ticketNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Kunde:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${customerName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Priorität:</td>
+            <td style="padding: 8px 0;">
+              <span style="display: inline-block; padding: 4px 12px; background-color: ${priorityColor}20; color: ${priorityColor}; border-radius: 4px; font-size: 13px; font-weight: 600;">
+                ${priorityLabel}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; vertical-align: top;">Betreff:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${ticketTitle}</td>
+          </tr>
+        </table>
+        ${ticketDescription ? `
+          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+            <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0;">Beschreibung:</p>
+            <p style="color: #4b5563; font-size: 14px; margin: 0; line-height: 1.6; white-space: pre-wrap;">${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}</p>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    const html = this.generateEmailWrapper('Ticket zugewiesen', content, {
+      text: 'Ticket öffnen',
+      url: ticketUrl
+    });
+
+    const text = `
+Ticket zugewiesen
+
+Hallo ${assigneeName},
+
+${assignedByName} hat Ihnen ein Ticket zugewiesen.
+
+Ticket: #${ticketNumber}
+Kunde: ${customerName}
+Priorität: ${priorityLabel}
+Betreff: ${ticketTitle}
+${ticketDescription ? `\nBeschreibung:\n${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}` : ''}
+
+Ticket öffnen: ${ticketUrl}
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
+
+    return await this.sendEmail({
+      to,
+      subject: `Ticket #${ticketNumber} zugewiesen: ${ticketTitle}`,
+      html,
+      text
+    });
+  }
+
+  /**
+   * Send notification to assignee when a new comment is added to their ticket
+   */
+  async sendTicketCommentNotificationToAssignee(data: {
+    to: string;
+    assigneeName: string;
+    commenterName: string;
+    ticketNumber: string;
+    ticketTitle: string;
+    commentContent: string;
+    customerName: string;
+    isFromCustomer: boolean;
+    ticketUrl: string;
+  }): Promise<boolean> {
+    const { to, assigneeName, commenterName, ticketNumber, ticketTitle, commentContent, customerName, isFromCustomer, ticketUrl } = data;
+
+    const sourceLabel = isFromCustomer ? 'Kundenkommentar' : 'Interner Kommentar';
+    const sourceColor = isFromCustomer ? '#F27024' : '#6366f1';
+
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${assigneeName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        Es gibt einen neuen Kommentar zu Ihrem zugewiesenen Ticket.
+      </p>
+
+      <div style="background-color: #FEF7F4; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <p style="color: #6b7280; font-size: 13px; margin: 0 0 4px 0;">
+          <strong>Ticket #${ticketNumber}</strong> • ${customerName}
+        </p>
+        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
+          ${ticketTitle}
+        </p>
+      </div>
+
+      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <div style="display: flex; align-items: center; margin-bottom: 12px;">
+          <span style="display: inline-block; padding: 4px 10px; background-color: ${sourceColor}20; color: ${sourceColor}; border-radius: 4px; font-size: 12px; font-weight: 600; margin-right: 8px;">
+            ${sourceLabel}
+          </span>
+          <span style="color: #F27024; font-size: 14px; font-weight: 600;">
+            ${commenterName}
+          </span>
+        </div>
+        <p style="color: #1f2937; font-size: 15px; line-height: 1.7; margin: 0; white-space: pre-wrap;">
+${commentContent.substring(0, 1000)}${commentContent.length > 1000 ? '...' : ''}
+        </p>
+      </div>
+    `;
+
+    const html = this.generateEmailWrapper('Neuer Kommentar zu Ihrem Ticket', content, {
+      text: 'Ticket öffnen',
+      url: ticketUrl
+    });
+
+    const text = `
+Neuer Kommentar zu Ihrem Ticket
+
+Hallo ${assigneeName},
+
+Es gibt einen neuen Kommentar zu Ihrem zugewiesenen Ticket.
+
+Ticket #${ticketNumber}: ${ticketTitle}
+Kunde: ${customerName}
+
+${sourceLabel} von ${commenterName}:
+---
+${commentContent.substring(0, 1000)}${commentContent.length > 1000 ? '...' : ''}
+---
+
+Ticket öffnen: ${ticketUrl}
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
+
+    return await this.sendEmail({
+      to,
+      subject: `${isFromCustomer ? 'Kundenkommentar' : 'Kommentar'} zu Ticket #${ticketNumber}: ${ticketTitle}`,
       html,
       text
     });
@@ -1166,75 +1568,39 @@ RamboFlow - Professionelle Zeiterfassung
     replierName: string,
     portalUrl: string
   ): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Neue Antwort zu Ihrem Ticket</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">💬 Neue Antwort zu Ihrem Ticket</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Hallo ${customerName},</p>
-                      <p style="color: #4b5563; font-size: 14px; line-height: 1.6;">
-                        es gibt eine neue Antwort zu Ihrem Ticket:
-                      </p>
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${customerName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        Sie haben eine neue Antwort zu Ihrem Ticket erhalten.
+      </p>
 
-                      <div style="background-color: #f3f4f6; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
-                        <p style="color: #6b7280; font-size: 12px; margin: 0 0 5px 0;">
-                          <strong>Ticket #${ticketNumber}</strong>
-                        </p>
-                        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
-                          ${ticketTitle}
-                        </p>
-                      </div>
+      <div style="background-color: #FEF7F4; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <p style="color: #6b7280; font-size: 13px; margin: 0 0 4px 0;">
+          <strong>Ticket #${ticketNumber}</strong>
+        </p>
+        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
+          ${ticketTitle}
+        </p>
+      </div>
 
-                      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                        <p style="color: #6b7280; font-size: 12px; margin: 0 0 10px 0;">
-                          <strong>${replierName}</strong> schrieb:
-                        </p>
-                        <p style="color: #1f2937; font-size: 14px; line-height: 1.6; margin: 0; white-space: pre-wrap;">
+      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="color: #F27024; font-size: 14px; font-weight: 600; margin: 0 0 12px 0;">
+          ${replierName} schrieb:
+        </p>
+        <p style="color: #1f2937; font-size: 15px; line-height: 1.7; margin: 0; white-space: pre-wrap;">
 ${replyContent}
-                        </p>
-                      </div>
+        </p>
+      </div>
 
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${portalUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
-                          Im Portal antworten →
-                        </a>
-                      </div>
-
-                      <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                        Sie können direkt auf diese E-Mail antworten oder das Kundenportal nutzen.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow Support<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; line-height: 1.6;">
+        Sie können direkt auf diese E-Mail antworten oder das Kundenportal nutzen.
+      </p>
     `;
+
+    return this.generateEmailWrapper('Neue Antwort zu Ihrem Ticket', content, {
+      text: 'Im Portal antworten',
+      url: portalUrl
+    });
   }
 
   private generateTicketReplyText(
@@ -1250,7 +1616,7 @@ Neue Antwort zu Ihrem Ticket
 
 Hallo ${customerName},
 
-es gibt eine neue Antwort zu Ihrem Ticket:
+Sie haben eine neue Antwort zu Ihrem Ticket erhalten.
 
 Ticket #${ticketNumber}: ${ticketTitle}
 
@@ -1264,9 +1630,8 @@ Im Portal antworten: ${portalUrl}
 Sie können direkt auf diese E-Mail antworten oder das Kundenportal nutzen.
 
 --
-RamboFlow Support
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateTicketStatusChangeHTML(
@@ -1277,92 +1642,46 @@ RamboFlow Support
     newStatus: string,
     portalUrl: string
   ): string {
-    const statusColors: Record<string, string> = {
-      open: '#3b82f6',
-      in_progress: '#f59e0b',
-      waiting: '#8b5cf6',
-      resolved: '#10b981',
-      closed: '#6b7280',
-      archived: '#9ca3af',
-    };
+    const resolvedNote = newStatus === 'resolved'
+      ? `<div style="background-color: #d1fae5; border-radius: 8px; padding: 16px; margin: 24px 0; text-align: center;">
+          <p style="color: #065f46; font-size: 15px; margin: 0;">
+            Ihr Ticket wurde als gelöst markiert. Falls Sie weitere Fragen haben, können Sie jederzeit antworten.
+          </p>
+        </div>`
+      : '';
 
-    const newStatusColor = statusColors[newStatus] || '#6b7280';
-    const statusIcon = newStatus === 'resolved' ? '✅' : newStatus === 'closed' ? '🔒' : '🔄';
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${customerName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        der Status Ihres Tickets wurde aktualisiert.
+      </p>
 
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Ticket Status aktualisiert</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, ${newStatusColor} 0%, ${newStatusColor}dd 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">${statusIcon} Ticket Status aktualisiert</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Hallo ${customerName},</p>
-                      <p style="color: #4b5563; font-size: 14px; line-height: 1.6;">
-                        der Status Ihres Tickets wurde aktualisiert:
-                      </p>
+      <div style="background-color: #FEF7F4; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <p style="color: #6b7280; font-size: 13px; margin: 0 0 4px 0;">
+          <strong>Ticket #${ticketNumber}</strong>
+        </p>
+        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
+          ${ticketTitle}
+        </p>
+      </div>
 
-                      <div style="background-color: #f3f4f6; border-left: 4px solid ${newStatusColor}; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
-                        <p style="color: #6b7280; font-size: 12px; margin: 0 0 5px 0;">
-                          <strong>Ticket #${ticketNumber}</strong>
-                        </p>
-                        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
-                          ${ticketTitle}
-                        </p>
-                      </div>
+      <div style="text-align: center; margin: 24px 0;">
+        <span style="display: inline-block; padding: 10px 20px; background-color: #f3f4f6; color: #6b7280; border-radius: 6px; font-size: 14px;">
+          ${this.getStatusLabel(oldStatus)}
+        </span>
+        <span style="display: inline-block; margin: 0 12px; color: #9ca3af; font-size: 18px;">→</span>
+        <span style="display: inline-block; padding: 10px 20px; background-color: #FEF7F4; color: #F27024; border-radius: 6px; font-size: 14px; font-weight: 600;">
+          ${this.getStatusLabel(newStatus)}
+        </span>
+      </div>
 
-                      <div style="text-align: center; margin: 25px 0;">
-                        <span style="display: inline-block; padding: 8px 16px; background-color: #f3f4f6; color: #6b7280; border-radius: 6px; font-size: 14px;">
-                          ${this.getStatusLabel(oldStatus)}
-                        </span>
-                        <span style="display: inline-block; margin: 0 15px; color: #9ca3af; font-size: 20px;">→</span>
-                        <span style="display: inline-block; padding: 8px 16px; background-color: ${newStatusColor}20; color: ${newStatusColor}; border-radius: 6px; font-size: 14px; font-weight: 600;">
-                          ${this.getStatusLabel(newStatus)}
-                        </span>
-                      </div>
-
-                      ${newStatus === 'resolved' ? `
-                        <div style="background-color: #d1fae5; border: 1px solid #10b981; border-radius: 8px; padding: 15px; margin: 20px 0; text-align: center;">
-                          <p style="color: #065f46; margin: 0; font-size: 14px;">
-                            ✅ Ihr Ticket wurde als gelöst markiert. Falls Sie weitere Fragen haben, können Sie jederzeit antworten.
-                          </p>
-                        </div>
-                      ` : ''}
-
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${portalUrl}" style="display: inline-block; background-color: ${newStatusColor}; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
-                          Ticket im Portal ansehen →
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow Support<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      ${resolvedNote}
     `;
+
+    return this.generateEmailWrapper('Ticket-Status aktualisiert', content, {
+      text: 'Ticket im Portal ansehen',
+      url: portalUrl
+    });
   }
 
   private generateTicketStatusChangeText(
@@ -1374,11 +1693,11 @@ RamboFlow Support
     portalUrl: string
   ): string {
     return `
-Ticket Status aktualisiert
+Ticket-Status aktualisiert
 
 Hallo ${customerName},
 
-der Status Ihres Tickets wurde aktualisiert:
+der Status Ihres Tickets wurde aktualisiert.
 
 Ticket #${ticketNumber}: ${ticketTitle}
 
@@ -1388,9 +1707,8 @@ ${newStatus === 'resolved' ? 'Ihr Ticket wurde als gelöst markiert. Falls Sie w
 Ticket im Portal ansehen: ${portalUrl}
 
 --
-RamboFlow Support
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateTicketCreatedHTML(
@@ -1400,69 +1718,33 @@ RamboFlow Support
     ticketDescription: string,
     portalUrl: string
   ): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Ticket erstellt</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">🎫 Ticket erfolgreich erstellt</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Hallo ${customerName},</p>
-                      <p style="color: #4b5563; font-size: 14px; line-height: 1.6;">
-                        vielen Dank für Ihre Anfrage. Wir haben Ihr Ticket erhalten und werden uns schnellstmöglich darum kümmern.
-                      </p>
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Hallo ${customerName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        vielen Dank für Ihre Anfrage. Wir haben Ihr Ticket erhalten und kümmern uns schnellstmöglich darum.
+      </p>
 
-                      <div style="background-color: #f3f4f6; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; border-radius: 0 6px 6px 0;">
-                        <p style="color: #6b7280; font-size: 12px; margin: 0 0 5px 0;">
-                          <strong>Ticket #${ticketNumber}</strong>
-                        </p>
-                        <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">
-                          ${ticketTitle}
-                        </p>
-                        <p style="color: #4b5563; font-size: 14px; margin: 0; white-space: pre-wrap; line-height: 1.5;">
+      <div style="background-color: #d1fae5; border-left: 4px solid #10b981; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <p style="color: #065f46; font-size: 13px; margin: 0 0 4px 0;">
+          <strong>Ticket #${ticketNumber}</strong>
+        </p>
+        <p style="color: #065f46; font-size: 16px; font-weight: 600; margin: 0 0 12px 0;">
+          ${ticketTitle}
+        </p>
+        <p style="color: #047857; font-size: 14px; margin: 0; white-space: pre-wrap; line-height: 1.6;">
 ${ticketDescription.substring(0, 300)}${ticketDescription.length > 300 ? '...' : ''}
-                        </p>
-                      </div>
+        </p>
+      </div>
 
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${portalUrl}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
-                          Ticket im Portal verfolgen →
-                        </a>
-                      </div>
-
-                      <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                        Sie erhalten eine Benachrichtigung, sobald wir Ihnen antworten.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow Support<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; line-height: 1.6;">
+        Sie erhalten eine Benachrichtigung, sobald wir Ihnen antworten.
+      </p>
     `;
+
+    return this.generateEmailWrapper('Ticket erfolgreich erstellt', content, {
+      text: 'Ticket im Portal verfolgen',
+      url: portalUrl
+    });
   }
 
   private generateTicketCreatedText(
@@ -1477,7 +1759,7 @@ Ticket erfolgreich erstellt
 
 Hallo ${customerName},
 
-vielen Dank für Ihre Anfrage. Wir haben Ihr Ticket erhalten und werden uns schnellstmöglich darum kümmern.
+vielen Dank für Ihre Anfrage. Wir haben Ihr Ticket erhalten und kümmern uns schnellstmöglich darum.
 
 Ticket #${ticketNumber}: ${ticketTitle}
 
@@ -1488,9 +1770,8 @@ Ticket im Portal verfolgen: ${portalUrl}
 Sie erhalten eine Benachrichtigung, sobald wir Ihnen antworten.
 
 --
-RamboFlow Support
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   // ============================================================================
@@ -1506,17 +1787,6 @@ RamboFlow Support
       general: 'Allgemeine Wartung'
     };
     return labels[type] || type;
-  }
-
-  private getMaintenanceTypeIcon(type: string): string {
-    const icons: Record<string, string> = {
-      patch: '🔧',
-      reboot: '🔄',
-      security_update: '🔒',
-      firmware: '💾',
-      general: '🛠️'
-    };
-    return icons[type] || '🛠️';
   }
 
   async sendMaintenanceNotification(data: {
@@ -1540,11 +1810,11 @@ RamboFlow Support
     const html = this.generateMaintenanceNotificationHTML(customerName, senderName, announcement, approvalUrl, requireApproval);
     const text = this.generateMaintenanceNotificationText(customerName, senderName, announcement, approvalUrl, requireApproval);
 
-    const icon = this.getMaintenanceTypeIcon(announcement.maintenanceType);
+    const typeLabel = this.getMaintenanceTypeLabel(announcement.maintenanceType);
 
     return await this.sendEmail({
       to,
-      subject: `${icon} Wartungsankündigung: ${announcement.title}`,
+      subject: `Wartungsankündigung: ${announcement.title} (${typeLabel})`,
       html,
       text
     });
@@ -1567,7 +1837,7 @@ RamboFlow Support
 
     return await this.sendEmail({
       to,
-      subject: `⏰ Erinnerung: Freigabe erforderlich - ${announcement.title}`,
+      subject: `Erinnerung: Freigabe erforderlich für ${announcement.title}`,
       html,
       text
     });
@@ -1586,12 +1856,11 @@ RamboFlow Support
     const html = this.generateMaintenanceApprovalNotificationHTML(customerName, announcementTitle, action, reason, approverName);
     const text = this.generateMaintenanceApprovalNotificationText(customerName, announcementTitle, action, reason, approverName);
 
-    const icon = action === 'approved' ? '✅' : '❌';
     const statusText = action === 'approved' ? 'genehmigt' : 'abgelehnt';
 
     return await this.sendEmail({
       to,
-      subject: `${icon} Wartung ${statusText}: ${announcementTitle} (${customerName})`,
+      subject: `Wartung ${statusText}: ${announcementTitle} (${customerName})`,
       html,
       text
     });
@@ -1615,11 +1884,9 @@ RamboFlow Support
     const html = this.generateMaintenanceCompletionHTML(customerName, senderName, announcement, completionNotes);
     const text = this.generateMaintenanceCompletionText(customerName, senderName, announcement, completionNotes);
 
-    const icon = this.getMaintenanceTypeIcon(announcement.maintenanceType);
-
     return await this.sendEmail({
       to,
-      subject: `✅ Wartung abgeschlossen: ${announcement.title}`,
+      subject: `Wartung abgeschlossen: ${announcement.title}`,
       html,
       text
     });
@@ -1638,98 +1905,63 @@ RamboFlow Support
     completionNotes?: string
   ): string {
     const typeLabel = this.getMaintenanceTypeLabel(announcement.maintenanceType);
-    const logoUrl = `${process.env.FRONTEND_URL}/logo-ramboeckit.png`;
 
     const formatDateTime = (date: Date) => {
       return date.toLocaleString('de-DE', {
         weekday: 'long',
-        year: 'numeric',
-        month: 'long',
         day: 'numeric',
+        month: 'long',
+        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
       });
     };
 
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Wartung abgeschlossen</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Sehr geehrte/r ${customerName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        wir freuen uns Ihnen mitteilen zu können, dass die angekündigten Wartungsarbeiten erfolgreich abgeschlossen wurden.
+      </p>
+
+      <div style="background-color: #d1fae5; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <h3 style="color: #065f46; margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">${announcement.title}</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; color: #047857; font-size: 14px; width: 140px;"><strong>Typ:</strong></td>
+            <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${typeLabel}</td>
+          </tr>
+          ${announcement.affectedSystems ? `
             <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px 20px; text-align: center;">
-                      <img src="${logoUrl}" alt="Ramboeck IT" style="max-width: 200px; height: auto; margin-bottom: 15px;" />
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">✅ Wartung erfolgreich abgeschlossen</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 40px 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Sehr geehrte/r ${customerName},</p>
-                      <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">
-                        wir freuen uns Ihnen mitteilen zu können, dass die angekündigten Wartungsarbeiten erfolgreich abgeschlossen wurden.
-                      </p>
-
-                      <div style="background-color: #d1fae5; border-left: 4px solid #10b981; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
-                        <h2 style="color: #065f46; margin: 0 0 15px 0; font-size: 20px;">${announcement.title}</h2>
-                        <table style="width: 100%; border-collapse: collapse;">
-                          <tr>
-                            <td style="padding: 8px 0; color: #047857; font-size: 14px; vertical-align: top; width: 140px;"><strong>Typ:</strong></td>
-                            <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${typeLabel}</td>
-                          </tr>
-                          ${announcement.affectedSystems ? `
-                            <tr>
-                              <td style="padding: 8px 0; color: #047857; font-size: 14px; vertical-align: top;"><strong>Betroffene Systeme:</strong></td>
-                              <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${announcement.affectedSystems}</td>
-                            </tr>
-                          ` : ''}
-                          <tr>
-                            <td style="padding: 8px 0; color: #047857; font-size: 14px; vertical-align: top;"><strong>Durchgeführt:</strong></td>
-                            <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${formatDateTime(announcement.scheduledStart)}</td>
-                          </tr>
-                        </table>
-                      </div>
-
-                      ${completionNotes ? `
-                        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                          <h3 style="color: #1f2937; margin: 0 0 10px 0; font-size: 16px;">Anmerkungen</h3>
-                          <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin: 0; white-space: pre-wrap;">${completionNotes}</p>
-                        </div>
-                      ` : ''}
-
-                      <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">
-                        Alle Systeme sollten nun wieder uneingeschränkt verfügbar sein. Sollten Sie wider Erwarten Probleme feststellen, kontaktieren Sie uns bitte umgehend.
-                      </p>
-
-                      <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                        Vielen Dank für Ihr Vertrauen.<br>
-                        Mit freundlichen Grüßen,<br>
-                        <strong>${senderName}</strong>
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow - IT-Service-Management<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
+              <td style="padding: 8px 0; color: #047857; font-size: 14px; vertical-align: top;"><strong>Systeme:</strong></td>
+              <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${announcement.affectedSystems}</td>
             </tr>
-          </table>
-        </body>
-      </html>
+          ` : ''}
+          <tr>
+            <td style="padding: 8px 0; color: #047857; font-size: 14px;"><strong>Durchgeführt:</strong></td>
+            <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${formatDateTime(announcement.scheduledStart)}</td>
+          </tr>
+        </table>
+      </div>
+
+      ${completionNotes ? `
+        <div style="background-color: #f9fafb; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+          <h4 style="color: #1f2937; margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">Anmerkungen:</h4>
+          <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin: 0; white-space: pre-wrap;">${completionNotes}</p>
+        </div>
+      ` : ''}
+
+      <p style="color: #4b5563; font-size: 15px; line-height: 1.7; margin: 24px 0;">
+        Alle Systeme sollten nun wieder uneingeschränkt verfügbar sein. Sollten Sie wider Erwarten Probleme feststellen, kontaktieren Sie uns bitte umgehend.
+      </p>
+
+      <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; padding-top: 20px; border-top: 1px solid #e5e7eb; line-height: 1.6;">
+        Vielen Dank für Ihr Vertrauen.<br>
+        Mit freundlichen Grüßen,<br>
+        <strong>${senderName}</strong>
+      </p>
     `;
+
+    return this.generateEmailWrapper('Wartung erfolgreich abgeschlossen', content);
   }
 
   private generateMaintenanceCompletionText(
@@ -1748,25 +1980,27 @@ RamboFlow Support
     const formatDateTime = (date: Date) => date.toLocaleString('de-DE');
 
     return `
-WARTUNG ERFOLGREICH ABGESCHLOSSEN
-================================
+Wartung erfolgreich abgeschlossen
 
 Sehr geehrte/r ${customerName},
 
 wir freuen uns Ihnen mitteilen zu können, dass die angekündigten Wartungsarbeiten erfolgreich abgeschlossen wurden.
 
-DETAILS:
+Details:
 - Titel: ${announcement.title}
 - Typ: ${typeLabel}
 ${announcement.affectedSystems ? `- Betroffene Systeme: ${announcement.affectedSystems}` : ''}
 - Durchgeführt: ${formatDateTime(announcement.scheduledStart)}
 
-${completionNotes ? `ANMERKUNGEN:\n${completionNotes}\n` : ''}
+${completionNotes ? `Anmerkungen:\n${completionNotes}\n` : ''}
 Alle Systeme sollten nun wieder uneingeschränkt verfügbar sein. Sollten Sie wider Erwarten Probleme feststellen, kontaktieren Sie uns bitte umgehend.
 
 Vielen Dank für Ihr Vertrauen.
 Mit freundlichen Grüßen,
 ${senderName}
+
+--
+RamboFlow von ramboeck.IT
     `.trim();
   }
 
@@ -1786,128 +2020,89 @@ ${senderName}
     requireApproval: boolean
   ): string {
     const typeLabel = this.getMaintenanceTypeLabel(announcement.maintenanceType);
-    const typeIcon = this.getMaintenanceTypeIcon(announcement.maintenanceType);
 
     const formatDateTime = (date: Date) => {
       return date.toLocaleString('de-DE', {
         weekday: 'long',
-        year: 'numeric',
-        month: 'long',
         day: 'numeric',
+        month: 'long',
+        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
       });
     };
 
-    const logoUrl = `${process.env.FRONTEND_URL}/logo-ramboeckit.png`;
-
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Wartungsankündigung</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px 20px; text-align: center;">
-                      <img src="${logoUrl}" alt="Ramboeck IT" style="max-width: 200px; height: auto; margin-bottom: 15px;" />
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">${typeIcon} Wartungsankündigung</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 40px 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Sehr geehrte/r ${customerName},</p>
-                      <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">
-                        wir möchten Sie über eine geplante Wartung informieren:
-                      </p>
-
-                      <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
-                        <h2 style="color: #92400e; margin: 0 0 15px 0; font-size: 20px;">${announcement.title}</h2>
-                        <table style="width: 100%; border-collapse: collapse;">
-                          <tr>
-                            <td style="padding: 8px 0; color: #78350f; font-size: 14px; vertical-align: top; width: 140px;"><strong>Typ:</strong></td>
-                            <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${typeLabel}</td>
-                          </tr>
-                          <tr>
-                            <td style="padding: 8px 0; color: #78350f; font-size: 14px; vertical-align: top;"><strong>Beginn:</strong></td>
-                            <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600;">${formatDateTime(announcement.scheduledStart)}</td>
-                          </tr>
-                          ${announcement.scheduledEnd ? `
-                            <tr>
-                              <td style="padding: 8px 0; color: #78350f; font-size: 14px; vertical-align: top;"><strong>Ende:</strong></td>
-                              <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${formatDateTime(announcement.scheduledEnd)}</td>
-                            </tr>
-                          ` : ''}
-                          ${announcement.affectedSystems ? `
-                            <tr>
-                              <td style="padding: 8px 0; color: #78350f; font-size: 14px; vertical-align: top;"><strong>Betroffene Systeme:</strong></td>
-                              <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${announcement.affectedSystems}</td>
-                            </tr>
-                          ` : ''}
-                        </table>
-                      </div>
-
-                      ${announcement.description ? `
-                        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                          <h3 style="color: #1f2937; margin: 0 0 10px 0; font-size: 16px;">Beschreibung</h3>
-                          <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin: 0; white-space: pre-wrap;">${announcement.description}</p>
-                        </div>
-                      ` : ''}
-
-                      ${requireApproval ? `
-                        <div style="background-color: #dbeafe; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin: 25px 0;">
-                          <h3 style="color: #1e40af; margin: 0 0 10px 0; font-size: 16px;">Ihre Freigabe ist erforderlich</h3>
-                          <p style="color: #1e40af; font-size: 14px; line-height: 1.5; margin: 0;">
-                            Bitte bestätigen Sie, dass die Wartung wie geplant durchgeführt werden kann.
-                            ${announcement.approvalDeadline ? `<br><strong>Frist: ${formatDateTime(announcement.approvalDeadline)}</strong>` : ''}
-                          </p>
-                        </div>
-
-                        <div style="text-align: center; margin: 30px 0;">
-                          <a href="${approvalUrl}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: bold; font-size: 16px; margin-right: 10px;">
-                            ✓ Wartung genehmigen
-                          </a>
-                        </div>
-
-                        <p style="color: #6b7280; font-size: 12px; text-align: center; margin-top: 10px;">
-                          Oder besuchen Sie: <a href="${approvalUrl}" style="color: #3b82f6;">${approvalUrl}</a>
-                        </p>
-                      ` : `
-                        <div style="background-color: #d1fae5; border: 1px solid #10b981; border-radius: 8px; padding: 15px; margin: 20px 0; text-align: center;">
-                          <p style="color: #065f46; margin: 0; font-size: 14px;">
-                            ℹ️ Dies ist eine reine Information. Es ist keine Freigabe erforderlich.
-                          </p>
-                        </div>
-                      `}
-
-                      <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                        Bei Fragen stehen wir Ihnen gerne zur Verfügung.<br>
-                        Mit freundlichen Grüßen,<br>
-                        <strong>${senderName}</strong>
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow - IT-Service-Management<br>
-                        © ${new Date().getFullYear()} Alle Rechte vorbehalten
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+    const approvalSection = requireApproval ? `
+      <div style="background-color: #fef3c7; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <h3 style="color: #92400e; margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Ihre Freigabe ist erforderlich</h3>
+        <p style="color: #92400e; font-size: 14px; line-height: 1.6; margin: 0;">
+          Bitte bestätigen Sie, dass die Wartung wie geplant durchgeführt werden kann.
+          ${announcement.approvalDeadline ? `<br><strong>Frist: ${formatDateTime(announcement.approvalDeadline)}</strong>` : ''}
+        </p>
+      </div>
+    ` : `
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 16px; margin: 24px 0; text-align: center;">
+        <p style="color: #36313E; margin: 0; font-size: 14px;">
+          Dies ist eine reine Information. Es ist keine Freigabe erforderlich.
+        </p>
+      </div>
     `;
+
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Sehr geehrte/r ${customerName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        wir möchten Sie über eine geplante Wartung informieren:
+      </p>
+
+      <div style="background-color: #FEF7F4; border-left: 4px solid #F27024; padding: 24px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <h3 style="color: #36313E; margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">${announcement.title}</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 140px;"><strong>Typ:</strong></td>
+            <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${typeLabel}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;"><strong>Beginn:</strong></td>
+            <td style="padding: 8px 0; color: #F27024; font-size: 14px; font-weight: 600;">${formatDateTime(announcement.scheduledStart)}</td>
+          </tr>
+          ${announcement.scheduledEnd ? `
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280; font-size: 14px;"><strong>Ende:</strong></td>
+              <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${formatDateTime(announcement.scheduledEnd)}</td>
+            </tr>
+          ` : ''}
+          ${announcement.affectedSystems ? `
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280; font-size: 14px; vertical-align: top;"><strong>Systeme:</strong></td>
+              <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${announcement.affectedSystems}</td>
+            </tr>
+          ` : ''}
+        </table>
+      </div>
+
+      ${announcement.description ? `
+        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 24px 0;">
+          <h4 style="color: #1f2937; margin: 0 0 10px 0; font-size: 14px; font-weight: 600;">Beschreibung:</h4>
+          <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin: 0; white-space: pre-wrap;">${announcement.description}</p>
+        </div>
+      ` : ''}
+
+      ${approvalSection}
+
+      <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; padding-top: 20px; border-top: 1px solid #e5e7eb; line-height: 1.6;">
+        Bei Fragen stehen wir Ihnen gerne zur Verfügung.<br>
+        Mit freundlichen Grüßen,<br>
+        <strong>${senderName}</strong>
+      </p>
+    `;
+
+    if (requireApproval) {
+      return this.generateEmailWrapper('Wartungsankündigung', content, {
+        text: 'Wartung genehmigen',
+        url: approvalUrl
+      });
+    }
+    return this.generateEmailWrapper('Wartungsankündigung', content);
   }
 
   private generateMaintenanceNotificationText(
@@ -1948,7 +2143,7 @@ ${requireApproval ? `
 Ihre Freigabe ist erforderlich!
 ${announcement.approvalDeadline ? `Frist: ${formatDateTime(announcement.approvalDeadline)}` : ''}
 
-Wartung genehmigen oder ablehnen: ${approvalUrl}
+Wartung genehmigen: ${approvalUrl}
 ` : 'Dies ist eine reine Information. Es ist keine Freigabe erforderlich.'}
 
 Bei Fragen stehen wir Ihnen gerne zur Verfügung.
@@ -1957,9 +2152,8 @@ Mit freundlichen Grüßen,
 ${senderName}
 
 --
-RamboFlow - IT-Service-Management
-© ${new Date().getFullYear()} Alle Rechte vorbehalten
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateMaintenanceReminderHTML(
@@ -1974,75 +2168,41 @@ RamboFlow - IT-Service-Management
     const formatDateTime = (date: Date) => {
       return date.toLocaleString('de-DE', {
         weekday: 'long',
-        year: 'numeric',
-        month: 'long',
         day: 'numeric',
+        month: 'long',
+        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
       });
     };
 
-    const logoUrl = `${process.env.FRONTEND_URL}/logo-ramboeckit.png`;
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Sehr geehrte/r ${customerName},</h2>
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        wir haben noch keine Rückmeldung zu folgender Wartung erhalten und möchten Sie freundlich daran erinnern:
+      </p>
 
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Erinnerung: Wartungsfreigabe</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 30px 20px; text-align: center;">
-                      <img src="${logoUrl}" alt="Ramboeck IT" style="max-width: 200px; height: auto; margin-bottom: 15px;" />
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">⏰ Erinnerung: Freigabe erforderlich</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">Sehr geehrte/r ${customerName},</p>
-                      <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">
-                        wir haben noch keine Rückmeldung zu folgender Wartung erhalten:
-                      </p>
+      <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 24px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <h3 style="color: #92400e; margin: 0 0 12px 0; font-size: 18px; font-weight: 600;">${announcement.title}</h3>
+        <p style="color: #92400e; margin: 0 0 8px 0; font-size: 14px;">
+          <strong>Geplant für:</strong> ${formatDateTime(announcement.scheduledStart)}
+        </p>
+        ${announcement.approvalDeadline ? `
+          <p style="color: #92400e; margin: 0; font-size: 14px;">
+            <strong>Freigabefrist:</strong> ${formatDateTime(announcement.approvalDeadline)}
+          </p>
+        ` : ''}
+      </div>
 
-                      <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-                        <h2 style="color: #991b1b; margin: 0 0 10px 0; font-size: 18px;">${announcement.title}</h2>
-                        <p style="color: #7f1d1d; margin: 5px 0; font-size: 14px;">
-                          <strong>Geplant für:</strong> ${formatDateTime(announcement.scheduledStart)}
-                        </p>
-                        ${announcement.approvalDeadline ? `
-                          <p style="color: #7f1d1d; margin: 5px 0; font-size: 14px;">
-                            <strong>Frist:</strong> ${formatDateTime(announcement.approvalDeadline)}
-                          </p>
-                        ` : ''}
-                      </div>
-
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${approvalUrl}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: bold; font-size: 16px;">
-                          Jetzt Freigabe erteilen →
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow - IT-Service-Management
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; line-height: 1.6;">
+        Bitte erteilen Sie Ihre Freigabe, damit wir die Wartung wie geplant durchführen können.
+      </p>
     `;
+
+    return this.generateEmailWrapper('Erinnerung: Freigabe erforderlich', content, {
+      text: 'Jetzt Freigabe erteilen',
+      url: approvalUrl
+    });
   }
 
   private generateMaintenanceReminderText(
@@ -2065,13 +2225,15 @@ wir haben noch keine Rückmeldung zu folgender Wartung erhalten:
 
 ${announcement.title}
 Geplant für: ${formatDateTime(announcement.scheduledStart)}
-${announcement.approvalDeadline ? `Frist: ${formatDateTime(announcement.approvalDeadline)}` : ''}
+${announcement.approvalDeadline ? `Freigabefrist: ${formatDateTime(announcement.approvalDeadline)}` : ''}
+
+Bitte erteilen Sie Ihre Freigabe, damit wir die Wartung wie geplant durchführen können.
 
 Jetzt Freigabe erteilen: ${approvalUrl}
 
 --
-RamboFlow - IT-Service-Management
-    `;
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 
   private generateMaintenanceApprovalNotificationHTML(
@@ -2082,71 +2244,41 @@ RamboFlow - IT-Service-Management
     approverName?: string
   ): string {
     const isApproved = action === 'approved';
-    const statusColor = isApproved ? '#10b981' : '#ef4444';
-    const statusIcon = isApproved ? '✅' : '❌';
     const statusText = isApproved ? 'genehmigt' : 'abgelehnt';
 
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Wartung ${statusText}</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="background: linear-gradient(135deg, ${statusColor} 0%, ${statusColor}dd 100%); padding: 30px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px;">${statusIcon} Wartung ${statusText}</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 30px;">
-                      <p style="color: #1f2937; font-size: 16px; margin-top: 0;">
-                        <strong>${customerName}</strong> hat die Wartung <strong>${statusText}</strong>.
-                      </p>
+    const statusBox = isApproved
+      ? `<div style="background-color: #d1fae5; border-radius: 8px; padding: 16px; margin: 24px 0; text-align: center;">
+          <p style="color: #065f46; font-size: 15px; font-weight: 600; margin: 0;">
+            Die Wartung kann wie geplant durchgeführt werden.
+          </p>
+        </div>`
+      : `<div style="background-color: #fee2e2; border-radius: 8px; padding: 16px; margin: 24px 0; text-align: center;">
+          <p style="color: #991b1b; font-size: 15px; font-weight: 600; margin: 0;">
+            Bitte kontaktieren Sie den Kunden für weitere Abstimmung.
+          </p>
+        </div>`;
 
-                      <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                        <h3 style="color: #1f2937; margin: 0 0 10px 0; font-size: 16px;">${announcementTitle}</h3>
-                        ${approverName ? `<p style="color: #6b7280; margin: 5px 0; font-size: 14px;">Genehmigt von: ${approverName}</p>` : ''}
-                      </div>
+    const content = `
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        <strong>${customerName}</strong> hat die folgende Wartung <strong style="color: ${isApproved ? '#059669' : '#dc2626'}">${statusText}</strong>:
+      </p>
 
-                      ${reason ? `
-                        <div style="background-color: ${isApproved ? '#f0fdf4' : '#fef2f2'}; border-left: 4px solid ${statusColor}; padding: 15px; margin: 20px 0;">
-                          <h4 style="color: #1f2937; margin: 0 0 8px 0; font-size: 14px;">Kommentar:</h4>
-                          <p style="color: #4b5563; margin: 0; font-size: 14px;">${reason}</p>
-                        </div>
-                      ` : ''}
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <h3 style="color: #36313E; margin: 0 0 12px 0; font-size: 18px; font-weight: 600;">${announcementTitle}</h3>
+        ${approverName ? `<p style="color: #6b7280; margin: 0; font-size: 14px;">Freigegeben von: ${approverName}</p>` : ''}
+      </div>
 
-                      ${isApproved ? `
-                        <p style="color: #10b981; font-size: 15px; font-weight: 600; margin: 25px 0; text-align: center;">
-                          Die Wartung kann wie geplant durchgeführt werden.
-                        </p>
-                      ` : `
-                        <p style="color: #ef4444; font-size: 15px; font-weight: 600; margin: 25px 0; text-align: center;">
-                          Bitte kontaktieren Sie den Kunden für weitere Abstimmung.
-                        </p>
-                      `}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                        RamboFlow - IT-Service-Management
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
+      ${reason ? `
+        <div style="background-color: #f9fafb; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+          <h4 style="color: #1f2937; margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">Kommentar:</h4>
+          <p style="color: #4b5563; margin: 0; font-size: 14px; line-height: 1.6;">${reason}</p>
+        </div>
+      ` : ''}
+
+      ${statusBox}
     `;
+
+    return this.generateEmailWrapper(`Wartung ${statusText}`, content);
   }
 
   private generateMaintenanceApprovalNotificationText(
@@ -2156,16 +2288,15 @@ RamboFlow - IT-Service-Management
     reason?: string,
     approverName?: string
   ): string {
-    const statusIcon = action === 'approved' ? '✅' : '❌';
     const statusText = action === 'approved' ? 'genehmigt' : 'abgelehnt';
 
     return `
-${statusIcon} Wartung ${statusText}
+Wartung ${statusText}
 
 ${customerName} hat die Wartung ${statusText}.
 
 Wartung: ${announcementTitle}
-${approverName ? `Genehmigt von: ${approverName}` : ''}
+${approverName ? `Freigegeben von: ${approverName}` : ''}
 
 ${reason ? `Kommentar: ${reason}` : ''}
 
@@ -2174,8 +2305,230 @@ ${action === 'approved'
   : 'Bitte kontaktieren Sie den Kunden für weitere Abstimmung.'}
 
 --
-RamboFlow - IT-Service-Management
+RamboFlow von ramboeck.IT
+    `.trim();
+  }
+  // ===========================================
+  // Portal Invitation Email
+  // ===========================================
+
+  /**
+   * Send portal invitation email to a customer contact
+   */
+  async sendPortalInvitationEmail(data: {
+    to: string;
+    contactName: string;
+    customerName: string;
+    invitationToken: string;
+    expiresAt: Date;
+    senderName?: string;
+    organizationId?: string;
+  }): Promise<boolean> {
+    const { to, contactName, customerName, invitationToken, expiresAt, senderName, organizationId } = data;
+
+    const portalUrl = process.env.PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const activationUrl = `${portalUrl}/portal/activate?token=${invitationToken}`;
+
+    const html = this.generatePortalInvitationHTML(contactName, customerName, activationUrl, expiresAt, senderName);
+    const text = this.generatePortalInvitationText(contactName, customerName, activationUrl, expiresAt, senderName);
+    const subject = 'Einladung zum Kunden-Portal - RamboFlow';
+
+    const success = await this.sendEmail({
+      to,
+      subject,
+      html,
+      text,
+    }, {
+      emailType: 'portal_invitation',
+      subject,
+      recipientEmail: to,
+      recipientName: contactName,
+      organizationId,
+      metadata: { customerName, invitationToken },
+    });
+
+    logger.info(`📧 Portal invitation email ${success ? 'sent' : 'failed'} to: ${to}`);
+
+    return success;
+  }
+
+  /**
+   * Resend portal invitation email
+   */
+  async resendPortalInvitationEmail(data: {
+    to: string;
+    contactName: string;
+    customerName: string;
+    invitationToken: string;
+    expiresAt: Date;
+    senderName?: string;
+    organizationId?: string;
+  }): Promise<boolean> {
+    const { to, contactName, customerName, invitationToken, expiresAt, senderName, organizationId } = data;
+
+    const portalUrl = process.env.PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const activationUrl = `${portalUrl}/portal/activate?token=${invitationToken}`;
+
+    const html = this.generatePortalInvitationHTML(contactName, customerName, activationUrl, expiresAt, senderName, true);
+    const text = this.generatePortalInvitationText(contactName, customerName, activationUrl, expiresAt, senderName, true);
+    const subject = 'Erneute Einladung zum Kunden-Portal - RamboFlow';
+
+    const success = await this.sendEmail({
+      to,
+      subject,
+      html,
+      text,
+    }, {
+      emailType: 'portal_invitation_resend',
+      subject,
+      recipientEmail: to,
+      recipientName: contactName,
+      organizationId,
+      metadata: { customerName, invitationToken },
+    });
+
+    logger.info(`📧 Portal invitation resend email ${success ? 'sent' : 'failed'} to: ${to}`);
+
+    return success;
+  }
+
+  private generatePortalInvitationHTML(
+    contactName: string,
+    customerName: string,
+    activationUrl: string,
+    expiresAt: Date,
+    senderName?: string,
+    isResend: boolean = false
+  ): string {
+    const greeting = contactName ? `Hallo ${contactName}` : 'Hallo';
+    const expiresFormatted = expiresAt.toLocaleString('de-DE', {
+      dateStyle: 'long',
+      timeStyle: 'short'
+    });
+
+    const content = `
+      <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">${greeting},</h2>
+
+      ${isResend ? `
+        <div style="background-color: #fef3c7; border-radius: 8px; padding: 16px; margin: 0 0 24px 0;">
+          <p style="color: #92400e; font-size: 14px; margin: 0;">
+            <strong>Hinweis:</strong> Dies ist eine erneute Einladung. Ihre vorherige Einladung wurde aktualisiert.
+          </p>
+        </div>
+      ` : ''}
+
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        ${senderName ? `<strong>${senderName}</strong> hat` : 'Sie wurden'}
+        Sie zum Self-Service-Portal von <strong>${customerName}</strong> eingeladen.
+      </p>
+
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 0 0 24px 0;">
+        Mit dem Kunden-Portal haben Sie Zugriff auf:
+      </p>
+
+      <div style="background-color: #FEF7F4; border-radius: 8px; padding: 24px; margin: 24px 0;">
+        <table style="width: 100%;">
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #F27024;">&#10003;</strong> Support-Tickets erstellen und verfolgen
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #F27024;">&#10003;</strong> Projektstatus einsehen
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #F27024;">&#10003;</strong> Rechnungen und Angebote abrufen
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+              <strong style="color: #F27024;">&#10003;</strong> Direkte Kommunikation mit dem Support-Team
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="background-color: #fef3c7; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="color: #92400e; font-size: 15px; line-height: 1.6; margin: 0;">
+          <strong>Wichtig:</strong> Dieser Einladungslink ist <strong>7 Tage</strong> gültig!<br>
+          Gültig bis: ${expiresFormatted} Uhr
+        </p>
+      </div>
+
+      <p style="color: #4b5563; font-size: 16px; line-height: 1.7; margin: 24px 0;">
+        Klicken Sie auf den Button unten, um Ihr Passwort festzulegen und Ihren Zugang zu aktivieren:
+      </p>
+
+      <div style="background-color: #f9fafb; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+        <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">
+          Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:
+        </p>
+        <p style="color: #F27024; font-size: 12px; word-break: break-all; margin: 0;">
+          <a href="${activationUrl}" style="color: #F27024; text-decoration: none;">${activationUrl}</a>
+        </p>
+      </div>
+
+      <p style="color: #6b7280; font-size: 14px; margin: 24px 0 0 0; line-height: 1.6;">
+        <strong>Diese Einladung nicht erwartet?</strong><br>
+        Falls Sie diese E-Mail nicht angefordert haben, können Sie sie ignorieren.
+        Es wird kein Konto erstellt, solange Sie den Link nicht aktivieren.
+      </p>
     `;
+
+    return this.generateEmailWrapper('Einladung zum Kunden-Portal', content, {
+      text: 'Zugang aktivieren',
+      url: activationUrl
+    });
+  }
+
+  private generatePortalInvitationText(
+    contactName: string,
+    customerName: string,
+    activationUrl: string,
+    expiresAt: Date,
+    senderName?: string,
+    isResend: boolean = false
+  ): string {
+    const greeting = contactName ? `Hallo ${contactName}` : 'Hallo';
+    const expiresFormatted = expiresAt.toLocaleString('de-DE', {
+      dateStyle: 'long',
+      timeStyle: 'short'
+    });
+
+    const resendNote = isResend
+      ? '\nHinweis: Dies ist eine erneute Einladung. Ihre vorherige Einladung wurde aktualisiert.\n'
+      : '';
+
+    return `
+Einladung zum Kunden-Portal
+${resendNote}
+${greeting},
+
+${senderName ? `${senderName} hat` : 'Sie wurden'} Sie zum Self-Service-Portal von ${customerName} eingeladen.
+
+Mit dem Kunden-Portal haben Sie Zugriff auf:
+- Support-Tickets erstellen und verfolgen
+- Projektstatus einsehen
+- Rechnungen und Angebote abrufen
+- Direkte Kommunikation mit dem Support-Team
+
+WICHTIG: Dieser Einladungslink ist 7 Tage gueltig!
+Gueltig bis: ${expiresFormatted} Uhr
+
+Klicken Sie auf den folgenden Link, um Ihr Passwort festzulegen und Ihren Zugang zu aktivieren:
+
+${activationUrl}
+
+Diese Einladung nicht erwartet?
+Falls Sie diese E-Mail nicht angefordert haben, koennen Sie sie ignorieren.
+Es wird kein Konto erstellt, solange Sie den Link nicht aktivieren.
+
+--
+RamboFlow von ramboeck.IT
+    `.trim();
   }
 }
 

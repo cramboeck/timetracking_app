@@ -5,6 +5,7 @@ import { AccountType } from '../types';
 import { ForgotPassword } from './ForgotPassword';
 import { ResetPassword } from './ResetPassword';
 import { organizationsApi } from '../services/api';
+import { Button } from './ui';
 
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'join-organization';
 
@@ -14,6 +15,8 @@ interface InvitationInfo {
   role: string;
   invitedBy: string;
   expiresAt: string;
+  invitedEmail?: string;
+  userAlreadyExists?: boolean;
 }
 
 export const Auth = () => {
@@ -272,16 +275,15 @@ export const Auth = () => {
                 <p className="text-gray-600 dark:text-gray-400 mb-6">
                   {invitationError}
                 </p>
-                <button
+                <Button
                   onClick={() => {
                     window.history.replaceState({}, '', '/');
                     setAuthView('login');
                     setInvitationCode(null);
                   }}
-                  className="px-6 py-2 btn-accent"
                 >
                   Zur Anmeldung
-                </button>
+                </Button>
               </div>
             )}
 
@@ -327,35 +329,63 @@ export const Auth = () => {
 
                 {/* Action */}
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
-                    Melde dich an oder erstelle einen Account, um der Organisation beizutreten.
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => {
-                        // Store invitation code for after login
-                        localStorage.setItem('pending_invitation', invitationCode);
-                        window.history.replaceState({}, '', '/');
-                        setAuthView('login');
-                      }}
-                      className="py-3 px-4 bg-accent-primary text-white rounded-lg font-medium hover:bg-accent-darker transition-colors"
-                    >
-                      Anmelden
-                    </button>
-                    <button
-                      onClick={() => {
-                        // Store invitation code and set registration via invitation mode
-                        localStorage.setItem('pending_invitation', invitationCode);
-                        setRegisteringViaInvitation(true);
-                        setInvitationOrgName(invitationInfo?.organizationName || null);
-                        window.history.replaceState({}, '', '/');
-                        setAuthView('register');
-                      }}
-                      className="py-3 px-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      Registrieren
-                    </button>
-                  </div>
+                  {invitationInfo.userAlreadyExists ? (
+                    <>
+                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                        <p className="text-sm text-blue-700 dark:text-blue-300 text-center">
+                          <strong>Du hast bereits ein Konto</strong> mit der E-Mail-Adresse {invitationInfo.invitedEmail}. Bitte melde dich an, um der Organisation beizutreten.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => {
+                          // Store invitation code for after login
+                          localStorage.setItem('pending_invitation', invitationCode);
+                          window.history.replaceState({}, '', '/');
+                          setAuthView('login');
+                        }}
+                        size="lg"
+                        className="w-full"
+                      >
+                        Anmelden
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                        Du wurdest eingeladen für: <strong>{invitationInfo.invitedEmail}</strong>
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500 text-center">
+                        Falls du bereits ein Konto hast, melde dich an. Ansonsten registriere dich mit einem neuen Account.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button
+                          onClick={() => {
+                            // Store invitation code for after login
+                            localStorage.setItem('pending_invitation', invitationCode);
+                            window.history.replaceState({}, '', '/');
+                            setAuthView('login');
+                          }}
+                          size="lg"
+                        >
+                          Anmelden
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            // Store invitation code and set registration via invitation mode
+                            localStorage.setItem('pending_invitation', invitationCode);
+                            setRegisteringViaInvitation(true);
+                            setInvitationOrgName(invitationInfo?.organizationName || null);
+                            window.history.replaceState({}, '', '/');
+                            setAuthView('register');
+                          }}
+                          variant="outline"
+                          size="lg"
+                        >
+                          Registrieren
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -363,16 +393,17 @@ export const Auth = () => {
 
           {/* Back Link */}
           <div className="text-center mt-6">
-            <button
+            <Button
               onClick={() => {
                 window.history.replaceState({}, '', '/');
                 setAuthView('login');
                 setInvitationCode(null);
               }}
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-accent-primary transition-colors"
+              variant="ghost"
+              size="sm"
             >
               Zurück zur normalen Anmeldung
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -501,20 +532,24 @@ export const Auth = () => {
                   </label>
 
                   <div className="flex gap-3">
-                    <button
+                    <Button
                       type="button"
                       onClick={handleCancelMfa}
-                      className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+                      variant="secondary"
+                      size="lg"
+                      fullWidth
                     >
                       Abbrechen
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="submit"
-                      disabled={isLoading || loginMfaCode.length < 6 || (mfaLockedUntil !== undefined && mfaLockedUntil > new Date())}
-                      className="flex-1 py-3 btn-accent disabled:opacity-50"
+                      disabled={loginMfaCode.length < 6 || (mfaLockedUntil !== undefined && mfaLockedUntil > new Date())}
+                      loading={isLoading}
+                      size="lg"
+                      fullWidth
                     >
                       {isLoading ? 'Überprüfen...' : 'Bestätigen'}
-                    </button>
+                    </Button>
                   </div>
                 </form>
               ) : (
@@ -543,13 +578,14 @@ export const Auth = () => {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Passwort
                       </label>
-                      <button
+                      <Button
                         type="button"
                         onClick={() => setAuthView('forgot-password')}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors"
+                        variant="ghost"
+                        size="sm"
                       >
                         Passwort vergessen?
-                      </button>
+                      </Button>
                     </div>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -564,13 +600,14 @@ export const Auth = () => {
                     </div>
                   </div>
 
-                  <button
+                  <Button
                     type="submit"
-                    disabled={isLoading}
-                    className="w-full py-3 btn-accent"
+                    loading={isLoading}
+                    size="lg"
+                    fullWidth
                   >
                     {isLoading ? 'Anmelden...' : 'Anmelden'}
-                  </button>
+                  </Button>
                 </form>
               )
             ) : (
@@ -757,13 +794,14 @@ export const Auth = () => {
                   </div>
                 )}
 
-                <button
+                <Button
                   type="submit"
-                  disabled={isLoading}
-                  className="w-full py-3 btn-accent"
+                  loading={isLoading}
+                  size="lg"
+                  fullWidth
                 >
                   {isLoading ? 'Registrieren...' : 'Registrieren'}
-                </button>
+                </Button>
 
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
                   Mit der Registrierung akzeptierst du unsere Datenschutzbestimmungen

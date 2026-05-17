@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Rocket, Check, Users, FolderOpen, Clock, ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { Button } from './ui/Button';
 
 interface WelcomeModalProps {
   isOpen: boolean;
@@ -254,24 +255,25 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-200 dark:border-dark-200 flex items-center justify-between gap-4">
-          <button
+          <Button
             onClick={handleSkip}
-            className="text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-dark-200 font-medium transition-colors"
+            variant="ghost"
           >
             Überspringen
-          </button>
+          </Button>
 
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500 dark:text-dark-400">
               {currentStep + 1} / {steps.length}
             </span>
-            <button
+            <Button
               onClick={handleNext}
-              className="flex items-center gap-2 px-6 py-3 btn-accent font-semibold"
+              size="lg"
+              icon={<ChevronRight size={20} />}
+              iconPosition="right"
             >
               {isLastStep ? 'Los geht\'s!' : 'Weiter'}
-              <ChevronRight size={20} />
-            </button>
+            </Button>
           </div>
         </div>
       </div>

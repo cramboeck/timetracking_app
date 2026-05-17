@@ -1,4 +1,4 @@
-import { Calendar, dateFnsLocalizer, View, SlotInfo } from 'react-big-calendar';
+import { Calendar, dateFnsLocalizer, View, SlotInfo, Views } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
@@ -12,6 +12,7 @@ import { Modal } from './Modal';
 import { TimePicker } from './TimePicker';
 import { maintenanceApi, MaintenanceAnnouncement } from '../services/api';
 import { Wrench, Clock, AlertCircle } from 'lucide-react';
+import { Button } from './ui';
 
 const locales = {
   'de': de,
@@ -77,8 +78,14 @@ export const CalendarView = ({
   onUpdateEntry,
   onCreateEntry
 }: CalendarViewProps) => {
-  const [view, setView] = useState<View>('month');
+  // On mobile, default to 'agenda' view for better readability
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const [view, setView] = useState<View>(isMobile ? Views.AGENDA : Views.MONTH);
   const [date, setDate] = useState(new Date());
+  // On mobile, restrict available views to day/agenda (no drag-and-drop)
+  const availableViews: View[] = isMobile
+    ? [Views.DAY, Views.AGENDA]
+    : [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA];
 
   // Maintenance events state
   const [maintenances, setMaintenances] = useState<MaintenanceAnnouncement[]>([]);
@@ -290,7 +297,7 @@ export const CalendarView = ({
 
     onUpdateEntry(editingEntry.id, {
       projectId: editProjectId,
-      activityId: editActivityId || undefined,
+      activityId: editActivityId === '' ? null : editActivityId,
       description: editDescription,
       startTime: startDateTime,
       endTime: endDateTime,
@@ -396,7 +403,7 @@ export const CalendarView = ({
 
     const newEntry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'> = {
       projectId: createProjectId,
-      activityId: createActivityId || undefined,
+      activityId: createActivityId === '' ? null : createActivityId,
       startTime: startDateTime.toISOString(),
       endTime: endDateTime.toISOString(),
       duration,
@@ -547,6 +554,7 @@ export const CalendarView = ({
             style={{ height: '100%', minHeight: '500px' }}
             view={view}
             onView={setView}
+            views={availableViews}
             date={date}
             onNavigate={setDate}
             eventPropGetter={eventStyleGetter}
@@ -661,18 +669,18 @@ export const CalendarView = ({
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => setEditingEntry(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
               >
                 Abbrechen
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 onClick={handleSaveEdit}
-                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
               >
                 Speichern
-              </button>
+              </Button>
             </div>
           </div>
         </Modal>
@@ -795,22 +803,22 @@ export const CalendarView = ({
 
             {/* Buttons */}
             <div className="flex justify-end gap-2 pt-4">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => {
                   setIsCreateModalOpen(false);
                   setCreateSlotInfo(null);
                 }}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
               >
                 Abbrechen
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 onClick={handleCreateEntry}
                 disabled={!createProjectId || createDuration <= 0}
-                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Speichern
-              </button>
+              </Button>
             </div>
           </div>
         </Modal>

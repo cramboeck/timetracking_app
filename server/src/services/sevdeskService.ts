@@ -1,4 +1,5 @@
 import { query } from '../config/database';
+import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 
 // sevDesk API Base URL
@@ -58,7 +59,7 @@ async function sevdeskFetch(
   options: RequestInit = {}
 ): Promise<any> {
   const url = `${SEVDESK_API_URL}${endpoint}`;
-  console.log(`sevDesk API call: ${options.method || 'GET'} ${url}`);
+  logger.info(`sevDesk API call: ${options.method || 'GET'} ${url}`);
 
   const response = await fetch(url, {
     ...options,
@@ -71,7 +72,7 @@ async function sevdeskFetch(
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`sevDesk API error: ${response.status} ${response.statusText}`, errorText);
+    logger.error(`sevDesk API error: ${response.status} ${response.statusText}`, errorText);
     let errorMessage = `sevDesk API error: ${response.status}`;
     try {
       const errorData = JSON.parse(errorText);
@@ -213,7 +214,7 @@ export async function testConnection(apiToken: string): Promise<{ success: boole
 
     return { success: false, error: 'Keine Benutzerdaten gefunden' };
   } catch (error: any) {
-    console.error('sevDesk testConnection error:', error);
+    logger.error('sevDesk testConnection error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -376,6 +377,7 @@ export async function getBillingSummary(
        AND DATE(te.start_time) >= $2::date
        AND DATE(te.start_time) <= $3::date
        AND te.end_time IS NOT NULL
+       AND te.is_billable = true
      ORDER BY c.name, te.start_time`,
     [userId, startDate, endDate]
   );
@@ -477,15 +479,15 @@ export async function createInvoice(
   const endDate = new Date(periodEnd);
   const periodLabel = `${startDate.toLocaleDateString('de-DE')} - ${endDate.toLocaleDateString('de-DE')}`;
 
-  console.log(`Creating sevDesk invoice for contact ${sevdeskCustomerId}, period ${periodLabel}, ${entries.length} entries`);
-  console.log('Custom data provided:', !!customData, 'custom positions:', customData?.positions?.length || 0);
+  logger.info(`Creating sevDesk invoice for contact ${sevdeskCustomerId}, period ${periodLabel}, ${entries.length} entries`);
+  logger.info('Custom data provided:', { provided: !!customData, customPositions: customData?.positions?.length || 0 });
 
   // Create invoice positions - use custom positions if provided, otherwise create from entries
   let positions: any[];
 
   if (customData?.positions && customData.positions.length > 0) {
     // Use grouped positions from frontend
-    console.log('Using custom grouped positions');
+    logger.info('Using custom grouped positions');
     positions = customData.positions.map((pos, index) => {
       // Header positions (quantity 0) are displayed as bold headers in sevDesk
       if (pos.isHeader || pos.hours === 0) {
@@ -524,7 +526,7 @@ export async function createInvoice(
     });
   } else {
     // Fallback: create positions from individual entries
-    console.log('Using individual entry positions (fallback)');
+    logger.info('Using individual entry positions (fallback)');
     positions = entries.map((entry, index) => {
       const hours = entry.duration / 3600;
       let name = entry.description || 'Dienstleistung';
@@ -585,8 +587,8 @@ export async function createInvoice(
   if (addressZip || addressCity) addressParts.push([addressZip, addressCity].filter(Boolean).join(' '));
   const fullAddress = addressParts.join('\n');
 
-  console.log('[sevDesk] Using SevUser as contactPerson:', sevUser.id);
-  console.log('[sevDesk] Address:', fullAddress);
+  logger.info('[sevDesk] Using SevUser as contactPerson:', sevUser.id);
+  logger.info('[sevDesk] Address:', fullAddress);
 
   // Use Unix timestamp for date (like the quote creation)
   const invoiceDateTimestamp = Math.floor(new Date().getTime() / 1000);
@@ -630,7 +632,7 @@ export async function createInvoice(
       },
       invoiceType: 'RE',
       currency: 'EUR',
-      showNet: false,
+      showNet: true,
       mapAll: true,
       version: 0,
       smallSettlement: false,
@@ -659,8 +661,8 @@ export async function createInvoice(
   // Convert to form-urlencoded format (like quote creation)
   const formBody = objectToFormData(invoiceData);
 
-  console.log('[sevDesk] Creating invoice with form-urlencoded data');
-  console.log('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
+  logger.info('[sevDesk] Creating invoice with form-urlencoded data');
+  logger.info('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
 
   // Create invoice with retry mechanism
   let response: Response;
@@ -679,14 +681,14 @@ export async function createInvoice(
       });
 
       const responseText = await response.text();
-      console.log('[sevDesk] Response:', response.status, responseText.substring(0, 500));
+      logger.info('[sevDesk] Response:', { status: response.status, body: responseText.substring(0, 500) });
 
       if (!response.ok) {
         const errorMessage = responseText;
         // Check if retryable error
         if (errorMessage.includes('Correct number abort') && retries < maxRetries - 1) {
           retries++;
-          console.log(`Invoice creation attempt ${retries} failed, retrying in ${retries * 2000}ms...`);
+          logger.info(`Invoice creation attempt ${retries} failed, retrying in ${retries * 2000}ms...`);
           await new Promise(resolve => setTimeout(resolve, retries * 2000));
           continue;
         }
@@ -697,7 +699,7 @@ export async function createInvoice(
       const invoiceId = invoiceResponse.objects.invoice.id;
       const invoiceNumber = invoiceResponse.objects.invoice.invoiceNumber;
 
-      console.log('[sevDesk] Invoice created:', invoiceId, invoiceNumber);
+      logger.info('[sevDesk] Invoice created:', { invoiceId, invoiceNumber });
 
       return {
         invoiceId,
@@ -706,7 +708,7 @@ export async function createInvoice(
     } catch (error: any) {
       if (error.message?.includes('Correct number abort') && retries < maxRetries - 1) {
         retries++;
-        console.log(`Invoice creation attempt ${retries} failed:`, error.message);
+        logger.info(`Invoice creation attempt ${retries} failed:`, error.message);
         await new Promise(resolve => setTimeout(resolve, retries * 2000));
         continue;
       }
@@ -1018,10 +1020,10 @@ export async function getInvoiceWithPositions(
     inv = inv[0];
   }
 
-  console.log('Invoice response type:', typeof inv, Array.isArray(invoiceResponse.objects) ? 'array' : 'object');
+  logger.info('Invoice response type:', { type: typeof inv, kind: Array.isArray(invoiceResponse.objects) ? 'array' : 'object' });
 
   if (!inv) {
-    console.error('No invoice data in response:', JSON.stringify(invoiceResponse, null, 2));
+    logger.error('No invoice data in response:', invoiceResponse);
     return null;
   }
 
@@ -1125,10 +1127,10 @@ export async function getQuoteWithPositions(
     quote = quote[0];
   }
 
-  console.log('Quote response type:', typeof quote, Array.isArray(quoteResponse.objects) ? 'array' : 'object');
+  logger.info('Quote response type:', { type: typeof quote, kind: Array.isArray(quoteResponse.objects) ? 'array' : 'object' });
 
   if (!quote) {
-    console.error('No quote data in response:', JSON.stringify(quoteResponse, null, 2));
+    logger.error('No quote data in response:', quoteResponse);
     return null;
   }
 
@@ -1303,6 +1305,7 @@ export async function createVoucherFromFile(
   voucherData: {
     voucherDate: string;
     description?: string;
+    invoiceNumber?: string;  // Rechnungsnummer für sevDesk
     supplierName?: string;
     sumNet?: number | string;
     sumGross?: number | string;
@@ -1310,7 +1313,9 @@ export async function createVoucherFromFile(
     taxRate?: number;
     creditDebit?: 'C' | 'D';
   }
-): Promise<{ voucherId: string }> {
+): Promise<{ voucherId: string; validationWarnings?: string[] }> {
+  const validationWarnings: string[] = [];
+
   // First, we need to get or create the supplier if provided
   let supplierId: string | null = null;
 
@@ -1328,23 +1333,75 @@ export async function createVoucherFromFile(
   }
 
   // Build voucher data - handle both number and string inputs
-  const taxRate = voucherData.taxRate || 19;
+  let taxRate = voucherData.taxRate || 19;
   const sumNetInput = typeof voucherData.sumNet === 'string' ? parseFloat(voucherData.sumNet) : voucherData.sumNet;
   const sumGrossInput = typeof voucherData.sumGross === 'string' ? parseFloat(voucherData.sumGross) : voucherData.sumGross;
+  const sumTaxInput = typeof voucherData.sumTax === 'string' ? parseFloat(voucherData.sumTax) : voucherData.sumTax;
 
-  // Calculate net from gross if only gross is provided
+  // Smart calculation with validation
   let sumNet = sumNetInput || 0;
-  if (!sumNet && sumGrossInput) {
-    sumNet = sumGrossInput / (1 + taxRate / 100);
+  let sumGross = sumGrossInput || 0;
+  let sumTax = sumTaxInput || 0;
+
+  // Case 1: We have all three values - validate consistency
+  if (sumNetInput && sumGrossInput && sumTaxInput) {
+    const calculatedGross = sumNetInput + sumTaxInput;
+    const diff = Math.abs(sumGrossInput - calculatedGross);
+    if (diff > 0.02) {
+      validationWarnings.push(
+        `Betragsinkonsistenz: Netto ${sumNetInput.toFixed(2)}€ + MwSt ${sumTaxInput.toFixed(2)}€ = ${calculatedGross.toFixed(2)}€ ≠ Brutto ${sumGrossInput.toFixed(2)}€`
+      );
+      // Trust net + tax over gross
+      sumGross = calculatedGross;
+    }
+    // Calculate actual tax rate from amounts
+    const actualTaxRate = (sumTaxInput / sumNetInput) * 100;
+    if (Math.abs(actualTaxRate - taxRate) > 0.5) {
+      validationWarnings.push(
+        `MwSt-Satz korrigiert: ${taxRate}% → ${Math.round(actualTaxRate)}% (basierend auf Beträgen)`
+      );
+      taxRate = Math.round(actualTaxRate);
+    }
   }
-  const sumGross = sumGrossInput || (sumNet * (1 + taxRate / 100));
+  // Case 2: We have net and tax - calculate gross
+  else if (sumNetInput && sumTaxInput) {
+    sumGross = sumNetInput + sumTaxInput;
+    const actualTaxRate = (sumTaxInput / sumNetInput) * 100;
+    if (Math.abs(actualTaxRate - taxRate) > 0.5) {
+      taxRate = Math.round(actualTaxRate);
+    }
+  }
+  // Case 3: We have gross and tax - calculate net
+  else if (sumGrossInput && sumTaxInput) {
+    sumNet = sumGrossInput - sumTaxInput;
+    const actualTaxRate = (sumTaxInput / sumNet) * 100;
+    if (Math.abs(actualTaxRate - taxRate) > 0.5) {
+      taxRate = Math.round(actualTaxRate);
+    }
+  }
+  // Case 4: Only gross - calculate net from taxRate
+  else if (sumGrossInput && !sumNetInput) {
+    sumNet = sumGrossInput / (1 + taxRate / 100);
+    sumTax = sumGrossInput - sumNet;
+  }
+  // Case 5: Only net - calculate gross from taxRate
+  else if (sumNetInput && !sumGrossInput) {
+    sumGross = sumNetInput * (1 + taxRate / 100);
+    sumTax = sumGross - sumNetInput;
+  }
+
+  // Build description with invoice number if provided
+  let description = voucherData.description || 'Beleg';
+  if (voucherData.invoiceNumber) {
+    description = `${voucherData.invoiceNumber} - ${description}`;
+  }
 
   const voucherPayload: Record<string, unknown> = {
     voucher: {
       objectName: 'Voucher',
       mapAll: true,
       voucherDate: Math.floor(new Date(voucherData.voucherDate).getTime() / 1000),
-      description: voucherData.description || 'Beleg',
+      description: description,
       status: 50, // Draft
       voucherType: 'VOU',
       creditDebit: voucherData.creditDebit || 'D',
@@ -1372,6 +1429,11 @@ export async function createVoucherFromFile(
     };
   }
 
+  // Log validation warnings
+  if (validationWarnings.length > 0) {
+    logger.info(`Voucher validation warnings for file ${fileId}:`, validationWarnings);
+  }
+
   const response = await fetch(`${SEVDESK_API_URL}/Voucher/Factory/saveVoucher`, {
     method: 'POST',
     headers: {
@@ -1389,6 +1451,7 @@ export async function createVoucherFromFile(
   const data = await response.json() as { objects?: { voucher?: { id?: string | number } } };
   return {
     voucherId: data.objects?.voucher?.id?.toString() || '',
+    validationWarnings: validationWarnings.length > 0 ? validationWarnings : undefined,
   };
 }
 
@@ -1475,7 +1538,7 @@ export async function syncInvoices(
           );
           synced++;
         } catch (err) {
-          console.error(`Error syncing invoice ${inv.id}:`, err);
+          logger.error(`Error syncing invoice ${inv.id}:`, err);
           errors++;
         }
       }
@@ -1486,7 +1549,7 @@ export async function syncInvoices(
       }
     }
   } catch (err) {
-    console.error('Error fetching invoices for sync:', err);
+    logger.error('Error fetching invoices for sync:', err);
     errors++;
   }
 
@@ -1555,7 +1618,7 @@ export async function syncQuotes(
           );
           synced++;
         } catch (err) {
-          console.error(`Error syncing quote ${quote.id}:`, err);
+          logger.error(`Error syncing quote ${quote.id}:`, err);
           errors++;
         }
       }
@@ -1566,7 +1629,7 @@ export async function syncQuotes(
       }
     }
   } catch (err) {
-    console.error('Error fetching quotes for sync:', err);
+    logger.error('Error fetching quotes for sync:', err);
     errors++;
   }
 
@@ -1854,8 +1917,8 @@ export async function createQuote(
   const contact = contactResponse.objects;
   const addresses = addressResponse.objects || [];
 
-  console.log('[sevDesk] Contact response:', JSON.stringify(contact, null, 2));
-  console.log('[sevDesk] Addresses response:', JSON.stringify(addresses, null, 2));
+  logger.info('[sevDesk] Contact response:', contact);
+  logger.info('[sevDesk] Addresses response:', addresses);
 
   // Get the main address (or first address)
   const mainAddress = addresses[0] || {};
@@ -1874,8 +1937,8 @@ export async function createQuote(
   if (addressZip || addressCity) addressParts.push([addressZip, addressCity].filter(Boolean).join(' '));
   const fullAddress = addressParts.join('\n');
 
-  console.log('[sevDesk] Address fields - name:', addressName, 'street:', addressStreet, 'zip:', addressZip, 'city:', addressCity);
-  console.log('[sevDesk] Full address:', fullAddress);
+  logger.info('[sevDesk] Address fields', { name: addressName, street: addressStreet, zip: addressZip, city: addressCity });
+  logger.info('[sevDesk] Full address:', fullAddress);
 
   // Use Unix timestamp for date
   const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
@@ -1947,8 +2010,8 @@ export async function createQuote(
 
   const formBody = objectToFormData(orderData);
 
-  console.log('[sevDesk] Creating quote with form-urlencoded data');
-  console.log('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
+  logger.info('[sevDesk] Creating quote with form-urlencoded data');
+  logger.info('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
 
   const response = await fetch(`${SEVDESK_API_URL}/Order/Factory/saveOrder`, {
     method: 'POST',
@@ -1960,7 +2023,7 @@ export async function createQuote(
   });
 
   const responseText = await response.text();
-  console.log('[sevDesk] Response:', response.status, responseText.substring(0, 500));
+  logger.info('[sevDesk] Response:', { status: response.status, body: responseText.substring(0, 500) });
 
   if (!response.ok) {
     throw new Error(`Failed to create quote: ${responseText}`);
@@ -1970,7 +2033,7 @@ export async function createQuote(
   const quoteId = quoteData.objects.order.id;
   const quoteNumber = quoteData.objects.order.orderNumber;
 
-  console.log('[sevDesk] Quote created:', quoteId, quoteNumber);
+  logger.info('[sevDesk] Quote created:', { quoteId, quoteNumber });
 
   return {
     quoteId,
@@ -2096,7 +2159,7 @@ export async function updateQuote(
 
   const formBody = objectToFormData(orderData);
 
-  console.log('[sevDesk] Updating quote with form-urlencoded data');
+  logger.info('[sevDesk] Updating quote with form-urlencoded data');
 
   const response = await fetch(`${SEVDESK_API_URL}/Order/Factory/saveOrder`, {
     method: 'POST',
@@ -2108,7 +2171,7 @@ export async function updateQuote(
   });
 
   const responseText = await response.text();
-  console.log('[sevDesk] Update response:', response.status, responseText.substring(0, 500));
+  logger.info('[sevDesk] Update response:', { status: response.status, body: responseText.substring(0, 500) });
 
   if (!response.ok) {
     throw new Error(`Failed to update quote: ${responseText}`);
@@ -2117,7 +2180,7 @@ export async function updateQuote(
   const quoteData = JSON.parse(responseText) as { objects: { order: { id: string; orderNumber: string } } };
   const updatedQuoteNumber = quoteData.objects.order.orderNumber;
 
-  console.log('[sevDesk] Quote updated:', quoteId, updatedQuoteNumber);
+  logger.info('[sevDesk] Quote updated:', { quoteId, quoteNumber: updatedQuoteNumber });
 
   return {
     quoteId,
@@ -2241,7 +2304,7 @@ export async function getCustomerImportPreview(
       }
     }
   } catch (err) {
-    console.error('Failed to fetch contact addresses:', err);
+    logger.error('Failed to fetch contact addresses:', err);
   }
 
   // Build preview list
@@ -2416,7 +2479,7 @@ export async function batchImportSevdeskCustomers(
       }
     }
   } catch (err) {
-    console.error('Failed to fetch addresses:', err);
+    logger.error('Failed to fetch addresses:', err);
   }
 
   for (const item of imports) {

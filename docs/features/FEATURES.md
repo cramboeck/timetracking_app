@@ -4,13 +4,21 @@
 
 1. [Zeiterfassung](#zeiterfassung)
 2. [Ticket-System](#ticket-system)
-3. [Kundenportal](#kundenportal)
-4. [Wissensdatenbank](#wissensdatenbank)
-5. [Kunden & Projekte](#kunden--projekte)
-6. [Finanzen / Billing](#finanzen--billing)
-7. [Einstellungen & Personalisierung](#einstellungen--personalisierung)
-8. [Sicherheit](#sicherheit)
-9. [Tastenkürzel](#tastenkürzel)
+3. [Support Inbox](#support-inbox)
+4. [Kundenportal](#kundenportal)
+5. [Wissensdatenbank](#wissensdatenbank)
+6. [Kunden & Projekte](#kunden--projekte)
+7. [Angebote (Quotes)](#angebote-quotes)
+8. [Finanzen / Billing](#finanzen--billing)
+9. [Invoice Inbox (Rechnungseingang)](#invoice-inbox-rechnungseingang)
+10. [Vendor Hub (Lieferanten)](#vendor-hub-lieferanten)
+11. [Social Media Manager](#social-media-manager)
+12. [Integrationen](#integrationen)
+13. [Admin Portal](#admin-portal)
+14. [Einstellungen & Personalisierung](#einstellungen--personalisierung)
+15. [Sicherheit](#sicherheit)
+16. [Offline Support](#offline-support)
+17. [Tastenkürzel](#tastenkürzel)
 
 ---
 
@@ -22,12 +30,18 @@
 - Timer läuft im Hintergrund weiter (PWA)
 - Verknüpfung mit Kunde, Projekt und Aktivität
 - Optional: Direkte Verknüpfung mit Ticket
+- **SearchableSelect** - Type-to-Filter für schnelle Auswahl
+- **Toast-Benachrichtigung** bei erfolgreicher Speicherung
+- Loading-State und Feedback beim Stoppen
 
 ### Manuelle Zeiterfassung
 - Nachträgliche Buchung von Zeiten
 - Datum, Start- und Endzeit wählbar
 - Beschreibung und Notizen
-- Abrechenbar/Nicht abrechenbar markieren
+- **Non-billable Flag** - Zeiten als nicht abrechenbar markieren
+- **Kundenfilter** - Projekte nach Kunde filtern
+- Mobile-optimiertes Layout (Scroll zum Save-Button)
+- Toast-Benachrichtigung bei Speicherung
 
 ### Kalender-Ansicht
 - Wochenübersicht aller Zeiteinträge
@@ -41,6 +55,8 @@
 - **Dieser Monat**: Monatsstunden
 - Grafische Auswertungen
 - Letzte Zeiteinträge
+- **Projekt-Breakdown** mit Mobile-Optimierung
+- Kunden-Stundensatz Fallback
 
 ### PDF-Reports
 - Zeitnachweis pro Kunde/Projekt/Zeitraum
@@ -48,6 +64,7 @@
 - Unterschriftsfeld
 - Detaillierte Auflistung aller Einträge
 - Summen und Gesamtbeträge
+- **Lange Kundennamen** mit Zeilenumbruch/Truncation
 
 ### Zeitrundung
 Einstellbare Rundungsintervalle:
@@ -57,6 +74,16 @@ Einstellbare Rundungsintervalle:
 - 15 Minuten
 - 30 Minuten
 - 60 Minuten
+
+### Import
+#### Clockodo Import
+- **API-Import** (zusätzlich zu CSV)
+- Deutsches Datumsformat (DD.MM.YYYY)
+- Multiple Datumsformate unterstützt
+- **Duplikat-Erkennung** in Vorschau
+- 100% zuverlässige Duplikat-Verhinderung
+- Default-Projekt pro Kunde als Fallback
+- Password-Manager-Ignore für API-Felder
 
 ---
 
@@ -186,6 +213,32 @@ Protokolliert alle Änderungen:
 
 ---
 
+## Support Inbox
+
+E-Mail-basiertes Ticket-Management über Microsoft 365 Integration.
+
+### E-Mail-zu-Ticket-Konvertierung
+- **Shared Mailbox** Unterstützung
+- Automatische Ticket-Erstellung aus E-Mails
+- E-Mail-Betreff wird Ticket-Titel
+- E-Mail-Body wird Ticket-Beschreibung
+- Anhänge werden übernommen
+
+### Microsoft 365 Integration
+- Azure Entra ID Authentifizierung
+- Shared Mailbox Zugriff
+- Automatische Mailbox-Überwachung
+- Verbindungstest mit Debug-Logging
+
+### Workflow
+1. E-Mail kommt in Shared Mailbox an
+2. System erkennt neue E-Mail
+3. Ticket wird automatisch erstellt
+4. Mitarbeiter bearbeitet Ticket
+5. Antworten werden per E-Mail gesendet
+
+---
+
 ## Kundenportal
 
 Separates Portal für Kunden unter eigener URL (z.B. portal.example.com)
@@ -255,18 +308,46 @@ Siehe [CUSTOMER_PORTAL.md](CUSTOMER_PORTAL.md) für Details.
 - Stundensatz (optional)
 - sevDesk-Verknüpfung (optional)
 - NinjaRMM-Verknüpfung (optional)
+- **Kundentyp** - Firma oder Einzelperson
+- **Display-Name** und Import-Aliase
+- **Default-Projekt** pro Kunde (für Imports)
+- Reorganisiertes Modal mit Sektionen
 
 ### Kundenkontakte
 - Mehrere Ansprechpartner pro Kunde
 - Name, E-Mail, Telefon
 - Portal-Zugang aktivierbar
 - MFA-Status
+- **Direktes Passwort-Setzen** (Admin-Funktion)
 
 ### Projektverwaltung
 - Name und Beschreibung
 - Kunde zuweisen
 - Farbcode
 - Aktiv/Inaktiv
+
+### sevDesk Kunden-Import
+- **Import-UI** mit Checkboxen
+- Filter: Alle anzeigen oder nur nicht importierte
+- **Ansprechpartner** (Sub-Contacts) importieren
+- Kundentyp-Filter (nur Kunden, keine Lieferanten)
+- Firma/Einzelperson Unterscheidung
+
+---
+
+## Angebote (Quotes)
+
+### Angebotsverwaltung
+- Angebote erstellen und bearbeiten
+- Positionen mit Beschreibung und Preis
+- Kundenzuordnung
+- **KI-gestützte Positionsbeschreibungen**
+- Validierung bei Erstellung
+
+### KI-Features
+- Automatische Positionsbeschreibung generieren
+- Textvorschläge basierend auf Kontext
+- Optimierung für professionelle Formulierung
 
 ---
 
@@ -281,11 +362,247 @@ Siehe [CUSTOMER_PORTAL.md](CUSTOMER_PORTAL.md) für Details.
 - Übersicht unbezahlter Zeiten
 - Gruppiert nach Kunde
 - Rechnung in sevDesk erstellen
+- **Zeitraum-Filter** (Monat/Quartal/Jahr)
+- **Quartals-Abrechnung**
+- **Jahres-Abrechnung**
+- Überlappende Abrechnungszeiträume erkennen
+- Timezone-Korrektur für Datumsformatierung
+- Stunden-Abgleich mit Dashboard
 
 ### Dokumentenübersicht
 - Rechnungen aus sevDesk
 - Angebote aus sevDesk
 - Status und Beträge
+- Dokumentenliste mit Sortierung
+
+### Belege (Vouchers)
+- **Belege-Tab** in Finanzen
+- **Upload** von Bildern und PDFs
+- Automatische sevDesk-Verknüpfung
+- Vorschau und Download
+
+---
+
+## Invoice Inbox (Rechnungseingang)
+
+Automatisierte Verarbeitung von Eingangsrechnungen per E-Mail.
+
+### E-Mail-Integration
+- **Shared Mailbox** für Rechnungen (Microsoft 365)
+- Automatische PDF-Extraktion aus Anhängen
+- E-Mail-Metadaten als Fallback
+
+### OCR / Datenextraktion
+- **OpenAI Vision** für Rechnungsdaten-Extraktion
+- Automatische Erkennung von:
+  - Rechnungsnummer
+  - Datum
+  - Betrag (Netto/Brutto)
+  - Lieferant/Kreditor
+- **Line Items Extraktion** für MSP-Weiterverrechnung
+- Debug-Logging für Extraktion
+
+### Workflow
+1. E-Mail mit Rechnung kommt an
+2. PDF wird extrahiert
+3. **OCR** liest Rechnungsdaten
+4. **Bestätigungsmodal** mit editierbaren Feldern
+5. sevDesk-Beleg wird automatisch erstellt
+
+### Status-Management
+- **Draft-Status** für manuelle Prüfung
+- Approved/Processed Status
+- **Reprocess** - Bereits gelesene E-Mails neu verarbeiten
+- **Revert** - Verarbeitete Rechnung zurücksetzen
+- **Clear Failed** - Fehlgeschlagene Einträge löschen
+
+### Dokument-Handling
+- Download und Vorschau
+- Mobile-optimierte Ansicht
+
+---
+
+## Vendor Hub (Lieferanten)
+
+Zentrale Verwaltung von Lieferanten und Kreditoren.
+
+### Lieferantenverwaltung
+- Lieferanten-Übersicht
+- Stammdaten verwalten
+- Verknüpfung mit Rechnungen
+- sevDesk-Integration
+
+### Features
+- Zentrale Lieferanten-Datenbank
+- Historie aller Rechnungen pro Lieferant
+- Schnellzugriff auf Kontaktdaten
+
+---
+
+## Social Media Manager
+
+Komplettes Content-Management-System für Social Media Marketing.
+
+### Content Calendar
+- Kalenderansicht aller Posts
+- **Edit-Modal** für schnelle Bearbeitung
+- Status-Übersicht (Draft/Scheduled/Published)
+- Multi-Plattform-Ansicht
+
+### Content Studio
+
+#### Content Wizard
+- **KI-gestützte** Post-Generierung
+- Themen-Auswahl
+- Zielgruppen-Definition
+- **Save & Schedule** Funktionalität
+
+#### Post Editor
+- Rich-Text-Bearbeitung
+- **KI-Assistent** für Textoptimierung
+- Medien-Upload
+- Plattform-Vorschau
+
+#### Batch Generator
+- **Massenproduktion** von Posts
+- Vorlagen-basierte Generierung
+- Bulk-Scheduling
+
+### Automation
+
+#### Autopilot
+- Automatisches Posting
+- Zeitplan-Konfiguration
+- Regelbasierte Veröffentlichung
+
+#### Engagement Bot
+- Automatische Interaktionen
+- Kommentar-Vorschläge
+- Engagement-Tracking
+
+### Insights
+
+#### Analytics
+- Performance-Metriken
+- Reichweiten-Analyse
+- Engagement-Raten
+
+#### Competitors
+- Wettbewerber-Analyse
+- Benchmark-Vergleiche
+
+#### Trends
+- Trend-Erkennung
+- Hashtag-Analyse
+
+### Library
+
+#### Posts
+- Alle Posts verwalten
+- **Edit-Modal** für Bearbeitung
+- Filter und Suche
+
+#### Templates
+- Wiederverwendbare Vorlagen
+- Kategorie-basiert
+- Schnell-Einfügung
+
+#### Hashtags
+- Hashtag-Sammlung
+- Performance-Tracking
+- Gruppen-Management
+
+### Theme Selection Engine
+- **Strategische Content-Empfehlungen**
+- **Hook & CTA Formeln** - Bewährte Textmuster
+- **Tonality Checking** - Stilprüfung
+- **Platform Character Limits** - Zeichenbegrenzungen
+
+### Qualitätssicherung
+- **Auto-Improve** auf 90% Qualitätsziel
+- **Self-Critique Quality Gate**
+- Iterative Verbesserung
+
+### Plattformen
+- LinkedIn
+- Instagram
+- (Weitere geplant)
+
+Siehe [social-media-system.md](/docs/social-media-system.md) für Details.
+
+---
+
+## Integrationen
+
+### sevDesk
+- API-Token Konfiguration
+- Verbindungstest
+- Kunden-Synchronisation
+- Rechnungen und Angebote
+- Belege-Upload
+- **Kunden-Import** mit UI
+
+### Clockodo
+- **API-Import** von Zeiteinträgen
+- CSV-Import als Alternative
+- Duplikat-Erkennung
+- Default-Projekt-Mapping
+
+### Microsoft 365
+- **Azure Entra ID** Authentifizierung
+- **Mailbox-Monitoring** für Shared Mailboxes
+- Invoice Mailbox Integration
+- Support Mailbox Integration
+- Verbindungstest mit Debug-Logging
+- db-admin Diagnose-Befehle
+
+Siehe [AZURE_SETUP.md](/docs/AZURE_SETUP.md) für Setup-Anleitung.
+
+### NinjaRMM
+- API-Konfiguration
+- Verbindungstest
+- Geräte-Übersicht
+- Alert-Management
+- Timestamp-Fix (1.1.1970 Bug behoben)
+
+### OpenAI / KI
+- Invoice OCR (Vision API)
+- Content-Generierung (Social Media)
+- Positionsbeschreibungen (Angebote)
+- Auto-Improve für Texte
+
+---
+
+## Admin Portal
+
+Dedizierte Administrationsoberfläche unter `/admin`.
+
+### User Management
+- Benutzer anlegen und verwalten
+- Rollen zuweisen
+- Passwörter zurücksetzen
+- MFA-Status überwachen
+
+### Audit Logs
+- Sicherheits-Ereignisse protokollieren
+- Login-Versuche
+- Konfigurationsänderungen
+- Daten-Änderungen
+
+### Feature Management
+- **Feature Flags** aktivieren/deaktivieren
+- A/B-Testing Steuerung
+- Beta-Features freischalten
+
+### Backup Management
+- Datenbank-Backups
+- Export-Funktionen
+- Wiederherstellung
+
+### Organisationsverwaltung
+- Multi-Tenant-Unterstützung
+- Team-Einstellungen
+- Billing-Informationen
 
 ---
 
@@ -400,7 +717,35 @@ Protokolliert:
 - `ticket_activities` - Ticket-Historie
 - `mfa_audit_log` - Sicherheits-Events
 - `trusted_devices` - Vertrauenswürdige Geräte
+- `invoices` - Eingangsrechnungen
+- `vendors` - Lieferanten
+- `social_media_*` - Social Media Tabellen
 
 ---
 
-*Zuletzt aktualisiert: Dezember 2024*
+## Offline Support
+
+PWA-basierte Offline-Funktionalität.
+
+### LocalStorage
+- Daten werden lokal gespeichert
+- Schnellerer Zugriff bei wiederholten Besuchen
+- Reduzierte Server-Last
+
+### Auto-Sync
+- **Automatische Synchronisation** bei Wiederverbindung
+- Conflict Resolution
+- Queue für ausstehende Änderungen
+
+### Auth-Persistenz
+- Login bleibt bei Netzwerkfehlern erhalten
+- Verbesserte Netzwerkfehler-Erkennung
+- Keine versehentlichen Logouts
+
+### Offline-Banner
+- Visuelle Anzeige des Offline-Status
+- Automatische Aktualisierung bei Reconnect
+
+---
+
+*Zuletzt aktualisiert: Januar 2025*

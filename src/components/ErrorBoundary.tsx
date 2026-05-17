@@ -1,5 +1,6 @@
 import React, { Component, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home, Bug, Copy, Check } from 'lucide-react';
+import { Button } from './ui';
 
 interface ErrorInfo {
   componentStack: string;
@@ -132,50 +133,49 @@ Time: ${new Date().toISOString()}
                     )}
                   </code>
                 </div>
-                <button
+                <Button
                   onClick={this.handleCopyError}
-                  className="mt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  variant="ghost"
+                  size="sm"
+                  icon={copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                  className="mt-3"
                 >
-                  {copied ? (
-                    <>
-                      <Check size={14} className="text-green-500" />
-                      Kopiert!
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={14} />
-                      Fehlerdetails kopieren
-                    </>
-                  )}
-                </button>
+                  {copied ? 'Kopiert!' : 'Fehlerdetails kopieren'}
+                </Button>
               </div>
             </details>
 
             {/* Actions */}
             <div className="px-6 py-6 space-y-3">
-              <button
+              <Button
                 onClick={this.handleRetry}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-accent-primary hover:bg-accent-dark text-white rounded-xl font-medium transition-colors"
+                variant="primary"
+                size="lg"
+                fullWidth
+                icon={<RefreshCw size={18} />}
               >
-                <RefreshCw size={18} />
                 Erneut versuchen
-              </button>
+              </Button>
 
               <div className="flex gap-3">
-                <button
+                <Button
                   onClick={this.handleGoHome}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors"
+                  variant="secondary"
+                  size="lg"
+                  icon={<Home size={18} />}
+                  className="flex-1"
                 >
-                  <Home size={18} />
                   Zur Startseite
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={this.handleReload}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors"
+                  variant="secondary"
+                  size="lg"
+                  icon={<RefreshCw size={18} />}
+                  className="flex-1"
                 >
-                  <RefreshCw size={18} />
                   Seite neu laden
-                </button>
+                </Button>
               </div>
             </div>
 

@@ -30,10 +30,12 @@ import {
   X,
   Pencil,
 } from 'lucide-react';
+import { Button, IconButton } from './ui/Button';
 import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, DocumentSearchResult } from '../services/api';
 import { QuoteEditor } from './QuoteEditor';
 import { SevdeskSettings } from './SevdeskSettings';
 import { InvoiceCreationDialog } from './InvoiceCreationDialog';
+import { BillingOverview } from './BillingOverview';
 
 type FinanzenTab = 'billing' | 'documents' | 'settings';
 type DocumentType = 'invoices' | 'quotes' | 'vouchers';
@@ -142,18 +144,19 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
       {/* Tab Navigation */}
       <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6 overflow-x-auto">
         {tabs.map(({ id, label, icon: Icon }) => (
-          <button
+          <Button
             key={id}
+            variant="ghost"
             onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 rounded-none transition-colors whitespace-nowrap ${
               activeTab === id
                 ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
+            icon={<Icon size={18} />}
           >
-            <Icon size={18} />
             {label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -166,7 +169,7 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
 };
 
 // ==================== Billing Tab ====================
-type BillingPeriodType = 'monthly' | 'quarterly' | 'yearly';
+type BillingPeriodType = 'monthly' | 'quarterly' | 'yearly' | 'custom';
 
 const BillingTab = () => {
   const [loading, setLoading] = useState(true);
@@ -179,7 +182,7 @@ const BillingTab = () => {
   const [processing, setProcessing] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
 
-  // Billing period type (monthly or quarterly)
+  // Billing period type (monthly, quarterly, yearly, or custom)
   const [billingPeriodType, setBillingPeriodType] = useState<BillingPeriodType>('monthly');
 
   // For monthly billing
@@ -195,12 +198,21 @@ const BillingTab = () => {
   });
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
 
+  // For custom date range
+  const [customStartDate, setCustomStartDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  });
+  const [customEndDate, setCustomEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+
   // Invoice creation dialog
   const [invoiceDialogCustomer, setInvoiceDialogCustomer] = useState<BillingSummaryItem | null>(null);
 
   useEffect(() => {
     loadData();
-  }, [selectedMonth, billingPeriodType, selectedQuarter, selectedYear]);
+  }, [selectedMonth, billingPeriodType, selectedQuarter, selectedYear, customStartDate, customEndDate]);
 
   // Helper to format date as YYYY-MM-DD in local timezone (not UTC)
   // Using toISOString() would convert to UTC first, causing off-by-one errors in CET/CEST
@@ -222,6 +234,11 @@ const BillingTab = () => {
       const startMonth = (selectedQuarter - 1) * 3;
       const startDate = new Date(selectedYear, startMonth, 1);
       const endDate = new Date(selectedYear, startMonth + 3, 0);
+      return { startDate, endDate };
+    } else if (billingPeriodType === 'custom') {
+      // Custom date range
+      const startDate = new Date(customStartDate);
+      const endDate = new Date(customEndDate);
       return { startDate, endDate };
     } else {
       // Yearly: full year
@@ -328,6 +345,10 @@ const BillingTab = () => {
       return selectedMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
     } else if (billingPeriodType === 'quarterly') {
       return `Q${selectedQuarter} ${selectedYear}`;
+    } else if (billingPeriodType === 'custom') {
+      const start = new Date(customStartDate).toLocaleDateString('de-DE');
+      const end = new Date(customEndDate).toLocaleDateString('de-DE');
+      return `${start} - ${end}`;
     } else {
       return `Jahr ${selectedYear}`;
     }
@@ -481,46 +502,108 @@ const BillingTab = () => {
         </div>
       )}
 
+      {/* Billing Overview Stats */}
+      {!loading && billingSummary.length > 0 && (
+        <BillingOverview
+          billingSummary={billingSummary.map(item => ({
+            customerId: item.customerId,
+            customerName: item.customerName,
+            totalHours: item.totalHours,
+            roundedHours: item.roundedHours,
+            totalAmount: item.totalAmount || 0,
+            isBilled: item.isBilled || false,
+            sevdeskCustomerId: item.sevdeskCustomerId,
+            entryCount: item.entries?.length || 0,
+          }))}
+          periodName={periodName}
+          onCreateInvoice={hasConfig ? (customer) => {
+            const item = billingSummary.find(b => b.customerId === customer.customerId);
+            if (item) handleCreateInvoice(item);
+          } : undefined}
+        />
+      )}
+
       {/* Period Type Toggle */}
       <div className="flex items-center justify-center gap-2 mb-2">
         <span className="text-sm text-gray-500 dark:text-gray-400">Abrechnungszeitraum:</span>
         <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
-          <button
+          <Button
+            variant={billingPeriodType === 'monthly' ? 'primary' : 'ghost'}
+            size="sm"
             onClick={() => setBillingPeriodType('monthly')}
-            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-              billingPeriodType === 'monthly'
-                ? 'bg-accent-primary text-white'
-                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            className={`rounded-none ${
+              billingPeriodType !== 'monthly'
+                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : ''
             }`}
           >
             Monatlich
-          </button>
-          <button
+          </Button>
+          <Button
+            variant={billingPeriodType === 'quarterly' ? 'primary' : 'ghost'}
+            size="sm"
             onClick={() => setBillingPeriodType('quarterly')}
-            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-              billingPeriodType === 'quarterly'
-                ? 'bg-accent-primary text-white'
-                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            className={`rounded-none ${
+              billingPeriodType !== 'quarterly'
+                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : ''
             }`}
           >
             Quartalsweise
-          </button>
-          <button
+          </Button>
+          <Button
+            variant={billingPeriodType === 'yearly' ? 'primary' : 'ghost'}
+            size="sm"
             onClick={() => setBillingPeriodType('yearly')}
-            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-              billingPeriodType === 'yearly'
-                ? 'bg-accent-primary text-white'
-                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            className={`rounded-none ${
+              billingPeriodType !== 'yearly'
+                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : ''
             }`}
           >
             Jährlich
-          </button>
+          </Button>
+          <Button
+            variant={billingPeriodType === 'custom' ? 'primary' : 'ghost'}
+            size="sm"
+            onClick={() => setBillingPeriodType('custom')}
+            className={`rounded-none ${
+              billingPeriodType !== 'custom'
+                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : ''
+            }`}
+          >
+            Frei
+          </Button>
         </div>
       </div>
 
-      {/* Period Selector */}
+      {/* Period Selector - show date inputs for custom, otherwise navigation */}
+      {billingPeriodType === 'custom' ? (
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-500 dark:text-gray-400">Von:</label>
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-500 dark:text-gray-400">Bis:</label>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+            />
+          </div>
+        </div>
+      ) : (
       <div className="flex items-center justify-center gap-4">
-        <button
+        <IconButton
+          icon={<ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />}
           onClick={
             billingPeriodType === 'monthly'
               ? handlePrevMonth
@@ -528,15 +611,14 @@ const BillingTab = () => {
               ? handlePrevQuarter
               : handlePrevYear
           }
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-        >
-          <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />
-        </button>
+          tooltip="Vorheriger Zeitraum"
+        />
         <div className="flex items-center gap-2 text-lg font-medium text-gray-900 dark:text-white">
           <Clock size={20} className="text-accent-primary" />
           {periodName}
         </div>
-        <button
+        <IconButton
+          icon={<ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />}
           onClick={
             billingPeriodType === 'monthly'
               ? handleNextMonth
@@ -544,11 +626,10 @@ const BillingTab = () => {
               ? handleNextQuarter
               : handleNextYear
           }
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-        >
-          <ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />
-        </button>
+          tooltip="Nächster Zeitraum"
+        />
       </div>
+      )}
 
       {/* Unbilled Items */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -599,31 +680,28 @@ const BillingTab = () => {
                       )}
                     </div>
                     {item.sevdeskCustomerId && hasConfig ? (
-                      <button
+                      <Button
+                        variant="primary"
+                        size="sm"
                         onClick={() => handleCreateInvoice(item)}
                         disabled={processing === item.customerId}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-accent-primary text-white rounded-lg text-sm hover:bg-accent-primary/90 disabled:opacity-50"
+                        loading={processing === item.customerId}
+                        icon={<Send size={14} />}
                       >
-                        {processing === item.customerId ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Send size={14} />
-                        )}
                         Rechnung
-                      </button>
+                      </Button>
                     ) : (
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => handleMarkAsBilled(item.customerId, item.customerName)}
                         disabled={processing === item.customerId}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700 disabled:opacity-50"
+                        loading={processing === item.customerId}
+                        icon={<Check size={14} />}
+                        className="bg-gray-600 text-white hover:bg-gray-700"
                       >
-                        {processing === item.customerId ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Check size={14} />
-                        )}
                         Erledigt
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -677,19 +755,17 @@ const BillingTab = () => {
                         </div>
                       </div>
                       {!billedViaOverlap && (
-                        <button
+                        <Button
+                          variant="warning"
+                          size="sm"
                           onClick={() => handleRevertBilling(item.customerId, item.customerName)}
                           disabled={processing === item.customerId}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg text-sm hover:bg-amber-200 dark:hover:bg-amber-900/50 disabled:opacity-50"
-                          title="Abrechnung zurücksetzen"
+                          loading={processing === item.customerId}
+                          icon={<RotateCcw size={14} />}
+                          className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50"
                         >
-                          {processing === item.customerId ? (
-                            <Loader2 size={14} className="animate-spin" />
-                          ) : (
-                            <RotateCcw size={14} />
-                          )}
                           Zurücksetzen
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -706,17 +782,15 @@ const BillingTab = () => {
           <h3 className="font-semibold text-gray-900 dark:text-white">
             Erledigte Abrechnungen ({invoiceExports.length})
           </h3>
-          <button
+          <Button
+            variant={showCompleted ? 'primary' : 'secondary'}
+            size="sm"
             onClick={() => setShowCompleted(!showCompleted)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-              showCompleted
-                ? 'bg-accent-primary/10 text-accent-primary'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
+            icon={showCompleted ? <EyeOff size={16} /> : <Eye size={16} />}
+            className={showCompleted ? 'bg-accent-primary/10 text-accent-primary' : ''}
           >
-            {showCompleted ? <EyeOff size={16} /> : <Eye size={16} />}
             {showCompleted ? 'Ausblenden' : 'Anzeigen'}
-          </button>
+          </Button>
         </div>
         {showCompleted && (
           invoiceExports.length === 0 ? (
@@ -734,14 +808,13 @@ const BillingTab = () => {
                     <div className="text-sm text-gray-500">{exp.sevdeskInvoiceNumber || 'Manuell'}</div>
                   </div>
                   {!exp.sevdeskInvoiceNumber && (
-                    <button
+                    <IconButton
+                      icon={processing === exp.id ? <Loader2 className="animate-spin" size={16} /> : <RotateCcw size={16} />}
                       onClick={() => handleUndoExport(exp.id, exp.customerName)}
                       disabled={processing === exp.id}
-                      className="p-1.5 text-gray-500 hover:text-red-500 rounded-lg"
-                      title="Rückgängig"
-                    >
-                      {processing === exp.id ? <Loader2 className="animate-spin" size={16} /> : <RotateCcw size={16} />}
-                    </button>
+                      variant="danger"
+                      tooltip="Rückgängig"
+                    />
                   )}
                 </div>
               ))}
@@ -838,12 +911,11 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
               ? (document as SevdeskQuote).quoteNumber
               : (document as SevdeskVoucher).voucherNumber || (document as SevdeskVoucher).description}
           </h3>
-          <button
+          <IconButton
+            icon={<X size={20} />}
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl"
-          >
-            &times;
-          </button>
+            tooltip="Schließen"
+          />
         </div>
 
         <div className="p-4 overflow-y-auto max-h-[60vh]">
@@ -1227,49 +1299,45 @@ const DocumentsTab = () => {
 
         <div className="flex items-center gap-2">
           {/* New Quote Button */}
-          <button
+          <Button
+            variant="success"
+            size="sm"
             onClick={() => setShowQuoteEditor(true)}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
-            title="Neues Angebot erstellen"
+            icon={<Plus size={14} />}
           >
-            <Plus size={14} />
             <span className="hidden xs:inline sm:inline">Angebot</span>
-          </button>
+          </Button>
 
           {/* New Voucher Button */}
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => setShowVoucherUpload(true)}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-            title="Neuen Beleg hochladen"
+            icon={<Camera size={14} />}
+            className="bg-purple-600 hover:bg-purple-700"
           >
-            <Camera size={14} />
             <span className="hidden xs:inline sm:inline">Beleg</span>
-          </button>
+          </Button>
 
           {/* Sync Button */}
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={handleSync}
             disabled={syncing}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50"
-            title="Dokumente in lokale Datenbank synchronisieren"
+            loading={syncing}
+            icon={<Download size={14} />}
           >
-            {syncing ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Download size={14} />
-            )}
             <span className="hidden xs:inline sm:inline">Sync</span>
-          </button>
+          </Button>
 
           {/* Refresh Button */}
-          <button
+          <IconButton
+            icon={<RefreshCw size={18} className={loading ? 'animate-spin' : ''} />}
             onClick={loadDocuments}
             disabled={loading}
-            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            title="Von sevDesk neu laden"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
+            tooltip="Von sevDesk neu laden"
+          />
         </div>
       </div>
 
@@ -1298,39 +1366,42 @@ const DocumentsTab = () => {
 
       {/* Document Type Tabs */}
       <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
-        <button
+        <Button
+          variant="ghost"
           onClick={() => setActiveDocType('invoices')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
+          className={`flex items-center gap-2 px-4 py-2 border-b-2 rounded-none transition-colors whitespace-nowrap ${
             activeDocType === 'invoices'
               ? 'border-accent-primary text-accent-primary'
               : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
           }`}
+          icon={<Receipt size={18} />}
         >
-          <Receipt size={18} />
           Rechnungen ({invoices.length})
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
           onClick={() => setActiveDocType('quotes')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
+          className={`flex items-center gap-2 px-4 py-2 border-b-2 rounded-none transition-colors whitespace-nowrap ${
             activeDocType === 'quotes'
               ? 'border-accent-primary text-accent-primary'
               : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
           }`}
+          icon={<FileText size={18} />}
         >
-          <FileText size={18} />
           Angebote ({quotes.length})
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
           onClick={() => setActiveDocType('vouchers')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
+          className={`flex items-center gap-2 px-4 py-2 border-b-2 rounded-none transition-colors whitespace-nowrap ${
             activeDocType === 'vouchers'
               ? 'border-accent-primary text-accent-primary'
               : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
           }`}
+          icon={<CreditCard size={18} />}
         >
-          <CreditCard size={18} />
           Belege ({vouchers.length})
-        </button>
+        </Button>
       </div>
 
       {/* Search with Mode Toggle */}
@@ -1353,29 +1424,31 @@ const DocumentsTab = () => {
         </div>
         {/* Search Mode Toggle */}
         <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden flex-shrink-0">
-          <button
+          <Button
+            variant={searchMode === 'live' ? 'primary' : 'ghost'}
+            size="sm"
             onClick={() => { setSearchMode('live'); setSearchResults([]); }}
-            className={`px-3 py-2 text-sm ${
-              searchMode === 'live'
-                ? 'bg-accent-primary text-white'
-                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            className={`rounded-none ${
+              searchMode !== 'live'
+                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : ''
             }`}
-            title="Direkt von sevDesk"
           >
             Live
-          </button>
-          <button
+          </Button>
+          <Button
+            variant={searchMode === 'cached' ? 'primary' : 'ghost'}
+            size="sm"
             onClick={() => setSearchMode('cached')}
-            className={`px-3 py-2 text-sm flex items-center gap-1 ${
-              searchMode === 'cached'
-                ? 'bg-accent-primary text-white'
-                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            icon={<Database size={14} />}
+            className={`rounded-none ${
+              searchMode !== 'cached'
+                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : ''
             }`}
-            title="Volltextsuche im lokalen Cache"
           >
-            <Database size={14} />
             Cache
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -1535,12 +1608,13 @@ const DocumentsTab = () => {
               <div className="text-center py-8">
                 <FileText size={32} className="mx-auto mb-2 text-gray-400" />
                 <p className="text-gray-500 dark:text-gray-400">Keine Angebote gefunden</p>
-                <button
+                <Button
+                  variant="ghost"
                   onClick={() => setShowQuoteEditor(true)}
                   className="mt-4 text-accent-primary hover:underline"
                 >
                   Erstes Angebot erstellen
-                </button>
+                </Button>
               </div>
             ) : (
               filteredQuotes.map((quote) => (
@@ -1575,17 +1649,16 @@ const DocumentsTab = () => {
                   </div>
                   {/* Edit Button - only for draft quotes */}
                   {quote.status === 100 && (
-                    <button
+                    <IconButton
+                      icon={<Pencil size={16} />}
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditingQuoteId(quote.id);
                         setShowQuoteEditor(true);
                       }}
-                      className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors flex-shrink-0"
-                      title="Angebot bearbeiten"
-                    >
-                      <Pencil size={16} />
-                    </button>
+                      variant="primary"
+                      tooltip="Angebot bearbeiten"
+                    />
                   )}
                   <ChevronRight size={18} className="text-gray-400 flex-shrink-0 hidden sm:block" />
                 </div>
@@ -1815,12 +1888,11 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {step === 'upload' ? 'Beleg hochladen' : 'Beleg-Details'}
           </h3>
-          <button
+          <IconButton
+            icon={<X size={20} />}
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            <X size={20} />
-          </button>
+            tooltip="Schließen"
+          />
         </div>
 
         <div className="p-4 overflow-y-auto max-h-[70vh]">
@@ -1883,16 +1955,16 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
                       {(file.size / 1024).toFixed(1)} KB
                     </p>
                   </div>
-                  <button
+                  <IconButton
+                    icon={<X size={16} />}
                     onClick={() => {
                       setFile(null);
                       setPreview(null);
                       setStep('upload');
                     }}
-                    className="p-2 text-gray-400 hover:text-red-500"
-                  >
-                    <X size={16} />
-                  </button>
+                    variant="danger"
+                    tooltip="Entfernen"
+                  />
                 </div>
               )}
 
@@ -2023,29 +2095,21 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
         {/* Footer */}
         {step === 'details' && (
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setStep('upload')}
-              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
             >
               Zurück
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSubmit}
               disabled={uploading || !file || !sumGross || !voucherDate}
-              className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50"
+              loading={uploading}
+              icon={<Upload size={16} />}
             >
-              {uploading ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Wird hochgeladen...
-                </>
-              ) : (
-                <>
-                  <Upload size={16} />
-                  Beleg erstellen
-                </>
-              )}
-            </button>
+              {uploading ? 'Wird hochgeladen...' : 'Beleg erstellen'}
+            </Button>
           </div>
         )}
       </div>

@@ -10,6 +10,7 @@ import {
   Info,
   Download,
 } from 'lucide-react';
+import { Button } from './ui';
 import { sevdeskApi, SevdeskConfig } from '../services/api';
 import { SevdeskCustomerImport } from './SevdeskCustomerImport';
 
@@ -184,18 +185,15 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
                 placeholder={config?.hasToken ? '••••••••••••••••' : 'API-Token eingeben'}
                 className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
               />
-              <button
+              <Button
                 onClick={handleTestConnection}
                 disabled={testing || !apiToken}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                variant="secondary"
+                icon={<TestTube size={18} />}
+                loading={testing}
               >
-                {testing ? (
-                  <Loader2 className="animate-spin" size={18} />
-                ) : (
-                  <TestTube size={18} />
-                )}
                 Testen
-              </button>
+              </Button>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Den API-Token finden Sie in sevDesk unter Einstellungen → API
@@ -313,13 +311,13 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
                 Importieren Sie Kontakte aus sevDesk als Kunden
               </p>
             </div>
-            <button
+            <Button
               onClick={() => setShowImportDialog(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              variant="primary"
+              icon={<Download size={18} />}
             >
-              <Download size={18} />
               Kunden importieren
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -366,18 +364,15 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <button
+        <Button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-6 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50"
+          variant="primary"
+          icon={<Save size={18} />}
+          loading={saving}
         >
-          {saving ? (
-            <Loader2 className="animate-spin" size={18} />
-          ) : (
-            <Save size={18} />
-          )}
           Speichern
-        </button>
+        </Button>
       </div>
     </div>
   );

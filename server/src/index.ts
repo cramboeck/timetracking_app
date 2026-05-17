@@ -7,6 +7,7 @@ import fs from 'fs';
 import { initializeDatabase } from './config/database';
 import { startNotificationJobs } from './jobs/notificationJobs';
 import { startNinjaJobs } from './jobs/ninjaJobs';
+import { startHealthScoreJobs } from './jobs/healthScoreJobs';
 import authRoutes from './routes/auth';
 import entriesRoutes from './routes/entries';
 import projectsRoutes from './routes/projects';
@@ -35,6 +36,11 @@ import contractsRoutes from './routes/contracts';
 import importRoutes from './routes/import';
 import socialMediaRoutes from './routes/social-media';
 import microsoft365Routes from './routes/microsoft365';
+import contactsRoutes from './routes/contacts';
+import interactionsRoutes from './routes/interactions';
+import opportunitiesRoutes from './routes/opportunities';
+import slaPoliciesRoutes from './routes/sla-policies';
+import customerMetricsRoutes from './routes/customer-metrics';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -112,6 +118,11 @@ app.use('/api/contracts', contractsRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/social-media', socialMediaRoutes);
 app.use('/api/microsoft365', microsoft365Routes);
+app.use('/api/contacts', contactsRoutes);
+app.use('/api/interactions', interactionsRoutes);
+app.use('/api/opportunities', opportunitiesRoutes);
+app.use('/api/sla-policies', slaPoliciesRoutes);
+app.use('/api/customer-metrics', customerMetricsRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
@@ -183,6 +194,9 @@ startNotificationJobs();
 
 // Start NinjaRMM auto-sync jobs
 startNinjaJobs();
+
+// Start Customer Health Score jobs (daily at 2:00 AM)
+startHealthScoreJobs();
 
 // Start server
 app.listen(PORT, () => {

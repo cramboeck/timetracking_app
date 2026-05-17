@@ -20,17 +20,52 @@ import {
 } from '../../types';
 import { authFetch } from './base';
 
+// Pagination metadata returned by the backend
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+export interface EntryFilters {
+  page?: number;
+  limit?: number;
+  startDate?: string; // ISO date string
+  endDate?: string;   // ISO date string
+  projectId?: string;
+}
+
 // Time Entries API
 export const entriesApi = {
+  // Legacy: fetch ALL entries without pagination (used by Dashboard, Calendar, etc.)
+  // Internally passes ?all=true to the backend for backward compatibility.
   getAll: async (): Promise<{ success: boolean; data: TimeEntry[] }> => {
-    return authFetch('/entries');
+    return authFetch('/entries?all=true');
+  },
+
+  // Paginated fetch – use this for list views to avoid loading thousands of rows
+  getPaginated: async (filters: EntryFilters = {}): Promise<{
+    success: boolean;
+    data: TimeEntry[];
+    pagination: PaginationMeta;
+  }> => {
+    const params = new URLSearchParams();
+    if (filters.page)      params.set('page',      String(filters.page));
+    if (filters.limit)     params.set('limit',     String(filters.limit));
+    if (filters.startDate) params.set('startDate', filters.startDate);
+    if (filters.endDate)   params.set('endDate',   filters.endDate);
+    if (filters.projectId) params.set('projectId', filters.projectId);
+    const qs = params.toString();
+    return authFetch(`/entries${qs ? `?${qs}` : ''}`);
   },
 
   getById: async (id: string): Promise<{ success: boolean; data: TimeEntry }> => {
     return authFetch(`/entries/${id}`);
   },
 
-  create: async (entry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'>): Promise<{ success: boolean; data: TimeEntry }> => {
+  create: async (entry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'> & { clientId?: string }): Promise<{ success: boolean; data: TimeEntry }> => {
     return authFetch('/entries', {
       method: 'POST',
       body: JSON.stringify(entry),
@@ -50,7 +85,7 @@ export const entriesApi = {
     });
   },
 
-  bulkUpdate: async (entryIds: string[], updates: { projectId?: string; description?: string; isBillable?: boolean }): Promise<{ success: boolean; data: { updatedCount: number } }> => {
+  bulkUpdate: async (entryIds: string[], updates: { projectId?: string; description?: string; isBillable?: boolean; activityId?: string }): Promise<{ success: boolean; data: { updatedCount: number } }> => {
     return authFetch('/entries/bulk-update', {
       method: 'PUT',
       body: JSON.stringify({ entryIds, updates }),
@@ -170,6 +205,100 @@ export const customersApi = {
     };
   }> => {
     return authFetch(`/customers/${id}/emails?maxResults=${maxResults}`);
+  },
+
+  // Email Domain methods for automatic ticket assignment
+  getEmailDomains: async (customerId: string): Promise<{
+    success: boolean;
+    data: Array<{
+      id: string;
+      customerId: string;
+      organizationId: string;
+      domain: string;
+      isPrimary: boolean;
+      notes?: string;
+      createdAt: string;
+      createdByName?: string;
+    }>;
+  }> => {
+    return authFetch(`/customers/${customerId}/email-domains`);
+  },
+
+  addEmailDomain: async (customerId: string, data: {
+    domain: string;
+    isPrimary?: boolean;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    data: {
+      id: string;
+      customerId: string;
+      domain: string;
+      isPrimary: boolean;
+      notes?: string;
+    };
+  }> => {
+    return authFetch(`/customers/${customerId}/email-domains`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteEmailDomain: async (customerId: string, domainId: string): Promise<{ success: boolean }> => {
+    return authFetch(`/customers/${customerId}/email-domains/${domainId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getAllEmailDomains: async (): Promise<{
+    success: boolean;
+    data: Array<{
+      id: string;
+      customerId: string;
+      customerName: string;
+      customerNumber?: string;
+      domain: string;
+      isPrimary: boolean;
+      notes?: string;
+      createdAt: string;
+      createdByName?: string;
+    }>;
+  }> => {
+    return authFetch('/customers/email-domains/all');
+  },
+
+  lookupEmailDomain: async (email: string): Promise<{
+    success: boolean;
+    found: boolean;
+    matchType?: string;
+    searchedDomain?: string;
+    data?: {
+      id: string;
+      name: string;
+      customerNumber?: string;
+      domain: string;
+    };
+    message?: string;
+  }> => {
+    return authFetch(`/customers/email-domains/lookup?email=${encodeURIComponent(email)}`);
+  },
+
+  // Migration: auto-create contacts and domain mappings
+  migrateContacts: async (): Promise<{
+    success: boolean;
+    message: string;
+    stats: {
+      contactsFromEmail: number;
+      contactsFromTickets: number;
+      domainsFromWebsite: number;
+      domainsFromEmail: number;
+      skippedExisting: number;
+      errors: string[];
+    };
+  }> => {
+    return authFetch('/customers/migrate-contacts', {
+      method: 'POST',
+    });
   },
 };
 

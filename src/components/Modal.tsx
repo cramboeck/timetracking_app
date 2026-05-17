@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { ReactNode, useEffect } from 'react';
+import { IconButton } from './ui/Button';
 
 interface ModalProps {
   isOpen: boolean;
@@ -53,26 +54,25 @@ export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'md
       />
 
       {/* Modal */}
-      <div className={`relative bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-full ${maxWidthClasses[maxWidth]} max-h-[90vh] flex flex-col`}>
+      <div className={`relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full ${maxWidthClasses[maxWidth]} max-h-[90vh] flex flex-col`}>
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-200">
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h2>
-            <button
+            <IconButton
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-            >
-              <X size={20} />
-            </button>
+              icon={<X size={20} />}
+              tooltip="Schließen"
+            />
           </div>
         )}
         {!title && (
-          <button
+          <IconButton
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors z-10"
-          >
-            <X size={20} />
-          </button>
+            icon={<X size={20} />}
+            tooltip="Schließen"
+            className="absolute top-4 right-4 z-10"
+          />
         )}
 
         {/* Content */}
@@ -82,7 +82,7 @@ export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'md
 
         {/* Footer - fixed at bottom, outside scrollable area */}
         {footer && (
-          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-dark-200 bg-white dark:bg-dark-100 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             {footer}
           </div>
         )}

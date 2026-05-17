@@ -17,6 +17,7 @@ import {
   Circle,
   Sparkles,
 } from 'lucide-react';
+import { Button, IconButton } from './ui';
 import { tasksApi, customersApi, projectsApi } from '../services/api';
 import type {
   Task,
@@ -220,12 +221,11 @@ export default function TaskModal({
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
               {task ? 'Aufgabe bearbeiten' : 'Neue Aufgabe'}
             </h2>
-            <button
+            <IconButton
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-            >
-              <X className="w-5 h-5" />
-            </button>
+              icon={<X className="w-5 h-5" />}
+              size="md"
+            />
           </div>
 
           {/* Body */}
@@ -345,14 +345,16 @@ export default function TaskModal({
                     className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                   {suggestedMinutes && !estimatedMinutes && (
-                    <button
+                    <Button
                       onClick={() => setEstimatedMinutes(suggestedMinutes)}
-                      className="flex items-center gap-1 px-3 py-2 text-sm bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                      variant="secondary"
+                      size="sm"
+                      icon={<Sparkles className="w-4 h-4" />}
                       title="Basierend auf ähnlichen Aufgaben"
+                      className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50"
                     >
-                      <Sparkles className="w-4 h-4" />
                       ~{suggestedMinutes}min
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -485,12 +487,13 @@ export default function TaskModal({
                         <span className={`flex-1 text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700 dark:text-gray-300'}`}>
                           {item.title}
                         </span>
-                        <button
+                        <IconButton
                           onClick={() => removeChecklistItem(index)}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          icon={<Trash2 className="w-4 h-4" />}
+                          variant="danger"
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100"
+                        />
                       </li>
                     ))}
                   </ul>
@@ -505,13 +508,12 @@ export default function TaskModal({
                     placeholder="Neuer Punkt..."
                     className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
-                  <button
+                  <IconButton
                     onClick={addChecklistItem}
                     disabled={!newChecklistItem.trim()}
-                    className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
+                    icon={<Plus className="w-5 h-5" />}
+                    size="md"
+                  />
                 </div>
               </div>
             </div>
@@ -519,19 +521,22 @@ export default function TaskModal({
 
           {/* Footer */}
           <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-            <button
+            <Button
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              variant="secondary"
+              size="md"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSave}
               disabled={saving || !title.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              variant="primary"
+              size="md"
+              loading={saving}
             >
-              {saving ? 'Speichern...' : task ? 'Speichern' : 'Erstellen'}
-            </button>
+              {task ? 'Speichern' : 'Erstellen'}
+            </Button>
           </div>
         </div>
       </div>

@@ -761,16 +761,28 @@ router.post('/alerts/:id/create-ticket', authenticateToken, requireNinjaFeature,
     const severity = alert.severity || 'INFO';
     const priority = alert.priority || 'NORMAL';
 
-    // Get or create ticket sequence
-    await query(
-      'INSERT INTO ticket_sequences (user_id, last_number) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING',
+    // Get organization_id for this user (ticket_sequences verwendet organization_id, nicht user_id)
+    const orgIdResult = await query(
+      `SELECT o.id FROM organizations o
+       JOIN organization_members om ON o.id = om.organization_id
+       WHERE om.user_id = $1 ORDER BY om.role = 'owner' DESC LIMIT 1`,
       [userId]
+    );
+    const organizationId = orgIdResult.rows[0]?.id;
+    if (!organizationId) {
+      throw new Error(`Keine Organisation für User ${userId} gefunden`);
+    }
+
+    // Get or create ticket sequence (organisation-basiert)
+    await query(
+      'INSERT INTO ticket_sequences (organization_id, last_number) VALUES ($1, 0) ON CONFLICT (organization_id) DO NOTHING',
+      [organizationId]
     );
 
     // Increment and get next ticket number
     const seqResult = await query(
-      'UPDATE ticket_sequences SET last_number = last_number + 1 WHERE user_id = $1 RETURNING last_number',
-      [userId]
+      'UPDATE ticket_sequences SET last_number = last_number + 1 WHERE organization_id = $1 RETURNING last_number',
+      [organizationId]
     );
     const ticketNumber = `TKT-${String(seqResult.rows[0].last_number).padStart(6, '0')}`;
 
@@ -778,13 +790,14 @@ router.post('/alerts/:id/create-ticket', authenticateToken, requireNinjaFeature,
     const ticketId = uuidv4();
     await query(
       `INSERT INTO tickets (
-        id, ticket_number, user_id, customer_id, device_id, title, description,
+        id, ticket_number, user_id, organization_id, customer_id, device_id, title, description,
         priority, status, source, ninja_alert_id, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())`,
       [
         ticketId,
         ticketNumber,
         userId,
+        organizationId,
         alert.customer_id,
         alert.device_id,
         `[${severity}] ${alert.message.substring(0, 100)}`,
@@ -1339,16 +1352,28 @@ async function createTicketFromWebhook(
   try {
     const { alertId, ninjaAlertId, severity, message, deviceName, deviceId, customerId, payload } = data;
 
-    // Get or create ticket sequence
-    await query(
-      'INSERT INTO ticket_sequences (user_id, last_number) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING',
+    // Get organization_id for this user (ticket_sequences verwendet organization_id, nicht user_id)
+    const orgIdResult = await query(
+      `SELECT o.id FROM organizations o
+       JOIN organization_members om ON o.id = om.organization_id
+       WHERE om.user_id = $1 ORDER BY om.role = 'owner' DESC LIMIT 1`,
       [userId]
+    );
+    const organizationId = orgIdResult.rows[0]?.id;
+    if (!organizationId) {
+      throw new Error(`Keine Organisation für User ${userId} gefunden`);
+    }
+
+    // Get or create ticket sequence (organisation-basiert)
+    await query(
+      'INSERT INTO ticket_sequences (organization_id, last_number) VALUES ($1, 0) ON CONFLICT (organization_id) DO NOTHING',
+      [organizationId]
     );
 
     // Increment and get next ticket number
     const seqResult = await query(
-      'UPDATE ticket_sequences SET last_number = last_number + 1 WHERE user_id = $1 RETURNING last_number',
-      [userId]
+      'UPDATE ticket_sequences SET last_number = last_number + 1 WHERE organization_id = $1 RETURNING last_number',
+      [organizationId]
     );
     const ticketNumber = `TKT-${String(seqResult.rows[0].last_number).padStart(6, '0')}`;
 
@@ -1362,13 +1387,14 @@ async function createTicketFromWebhook(
     const ticketId = uuidv4();
     await query(
       `INSERT INTO tickets (
-        id, ticket_number, user_id, customer_id, device_id, title, description,
+        id, ticket_number, user_id, organization_id, customer_id, device_id, title, description,
         priority, status, source, ninja_alert_id, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())`,
       [
         ticketId,
         ticketNumber,
         userId,
+        organizationId,
         customerId,
         deviceId,
         `[${severity}] ${message.substring(0, 100)}`,

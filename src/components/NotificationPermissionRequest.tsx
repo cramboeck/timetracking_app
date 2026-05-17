@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Bell, X } from 'lucide-react';
 import { notificationService } from '../utils/notifications';
+import { Button, IconButton } from './ui';
 
 interface NotificationPermissionRequestProps {
   onClose: () => void;
@@ -80,12 +81,11 @@ export const NotificationPermissionRequest = ({ onClose }: NotificationPermissio
       <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-accent-primary to-accent-primary/80 p-6 text-white relative">
-          <button
+          <IconButton
             onClick={handleNever}
-            className="absolute top-4 right-4 p-1 hover:bg-white/20 rounded-lg transition-colors"
-          >
-            <X size={20} />
-          </button>
+            icon={<X size={20} />}
+            className="absolute top-4 right-4 hover:bg-white/20"
+          />
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur">
               <Bell size={32} />
@@ -152,25 +152,31 @@ export const NotificationPermissionRequest = ({ onClose }: NotificationPermissio
 
           {/* Actions */}
           <div className="flex flex-col gap-3">
-            <button
+            <Button
               onClick={handleEnable}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 btn-accent font-semibold"
+              variant="primary"
+              size="lg"
+              fullWidth
+              icon={<Bell size={20} />}
             >
-              <Bell size={20} />
               Benachrichtigungen aktivieren
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleLater}
-              className="w-full px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-200 hover:bg-gray-200 dark:hover:bg-dark-300 rounded-lg font-medium transition-colors"
+              variant="secondary"
+              size="lg"
+              fullWidth
             >
               Später entscheiden
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleNever}
-              className="text-sm text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-300 transition-colors"
+              variant="ghost"
+              size="sm"
+              className="text-gray-500 dark:text-dark-400"
             >
               Nicht mehr anzeigen
-            </button>
+            </Button>
           </div>
         </div>
       </div>

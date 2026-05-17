@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView } from './components/AreaNavigation';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
+// Core components loaded eagerly (always visible / needed on first render)
 import { Stopwatch } from './components/Stopwatch';
-import { ManualEntry } from './components/ManualEntry';
+import { ManualEntryModern } from './components/ManualEntryModern';
 import { TimeEntriesList } from './components/TimeEntriesList';
 import { CalendarView } from './components/CalendarView';
-import { Dashboard } from './components/Dashboard';
+import { DashboardOverview } from './components/DashboardOverview';
+import { CustomerHub } from './components/CustomerHub';
 import { Settings } from './components/Settings';
 import { Tickets } from './components/Tickets';
 import { Finanzen } from './components/Finanzen';
@@ -14,18 +16,23 @@ import { AlertsView } from './components/AlertsView';
 import MaintenanceView from './components/MaintenanceView';
 import TaskHub from './components/TaskHub';
 import Contracts from './components/Contracts';
+import SalesPipeline from './components/SalesPipeline';
+import Leads from './components/Leads';
+import { CRMDashboard } from './components/CRMDashboard';
 import { InvoiceInbox } from './components/InvoiceInbox';
 import { SupportInbox } from './components/SupportInbox';
 import { SocialMediaProvider } from './features/social-media/context';
 import SocialMediaLayout from './features/social-media/SocialMediaLayout';
 import AdminPortal from './components/AdminPortal';
+import { ReportsPage } from './components/ReportsPage';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
+import { OfflineBanner } from './components/OfflineBanner';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
-import { OfflineBanner } from './components/OfflineBanner';
+import { CommandPalette } from './components/CommandPalette';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { useSwipeGesture } from './hooks/useSwipeGesture';
@@ -33,7 +40,7 @@ import { useIsDesktop } from './hooks/useMediaQuery';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { haptics } from './utils/haptics';
 import { notificationService } from './utils/notifications';
-import { addPendingEntry, getPendingEntries, removePendingEntry, getPendingCount } from './utils/offlineStorage';
+import { addPendingEntry, getRetryableEntries, removePendingEntry, getPendingCount, getFailedCount, markEntryFailed, isRetryableError, resetFailedEntry, discardFailedEntry } from './utils/offlineStorage';
 import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, userApi } from './services/api';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
@@ -47,6 +54,8 @@ function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(() => getPendingCount());
+  const [failedCount, setFailedCount] = useState(() => getFailedCount());
+  const syncMutexRef = useRef(false);
 
   // Track sidebar collapsed state for layout adjustment
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -190,6 +199,42 @@ function App() {
         const running = (entriesResponse.data || []).find(e => e.isRunning);
         if (running) {
           setRunningEntry(running);
+        } else {
+          // TIMER SAFETY: Check localStorage for backup of running timer
+          // This helps recover if the server lost track of the running state
+          const RUNNING_TIMER_KEY = 'running_timer_backup';
+          try {
+            const backupStr = localStorage.getItem(RUNNING_TIMER_KEY);
+            if (backupStr) {
+              const backup = JSON.parse(backupStr);
+              const backupAge = Date.now() - new Date(backup.savedAt).getTime();
+              const maxBackupAge = 24 * 60 * 60 * 1000; // 24 hours
+
+              if (backupAge < maxBackupAge && backup.entry?.isRunning) {
+                console.log('🔄 [TIMER] Found backup timer in localStorage, recovering...');
+                // Check if this entry exists in the loaded entries
+                const existingEntry = (entriesResponse.data || []).find(e => e.id === backup.entry.id);
+                if (existingEntry && !existingEntry.endTime) {
+                  // Entry exists but server doesn't know it's running - resume it
+                  const recoveredEntry = { ...existingEntry, isRunning: true };
+                  setRunningEntry(recoveredEntry);
+                  // Update server
+                  entriesApi.update(recoveredEntry.id, recoveredEntry).catch(err => {
+                    console.error('❌ [TIMER] Failed to sync recovered timer:', err);
+                  });
+                  console.log('✅ [TIMER] Timer recovered from backup');
+                } else {
+                  // Entry doesn't exist or was already completed - clear backup
+                  localStorage.removeItem(RUNNING_TIMER_KEY);
+                }
+              } else {
+                // Backup too old - clear it
+                localStorage.removeItem(RUNNING_TIMER_KEY);
+              }
+            }
+          } catch (err) {
+            console.error('❌ [TIMER] Failed to recover timer from backup:', err);
+          }
         }
 
         // Note: Don't auto-switch to stopwatch view - respect user's saved preference
@@ -301,6 +346,26 @@ function App() {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [isAuthenticated]);
+
+  // Listen for navigation events from components (e.g., SupportInbox navigating to Settings)
+  useEffect(() => {
+    const handleNavigateToView = (event: Event) => {
+      const customEvent = event as CustomEvent<{ subView: SubView; params?: Record<string, string> }>;
+      const { subView, params } = customEvent.detail;
+      console.log('📬 [NAV] Navigating to view:', subView, params);
+
+      // Navigate to the requested view
+      handleSubViewChange(subView);
+
+      // Store params for the target component if needed
+      if (params) {
+        sessionStorage.setItem('navigation_params', JSON.stringify(params));
+      }
+    };
+
+    window.addEventListener('navigate-to-view', handleNavigateToView);
+    return () => window.removeEventListener('navigate-to-view', handleNavigateToView);
+  }, []);
 
   // Listen for navigation messages from Service Worker (push notification clicks)
   useEffect(() => {
@@ -468,9 +533,9 @@ function App() {
         console.log('✅ [ENTRY] Entry updated:', response);
         setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
       } else {
-        // Create new entry
+        // Create new entry with clientId for idempotency
         console.log('💾 [ENTRY] Creating new entry');
-        const response = await entriesApi.create(entry);
+        const response = await entriesApi.create({ ...entry, clientId: entry.id });
         console.log('✅ [ENTRY] Entry created:', response);
         setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
       }
@@ -529,7 +594,7 @@ function App() {
         // Create new entry (only if not already being created)
         pendingEntryIdsRef.current.add(entry.id);
         try {
-          const response = await entriesApi.create(entry);
+          const response = await entriesApi.create({ ...entry, clientId: entry.id });
           console.log('✅ [ENTRY] Running entry created:', response);
           setEntries(prev => [...prev.filter(e => e.id !== entry.id), response.data]);
         } finally {
@@ -540,20 +605,35 @@ function App() {
       }
     } catch (error) {
       console.error('❌ [ENTRY] Failed to update running entry:', error);
+
+      // Save to pending storage for later sync (prevents data loss)
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        console.log('📴 [ENTRY] Network error - saving running entry update locally:', entry.id);
+        addPendingEntry(entry, 'update');
+        setPendingCount(getPendingCount());
+      }
     }
   };
 
   // Sync pending entries when back online
   const syncPendingEntries = useCallback(async () => {
-    const pending = getPendingEntries();
+    // Mutex: prevent concurrent sync attempts
+    if (syncMutexRef.current) {
+      console.log('🔒 [SYNC] Sync already in progress, skipping');
+      return;
+    }
+
+    const pending = getRetryableEntries();
     if (pending.length === 0) return;
 
+    syncMutexRef.current = true;
     console.log('🔄 [SYNC] Starting sync of', pending.length, 'pending entries');
     setIsSyncing(true);
     setSyncError(null);
 
     let successCount = 0;
     let failCount = 0;
+    let permanentFailCount = 0;
 
     for (const { entry, action } of pending) {
       try {
@@ -561,27 +641,36 @@ function App() {
           const response = await entriesApi.update(entry.id, entry);
           setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
         } else {
-          const response = await entriesApi.create(entry);
+          // Send clientId for idempotent creation
+          const response = await entriesApi.create({ ...entry, clientId: entry.id });
           setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
         }
         removePendingEntry(entry.id);
         successCount++;
         console.log('✅ [SYNC] Synced entry:', entry.id);
       } catch (error) {
-        console.error('❌ [SYNC] Failed to sync entry:', entry.id, error);
+        const retryable = isRetryableError(error);
+        const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+        markEntryFailed(entry.id, errorMessage, !retryable);
+        console.error('❌ [SYNC] Failed to sync entry:', entry.id, retryable ? '(will retry)' : '(permanent)', error);
         failCount++;
+        if (!retryable) permanentFailCount++;
       }
     }
 
     setPendingCount(getPendingCount());
+    setFailedCount(getFailedCount());
     setIsSyncing(false);
+    syncMutexRef.current = false;
 
-    if (failCount > 0) {
-      setSyncError(`${failCount} Einträge konnten nicht synchronisiert werden`);
+    if (permanentFailCount > 0) {
+      setSyncError(`${permanentFailCount} ${permanentFailCount === 1 ? 'Eintrag konnte' : 'Einträge konnten'} nicht synchronisiert werden (Daten ungültig)`);
+    } else if (failCount > 0) {
+      setSyncError(`${failCount} ${failCount === 1 ? 'Eintrag' : 'Einträge'} – Retry läuft automatisch`);
       setTimeout(() => setSyncError(null), 5000);
     }
 
-    console.log('🔄 [SYNC] Sync complete:', successCount, 'synced,', failCount, 'failed');
+    console.log('🔄 [SYNC] Sync complete:', successCount, 'synced,', failCount, 'failed (' + permanentFailCount + ' permanent)');
   }, []);
 
   // Auto-sync when coming back online
@@ -591,6 +680,110 @@ function App() {
       syncPendingEntries();
     }
   }, [isOnline, wasOffline, syncPendingEntries]);
+
+  // Periodic sync retry every 30 seconds while there are retryable pending entries
+  useEffect(() => {
+    if (!isOnline) return;
+
+    const interval = setInterval(() => {
+      const retryable = getRetryableEntries();
+      if (retryable.length > 0) {
+        console.log('🔄 [SYNC] Periodic retry: found', retryable.length, 'retryable entries');
+        syncPendingEntries();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isOnline, syncPendingEntries]);
+
+  // Handlers for failed entry management (called from OfflineBanner)
+  const handleRetryFailedEntry = useCallback((entryId: string) => {
+    resetFailedEntry(entryId);
+    setPendingCount(getPendingCount());
+    setFailedCount(getFailedCount());
+    // Trigger immediate sync
+    syncPendingEntries();
+  }, [syncPendingEntries]);
+
+  const handleDiscardFailedEntry = useCallback((entryId: string) => {
+    discardFailedEntry(entryId);
+    setEntries(prev => prev.filter(e => e.id !== entryId));
+    setPendingCount(getPendingCount());
+    setFailedCount(getFailedCount());
+  }, []);
+
+  // TIMER SAFETY: Warn user before closing page with running timer
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (runningEntry) {
+        const message = 'Du hast einen laufenden Timer! Wenn du die Seite verlässt, könnte Zeit verloren gehen.';
+        e.preventDefault();
+        e.returnValue = message;
+        return message;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [runningEntry]);
+
+  // TIMER SAFETY: Recalculate elapsed time when tab becomes visible again
+  // This prevents time drift if the tab was in background
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && runningEntry) {
+        console.log('👁️ [TIMER] Tab became visible, syncing timer state...');
+        // The Stopwatch component will recalculate elapsed time from startTime
+        // We just need to ensure the entry is fresh
+        setRunningEntry(prev => prev ? { ...prev } : null);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [runningEntry]);
+
+  // TIMER SAFETY: Periodic heartbeat - save running timer to backend every 5 minutes
+  // This ensures the server has the latest state even if the client crashes
+  useEffect(() => {
+    if (!runningEntry || !isOnline) return;
+
+    const heartbeatInterval = setInterval(async () => {
+      if (runningEntry && runningEntry.isRunning) {
+        try {
+          console.log('💓 [TIMER] Heartbeat: saving running timer state...');
+          await entriesApi.update(runningEntry.id, {
+            ...runningEntry,
+            duration: Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000),
+          });
+          console.log('💓 [TIMER] Heartbeat successful');
+        } catch (error) {
+          console.error('💔 [TIMER] Heartbeat failed:', error);
+          // If heartbeat fails, save to local storage as backup
+          addPendingEntry(runningEntry, 'update');
+        }
+      }
+    }, 5 * 60 * 1000); // Every 5 minutes
+
+    return () => clearInterval(heartbeatInterval);
+  }, [runningEntry, isOnline]);
+
+  // TIMER SAFETY: Save running timer to localStorage as backup
+  useEffect(() => {
+    const RUNNING_TIMER_KEY = 'running_timer_backup';
+
+    if (runningEntry) {
+      // Save backup to localStorage
+      localStorage.setItem(RUNNING_TIMER_KEY, JSON.stringify({
+        entry: runningEntry,
+        savedAt: new Date().toISOString(),
+      }));
+      console.log('💾 [TIMER] Saved backup to localStorage');
+    } else {
+      // Clear backup when timer stops
+      localStorage.removeItem(RUNNING_TIMER_KEY);
+    }
+  }, [runningEntry]);
 
   const handleDeleteEntry = async (id: string) => {
     try {
@@ -614,7 +807,7 @@ function App() {
     }
   };
 
-  const handleBulkUpdateEntries = async (entryIds: string[], updates: { projectId?: string; description?: string }) => {
+  const handleBulkUpdateEntries = async (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => {
     try {
       console.log('📦 [ENTRY] Bulk updating entries:', entryIds.length);
       await entriesApi.bulkUpdate(entryIds, updates);
@@ -782,13 +975,15 @@ function App() {
   };
 
   // Get visible areas for swipe navigation
-  const visibleAreas: Area[] = ['arbeiten', 'support', 'business'];
+  const visibleAreas: Area[] = ['dashboard', 'arbeiten', 'support', 'crm', 'finanzen'];
 
   // SubView configuration for each area (matching AreaNavigation)
   const subViewConfig: Record<Area, SubView[]> = {
+    dashboard: ['overview'],
     arbeiten: ['stopwatch', 'tasks', 'list', 'calendar'],
-    support: ['tickets', 'devices', 'alerts', 'maintenance'],
-    business: ['dashboard', 'contracts', 'billing', 'social-media', 'reports'],
+    support: ['tickets', 'inbox', 'devices', 'alerts', 'maintenance'],
+    crm: ['customers', 'leads', 'pipeline', 'contracts'],
+    finanzen: ['invoices', 'billing', 'reports'],
   };
 
   // Swipe between areas (Bottom zone - bottom 30%)
@@ -885,9 +1080,16 @@ function App() {
         isOnline={isOnline}
         wasOffline={wasOffline}
         pendingCount={pendingCount}
+        failedCount={failedCount}
         isSyncing={isSyncing}
         syncError={syncError}
+        onRetryFailed={handleRetryFailedEntry}
+        onDiscardFailed={handleDiscardFailedEntry}
+        onRetryAll={syncPendingEntries}
       />
+
+      {/* Global Command Palette (Cmd+K / Ctrl+K) */}
+      <CommandPalette onNavigate={handleSubViewChange} />
 
       {/* Top Navigation Header */}
       <AreaNavigation
@@ -908,6 +1110,12 @@ function App() {
         } : undefined}
         {...(isDesktop ? {} : swipeHandlers)}  // Only enable swipe on mobile
       >
+        {/* Suspense catches lazy-loaded modules while they are being fetched */}
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          </div>
+        }>
         {currentSubView === 'stopwatch' && (
           <Stopwatch
             onSave={handleSaveEntry}
@@ -922,7 +1130,7 @@ function App() {
           />
         )}
         {currentSubView === 'manual' && (
-          <ManualEntry
+          <ManualEntryModern
             onSave={handleSaveEntry}
             projects={projects}
             customers={customers}
@@ -976,13 +1184,59 @@ function App() {
             }}
           />
         )}
-        {currentSubView === 'dashboard' && (
-          <Dashboard
+        {currentSubView === 'overview' && (
+          <DashboardOverview
             entries={entries}
             projects={projects}
             customers={customers}
-            activities={activities}
-            onNavigateToBilling={() => setCurrentSubView('billing')}
+            runningEntry={runningEntry}
+            onNavigate={(area, subView) => {
+              setCurrentArea(area);
+              setCurrentSubView(subView);
+            }}
+            onStartTimer={() => {
+              setCurrentArea('arbeiten');
+              setCurrentSubView('stopwatch');
+            }}
+          />
+        )}
+        {currentSubView === 'customers' && (
+          <CustomerHub
+            customers={customers}
+            projects={projects}
+            entries={entries}
+            onNavigateToTicket={(ticketId) => {
+              // Navigate to tickets view - the ticket will be opened from there
+              setCurrentArea('support');
+              setCurrentSubView('tickets');
+            }}
+            onNavigateToTask={(taskId) => {
+              // Navigate to tasks view
+              setCurrentArea('arbeiten');
+              setCurrentSubView('tasks');
+            }}
+            onStartTimer={(customerId, projectId, description) => {
+              // Set prefilled entry and switch to stopwatch
+              if (projectId) {
+                setPrefilledEntry({
+                  projectId,
+                  description: description || '',
+                });
+              }
+              setCurrentArea('arbeiten');
+              setCurrentSubView('stopwatch');
+            }}
+            onAddManualEntry={(customerId, projectId) => {
+              // Set prefilled entry and switch to manual entry
+              if (projectId) {
+                setPrefilledEntry({
+                  projectId,
+                  description: '',
+                });
+              }
+              setCurrentArea('arbeiten');
+              setCurrentSubView('manual');
+            }}
           />
         )}
         {currentSubView === 'tickets' && (
@@ -1025,7 +1279,25 @@ function App() {
           <InvoiceInbox />
         )}
         {currentSubView === 'billing' && (
-          <Finanzen onBack={() => setCurrentSubView('dashboard')} />
+          <Finanzen onBack={() => setCurrentSubView('overview')} />
+        )}
+        {currentSubView === 'crm-dashboard' && (
+          <CRMDashboard
+            customers={customers}
+            projects={projects}
+            onNavigateToCustomer={(customerId) => {
+              setCurrentSubView('customers');
+            }}
+            onNavigateToOpportunity={(opportunityId) => {
+              setCurrentSubView('pipeline');
+            }}
+          />
+        )}
+        {currentSubView === 'pipeline' && (
+          <SalesPipeline />
+        )}
+        {currentSubView === 'leads' && (
+          <Leads />
         )}
         {currentSubView === 'contracts' && (
           <Contracts />
@@ -1036,9 +1308,12 @@ function App() {
           </SocialMediaProvider>
         )}
         {currentSubView === 'reports' && (
-          <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-            <p>Berichte-Modul kommt bald...</p>
-          </div>
+          <ReportsPage
+            entries={entries}
+            projects={projects}
+            customers={customers}
+            activities={activities}
+          />
         )}
         {currentSubView === 'settings' && (
           <Settings
@@ -1063,6 +1338,7 @@ function App() {
         {currentSubView === 'admin' && (
           <AdminPortal />
         )}
+        </Suspense>
       </main>
 
       {/* Floating Action Button - only on mobile */}

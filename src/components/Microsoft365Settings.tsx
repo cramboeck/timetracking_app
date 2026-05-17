@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment } from 'react';
 import { Settings, Save, CheckCircle, XCircle, AlertTriangle, Cloud, Mail, Shield, Loader2, Eye, EyeOff, ExternalLink, Key, FileText, RefreshCw, Play, Download, Check, Trash2, ChevronDown, ChevronUp, File, Undo2 } from 'lucide-react';
+import { Button, IconButton } from './ui';
 import { microsoft365Api, Microsoft365Config, ProcessedInvoice, InvoiceDocument } from '../services/api';
 
 export const Microsoft365Settings = () => {
@@ -617,31 +618,27 @@ export const Microsoft365Settings = () => {
 
       {/* Actions */}
       <div className="flex flex-wrap gap-3">
-        <button
+        <Button
+          variant="secondary"
+          size="md"
           onClick={handleTestConnection}
           disabled={testing || !tenantId || !clientId}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50 transition-colors"
+          loading={testing}
+          icon={!testing ? <Cloud size={18} /> : undefined}
         >
-          {testing ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <Cloud size={18} />
-          )}
           Verbindung testen
-        </button>
+        </Button>
 
-        <button
+        <Button
+          variant="primary"
+          size="md"
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 btn-accent"
+          loading={saving}
+          icon={!saving ? <Save size={18} /> : undefined}
         >
-          {saving ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <Save size={18} />
-          )}
           Speichern
-        </button>
+        </Button>
       </div>
 
       {/* Invoice Processing Section */}
@@ -654,57 +651,56 @@ export const Microsoft365Settings = () => {
             </h3>
             <div className="flex gap-2 flex-wrap">
               {processedInvoices.filter(i => i.status === 'failed').length > 0 && (
-                <button
+                <Button
+                  variant="danger"
+                  size="sm"
                   onClick={handleClearFailed}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                  icon={<Trash2 size={14} />}
                 >
-                  <Trash2 size={14} />
                   Fehler löschen
-                </button>
+                </Button>
               )}
               {processedInvoices.length > 0 && (
-                <button
+                <Button
+                  variant="warning"
+                  size="sm"
                   onClick={handleClearAll}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+                  icon={<Trash2 size={14} />}
                 >
-                  <Trash2 size={14} />
                   Alle löschen
-                </button>
+                </Button>
               )}
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={loadProcessedInvoices}
                 disabled={loadingInvoices}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50 transition-colors"
+                icon={<RefreshCw size={14} className={loadingInvoices ? 'animate-spin' : ''} />}
               >
-                <RefreshCw size={14} className={loadingInvoices ? 'animate-spin' : ''} />
                 Aktualisieren
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => handleProcessInvoices(false)}
                 disabled={processingInvoices}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm btn-accent"
+                loading={processingInvoices}
+                icon={!processingInvoices ? <Play size={14} /> : undefined}
                 title="Nur ungelesene E-Mails verarbeiten"
               >
-                {processingInvoices ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Play size={14} />
-                )}
                 Neue Mails
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="warning"
+                size="sm"
                 onClick={() => handleProcessInvoices(true)}
                 disabled={processingInvoices}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 disabled:opacity-50 transition-colors"
+                loading={processingInvoices}
+                icon={!processingInvoices ? <RefreshCw size={14} /> : undefined}
                 title="Alle E-Mails verarbeiten (inkl. bereits gelesene)"
               >
-                {processingInvoices ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <RefreshCw size={14} />
-                )}
                 Alle erneut
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -831,30 +827,30 @@ export const Microsoft365Settings = () => {
                           <div className="flex gap-1 justify-end">
                             {invoice.status === 'draft' && (
                               <>
-                                <button
+                                <IconButton
+                                  variant="success"
+                                  size="md"
                                   onClick={() => handleApproveDraft(invoice.id)}
-                                  className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
-                                  title="Bestätigen"
-                                >
-                                  <Check size={16} />
-                                </button>
-                                <button
+                                  icon={<Check size={16} />}
+                                  tooltip="Bestätigen"
+                                />
+                                <IconButton
+                                  variant="danger"
+                                  size="md"
                                   onClick={() => handleDeleteDraft(invoice.id)}
-                                  className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                                  title="Löschen"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                                  icon={<Trash2 size={16} />}
+                                  tooltip="Löschen"
+                                />
                               </>
                             )}
                             {invoice.status === 'processed' && (
-                              <button
+                              <IconButton
+                                variant="warning"
+                                size="md"
                                 onClick={() => handleRevertToDraft(invoice.id)}
-                                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded"
-                                title="Zurück zu Entwurf"
-                              >
-                                <Undo2 size={16} />
-                              </button>
+                                icon={<Undo2 size={16} />}
+                                tooltip="Zurück zu Entwurf"
+                              />
                             )}
                           </div>
                         </td>
@@ -889,20 +885,20 @@ export const Microsoft365Settings = () => {
                                         </div>
                                       </div>
                                       <div className="flex gap-1">
-                                        <button
+                                        <IconButton
+                                          variant="primary"
+                                          size="md"
                                           onClick={() => handleDownloadDocument(doc.id, true)}
-                                          className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-                                          title="Ansehen"
-                                        >
-                                          <Eye size={16} />
-                                        </button>
-                                        <button
+                                          icon={<Eye size={16} />}
+                                          tooltip="Ansehen"
+                                        />
+                                        <IconButton
+                                          variant="success"
+                                          size="md"
                                           onClick={() => handleDownloadDocument(doc.id)}
-                                          className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
-                                          title="Herunterladen"
-                                        >
-                                          <Download size={16} />
-                                        </button>
+                                          icon={<Download size={16} />}
+                                          tooltip="Herunterladen"
+                                        />
                                       </div>
                                     </div>
                                   ))}

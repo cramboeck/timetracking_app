@@ -975,25 +975,52 @@ export interface InvoiceDocument {
 }
 
 export interface InvoiceLineItem {
+  position: number | null;        // Position number on invoice
   description: string;
-  customerName: string | null;
+  articleNumber: string | null;   // Article/SKU number
+  customerName: string | null;    // End customer name (for MSP/reseller invoices)
   quantity: number | null;
+  unit: string | null;            // Unit (Stück, Monat, GB, etc.)
   unitPrice: number | null;
   totalPrice: number | null;
-  period: string | null;
-  productType: string | null;
+  vatRate: number | null;         // VAT rate for this line item if different
+  period: string | null;          // e.g. "01.12.2024 - 31.12.2024"
+  productType: string | null;     // e.g. "Microsoft 365", "Cloud Server"
 }
 
 export interface ExtractedInvoiceData {
+  // Supplier/vendor info
   supplierName: string | null;
+  supplierAddress: string | null;
+  taxId: string | null;           // USt-IdNr. of supplier
+
+  // Recipient info
+  recipientName: string | null;   // Invoice recipient
+  recipientAddress: string | null;
+  customerNumber: string | null;  // Customer number at supplier
+
+  // Invoice identifiers
   invoiceNumber: string | null;
+  orderNumber: string | null;     // Order/reference number
+
+  // Dates
   invoiceDate: string | null;
   dueDate: string | null;
+  deliveryDate: string | null;    // Delivery/service date
+
+  // Amounts
   netAmount: number | null;
   grossAmount: number | null;
   vatAmount: number | null;
   vatRate: number | null;
   currency: string;
+
+  // Payment info
+  paymentMethod: string | null;
+  iban: string | null;
+  bic: string | null;
+
+  // Metadata
   confidence: number;
   rawText?: string;
   lineItems?: InvoiceLineItem[];
@@ -1190,6 +1217,25 @@ export const microsoft365Api = {
     return authFetch(`/microsoft365/support/emails${query ? `?${query}` : ''}`);
   },
 
+  // Check if customer exists for an email before creating ticket
+  lookupCustomerForEmail: async (messageId: string): Promise<{
+    success: boolean;
+    found: boolean;
+    customer?: {
+      id: string;
+      name: string;
+      matchType: string;
+    };
+    sender: {
+      email: string;
+      name: string;
+      domain: string | null;
+    };
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/support/emails/${messageId}/customer-lookup`);
+  },
+
   createTicketFromEmail: async (
     messageId: string,
     options?: { priority?: string; customerId?: string }
@@ -1247,11 +1293,107 @@ export const microsoft365Api = {
     return authFetch(`/microsoft365/support/emails/${messageId}/ticket-info`);
   },
 
+  // Save email as CRM interaction for customer
+  saveEmailAsInteraction: async (
+    messageId: string,
+    customerId?: string
+  ): Promise<{
+    success: boolean;
+    alreadyExists?: boolean;
+    data?: {
+      interactionId: string;
+      customerId: string;
+      customerName: string;
+      subject: string;
+    };
+    requiresCustomer?: boolean;
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/support/emails/${messageId}/save-as-interaction`, {
+      method: 'POST',
+      body: JSON.stringify({ customerId }),
+    });
+  },
+
   getTicketEmails: async (ticketId: string): Promise<{
     success: boolean;
     data: TicketEmail[];
     error?: string;
   }> => {
     return authFetch(`/microsoft365/tickets/${ticketId}/emails`);
+  },
+
+  // ============================================
+  // PERSONAL INBOX
+  // ============================================
+
+  // Get emails from user's personal mailbox
+  getPersonalEmails: async (params?: {
+    includeRead?: boolean;
+    limit?: number;
+  }): Promise<{
+    success: boolean;
+    data: (SupportEmail & {
+      matchedCustomer?: {
+        id: string;
+        name: string;
+        matchType: string;
+      } | null;
+    })[];
+    userEmail?: string;
+    error?: string;
+  }> => {
+    const searchParams = new URLSearchParams();
+    if (params?.includeRead) searchParams.set('includeRead', 'true');
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+    const query = searchParams.toString();
+    return authFetch(`/microsoft365/personal/emails${query ? `?${query}` : ''}`);
+  },
+
+  // Save personal email as CRM interaction
+  savePersonalEmailAsInteraction: async (
+    messageId: string,
+    customerId?: string
+  ): Promise<{
+    success: boolean;
+    alreadyExists?: boolean;
+    data?: {
+      interactionId: string;
+      customerId: string;
+      customerName: string;
+      subject: string;
+      direction: 'inbound' | 'outbound';
+    };
+    requiresCustomer?: boolean;
+    sender?: {
+      email: string;
+      name: string;
+      domain: string | null;
+    };
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/personal/emails/${messageId}/save-as-interaction`, {
+      method: 'POST',
+      body: JSON.stringify({ customerId }),
+    });
+  },
+
+  // Lookup customer for personal email
+  lookupCustomerForPersonalEmail: async (messageId: string): Promise<{
+    success: boolean;
+    found: boolean;
+    customer?: {
+      id: string;
+      name: string;
+      matchType: string;
+    };
+    sender: {
+      email: string;
+      name: string;
+      domain: string | null;
+    };
+    error?: string;
+  }> => {
+    return authFetch(`/microsoft365/personal/emails/${messageId}/customer-lookup`);
   },
 };

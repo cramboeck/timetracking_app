@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { CheckSquare, Square, Building2, Ticket, Filter, RefreshCw, ExternalLink, Eye, EyeOff } from 'lucide-react';
 import { TicketTaskWithInfo, Customer, TicketStatus, TicketPriority } from '../types';
 import { ticketsApi } from '../services/api';
+import { IconButton } from './ui';
 
 interface TasksOverviewProps {
   customers: Customer[];
@@ -97,24 +98,20 @@ export const TasksOverview = ({ customers, onTicketSelect }: TasksOverviewProps)
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <IconButton
               onClick={() => setShowFilters(!showFilters)}
-              className={`p-2 rounded-lg transition-colors ${
-                showFilters || customerFilter
-                  ? 'bg-accent-primary/10 text-accent-primary'
-                  : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-              title="Filter"
-            >
-              <Filter size={20} />
-            </button>
-            <button
+              variant={showFilters || customerFilter ? 'primary' : 'default'}
+              size="lg"
+              icon={<Filter size={20} />}
+              tooltip="Filter"
+            />
+            <IconButton
               onClick={loadTasks}
-              className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              title="Aktualisieren"
-            >
-              <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-            </button>
+              variant="default"
+              size="lg"
+              icon={<RefreshCw size={20} className={loading ? 'animate-spin' : ''} />}
+              tooltip="Aktualisieren"
+            />
           </div>
         </div>
 

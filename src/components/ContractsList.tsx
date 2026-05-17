@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { contractsApi, Contract, ContractSummary } from '../services/api';
 import { customersApi } from '../services/api';
+import { Button, IconButton } from './ui';
 import { Customer } from '../types';
 
 interface ContractsListProps {
@@ -193,13 +194,13 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
               </p>
             </div>
           </div>
-          <button
+          <Button
             onClick={onCreateContract}
-            className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-lg transition-colors"
+            variant="primary"
+            icon={<Plus className="w-4 h-4" />}
           >
-            <Plus className="w-4 h-4" />
-            <span>Neuer Vertrag</span>
-          </button>
+            Neuer Vertrag
+          </Button>
         </div>
 
         {/* Summary Cards */}
@@ -310,12 +311,13 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
         ) : error ? (
           <div className="text-center py-12">
             <p className="text-red-600 dark:text-red-400">{error}</p>
-            <button
+            <Button
               onClick={loadData}
-              className="mt-4 px-4 py-2 text-accent-primary hover:underline"
+              variant="ghost"
+              className="mt-4"
             >
               Erneut versuchen
-            </button>
+            </Button>
           </div>
         ) : contracts.length === 0 ? (
           <div className="text-center py-12">
@@ -329,13 +331,13 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
                 : 'Erstellen Sie Ihren ersten Vertrag'}
             </p>
             {!searchTerm && !statusFilter && !typeFilter && !customerFilter && (
-              <button
+              <Button
                 onClick={onCreateContract}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-lg"
+                variant="primary"
+                icon={<Plus className="w-4 h-4" />}
               >
-                <Plus className="w-4 h-4" />
-                <span>Vertrag erstellen</span>
-              </button>
+                Vertrag erstellen
+              </Button>
             )}
           </div>
         ) : (
@@ -396,7 +398,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
                       <span className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
                         {getTypeLabel(contract.contractType)}
                       </span>
-                      <button
+                      <IconButton
                         onClick={(e) => {
                           e.stopPropagation();
                           setContextMenu({
@@ -405,10 +407,10 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
                             y: e.clientY,
                           });
                         }}
-                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                      >
-                        <MoreHorizontal className="w-5 h-5 text-gray-500" />
-                      </button>
+                        icon={<MoreHorizontal className="w-5 h-5" />}
+                        variant="default"
+                        size="sm"
+                      />
                       <ChevronRight className="w-5 h-5 text-gray-400" />
                     </div>
                   </div>
@@ -433,36 +435,42 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
               left: Math.min(contextMenu.x, window.innerWidth - 180),
             }}
           >
-            <button
+            <Button
               onClick={() => {
                 const contract = contracts.find((c) => c.id === contextMenu.contractId);
                 if (contract) onSelectContract(contract);
                 setContextMenu(null);
               }}
-              className="flex items-center gap-2 w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              variant="ghost"
+              size="sm"
+              icon={<Eye className="w-4 h-4" />}
+              className="w-full justify-start"
             >
-              <Eye className="w-4 h-4" />
               Anzeigen
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => {
                 const contract = contracts.find((c) => c.id === contextMenu.contractId);
                 if (contract) onSelectContract(contract);
                 setContextMenu(null);
               }}
-              className="flex items-center gap-2 w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              variant="ghost"
+              size="sm"
+              icon={<Edit className="w-4 h-4" />}
+              className="w-full justify-start"
             >
-              <Edit className="w-4 h-4" />
               Bearbeiten
-            </button>
+            </Button>
             <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
-            <button
+            <Button
               onClick={() => handleDeleteContract(contextMenu.contractId)}
-              className="flex items-center gap-2 w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
+              variant="danger"
+              size="sm"
+              icon={<Trash2 className="w-4 h-4" />}
+              className="w-full justify-start"
             >
-              <Trash2 className="w-4 h-4" />
               Löschen
-            </button>
+            </Button>
           </div>
         </>
       )}

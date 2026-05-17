@@ -488,6 +488,7 @@ function transformPortalSettings(row: any) {
     primaryColor: row.primary_color,
     showKnowledgeBase: row.show_knowledge_base,
     requireLoginForKb: row.require_login_for_kb,
+    teamviewerLink: row.teamviewer_link,
     createdAt: row.created_at?.toISOString(),
     updatedAt: row.updated_at?.toISOString(),
   };
@@ -515,6 +516,7 @@ router.get('/portal-settings', authenticateToken, async (req: AuthRequest, res: 
           primaryColor: '#3b82f6',
           showKnowledgeBase: true,
           requireLoginForKb: false,
+          teamviewerLink: null,
         }
       });
     }
@@ -530,7 +532,7 @@ router.get('/portal-settings', authenticateToken, async (req: AuthRequest, res: 
 router.put('/portal-settings', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
-    const { companyName, welcomeMessage, logoUrl, primaryColor, showKnowledgeBase, requireLoginForKb } = req.body;
+    const { companyName, welcomeMessage, logoUrl, primaryColor, showKnowledgeBase, requireLoginForKb, teamviewerLink } = req.body;
 
     // Check if settings exist
     const existing = await pool.query(
@@ -543,10 +545,10 @@ router.put('/portal-settings', authenticateToken, async (req: AuthRequest, res: 
       // Create new settings
       const id = crypto.randomUUID();
       result = await pool.query(`
-        INSERT INTO portal_settings (id, user_id, company_name, welcome_message, logo_url, primary_color, show_knowledge_base, require_login_for_kb)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO portal_settings (id, user_id, company_name, welcome_message, logo_url, primary_color, show_knowledge_base, require_login_for_kb, teamviewer_link)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
-      `, [id, userId, companyName || null, welcomeMessage || null, logoUrl || null, primaryColor || '#3b82f6', showKnowledgeBase !== false, requireLoginForKb || false]);
+      `, [id, userId, companyName || null, welcomeMessage || null, logoUrl || null, primaryColor || '#3b82f6', showKnowledgeBase !== false, requireLoginForKb || false, teamviewerLink || null]);
     } else {
       // Update existing settings
       result = await pool.query(`
@@ -557,10 +559,11 @@ router.put('/portal-settings', authenticateToken, async (req: AuthRequest, res: 
           primary_color = COALESCE($4, primary_color),
           show_knowledge_base = COALESCE($5, show_knowledge_base),
           require_login_for_kb = COALESCE($6, require_login_for_kb),
+          teamviewer_link = COALESCE($7, teamviewer_link),
           updated_at = NOW()
-        WHERE user_id = $7
+        WHERE user_id = $8
         RETURNING *
-      `, [companyName, welcomeMessage, logoUrl, primaryColor, showKnowledgeBase, requireLoginForKb, userId]);
+      `, [companyName, welcomeMessage, logoUrl, primaryColor, showKnowledgeBase, requireLoginForKb, teamviewerLink, userId]);
     }
 
     res.json({ success: true, data: transformPortalSettings(result.rows[0]) });
@@ -576,7 +579,7 @@ router.get('/public/:userId/settings', async (req, res) => {
     const { userId } = req.params;
 
     const result = await pool.query(
-      'SELECT company_name, welcome_message, logo_url, primary_color, show_knowledge_base FROM portal_settings WHERE user_id = $1',
+      'SELECT company_name, welcome_message, logo_url, primary_color, show_knowledge_base, teamviewer_link FROM portal_settings WHERE user_id = $1',
       [userId]
     );
 
@@ -589,6 +592,7 @@ router.get('/public/:userId/settings', async (req, res) => {
           logoUrl: null,
           primaryColor: '#3b82f6',
           showKnowledgeBase: true,
+          teamviewerLink: null,
         }
       });
     }
@@ -602,6 +606,7 @@ router.get('/public/:userId/settings', async (req, res) => {
         logoUrl: row.logo_url,
         primaryColor: row.primary_color,
         showKnowledgeBase: row.show_knowledge_base,
+        teamviewerLink: row.teamviewer_link,
       }
     });
   } catch (error) {

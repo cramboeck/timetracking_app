@@ -5,6 +5,7 @@ import {
   Mail, AlertTriangle, X, Edit2
 } from 'lucide-react';
 import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData } from '../services/api';
+import { Button, IconButton } from './ui/Button';
 
 // Format file size helper
 const formatFileSize = (bytes: number): string => {
@@ -255,6 +256,59 @@ export const InvoiceInbox = () => {
     return isNaN(num) ? null : num;
   };
 
+  // Validate extracted invoice data for consistency
+  const validateExtractedData = (data: ExtractedInvoiceData): string[] => {
+    const warnings: string[] = [];
+    const { netAmount, grossAmount, vatAmount, vatRate } = data;
+    const rate = vatRate ?? 19;
+
+    if (grossAmount === null && netAmount === null) {
+      warnings.push('Weder Brutto- noch Nettobetrag erkannt');
+      return warnings;
+    }
+
+    // Check if all three amounts are present and consistent
+    if (netAmount !== null && grossAmount !== null) {
+      if (vatAmount !== null) {
+        // We have all three - check if net + vat = gross
+        const calculatedGross = netAmount + vatAmount;
+        const diff = Math.abs(grossAmount - calculatedGross);
+        if (diff > 0.02) {
+          warnings.push(
+            `Beträge inkonsistent: ${formatAmount(netAmount)}€ + ${formatAmount(vatAmount)}€ = ${formatAmount(calculatedGross)}€ ≠ ${formatAmount(grossAmount)}€ Brutto`
+          );
+        }
+        // Check if VAT rate matches
+        const actualRate = (vatAmount / netAmount) * 100;
+        if (Math.abs(actualRate - rate) > 0.5) {
+          warnings.push(
+            `MwSt-Satz inkonsistent: ${rate}% angegeben, aber ${actualRate.toFixed(1)}% berechnet`
+          );
+        }
+      } else {
+        // Check if gross = net * (1 + rate)
+        const expectedGross = netAmount * (1 + rate / 100);
+        const diff = Math.abs(grossAmount - expectedGross);
+        if (diff > 0.02) {
+          const impliedRate = ((grossAmount / netAmount) - 1) * 100;
+          warnings.push(
+            `MwSt-Satz prüfen: ${rate}% ergibt ${formatAmount(expectedGross)}€ Brutto, aber ${formatAmount(grossAmount)}€ erkannt (${impliedRate.toFixed(1)}%)`
+          );
+        }
+      }
+    }
+
+    // Warn about unusual VAT rates
+    if (vatRate !== null && ![0, 7, 19].includes(vatRate)) {
+      warnings.push(`Ungewöhnlicher MwSt-Satz: ${vatRate}% (Standard: 0%, 7%, 19%)`);
+    }
+
+    return warnings;
+  };
+
+  // Get current validation warnings
+  const validationWarnings = extractedData ? validateExtractedData(extractedData) : [];
+
   const handleDeleteDraft = async (invoiceId: string) => {
     if (!confirm('Entwurf wirklich löschen?')) return;
 
@@ -323,30 +377,24 @@ export const InvoiceInbox = () => {
         </div>
 
         <div className="flex gap-2">
-          <button
+          <Button
+            variant="primary"
             onClick={() => handleProcessInvoices(false)}
             disabled={processingInvoices}
-            className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50 transition-colors"
+            loading={processingInvoices}
+            icon={<RefreshCw size={16} />}
           >
-            {processingInvoices ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <RefreshCw size={16} />
-            )}
             Neue E-Mails
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
             onClick={() => handleProcessInvoices(true)}
             disabled={processingInvoices}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50 transition-colors"
+            loading={processingInvoices}
+            icon={<RefreshCw size={16} />}
           >
-            {processingInvoices ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <RefreshCw size={16} />
-            )}
             Alle erneut
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -388,7 +436,7 @@ export const InvoiceInbox = () => {
         {processedInvoices.length > 0 ? (
           <>
             {/* Mobile Card View */}
-            <div className="md:hidden divide-y divide-gray-100 dark:divide-dark-300">
+            <div className="md:hidden divide-y divide-gray-100 dark:divide-dark-300 max-h-[60vh] overflow-y-auto scroll-touch touch-manipulation">
               {processedInvoices.map((invoice) => (
                 <div key={invoice.id} className="p-4 space-y-3">
                   {/* Header mit Datum und Status */}
@@ -447,22 +495,20 @@ export const InvoiceInbox = () => {
                   {/* Anhänge */}
                   {invoice.attachmentCount > 0 && (
                     <div>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleToggleDocuments(invoice.id)}
-                        className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400"
+                        className="text-blue-600 dark:text-blue-400"
+                        icon={loadingDocuments === invoice.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                       >
-                        {loadingDocuments === invoice.id ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Download size={14} />
-                        )}
                         {invoice.attachmentCount} Anhang{invoice.attachmentCount !== 1 ? 'e' : ''}
                         {expandedInvoiceId === invoice.id ? (
                           <ChevronUp size={14} />
                         ) : (
                           <ChevronDown size={14} />
                         )}
-                      </button>
+                      </Button>
 
                       {/* Expanded Documents */}
                       {expandedInvoiceId === invoice.id && (
@@ -488,20 +534,18 @@ export const InvoiceInbox = () => {
                                   </div>
                                 </div>
                                 <div className="flex gap-1">
-                                  <button
+                                  <IconButton
+                                    icon={<Eye size={16} />}
                                     onClick={() => handleDownloadDocument(doc.id, true)}
-                                    className="p-1.5 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded"
-                                    title="Ansehen"
-                                  >
-                                    <Eye size={16} />
-                                  </button>
-                                  <button
+                                    variant="primary"
+                                    tooltip="Ansehen"
+                                  />
+                                  <IconButton
+                                    icon={<Download size={16} />}
                                     onClick={() => handleDownloadDocument(doc.id)}
-                                    className="p-1.5 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded"
-                                    title="Download"
-                                  >
-                                    <Download size={16} />
-                                  </button>
+                                    variant="success"
+                                    tooltip="Download"
+                                  />
                                 </div>
                               </div>
                             ))
@@ -518,30 +562,39 @@ export const InvoiceInbox = () => {
                     <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-dark-300">
                       {invoice.status === 'draft' && (
                         <>
-                          <button
+                          <Button
+                            variant="success"
+                            size="sm"
                             onClick={() => handleApproveDraft(invoice.id)}
-                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                            icon={<Check size={16} />}
+                            fullWidth
+                            className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
                           >
-                            <Check size={16} />
                             Bestätigen
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
                             onClick={() => handleDeleteDraft(invoice.id)}
-                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                            icon={<Trash2 size={16} />}
+                            fullWidth
+                            className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
                           >
-                            <Trash2 size={16} />
                             Löschen
-                          </button>
+                          </Button>
                         </>
                       )}
                       {invoice.status === 'processed' && (
-                        <button
+                        <Button
+                          variant="warning"
+                          size="sm"
                           onClick={() => handleRevertToDraft(invoice.id)}
-                          className="flex-1 flex items-center justify-center gap-2 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                          icon={<Undo2 size={16} />}
+                          fullWidth
+                          className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30"
                         >
-                          <Undo2 size={16} />
                           Zurücksetzen
-                        </button>
+                        </Button>
                       )}
                     </div>
                   )}
@@ -590,23 +643,20 @@ export const InvoiceInbox = () => {
                         </td>
                         <td className="py-3 px-4 text-center">
                           {invoice.attachmentCount > 0 ? (
-                            <button
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleToggleDocuments(invoice.id)}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                              title="Dokumente anzeigen"
+                              className="text-blue-600 dark:text-blue-400"
+                              icon={loadingDocuments === invoice.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                             >
-                              {loadingDocuments === invoice.id ? (
-                                <Loader2 size={14} className="animate-spin" />
-                              ) : (
-                                <Download size={14} />
-                              )}
                               {invoice.attachmentCount}
                               {expandedInvoiceId === invoice.id ? (
                                 <ChevronUp size={14} />
                               ) : (
                                 <ChevronDown size={14} />
                               )}
-                            </button>
+                            </Button>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-gray-400">
                               <Download size={14} />
@@ -644,30 +694,27 @@ export const InvoiceInbox = () => {
                           <div className="flex gap-1 justify-end">
                             {invoice.status === 'draft' && (
                               <>
-                                <button
+                                <IconButton
+                                  icon={<Check size={16} />}
                                   onClick={() => handleApproveDraft(invoice.id)}
-                                  className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
-                                  title="Bestätigen"
-                                >
-                                  <Check size={16} />
-                                </button>
-                                <button
+                                  variant="success"
+                                  tooltip="Bestätigen"
+                                />
+                                <IconButton
+                                  icon={<Trash2 size={16} />}
                                   onClick={() => handleDeleteDraft(invoice.id)}
-                                  className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                  title="Löschen"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                                  variant="danger"
+                                  tooltip="Löschen"
+                                />
                               </>
                             )}
                             {invoice.status === 'processed' && (
-                              <button
+                              <IconButton
+                                icon={<Undo2 size={16} />}
                                 onClick={() => handleRevertToDraft(invoice.id)}
-                                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition-colors"
-                                title="Zurück zu Entwurf"
-                              >
-                                <Undo2 size={16} />
-                              </button>
+                                variant="warning"
+                                tooltip="Zurück zu Entwurf"
+                              />
                             )}
                           </div>
                         </td>
@@ -702,20 +749,18 @@ export const InvoiceInbox = () => {
                                         </div>
                                       </div>
                                       <div className="flex gap-1">
-                                        <button
+                                        <IconButton
+                                          icon={<Eye size={16} />}
                                           onClick={() => handleDownloadDocument(doc.id, true)}
-                                          className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                          title="Ansehen"
-                                        >
-                                          <Eye size={16} />
-                                        </button>
-                                        <button
+                                          variant="primary"
+                                          tooltip="Ansehen"
+                                        />
+                                        <IconButton
+                                          icon={<Download size={16} />}
                                           onClick={() => handleDownloadDocument(doc.id)}
-                                          className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
-                                          title="Herunterladen"
-                                        >
-                                          <Download size={16} />
-                                        </button>
+                                          variant="success"
+                                          tooltip="Herunterladen"
+                                        />
                                       </div>
                                     </div>
                                   ))}
@@ -755,18 +800,17 @@ export const InvoiceInbox = () => {
             />
 
             {/* Modal */}
-            <div className="relative bg-white dark:bg-dark-100 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-white dark:bg-dark-100 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto scroll-touch touch-manipulation">
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-300">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Rechnungsdaten prüfen
                 </h3>
-                <button
+                <IconButton
+                  icon={<X size={20} />}
                   onClick={handleCancelApproval}
-                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
-                >
-                  <X size={20} />
-                </button>
+                  tooltip="Schließen"
+                />
               </div>
 
               {/* Content */}
@@ -800,7 +844,7 @@ export const InvoiceInbox = () => {
                       </div>
                     )}
 
-                    {/* Extracted Fields */}
+                    {/* Extracted Fields - Basic Info */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Supplier Name */}
                       <div className="col-span-2">
@@ -816,6 +860,22 @@ export const InvoiceInbox = () => {
                         />
                       </div>
 
+                      {/* Recipient Name (if extracted) */}
+                      {extractedData.recipientName && (
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Rechnungsempfänger
+                          </label>
+                          <input
+                            type="text"
+                            value={extractedData.recipientName || ''}
+                            onChange={(e) => updateExtractedField('recipientName', e.target.value || null)}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                            placeholder="Name des Empfängers"
+                          />
+                        </div>
+                      )}
+
                       {/* Invoice Number */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -827,6 +887,20 @@ export const InvoiceInbox = () => {
                           onChange={(e) => updateExtractedField('invoiceNumber', e.target.value || null)}
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                           placeholder="RE-12345"
+                        />
+                      </div>
+
+                      {/* Customer Number (if extracted) */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Kundennummer
+                        </label>
+                        <input
+                          type="text"
+                          value={extractedData.customerNumber || ''}
+                          onChange={(e) => updateExtractedField('customerNumber', e.target.value || null)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                          placeholder="K12345"
                         />
                       </div>
 
@@ -843,6 +917,19 @@ export const InvoiceInbox = () => {
                         />
                       </div>
 
+                      {/* Due Date */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Fälligkeitsdatum
+                        </label>
+                        <input
+                          type="date"
+                          value={extractedData.dueDate || ''}
+                          onChange={(e) => updateExtractedField('dueDate', e.target.value || null)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                        />
+                      </div>
+
                       {/* Net Amount */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -855,6 +942,22 @@ export const InvoiceInbox = () => {
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
                           placeholder="0,00"
                         />
+                      </div>
+
+                      {/* VAT Rate */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          MwSt.-Satz (%)
+                        </label>
+                        <select
+                          value={extractedData.vatRate || 19}
+                          onChange={(e) => updateExtractedField('vatRate', parseInt(e.target.value, 10))}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                        >
+                          <option value={0}>0%</option>
+                          <option value={7}>7%</option>
+                          <option value={19}>19%</option>
+                        </select>
                       </div>
 
                       {/* VAT Amount */}
@@ -884,31 +987,102 @@ export const InvoiceInbox = () => {
                           placeholder="0,00"
                         />
                       </div>
-
-                      {/* VAT Rate */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          MwSt.-Satz (%)
-                        </label>
-                        <select
-                          value={extractedData.vatRate || 19}
-                          onChange={(e) => updateExtractedField('vatRate', parseInt(e.target.value, 10))}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
-                        >
-                          <option value={0}>0%</option>
-                          <option value={7}>7%</option>
-                          <option value={19}>19%</option>
-                        </select>
-                      </div>
                     </div>
+
+                    {/* Payment Details (collapsible) */}
+                    {(extractedData.iban || extractedData.bic || extractedData.taxId) && (
+                      <details className="mt-4 border border-gray-200 dark:border-dark-300 rounded-lg">
+                        <summary className="px-3 py-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-200 rounded-lg">
+                          Zahlungsdetails & Steuerdaten
+                        </summary>
+                        <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-200 dark:border-dark-300">
+                          {extractedData.iban && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                IBAN
+                              </label>
+                              <input
+                                type="text"
+                                value={extractedData.iban || ''}
+                                onChange={(e) => updateExtractedField('iban', e.target.value || null)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent font-mono text-sm"
+                              />
+                            </div>
+                          )}
+                          {extractedData.bic && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                BIC
+                              </label>
+                              <input
+                                type="text"
+                                value={extractedData.bic || ''}
+                                onChange={(e) => updateExtractedField('bic', e.target.value || null)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent font-mono text-sm"
+                              />
+                            </div>
+                          )}
+                          {extractedData.taxId && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                USt-IdNr.
+                              </label>
+                              <input
+                                type="text"
+                                value={extractedData.taxId || ''}
+                                onChange={(e) => updateExtractedField('taxId', e.target.value || null)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent font-mono text-sm"
+                              />
+                            </div>
+                          )}
+                          {extractedData.paymentMethod && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Zahlungsart
+                              </label>
+                              <input
+                                type="text"
+                                value={extractedData.paymentMethod || ''}
+                                onChange={(e) => updateExtractedField('paymentMethod', e.target.value || null)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    )}
+
+                    {/* Validation Warnings */}
+                    {validationWarnings.length > 0 && (
+                      <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">
+                              Bitte prüfen
+                            </h4>
+                            <ul className="text-sm text-amber-700 dark:text-amber-400 space-y-1">
+                              {validationWarnings.map((warning, idx) => (
+                                <li key={idx}>• {warning}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Line Items Section */}
                     {extractedData.lineItems && extractedData.lineItems.length > 0 && (
                       <div className="mt-6 pt-4 border-t border-gray-200 dark:border-dark-300">
-                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                          Rechnungspositionen ({extractedData.lineItems.length})
+                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                          <span>Rechnungspositionen ({extractedData.lineItems.length})</span>
+                          {extractedData.lineItems.some(item => item.customerName) && (
+                            <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded">
+                              MSP/Reseller
+                            </span>
+                          )}
                         </h4>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                        <div className="space-y-2 max-h-80 overflow-y-auto scroll-touch touch-manipulation">
                           {extractedData.lineItems.map((item, index) => (
                             <div
                               key={index}
@@ -916,34 +1090,53 @@ export const InvoiceInbox = () => {
                             >
                               <div className="flex justify-between items-start gap-2">
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-gray-900 dark:text-white truncate">
-                                    {item.description}
+                                  <div className="flex items-center gap-2">
+                                    {item.position !== null && (
+                                      <span className="text-xs bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded">
+                                        #{item.position}
+                                      </span>
+                                    )}
+                                    <span className="font-medium text-gray-900 dark:text-white truncate">
+                                      {item.description}
+                                    </span>
                                   </div>
+                                  {item.articleNumber && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono">
+                                      Art.-Nr.: {item.articleNumber}
+                                    </div>
+                                  )}
                                   {item.customerName && (
-                                    <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                      Kunde: {item.customerName}
+                                    <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
+                                      → Kunde: {item.customerName}
                                     </div>
                                   )}
-                                  {item.productType && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.productType}
-                                    </div>
-                                  )}
-                                  {item.period && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                                      Zeitraum: {item.period}
-                                    </div>
-                                  )}
+                                  <div className="flex flex-wrap gap-2 mt-1">
+                                    {item.productType && (
+                                      <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-1.5 py-0.5 rounded">
+                                        {item.productType}
+                                      </span>
+                                    )}
+                                    {item.period && (
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {item.period}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="text-right flex-shrink-0">
                                   {item.quantity !== null && (
                                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.quantity}x {item.unitPrice !== null ? `à ${formatAmount(item.unitPrice)} €` : ''}
+                                      {item.quantity} {item.unit || 'x'} {item.unitPrice !== null ? `à ${formatAmount(item.unitPrice)} €` : ''}
                                     </div>
                                   )}
                                   {item.totalPrice !== null && (
                                     <div className="font-medium text-gray-900 dark:text-white">
                                       {formatAmount(item.totalPrice)} €
+                                    </div>
+                                  )}
+                                  {item.vatRate !== null && item.vatRate !== extractedData.vatRate && (
+                                    <div className="text-xs text-amber-600 dark:text-amber-400">
+                                      {item.vatRate}% MwSt.
                                     </div>
                                   )}
                                 </div>
@@ -962,30 +1155,22 @@ export const InvoiceInbox = () => {
 
               {/* Footer */}
               <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-300 bg-gray-50 dark:bg-dark-200">
-                <button
+                <Button
+                  variant="secondary"
                   onClick={handleCancelApproval}
                   disabled={approving}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-100 border border-gray-300 dark:border-dark-300 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-200 disabled:opacity-50 transition-colors"
                 >
                   Abbrechen
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="success"
                   onClick={handleConfirmApproval}
                   disabled={extractingData || approving || !extractedData}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  loading={approving}
+                  icon={<Check size={16} />}
                 >
-                  {approving ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Bestätige...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={16} />
-                      Bestätigen & sevDesk-Beleg erstellen
-                    </>
-                  )}
-                </button>
+                  Bestätigen & sevDesk-Beleg erstellen
+                </Button>
               </div>
             </div>
           </div>

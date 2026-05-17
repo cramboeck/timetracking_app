@@ -1,5 +1,6 @@
 import { Pool, PoolClient, QueryResult } from 'pg';
 import dotenv from 'dotenv';
+import { logger } from '../utils/logger';
 
 // Load environment variables
 dotenv.config();
@@ -23,11 +24,11 @@ export const pool = new Pool({
 
 // Test database connection
 pool.on('connect', () => {
-  console.log('✅ Connected to PostgreSQL database');
+  logger.info('✅ Connected to PostgreSQL database');
 });
 
 pool.on('error', (err) => {
-  console.error('❌ Unexpected error on idle client', err);
+  logger.error('❌ Unexpected error on idle client', err);
   process.exit(-1);
 });
 
@@ -37,10 +38,10 @@ export async function query(text: string, params?: any[]): Promise<QueryResult> 
   try {
     const res = await pool.query(text, params);
     const duration = Date.now() - start;
-    console.log('Executed query', { text, duration, rows: res.rowCount });
+    logger.debug('Executed query', { text, duration, rows: res.rowCount });
     return res;
   } catch (error) {
-    console.error('Query error:', { text, error });
+    logger.error('Query error', { text, error });
     throw error;
   }
 }
@@ -921,7 +922,7 @@ export async function initializeDatabase() {
       END $$;
     `);
 
-    console.log('✅ Device IP history table created with 30-day retention');
+    logger.info('✅ Device IP history table created with 30-day retention');
 
     // ============================================
     // NinjaRMM Device Software Inventory
@@ -944,7 +945,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_device_software_device ON ninjarmm_device_software(device_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_device_software_name ON ninjarmm_device_software(name)');
 
-    console.log('✅ Device software inventory table created');
+    logger.info('✅ Device software inventory table created');
 
     // ============================================
     // NinjaRMM Device OS Patches (Windows Updates)
@@ -973,7 +974,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_device_os_patches_type ON ninjarmm_device_os_patches(device_id, patch_type)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_device_os_patches_kb ON ninjarmm_device_os_patches(kb_number)');
 
-    console.log('✅ Device OS patches table created');
+    logger.info('✅ Device OS patches table created');
 
     // ============================================
     // Feature Flags System
@@ -1587,6 +1588,33 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add portal authentication columns to customer_contacts
+    // This allows contacts to log in directly to the portal without a separate customer_portal_users entry
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'password_hash'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN password_hash TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'password_reset_token'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN password_reset_token TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'password_reset_expires'
+        ) THEN
+          ALTER TABLE customer_contacts ADD COLUMN password_reset_expires TIMESTAMP;
+        END IF;
+      END $$;
+    `);
+    logger.info('✅ Customer contact portal authentication columns added');
+
     // Migration: Add email notification preferences to customer_contacts
     await client.query(`
       DO $$
@@ -1611,7 +1639,7 @@ export async function initializeDatabase() {
         END IF;
       END $$;
     `);
-    console.log('✅ Customer contact notification preferences added');
+    logger.info('✅ Customer contact notification preferences added');
 
     // Portal trusted devices table
     await client.query(`
@@ -1677,7 +1705,68 @@ export async function initializeDatabase() {
       END $$;
     `);
 
-    console.log('✅ Portal push subscriptions table created');
+    logger.info('✅ Portal push subscriptions table created');
+
+    // ============================================
+    // Internal User Push Subscriptions & Notification Preferences
+    // ============================================
+
+    // Push subscriptions for internal users (employees/team members)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        device_name TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_used_at TIMESTAMP
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subs_org ON push_subscriptions(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subs_endpoint ON push_subscriptions(endpoint)');
+
+    // Notification preferences for internal users
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notification_preferences (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        -- Push notification settings
+        push_enabled BOOLEAN DEFAULT true,
+        push_on_new_ticket BOOLEAN DEFAULT true,
+        push_on_ticket_assigned BOOLEAN DEFAULT true,
+        push_on_ticket_comment BOOLEAN DEFAULT true,
+        push_on_status_change BOOLEAN DEFAULT true,
+        push_on_sla_warning BOOLEAN DEFAULT true,
+        push_on_mention BOOLEAN DEFAULT true,
+        -- Email notification settings
+        email_enabled BOOLEAN DEFAULT true,
+        email_on_new_ticket BOOLEAN DEFAULT true,
+        email_on_ticket_assigned BOOLEAN DEFAULT true,
+        email_on_ticket_comment BOOLEAN DEFAULT true,
+        email_on_status_change BOOLEAN DEFAULT false,
+        email_on_sla_warning BOOLEAN DEFAULT true,
+        email_on_mention BOOLEAN DEFAULT true,
+        email_daily_digest BOOLEAN DEFAULT false,
+        -- Quiet hours (e.g., "22:00" to "07:00")
+        quiet_hours_enabled BOOLEAN DEFAULT false,
+        quiet_hours_start TEXT DEFAULT '22:00',
+        quiet_hours_end TEXT DEFAULT '07:00',
+        -- Timestamps
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_notif_prefs_user ON notification_preferences(user_id)');
+
+    logger.info('✅ Internal user push subscriptions and notification preferences tables created');
 
     // ============================================
     // Security Alerts Table
@@ -1910,6 +1999,56 @@ export async function initializeDatabase() {
           ALTER TABLE customer_portal_users ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
         END IF;
 
+        -- Add portal permission columns to customer_portal_users
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_create_tickets'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_create_tickets BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_all_tickets'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_all_tickets BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_devices'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_devices BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_invoices'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_invoices BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_quotes'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_quotes BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'notify_ticket_created'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN notify_ticket_created BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'notify_ticket_status_changed'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN notify_ticket_status_changed BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'notify_ticket_reply'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN notify_ticket_reply BOOLEAN DEFAULT true;
+        END IF;
+
         -- Add organization_id to feature_packages
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
@@ -1998,14 +2137,21 @@ export async function initializeDatabase() {
           UPDATE customer_portal_users SET organization_id = new_org_id WHERE owner_user_id = user_rec.id AND organization_id IS NULL;
           UPDATE feature_packages SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
           UPDATE report_approvals SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
-          UPDATE ticket_sequences SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+
+          -- Only update ticket_sequences if it still has the old user_id column (pre-migration)
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'ticket_sequences' AND column_name = 'user_id'
+          ) THEN
+            UPDATE ticket_sequences SET organization_id = new_org_id WHERE user_id = user_rec.id AND organization_id IS NULL;
+          END IF;
 
           RAISE NOTICE 'Created organization % for user %', new_org_id, user_rec.username;
         END LOOP;
       END $$;
     `);
 
-    console.log('✅ Multi-tenant organization migration completed');
+    logger.info('✅ Multi-tenant organization migration completed');
 
     // Migration: Add organization_id to sla_policies if not exists
     await client.query(`
@@ -2059,7 +2205,7 @@ export async function initializeDatabase() {
         END IF;
       END $$;
     `);
-    console.log('✅ Ticket sequences migrated to organization-based');
+    logger.info('✅ Ticket sequences migrated to organization-based');
 
     // ============================================
     // Add assigned_to to ticket_tasks (migration)
@@ -2089,7 +2235,7 @@ export async function initializeDatabase() {
         END IF;
       END $$;
     `);
-    console.log('✅ Ticket tasks extended with assigned_to, due_date, description');
+    logger.info('✅ Ticket tasks extended with assigned_to, due_date, description');
 
     // ============================================
     // Lead Management System
@@ -2151,7 +2297,7 @@ export async function initializeDatabase() {
       END $$;
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_to)');
-    console.log('✅ Leads table created');
+    logger.info('✅ Leads table created');
 
     // Lead activities/interactions
     await client.query(`
@@ -2179,7 +2325,453 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_lead_activities_lead ON lead_activities(lead_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_lead_activities_user ON lead_activities(user_id)');
-    console.log('✅ Lead activities table created');
+    logger.info('✅ Lead activities table created');
+
+    // ============================================
+    // CRM - Customer Contacts & Interactions
+    // ============================================
+
+    // Migration: Handle pre-existing customer_contacts table that may lack organization_id
+    // (from earlier portal-only version). Drop and recreate with full CRM schema.
+    await client.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_name = 'customer_contacts'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_contacts' AND column_name = 'organization_id'
+        ) THEN
+          -- Remove dependent objects first
+          DROP TABLE IF EXISTS customer_contact_push_subscriptions CASCADE;
+          DROP TABLE IF EXISTS customer_contact_notification_log CASCADE;
+          DROP TABLE customer_contacts CASCADE;
+        END IF;
+      END $$
+    `);
+
+    // Customer Contacts - Real CRM contacts (not just portal users)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_contacts (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+
+        -- Basic info
+        first_name TEXT,
+        last_name TEXT NOT NULL,
+        email TEXT,
+        phone TEXT,
+        mobile TEXT,
+
+        -- Position
+        job_title TEXT,
+        department TEXT,
+
+        -- Role in company
+        role TEXT DEFAULT 'contact' CHECK(role IN ('decision_maker', 'technical', 'billing', 'contact', 'executive')),
+        is_primary BOOLEAN DEFAULT false,
+
+        -- Portal link (optional - if they also have portal access)
+        portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL,
+
+        -- Communication preferences
+        preferred_contact_method TEXT DEFAULT 'email' CHECK(preferred_contact_method IN ('email', 'phone', 'mobile', 'portal')),
+        notify_on_ticket_update BOOLEAN DEFAULT true,
+        notify_on_maintenance BOOLEAN DEFAULT true,
+
+        -- Social profiles
+        linkedin_url TEXT,
+
+        -- Notes
+        notes TEXT,
+
+        -- Avatar/Photo
+        avatar_url TEXT,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_contacts_org ON customer_contacts(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_contacts_customer ON customer_contacts(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_contacts_email ON customer_contacts(email)');
+    logger.info('✅ Customer contacts table created');
+
+    // Customer Interactions - Communication log
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_interactions (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        contact_id TEXT REFERENCES customer_contacts(id) ON DELETE SET NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+        -- Interaction type
+        type TEXT NOT NULL CHECK(type IN ('call', 'email', 'meeting', 'note', 'ticket', 'quote', 'invoice', 'contract', 'visit', 'video_call', 'chat')),
+        direction TEXT CHECK(direction IN ('inbound', 'outbound')),
+
+        -- Details
+        subject TEXT,
+        content TEXT,
+        summary TEXT,
+
+        -- Links to other entities
+        ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+        lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+        contract_id TEXT, -- FK to contracts added later (contracts table created after this)
+
+        -- Timing
+        duration_minutes INTEGER,
+        scheduled_at TIMESTAMP,
+        occurred_at TIMESTAMP NOT NULL DEFAULT NOW(),
+
+        -- Follow-up
+        follow_up_required BOOLEAN DEFAULT false,
+        follow_up_date DATE,
+        follow_up_assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
+        follow_up_notes TEXT,
+        follow_up_completed BOOLEAN DEFAULT false,
+
+        -- Sentiment/outcome
+        outcome TEXT CHECK(outcome IN ('positive', 'neutral', 'negative', 'pending')),
+        tags TEXT[],
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_org ON customer_interactions(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_customer ON customer_interactions(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_contact ON customer_interactions(contact_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_user ON customer_interactions(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_date ON customer_interactions(occurred_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_followup ON customer_interactions(follow_up_date) WHERE follow_up_required = true AND follow_up_completed = false');
+
+    // Migration: Add external_id and external_source columns for email integration
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_interactions' AND column_name = 'external_id'
+        ) THEN
+          ALTER TABLE customer_interactions ADD COLUMN external_id TEXT;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_interactions' AND column_name = 'external_source'
+        ) THEN
+          ALTER TABLE customer_interactions ADD COLUMN external_source TEXT;
+        END IF;
+      END $$;
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_interactions_external ON customer_interactions(organization_id, external_id, external_source) WHERE external_id IS NOT NULL');
+
+    logger.info('✅ Customer interactions table created');
+
+    // CLEANUP: crm_interactions war ein ungenutztes Duplikat von customer_interactions.
+    // Alle Felder (external_id, external_source, updated_at) wurden in customer_interactions migriert.
+    // Die Tabelle wird sicher entfernt, da sie nie im Code referenziert wurde.
+    await client.query(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'crm_interactions') THEN
+          -- Sicherheitscheck: Nur löschen wenn leer (keine Produktionsdaten)
+          IF (SELECT COUNT(*) FROM crm_interactions) = 0 THEN
+            DROP TABLE crm_interactions CASCADE;
+            RAISE NOTICE 'crm_interactions (leer, ungenutzt) wurde entfernt';
+          ELSE
+            RAISE NOTICE 'crm_interactions hat Daten – wird nicht gelöscht. Bitte manuell prüfen.';
+          END IF;
+        END IF;
+      END $$;
+    `);
+    logger.info('✅ crm_interactions Cleanup abgeschlossen');
+
+    // SLA Policies - Missing table that was referenced but not created
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sla_policies (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+        name TEXT NOT NULL,
+        description TEXT,
+        is_default BOOLEAN DEFAULT false,
+
+        -- Response times (in hours)
+        response_time_low INTEGER DEFAULT 24,
+        response_time_normal INTEGER DEFAULT 8,
+        response_time_high INTEGER DEFAULT 4,
+        response_time_critical INTEGER DEFAULT 1,
+
+        -- Resolution times (in hours)
+        resolution_time_low INTEGER DEFAULT 120,
+        resolution_time_normal INTEGER DEFAULT 48,
+        resolution_time_high INTEGER DEFAULT 24,
+        resolution_time_critical INTEGER DEFAULT 8,
+
+        -- Business hours
+        business_hours_only BOOLEAN DEFAULT true,
+        business_hours_start TIME DEFAULT '08:00',
+        business_hours_end TIME DEFAULT '18:00',
+        business_days INTEGER[] DEFAULT ARRAY[1,2,3,4,5],
+
+        -- Escalation
+        escalation_enabled BOOLEAN DEFAULT false,
+        escalation_after_percent INTEGER DEFAULT 80,
+        escalation_notify_users TEXT[],
+
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sla_policies_org ON sla_policies(organization_id)');
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_sla_policies_default ON sla_policies(organization_id) WHERE is_default = true');
+    logger.info('✅ SLA policies table created');
+
+    // Link SLA policies to customers
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'customers' AND column_name = 'sla_policy_id') THEN
+          ALTER TABLE customers ADD COLUMN sla_policy_id TEXT REFERENCES sla_policies(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Customer Metrics - For health dashboard and analytics
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_metrics (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+        -- Period
+        period_type TEXT NOT NULL CHECK(period_type IN ('monthly', 'quarterly', 'yearly')),
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+
+        -- Revenue metrics
+        revenue DECIMAL(12,2) DEFAULT 0,
+        hours_billed DECIMAL(8,2) DEFAULT 0,
+        hours_unbilled DECIMAL(8,2) DEFAULT 0,
+
+        -- Ticket metrics
+        tickets_opened INTEGER DEFAULT 0,
+        tickets_resolved INTEGER DEFAULT 0,
+        tickets_escalated INTEGER DEFAULT 0,
+        avg_resolution_time_hours DECIMAL(8,2),
+        avg_first_response_time_hours DECIMAL(8,2),
+        sla_breaches INTEGER DEFAULT 0,
+
+        -- Engagement metrics
+        interactions_count INTEGER DEFAULT 0,
+        last_interaction_date TIMESTAMP,
+
+        -- Contract metrics
+        active_contracts INTEGER DEFAULT 0,
+        contract_value DECIMAL(12,2) DEFAULT 0,
+
+        -- Calculated health score (0-100)
+        health_score INTEGER,
+        health_trend TEXT CHECK(health_trend IN ('improving', 'stable', 'declining')),
+
+        -- Risk indicators
+        churn_risk TEXT CHECK(churn_risk IN ('low', 'medium', 'high')),
+        risk_factors TEXT[],
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+
+        UNIQUE(customer_id, period_type, period_start)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_metrics_org ON customer_metrics(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_metrics_customer ON customer_metrics(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_metrics_period ON customer_metrics(period_start, period_end)');
+    logger.info('✅ Customer metrics table created');
+
+    // Churn Risk Warnings - Generated by health score job
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS churn_risk_warnings (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+        -- Warning details
+        health_score INTEGER NOT NULL,
+        churn_risk TEXT NOT NULL CHECK(churn_risk IN ('medium', 'high')),
+        risk_factors TEXT[],
+
+        -- Timestamps
+        generated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+
+        -- Acknowledgment
+        acknowledged BOOLEAN DEFAULT false,
+        acknowledged_at TIMESTAMP,
+        acknowledged_by TEXT REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
+
+    // Unique constraint: one warning per customer per day (using expression index)
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_churn_warnings_unique_day ON churn_risk_warnings(customer_id, DATE(generated_at))');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_churn_warnings_org ON churn_risk_warnings(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_churn_warnings_customer ON churn_risk_warnings(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_churn_warnings_unack ON churn_risk_warnings(organization_id, acknowledged) WHERE acknowledged = false');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_churn_warnings_risk ON churn_risk_warnings(organization_id, churn_risk)');
+    logger.info('✅ Churn risk warnings table created');
+
+    // Health Score Job Runs - Track job execution history
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS health_score_job_runs (
+        id TEXT PRIMARY KEY,
+        started_at TIMESTAMP NOT NULL,
+        completed_at TIMESTAMP NOT NULL,
+        duration_ms INTEGER NOT NULL,
+
+        -- Results
+        success BOOLEAN NOT NULL,
+        customers_processed INTEGER DEFAULT 0,
+        customers_updated INTEGER DEFAULT 0,
+        customers_skipped INTEGER DEFAULT 0,
+        warnings_generated INTEGER DEFAULT 0,
+
+        -- Errors (JSON array)
+        errors TEXT,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_job_runs_date ON health_score_job_runs(started_at DESC)');
+    logger.info('✅ Health score job runs table created');
+
+    // ============================================
+    // Sales Pipeline - Opportunities
+    // ============================================
+
+    // Pipeline stages - configurable per organization
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pipeline_stages (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+        name TEXT NOT NULL,
+        description TEXT,
+        color TEXT DEFAULT '#3B82F6',
+
+        -- Win probability at this stage
+        probability INTEGER DEFAULT 0 CHECK(probability >= 0 AND probability <= 100),
+        sort_order INTEGER NOT NULL,
+
+        -- Stage type
+        is_won BOOLEAN DEFAULT false,
+        is_lost BOOLEAN DEFAULT false,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pipeline_stages_org ON pipeline_stages(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pipeline_stages_order ON pipeline_stages(organization_id, sort_order)');
+    logger.info('✅ Pipeline stages table created');
+
+    // Opportunities - Sales deals
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS opportunities (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+        lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+        contact_id TEXT REFERENCES customer_contacts(id) ON DELETE SET NULL,
+
+        -- Basic info
+        name TEXT NOT NULL,
+        description TEXT,
+
+        -- Pipeline position
+        stage_id TEXT REFERENCES pipeline_stages(id) ON DELETE SET NULL,
+
+        -- Value
+        value DECIMAL(12,2),
+        currency TEXT DEFAULT 'EUR',
+        probability INTEGER CHECK(probability >= 0 AND probability <= 100),
+        weighted_value DECIMAL(12,2), -- calculated: value * probability / 100
+
+        -- Dates
+        expected_close_date DATE,
+        actual_close_date DATE,
+
+        -- Assignment
+        assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+
+        -- Status
+        status TEXT DEFAULT 'open' CHECK(status IN ('open', 'won', 'lost')),
+        lost_reason TEXT,
+        lost_to_competitor TEXT,
+
+        -- Source tracking
+        source TEXT,
+        campaign TEXT,
+
+        -- Next steps
+        next_step TEXT,
+        next_step_date DATE,
+
+        -- Notes
+        notes TEXT,
+        tags TEXT[],
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_opportunities_org ON opportunities(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_opportunities_customer ON opportunities(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_opportunities_stage ON opportunities(stage_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_opportunities_assigned ON opportunities(assigned_to)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(organization_id, status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_opportunities_close_date ON opportunities(expected_close_date) WHERE status = \'open\'');
+    logger.info('✅ Opportunities table created');
+
+    // Opportunity activities
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS opportunity_activities (
+        id TEXT PRIMARY KEY,
+        opportunity_id TEXT NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+
+        activity_type TEXT NOT NULL CHECK(activity_type IN ('note', 'call', 'email', 'meeting', 'stage_change', 'value_change', 'task', 'demo', 'proposal', 'negotiation')),
+        title TEXT NOT NULL,
+        description TEXT,
+
+        -- For stage changes
+        old_stage_id TEXT REFERENCES pipeline_stages(id),
+        new_stage_id TEXT REFERENCES pipeline_stages(id),
+
+        -- For value changes
+        old_value DECIMAL(12,2),
+        new_value DECIMAL(12,2),
+
+        -- Scheduling
+        scheduled_at TIMESTAMP,
+        completed_at TIMESTAMP,
+        is_completed BOOLEAN DEFAULT false,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_opportunity_activities_opp ON opportunity_activities(opportunity_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_opportunity_activities_user ON opportunity_activities(user_id)');
+    logger.info('✅ Opportunity activities table created');
 
     // ============================================
     // Unified Task Hub - Standalone Tasks System
@@ -2329,7 +2921,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_task_templates_org ON task_templates(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_task ON time_entries(task_id)');
 
-    console.log('✅ Unified Task Hub tables created');
+    logger.info('✅ Unified Task Hub tables created');
 
     // ============================================
     // Contract Management System
@@ -2507,7 +3099,22 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_contract_activity_contract ON contract_activity_log(contract_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_contract ON time_entries(contract_id)');
 
-    console.log('✅ Contract Management tables created');
+    logger.info('✅ Contract Management tables created');
+
+    // Add FK from customer_interactions to contracts (contracts created after interactions)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name = 'fk_customer_interactions_contract'
+        ) THEN
+          ALTER TABLE customer_interactions
+            ADD CONSTRAINT fk_customer_interactions_contract
+            FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
 
     // ============================================
     // sevDesk Integration
@@ -2620,7 +3227,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_sevdesk_documents_search ON sevdesk_documents USING GIN(search_vector)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customers_sevdesk ON customers(sevdesk_customer_id)');
 
-    console.log('✅ sevDesk Integration tables created');
+    logger.info('✅ sevDesk Integration tables created');
 
     // ============================================
     // Invoice Export System (for Billing/Finanzen)
@@ -2662,7 +3269,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_exports_period ON invoice_exports(period_start, period_end)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_export ON time_entries(invoice_export_id)');
 
-    console.log('✅ Invoice Export tables created');
+    logger.info('✅ Invoice Export tables created');
 
     // Add is_billable column to time_entries (defaults to true for backward compatibility)
     await client.query(`
@@ -2726,7 +3333,7 @@ export async function initializeDatabase() {
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_clockodo_config_user ON clockodo_config(user_id)');
 
-    console.log('✅ Clockodo Integration tables created');
+    logger.info('✅ Clockodo Integration tables created');
 
     // ============================================
     // Microsoft 365 Integration
@@ -2768,7 +3375,7 @@ export async function initializeDatabase() {
       END $$
     `);
 
-    console.log('✅ Microsoft 365 Integration tables created');
+    logger.info('✅ Microsoft 365 Integration tables created');
 
     // ============================================
     // Social Media Manager
@@ -3088,7 +3695,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_generated_images_org ON social_media_generated_images(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_sm_story_templates_org ON social_media_story_templates(organization_id)');
 
-    console.log('✅ Social Media Manager tables created');
+    logger.info('✅ Social Media Manager tables created');
 
     // Processed Invoices table - tracks emails processed from invoice mailbox
     await client.query(`
@@ -3133,7 +3740,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_org ON invoice_documents(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_invoice ON invoice_documents(processed_invoice_id)');
 
-    console.log('✅ Invoice processing tables created');
+    logger.info('✅ Invoice processing tables created');
 
     // Migration: Update processed_invoices status check constraint to include 'draft'
     await client.query(`
@@ -3157,7 +3764,7 @@ export async function initializeDatabase() {
           NULL;
       END $$;
     `);
-    console.log('✅ processed_invoices status constraint updated');
+    logger.info('✅ processed_invoices status constraint updated');
 
     // Migration: Add sevdesk_voucher_id to processed_invoices for linking to sevDesk vouchers
     await client.query(`
@@ -3275,7 +3882,7 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_emails_received ON ticket_emails(received_at DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_email_attachments_email ON ticket_email_attachments(ticket_email_id)');
 
-    console.log('✅ Ticket email integration tables created');
+    logger.info('✅ Ticket email integration tables created');
 
     // Fix NinjaRMM alert timestamps that were incorrectly stored (Unix seconds instead of milliseconds)
     // This updates alerts where activity_time is before 1980 (indicating a seconds-based timestamp was used)
@@ -3307,13 +3914,227 @@ export async function initializeDatabase() {
         AND created_at IS NOT NULL
         AND created_at > '1980-01-01'
     `);
-    console.log('✅ NinjaRMM alert timestamps fixed');
+    logger.info('✅ NinjaRMM alert timestamps fixed');
+
+    // ============================================
+    // Extended Email Logs Table
+    // ============================================
+
+    // Extended email_logs table for detailed email monitoring
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS email_logs (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+
+        -- Email details
+        email_type TEXT NOT NULL,
+        subject TEXT,
+        recipient_email TEXT NOT NULL,
+        recipient_name TEXT,
+        sender_email TEXT,
+
+        -- Provider info
+        provider TEXT NOT NULL CHECK(provider IN ('smtp', 'graph', 'test')),
+        provider_message_id TEXT,
+
+        -- Status
+        status TEXT NOT NULL CHECK(status IN ('pending', 'sent', 'failed', 'bounced')),
+        error_message TEXT,
+        error_code TEXT,
+
+        -- Performance
+        processing_time_ms INTEGER,
+
+        -- Metadata
+        metadata JSONB DEFAULT '{}',
+
+        -- Timestamps
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        sent_at TIMESTAMP
+      )
+    `);
+
+    // Create indexes for email_logs
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_org ON email_logs(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_user ON email_logs(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_status ON email_logs(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_type ON email_logs(email_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_created ON email_logs(created_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_recipient ON email_logs(recipient_email)');
+
+    // Migration: Add columns to existing email_notifications table if they don't exist
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'email_notifications' AND column_name = 'recipient_email'
+        ) THEN
+          ALTER TABLE email_notifications ADD COLUMN recipient_email TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'email_notifications' AND column_name = 'subject'
+        ) THEN
+          ALTER TABLE email_notifications ADD COLUMN subject TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'email_notifications' AND column_name = 'provider'
+        ) THEN
+          ALTER TABLE email_notifications ADD COLUMN provider TEXT;
+        END IF;
+      END $$;
+    `);
+
+    logger.info('✅ Email logs tables created');
+
+    // ============================================
+    // Customer Email Domains Table
+    // ============================================
+
+    // Table for mapping email domains to customers (for automatic ticket assignment)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_email_domains (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        domain TEXT NOT NULL,
+        is_primary BOOLEAN DEFAULT false,
+        notes TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        UNIQUE(organization_id, domain)
+      )
+    `);
+
+    // Create indexes for customer_email_domains
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_email_domains_customer ON customer_email_domains(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_email_domains_org ON customer_email_domains(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_email_domains_domain ON customer_email_domains(domain)');
+
+    logger.info('✅ Customer email domains table created');
+
+    // ============================================
+    // Portal Settings Table
+    // ============================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS portal_settings (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        company_name TEXT,
+        welcome_message TEXT,
+        logo_url TEXT,
+        primary_color TEXT DEFAULT '#3b82f6',
+        show_knowledge_base BOOLEAN DEFAULT true,
+        require_login_for_kb BOOLEAN DEFAULT false,
+        teamviewer_link TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_portal_settings_user ON portal_settings(user_id)');
+
+    // Migration: Add teamviewer_link column if not exists
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'portal_settings' AND column_name = 'teamviewer_link'
+        ) THEN
+          ALTER TABLE portal_settings ADD COLUMN teamviewer_link TEXT;
+        END IF;
+      END $$;
+    `);
+
+    logger.info('✅ Portal settings table created');
+
+    // Migration: Extend report_approvals with reminder_sent_at and additional status values
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Add reminder_sent_at column if not exists
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'report_approvals' AND column_name = 'reminder_sent_at'
+        ) THEN
+          ALTER TABLE report_approvals ADD COLUMN reminder_sent_at TIMESTAMPTZ;
+        END IF;
+
+        -- Update status constraint to include new statuses
+        ALTER TABLE report_approvals DROP CONSTRAINT IF EXISTS report_approvals_status_check;
+        ALTER TABLE report_approvals ADD CONSTRAINT report_approvals_status_check
+          CHECK(status IN ('pending', 'approved', 'rejected', 'saved', 'revision_requested', 'superseded'));
+      END $$;
+    `);
+    logger.info('✅ Report approvals reminder support added');
+
+    // =========================================================================
+    // MIGRATION: Add updated_at to core tables that were missing it.
+    // Uses DO $$ ... IF NOT EXISTS to be fully idempotent – safe to run
+    // on existing databases without touching any existing data.
+    // Back-fills updated_at = created_at for existing rows.
+    // =========================================================================
+    logger.info('🔄 Running updated_at migration...');
+    const tablesNeedingUpdatedAt: string[] = [
+      'teams', 'customers', 'projects', 'activities', 'time_entries',
+      'ticket_comments', 'ticket_tasks', 'lead_activities',
+      'task_checklist_items', 'contract_positions', 'invoice_exports',
+      'social_media_post_platforms', 'social_media_templates',
+      'social_media_hashtag_groups', 'ticket_emails',
+    ];
+    for (const tbl of tablesNeedingUpdatedAt) {
+      await client.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${tbl}' AND column_name = 'updated_at'
+          ) THEN
+            ALTER TABLE ${tbl} ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+            UPDATE ${tbl} SET updated_at = COALESCE(created_at, NOW());
+          END IF;
+        END $$;
+      `);
+    }
+    logger.info('✅ updated_at migration complete');
+
+    // =========================================================================
+    // MIGRATION: Soft-delete for critical entities.
+    // Adds deleted_at TIMESTAMP DEFAULT NULL.
+    // NULL  → record is active (all existing rows stay active).
+    // NOT NULL → record is soft-deleted (hidden from normal queries).
+    // Application code must filter WHERE deleted_at IS NULL.
+    // =========================================================================
+    logger.info('🔄 Running soft-delete migration...');
+    const tablesNeedingSoftDelete: string[] = [
+      'customers', 'projects', 'activities', 'contracts',
+    ];
+    for (const tbl of tablesNeedingSoftDelete) {
+      await client.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${tbl}' AND column_name = 'deleted_at'
+          ) THEN
+            ALTER TABLE ${tbl} ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL;
+            CREATE INDEX IF NOT EXISTS idx_${tbl}_not_deleted
+              ON ${tbl}(id) WHERE deleted_at IS NULL;
+          END IF;
+        END $$;
+      `);
+    }
+    logger.info('✅ Soft-delete migration complete');
 
     await client.query('COMMIT');
-    console.log('✅ Database schema initialized successfully');
+    logger.info('✅ Database schema initialized successfully');
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('❌ Error initializing database:', error);
+    logger.error('❌ Error initializing database:', error);
     throw error;
   } finally {
     client.release();
@@ -3323,6 +4144,6 @@ export async function initializeDatabase() {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   pool.end(() => {
-    console.log('Database pool has ended');
+    logger.info('Database pool has ended');
   });
 });

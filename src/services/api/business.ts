@@ -368,6 +368,12 @@ export const contractsApi = {
     return authFetch(`/contracts/${id}`);
   },
 
+  // Get contracts for a specific customer
+  getByCustomer: async (customerId: string): Promise<Contract[]> => {
+    const result = await authFetch(`/contracts?customerId=${customerId}`);
+    return result.data || [];
+  },
+
   getSummary: async (): Promise<{ success: boolean; data: ContractSummary }> => {
     return authFetch('/contracts/summary');
   },

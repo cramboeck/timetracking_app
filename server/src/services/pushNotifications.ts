@@ -32,6 +32,11 @@ interface NotificationPreferences {
   push_on_status_change: boolean;
   push_on_sla_warning: boolean;
   email_enabled: boolean;
+  email_on_new_ticket: boolean;
+  email_on_ticket_assigned: boolean;
+  email_on_ticket_comment: boolean;
+  email_on_status_change: boolean;
+  email_on_sla_warning: boolean;
 }
 
 // Initialize VAPID keys
@@ -140,35 +145,75 @@ export async function getNotificationPreferences(
   return result.rows[0] || null;
 }
 
-// Update user's notification preferences
+// Update user's notification preferences (creates if not exists)
 export async function updateNotificationPreferences(
   userId: string,
-  preferences: Partial<NotificationPreferences>
+  preferences: Partial<NotificationPreferences>,
+  organizationId?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const updates: string[] = [];
-    const values: any[] = [];
-    let paramCount = 1;
+    // Check if preferences exist for this user
+    const existing = await query(
+      'SELECT id FROM notification_preferences WHERE user_id = $1',
+      [userId]
+    );
 
-    Object.entries(preferences).forEach(([key, value]) => {
-      if (value !== undefined) {
-        updates.push(`${key} = $${paramCount}`);
-        values.push(value);
+    if (existing.rows.length === 0) {
+      // Create new preferences with defaults
+      const id = require('crypto').randomUUID();
+      const columns = ['id', 'user_id'];
+      const placeholders = ['$1', '$2'];
+      const values: any[] = [id, userId];
+      let paramCount = 3;
+
+      if (organizationId) {
+        columns.push('organization_id');
+        placeholders.push(`$${paramCount}`);
+        values.push(organizationId);
         paramCount++;
       }
-    });
 
-    if (updates.length === 0) {
-      return { success: true };
+      // Add all provided preferences
+      Object.entries(preferences).forEach(([key, value]) => {
+        if (value !== undefined && key !== 'id' && key !== 'user_id' && key !== 'organization_id') {
+          columns.push(key);
+          placeholders.push(`$${paramCount}`);
+          values.push(value);
+          paramCount++;
+        }
+      });
+
+      await query(
+        `INSERT INTO notification_preferences (${columns.join(', ')})
+         VALUES (${placeholders.join(', ')})`,
+        values
+      );
+    } else {
+      // Update existing preferences
+      const updates: string[] = [];
+      const values: any[] = [];
+      let paramCount = 1;
+
+      Object.entries(preferences).forEach(([key, value]) => {
+        if (value !== undefined && key !== 'id' && key !== 'user_id' && key !== 'organization_id') {
+          updates.push(`${key} = $${paramCount}`);
+          values.push(value);
+          paramCount++;
+        }
+      });
+
+      if (updates.length === 0) {
+        return { success: true };
+      }
+
+      values.push(userId);
+      await query(
+        `UPDATE notification_preferences
+         SET ${updates.join(', ')}, updated_at = NOW()
+         WHERE user_id = $${paramCount}`,
+        values
+      );
     }
-
-    values.push(userId);
-    await query(
-      `UPDATE notification_preferences
-       SET ${updates.join(', ')}, updated_at = NOW()
-       WHERE user_id = $${paramCount}`,
-      values
-    );
 
     return { success: true };
   } catch (error: any) {

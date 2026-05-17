@@ -52,6 +52,9 @@ const fileFilter = (req: Express.Request, file: Express.Multer.File, cb: multer.
     'application/zip',
     'application/x-rar-compressed',
     'application/x-7z-compressed',
+    // Email files
+    'message/rfc822',           // .eml files
+    'application/vnd.ms-outlook', // .msg files
   ];
 
   if (allowedMimeTypes.includes(file.mimetype)) {

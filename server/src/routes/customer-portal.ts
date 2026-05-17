@@ -9,6 +9,7 @@ import { authLimiter } from '../middleware/rateLimiter';
 import { securityService } from '../services/securityService';
 import { CustomerAuthRequest, authenticateCustomerToken } from '../middleware/customerAuth';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
+import { logger } from '../utils/logger';
 import { z } from 'zod';
 import { sendTicketNotification } from '../services/pushNotifications';
 import { emailService } from '../services/emailService';
@@ -74,6 +75,30 @@ async function createPortalTrustedDevice(contactId: string, userAgent: string | 
 
 const router = Router();
 
+// Helper to get contact permissions from either customer_contacts or customer_portal_users
+async function getContactPermissions(contactId: string): Promise<{
+  can_view_devices: boolean;
+  can_view_invoices: boolean;
+  can_view_quotes: boolean;
+  can_create_tickets: boolean;
+  can_view_all_tickets: boolean;
+} | null> {
+  // Try customer_contacts first
+  let result = await pool.query(
+    'SELECT can_view_devices, can_view_invoices, can_view_quotes, can_create_tickets, can_view_all_tickets FROM customer_contacts WHERE id = $1',
+    [contactId]
+  );
+  if (result.rows.length > 0) {
+    return result.rows[0];
+  }
+  // Try customer_portal_users
+  result = await pool.query(
+    'SELECT can_view_devices, can_view_invoices, can_view_quotes, can_create_tickets, can_view_all_tickets FROM customer_portal_users WHERE id = $1',
+    [contactId]
+  );
+  return result.rows[0] || null;
+}
+
 // Validation schemas
 const loginSchema = z.object({
   email: z.string().email(),
@@ -104,34 +129,80 @@ router.post('/login', authLimiter, async (req, res) => {
     const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
     const userAgent = req.headers['user-agent'];
 
-    // Find customer contact by email
+    // Find customer contact by email, also check linked portal user for password
     const contactResult = await pool.query(
-      `SELECT cc.*, c.name as customer_name, c.user_id
+      `SELECT cc.*, c.name as customer_name, c.user_id,
+              cpu.password_hash as portal_user_password_hash,
+              cpu.mfa_enabled as portal_mfa_enabled,
+              cpu.mfa_secret as portal_mfa_secret
        FROM customer_contacts cc
        JOIN customers c ON cc.customer_id = c.id
+       LEFT JOIN customer_portal_users cpu ON cc.portal_user_id = cpu.id
        WHERE LOWER(cc.email) = LOWER($1)`,
       [email]
     );
 
-    const contact = contactResult.rows[0];
+    let contact = contactResult.rows[0];
+
+    // If not found in customer_contacts, try customer_portal_users directly
+    if (!contact) {
+      const portalUserResult = await pool.query(
+        `SELECT cpu.id, cpu.email, cpu.name, cpu.password_hash, cpu.customer_id,
+                cpu.mfa_enabled, cpu.mfa_secret, cpu.organization_id,
+                cpu.can_create_tickets, cpu.can_view_all_tickets,
+                cpu.can_view_devices, cpu.can_view_invoices, cpu.can_view_quotes,
+                c.name as customer_name, c.user_id
+         FROM customer_portal_users cpu
+         JOIN customers c ON cpu.customer_id = c.id
+         WHERE LOWER(cpu.email) = LOWER($1)`,
+        [email]
+      );
+      if (portalUserResult.rows.length > 0) {
+        const pu = portalUserResult.rows[0];
+        // Map portal user to contact-like structure
+        contact = {
+          id: pu.id,
+          email: pu.email,
+          name: pu.name,
+          customer_id: pu.customer_id,
+          customer_name: pu.customer_name,
+          user_id: pu.user_id,
+          organization_id: pu.organization_id,
+          password_hash: pu.password_hash,
+          mfa_enabled: pu.mfa_enabled,
+          mfa_secret: pu.mfa_secret,
+          can_create_tickets: pu.can_create_tickets,
+          can_view_all_tickets: pu.can_view_all_tickets,
+          can_view_devices: pu.can_view_devices,
+          can_view_invoices: pu.can_view_invoices,
+          can_view_quotes: pu.can_view_quotes,
+          is_portal_user: true
+        };
+      }
+    }
 
     if (!contact) {
       // Log failed login (user not found)
-      console.log(`🔐 Portal login failed: No contact found for email "${email}"`);
+      logger.info(`🔐 Portal login failed: No contact found for email "${email}"`);
       securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    console.log(`🔐 Portal login attempt for "${email}": contact found (id: ${contact.id}), password_hash exists: ${!!contact.password_hash}`);
+    // Use portal user password if contact password is not set but portal user has one
+    const effectivePasswordHash = contact.password_hash || contact.portal_user_password_hash;
+    const effectiveMfaEnabled = contact.mfa_enabled || contact.portal_mfa_enabled;
+    const effectiveMfaSecret = contact.mfa_secret || contact.portal_mfa_secret;
 
-    if (!contact.password_hash) {
+    logger.info(`🔐 Portal login attempt for "${email}": contact found (id: ${contact.id}), password_hash exists: ${!!effectivePasswordHash}`);
+
+    if (!effectivePasswordHash) {
       // Log failed login (account not activated)
-      console.log(`🔐 Portal login failed: No password_hash for contact "${email}" (id: ${contact.id})`);
+      logger.info(`🔐 Portal login failed: No password_hash for contact "${email}" (id: ${contact.id})`);
       securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Account not activated. Please contact support.' });
     }
 
-    const validPassword = await bcrypt.compare(password, contact.password_hash);
+    const validPassword = await bcrypt.compare(password, effectivePasswordHash);
     if (!validPassword) {
       // Log failed login (wrong password)
       securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
@@ -139,13 +210,13 @@ router.post('/login', authLimiter, async (req, res) => {
     }
 
     // Check if MFA is enabled
-    if (contact.mfa_enabled && contact.mfa_secret) {
+    if (effectiveMfaEnabled && effectiveMfaSecret) {
       // Check if this is a trusted device
       const deviceToken = req.headers['x-device-token'] as string;
       const isTrusted = deviceToken ? await checkPortalTrustedDevice(contact.id, deviceToken) : false;
 
       if (isTrusted) {
-        console.log(`🔐 Portal MFA skipped for trusted device for contact "${contact.email}"`);
+        logger.info(`🔐 Portal MFA skipped for trusted device for contact "${contact.email}"`);
         // Skip MFA for trusted device - continue with login
       } else {
         // Generate a temporary token for MFA verification
@@ -155,7 +226,7 @@ router.post('/login', authLimiter, async (req, res) => {
           { expiresIn: '5m' }
         );
 
-        console.log(`🔐 Portal MFA required for contact "${contact.email}"`);
+        logger.info(`🔐 Portal MFA required for contact "${contact.email}"`);
 
         return res.json({
           success: true,
@@ -205,7 +276,7 @@ router.post('/login', authLimiter, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Customer portal login error:', error);
+    logger.error('Customer portal login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -213,15 +284,34 @@ router.post('/login', authLimiter, async (req, res) => {
 // Get current contact info
 router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
-    const contactResult = await pool.query(
-      `SELECT cc.*, c.name as customer_name, c.user_id
+    // First try customer_contacts
+    let contactResult = await pool.query(
+      `SELECT cc.*,
+              COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as name,
+              c.name as customer_name, c.user_id
        FROM customer_contacts cc
        JOIN customers c ON cc.customer_id = c.id
        WHERE cc.id = $1`,
       [req.contactId]
     );
 
-    const contact = contactResult.rows[0];
+    let contact = contactResult.rows[0];
+
+    // If not found, try customer_portal_users
+    if (!contact) {
+      const portalUserResult = await pool.query(
+        `SELECT cpu.id, cpu.email, cpu.name, cpu.customer_id, cpu.organization_id,
+                cpu.can_create_tickets, cpu.can_view_all_tickets,
+                cpu.can_view_devices, cpu.can_view_invoices, cpu.can_view_quotes,
+                c.name as customer_name, c.user_id
+         FROM customer_portal_users cpu
+         JOIN customers c ON cpu.customer_id = c.id
+         WHERE cpu.id = $1`,
+        [req.contactId]
+      );
+      contact = portalUserResult.rows[0];
+    }
+
     if (!contact) {
       return res.status(404).json({ error: 'Contact not found' });
     }
@@ -233,14 +323,14 @@ router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, re
       userId: contact.user_id, // Service provider's user ID
       name: contact.name,
       email: contact.email,
-      canCreateTickets: contact.can_create_tickets,
-      canViewAllTickets: contact.can_view_all_tickets,
+      canCreateTickets: contact.can_create_tickets ?? true,
+      canViewAllTickets: contact.can_view_all_tickets ?? false,
       canViewDevices: contact.can_view_devices ?? false,
       canViewInvoices: contact.can_view_invoices ?? false,
       canViewQuotes: contact.can_view_quotes ?? false,
     });
   } catch (error) {
-    console.error('Get contact error:', error);
+    logger.error('Get contact error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -299,7 +389,7 @@ router.get('/tickets', authenticateCustomerToken, async (req: CustomerAuthReques
 
     res.json(tickets);
   } catch (error) {
-    console.error('Get customer tickets error:', error);
+    logger.error('Get customer tickets error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -335,7 +425,7 @@ router.get('/tickets/:id', authenticateCustomerToken, async (req: CustomerAuthRe
     const commentsResult = await pool.query(
       `SELECT tc.*,
         u.username as user_name,
-        cc.name as contact_name
+        COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as contact_name
        FROM ticket_comments tc
        LEFT JOIN users u ON tc.user_id = u.id
        LEFT JOIN customer_contacts cc ON tc.customer_contact_id = cc.id
@@ -368,7 +458,7 @@ router.get('/tickets/:id', authenticateCustomerToken, async (req: CustomerAuthRe
       comments,
     });
   } catch (error) {
-    console.error('Get customer ticket error:', error);
+    logger.error('Get customer ticket error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -377,12 +467,8 @@ router.get('/tickets/:id', authenticateCustomerToken, async (req: CustomerAuthRe
 router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check if contact can create tickets
-    const contactResult = await pool.query(
-      'SELECT can_create_tickets FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_create_tickets) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_create_tickets) {
       return res.status(403).json({ error: 'You are not allowed to create tickets' });
     }
 
@@ -404,10 +490,10 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
     const customerName = customerResult.rows[0]?.name;
     const organizationId = customerResult.rows[0]?.organization_id;
 
-    console.log(`🎫 Creating ticket for customer "${customerName}" (${req.customerId}), organization_id: ${organizationId}`);
+    logger.info(`🎫 Creating ticket for customer "${customerName}" (${req.customerId}), organization_id: ${organizationId}`);
 
     if (!userId || !organizationId) {
-      console.error(`❌ Customer ${req.customerId} not found or has no user_id/organization_id`);
+      logger.error(`❌ Customer ${req.customerId} not found or has no user_id/organization_id`);
       return res.status(404).json({ error: 'Customer not found' });
     }
 
@@ -432,7 +518,7 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
       [ticketId, ticketNumber, userId, organizationId, req.customerId, req.contactId, title, description || null, priority]
     );
 
-    console.log(`✅ Ticket ${ticketNumber} created with id=${ticketId}, organization_id=${organizationId}, customer_id=${req.customerId}`);
+    logger.info(`✅ Ticket ${ticketNumber} created with id=${ticketId}, organization_id=${organizationId}, customer_id=${req.customerId}`);
 
     // Get created ticket
     const ticketResult = await pool.query(
@@ -460,10 +546,10 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
             { id: ticketId, ticketNumber, title },
             'push_on_new_ticket',
             `Neues Portal-Ticket von ${customerName}: ${title}`
-          ).catch(err => console.error('Push notification error:', err));
+          ).catch(err => logger.error('Push notification error:', err));
         }
       } catch (err) {
-        console.error('Error sending push notifications:', err);
+        logger.error('Error sending push notifications:', err);
       }
     })();
 
@@ -483,10 +569,10 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
           ticketTitle: title,
           ticketDescription: description || '',
           portalUrl,
-        }).catch(err => console.error('Failed to send ticket created notification:', err));
+        }).catch(err => logger.error('Failed to send ticket created notification:', err));
       }
     } catch (emailErr) {
-      console.error('Error preparing ticket created notification:', emailErr);
+      logger.error('Error preparing ticket created notification:', emailErr);
     }
 
     // Send email notification to admin/service provider (async, non-blocking)
@@ -512,10 +598,10 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
           ticketDescription: description || '',
           priority,
           adminUrl,
-        }).catch(err => console.error('Failed to send admin notification:', err));
+        }).catch(err => logger.error('Failed to send admin notification:', err));
       }
     } catch (emailErr) {
-      console.error('Error preparing admin notification:', emailErr);
+      logger.error('Error preparing admin notification:', emailErr);
     }
 
     res.status(201).json({
@@ -530,7 +616,7 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
       updatedAt: ticket.updated_at,
     });
   } catch (error) {
-    console.error('Create customer ticket error:', error);
+    logger.error('Create customer ticket error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -577,7 +663,7 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
 
     // Get created comment with contact name and ticket info for notification
     const commentResult = await pool.query(
-      `SELECT tc.*, cc.name as contact_name, t.ticket_number, t.title as ticket_title, t.user_id as ticket_owner_id
+      `SELECT tc.*, COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as contact_name, t.ticket_number, t.title as ticket_title, t.user_id as ticket_owner_id
        FROM ticket_comments tc
        JOIN customer_contacts cc ON tc.customer_contact_id = cc.id
        JOIN tickets t ON tc.ticket_id = t.id
@@ -593,7 +679,69 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
       { id, ticketNumber: comment.ticket_number, title: comment.ticket_title },
       'push_on_ticket_comment',
       `Neuer Kundenkommentar von ${comment.contact_name}`
-    ).catch(err => console.error('Failed to send push notification:', err));
+    ).catch(err => logger.error('Failed to send push notification:', err));
+
+    // Send notification to assignee if different from owner (async, non-blocking)
+    (async () => {
+      try {
+        // Get ticket with assignee info and organization
+        const ticketWithAssignee = await pool.query(`
+          SELECT t.assigned_to_user_id, t.organization_id, c.name as customer_name,
+                 u.email as assignee_email, u.username as assignee_name
+          FROM tickets t
+          LEFT JOIN customers c ON t.customer_id = c.id
+          LEFT JOIN users u ON t.assigned_to_user_id = u.id
+          WHERE t.id = $1
+        `, [id]);
+
+        if (ticketWithAssignee.rows.length === 0) return;
+        const ticket = ticketWithAssignee.rows[0];
+
+        // Only notify if there's an assignee and it's not the ticket owner
+        if (!ticket.assigned_to_user_id || ticket.assigned_to_user_id === comment.ticket_owner_id) return;
+
+        // Check notification preferences for assignee
+        const prefsResult = await pool.query(
+          'SELECT * FROM notification_preferences WHERE user_id = $1',
+          [ticket.assigned_to_user_id]
+        );
+        const prefs = prefsResult.rows[0] || {
+          push_enabled: true,
+          push_on_ticket_comment: true,
+          email_enabled: true,
+          email_on_ticket_comment: true
+        };
+
+        // Send push notification
+        if (prefs.push_enabled !== false && prefs.push_on_ticket_comment !== false) {
+          sendTicketNotification(
+            ticket.assigned_to_user_id,
+            { id, ticketNumber: comment.ticket_number, title: comment.ticket_title },
+            'push_on_ticket_comment',
+            `Kundenkommentar von ${comment.contact_name}: ${content.substring(0, 80)}${content.length > 80 ? '...' : ''}`
+          ).catch(err => logger.error('Push notification error (customer comment to assignee):', err));
+        }
+
+        // Send email notification
+        if (prefs.email_enabled !== false && prefs.email_on_ticket_comment !== false && ticket.assignee_email) {
+          const PORTAL_URL = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
+          const ticketUrl = `${PORTAL_URL}/?ticket=${id}`;
+          emailService.sendTicketCommentNotificationToAssignee({
+            to: ticket.assignee_email,
+            assigneeName: ticket.assignee_name,
+            commenterName: comment.contact_name,
+            ticketNumber: comment.ticket_number,
+            ticketTitle: comment.ticket_title,
+            commentContent: content,
+            customerName: ticket.customer_name || 'Unbekannt',
+            isFromCustomer: true,
+            ticketUrl
+          }).catch(err => logger.error('Email notification error (customer comment to assignee):', err));
+        }
+      } catch (err) {
+        logger.error('Error sending customer comment notification to assignee:', err);
+      }
+    })();
 
     res.status(201).json({
       id: comment.id,
@@ -603,7 +751,7 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
       createdAt: comment.created_at,
     });
   } catch (error) {
-    console.error('Add customer comment error:', error);
+    logger.error('Add customer comment error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -644,7 +792,151 @@ router.post('/set-password', async (req, res) => {
 
     res.json({ success: true, message: 'Password set successfully. You can now login.' });
   } catch (error) {
-    console.error('Set password error:', error);
+    logger.error('Set password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// PORTAL INVITATION TOKEN VALIDATION AND ACTIVATION
+// ============================================================================
+
+// Verify invitation token (check if valid without activating)
+router.get('/invitation/verify/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      return res.status(400).json({ valid: false, error: 'Token required' });
+    }
+
+    // Find portal user with this token
+    const result = await pool.query(
+      `SELECT cpu.id, cpu.email, cpu.name, cpu.password_reset_expires,
+              c.name as customer_name, cpu.password_hash
+       FROM customer_portal_users cpu
+       JOIN customers c ON cpu.customer_id = c.id
+       WHERE cpu.password_reset_token = $1`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        valid: false,
+        error: 'Ungultiger Einladungslink'
+      });
+    }
+
+    const portalUser = result.rows[0];
+
+    // Check if token has expired
+    if (portalUser.password_reset_expires && new Date(portalUser.password_reset_expires) < new Date()) {
+      return res.status(400).json({
+        valid: false,
+        error: 'Der Einladungslink ist abgelaufen. Bitte fordern Sie eine neue Einladung an.',
+        expired: true
+      });
+    }
+
+    // Check if already activated (password already set)
+    // Note: Placeholder hash starts with '$2a$10$PLACEHOLDER' and means user hasn't set password yet
+    const isPlaceholderHash = portalUser.password_hash?.startsWith('$2a$10$PLACEHOLDER');
+    if (portalUser.password_hash && !isPlaceholderHash) {
+      return res.status(400).json({
+        valid: false,
+        error: 'Dieser Zugang wurde bereits aktiviert. Bitte melden Sie sich an.',
+        already_activated: true
+      });
+    }
+
+    res.json({
+      valid: true,
+      email: portalUser.email,
+      name: portalUser.name,
+      customerName: portalUser.customer_name,
+      expiresAt: portalUser.password_reset_expires
+    });
+  } catch (error) {
+    logger.error('Token verification error:', error);
+    res.status(500).json({ valid: false, error: 'Internal server error' });
+  }
+});
+
+// Activate portal account with invitation token
+router.post('/invitation/activate', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token erforderlich' });
+    }
+
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen lang sein' });
+    }
+
+    // Find portal user with this token
+    const result = await pool.query(
+      `SELECT cpu.*, c.name as customer_name, cc.id as contact_id
+       FROM customer_portal_users cpu
+       JOIN customers c ON cpu.customer_id = c.id
+       LEFT JOIN customer_contacts cc ON cc.portal_user_id = cpu.id
+       WHERE cpu.password_reset_token = $1`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Ungultiger Einladungslink' });
+    }
+
+    const portalUser = result.rows[0];
+
+    // Check if token has expired
+    if (portalUser.password_reset_expires && new Date(portalUser.password_reset_expires) < new Date()) {
+      return res.status(400).json({
+        error: 'Der Einladungslink ist abgelaufen. Bitte fordern Sie eine neue Einladung an.',
+        expired: true
+      });
+    }
+
+    // Check if already activated
+    // Note: Placeholder hash starts with '$2a$10$PLACEHOLDER' and means user hasn't set password yet
+    const isPlaceholderHash = portalUser.password_hash?.startsWith('$2a$10$PLACEHOLDER');
+    if (portalUser.password_hash && !isPlaceholderHash) {
+      return res.status(400).json({
+        error: 'Dieser Zugang wurde bereits aktiviert. Bitte melden Sie sich an.',
+        already_activated: true
+      });
+    }
+
+    // Hash the new password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Update portal user with password and clear token
+    await pool.query(
+      `UPDATE customer_portal_users
+       SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL, updated_at = NOW()
+       WHERE id = $2`,
+      [passwordHash, portalUser.id]
+    );
+
+    // Also update the linked contact if exists
+    if (portalUser.contact_id) {
+      await pool.query(
+        `UPDATE customer_contacts SET password_hash = $1 WHERE id = $2`,
+        [passwordHash, portalUser.contact_id]
+      );
+    }
+
+    logger.info(`✅ Portal account activated for: ${portalUser.email}`);
+
+    res.json({
+      success: true,
+      message: 'Ihr Zugang wurde erfolgreich aktiviert. Sie konnen sich jetzt anmelden.',
+      email: portalUser.email
+    });
+  } catch (error) {
+    logger.error('Portal activation error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -696,7 +988,7 @@ router.post('/tickets/:id/close', authenticateCustomerToken, async (req: Custome
 
     res.json({ success: true, message: 'Ticket closed successfully' });
   } catch (error) {
-    console.error('Close ticket error:', error);
+    logger.error('Close ticket error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -744,7 +1036,7 @@ router.post('/tickets/:id/reopen', authenticateCustomerToken, async (req: Custom
 
     res.json({ success: true, message: 'Ticket reopened successfully' });
   } catch (error) {
-    console.error('Reopen ticket error:', error);
+    logger.error('Reopen ticket error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -811,7 +1103,7 @@ router.post('/tickets/:id/attachments', authenticateCustomerToken, upload.array(
 
     res.status(201).json({ success: true, attachments });
   } catch (error) {
-    console.error('Upload attachment error:', error);
+    logger.error('Upload attachment error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -840,7 +1132,7 @@ router.get('/tickets/:id/attachments', authenticateCustomerToken, async (req: Cu
 
     // Get attachments
     const attachmentsResult = await pool.query(
-      `SELECT ta.*, cc.name as uploaded_by_name
+      `SELECT ta.*, COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as uploaded_by_name
        FROM ticket_attachments ta
        LEFT JOIN customer_contacts cc ON ta.uploaded_by_contact_id = cc.id
        WHERE ta.ticket_id = $1
@@ -860,7 +1152,7 @@ router.get('/tickets/:id/attachments', authenticateCustomerToken, async (req: Cu
 
     res.json(attachments);
   } catch (error) {
-    console.error('Get attachments error:', error);
+    logger.error('Get attachments error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -908,7 +1200,7 @@ router.delete('/tickets/:ticketId/attachments/:attachmentId', authenticateCustom
 
     res.json({ success: true, message: 'Attachment deleted' });
   } catch (error) {
-    console.error('Delete attachment error:', error);
+    logger.error('Delete attachment error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -957,7 +1249,7 @@ router.post('/change-password', authenticateCustomerToken, async (req: CustomerA
 
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
-    console.error('Change password error:', error);
+    logger.error('Change password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -986,7 +1278,7 @@ router.get('/notification-preferences', authenticateCustomerToken, async (req: C
       notifyTicketReply: prefs.notify_ticket_reply ?? true,
     });
   } catch (error) {
-    console.error('Get notification preferences error:', error);
+    logger.error('Get notification preferences error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1007,7 +1299,7 @@ router.put('/notification-preferences', authenticateCustomerToken, async (req: C
 
     res.json({ success: true, message: 'Notification preferences updated' });
   } catch (error) {
-    console.error('Update notification preferences error:', error);
+    logger.error('Update notification preferences error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1060,7 +1352,7 @@ router.post('/tickets/:id/rate', authenticateCustomerToken, async (req: Customer
 
     res.json({ success: true, message: 'Thank you for your feedback!' });
   } catch (error) {
-    console.error('Rate ticket error:', error);
+    logger.error('Rate ticket error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1073,12 +1365,8 @@ router.post('/tickets/:id/rate', authenticateCustomerToken, async (req: Customer
 router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1116,7 +1404,7 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
       try {
         deviceData = typeof row.device_data === 'string' ? JSON.parse(row.device_data) : (row.device_data || {});
       } catch (e) {
-        console.error('Failed to parse device_data:', e);
+        logger.error('Failed to parse device_data:', e);
       }
 
       // Extract OS details from device_data
@@ -1165,7 +1453,7 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
 
     res.json({ success: true, data: devices });
   } catch (error) {
-    console.error('Get devices error:', error);
+    logger.error('Get devices error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1174,12 +1462,8 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
 router.get('/devices/:deviceId/alerts', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1235,7 +1519,7 @@ router.get('/devices/:deviceId/alerts', authenticateCustomerToken, async (req: C
 
     res.json({ success: true, data: alerts });
   } catch (error) {
-    console.error('Get device alerts error:', error);
+    logger.error('Get device alerts error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1244,12 +1528,8 @@ router.get('/devices/:deviceId/alerts', authenticateCustomerToken, async (req: C
 router.get('/devices/:deviceId/software', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1307,7 +1587,7 @@ router.get('/devices/:deviceId/software', authenticateCustomerToken, async (req:
       },
     });
   } catch (error) {
-    console.error('Get device software error:', error);
+    logger.error('Get device software error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1316,12 +1596,8 @@ router.get('/devices/:deviceId/software', authenticateCustomerToken, async (req:
 router.post('/devices/:deviceId/software/refresh', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1363,7 +1639,7 @@ router.post('/devices/:deviceId/software/refresh', authenticateCustomerToken, as
       },
     });
   } catch (error) {
-    console.error('Refresh device software error:', error);
+    logger.error('Refresh device software error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1376,12 +1652,8 @@ router.post('/devices/:deviceId/software/refresh', authenticateCustomerToken, as
 router.get('/devices/:deviceId/os-patches', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1425,7 +1697,7 @@ router.get('/devices/:deviceId/os-patches', authenticateCustomerToken, async (re
       },
     });
   } catch (error) {
-    console.error('Get device OS patches error:', error);
+    logger.error('Get device OS patches error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1434,12 +1706,8 @@ router.get('/devices/:deviceId/os-patches', authenticateCustomerToken, async (re
 router.post('/devices/:deviceId/os-patches/refresh', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_devices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_devices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_devices) {
       return res.status(403).json({ error: 'No permission to view devices' });
     }
 
@@ -1483,7 +1751,7 @@ router.post('/devices/:deviceId/os-patches/refresh', authenticateCustomerToken, 
       },
     });
   } catch (error) {
-    console.error('Refresh device OS patches error:', error);
+    logger.error('Refresh device OS patches error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1496,12 +1764,8 @@ router.post('/devices/:deviceId/os-patches/refresh', authenticateCustomerToken, 
 router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_invoices FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_invoices) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_invoices) {
       return res.status(403).json({ error: 'No permission to view invoices' });
     }
 
@@ -1544,7 +1808,7 @@ router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthReque
     );
 
     if (!response.ok) {
-      console.error('sevDesk API error:', response.status, await response.text());
+      logger.error('sevDesk API error:', { status: response.status, body: await response.text() });
       return res.json({ success: true, data: [], message: 'Could not fetch invoices' });
     }
 
@@ -1573,7 +1837,7 @@ router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthReque
 
     res.json({ success: true, data: invoices });
   } catch (error) {
-    console.error('Get invoices error:', error);
+    logger.error('Get invoices error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1582,12 +1846,8 @@ router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthReque
 router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     // Check permission
-    const contactResult = await pool.query(
-      'SELECT can_view_quotes FROM customer_contacts WHERE id = $1',
-      [req.contactId]
-    );
-
-    if (!contactResult.rows[0]?.can_view_quotes) {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_quotes) {
       return res.status(403).json({ error: 'No permission to view quotes' });
     }
 
@@ -1630,7 +1890,7 @@ router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest
     );
 
     if (!response.ok) {
-      console.error('sevDesk API error:', response.status, await response.text());
+      logger.error('sevDesk API error:', { status: response.status, body: await response.text() });
       return res.json({ success: true, data: [], message: 'Could not fetch quotes' });
     }
 
@@ -1660,7 +1920,7 @@ router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest
 
     res.json({ success: true, data: quotes });
   } catch (error) {
-    console.error('Get quotes error:', error);
+    logger.error('Get quotes error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1781,7 +2041,7 @@ router.post('/mfa/verify', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Portal MFA verify error:', error);
+    logger.error('Portal MFA verify error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1796,7 +2056,7 @@ router.get('/mfa/status', authenticateCustomerToken, async (req: CustomerAuthReq
 
     res.json({ enabled: result.rows[0]?.mfa_enabled ?? false });
   } catch (error) {
-    console.error('Get MFA status error:', error);
+    logger.error('Get MFA status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1843,7 +2103,7 @@ router.post('/mfa/setup', authenticateCustomerToken, async (req: CustomerAuthReq
       manualEntryKey: secret
     });
   } catch (error) {
-    console.error('MFA setup error:', error);
+    logger.error('MFA setup error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1896,7 +2156,7 @@ router.post('/mfa/verify-setup', authenticateCustomerToken, async (req: Customer
 
     res.json({ success: true, message: 'MFA enabled successfully' });
   } catch (error) {
-    console.error('MFA verify setup error:', error);
+    logger.error('MFA verify setup error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1953,7 +2213,7 @@ router.post('/mfa/disable', authenticateCustomerToken, async (req: CustomerAuthR
 
     res.json({ success: true, message: 'MFA disabled successfully' });
   } catch (error) {
-    console.error('MFA disable error:', error);
+    logger.error('MFA disable error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1971,7 +2231,7 @@ router.get('/mfa/recovery-codes', authenticateCustomerToken, async (req: Custome
 
     res.json({ remaining });
   } catch (error) {
-    console.error('Get recovery codes error:', error);
+    logger.error('Get recovery codes error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2020,7 +2280,7 @@ router.post('/mfa/regenerate-recovery-codes', authenticateCustomerToken, async (
 
     res.json({ success: true, recoveryCodes });
   } catch (error) {
-    console.error('Regenerate recovery codes error:', error);
+    logger.error('Regenerate recovery codes error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2049,7 +2309,7 @@ router.get('/mfa/trusted-devices', authenticateCustomerToken, async (req: Custom
       }))
     });
   } catch (error) {
-    console.error('Get trusted devices error:', error);
+    logger.error('Get trusted devices error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2070,7 +2330,7 @@ router.delete('/mfa/trusted-devices/:id', authenticateCustomerToken, async (req:
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Remove trusted device error:', error);
+    logger.error('Remove trusted device error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2085,7 +2345,7 @@ router.delete('/mfa/trusted-devices', authenticateCustomerToken, async (req: Cus
 
     res.json({ success: true, count: result.rowCount });
   } catch (error) {
-    console.error('Remove all trusted devices error:', error);
+    logger.error('Remove all trusted devices error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2144,7 +2404,7 @@ router.post('/push/subscribe', authenticateCustomerToken, async (req: CustomerAu
 
     res.json({ success: true, id });
   } catch (error) {
-    console.error('Portal push subscribe error:', error);
+    logger.error('Portal push subscribe error:', error);
     res.status(500).json({ error: 'Failed to subscribe' });
   }
 });
@@ -2162,7 +2422,7 @@ router.post('/push/unsubscribe', authenticateCustomerToken, async (req: Customer
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Portal push unsubscribe error:', error);
+    logger.error('Portal push unsubscribe error:', error);
     res.status(500).json({ error: 'Failed to unsubscribe' });
   }
 });
@@ -2179,7 +2439,7 @@ router.get('/push/subscriptions', authenticateCustomerToken, async (req: Custome
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    console.error('Get portal push subscriptions error:', error);
+    logger.error('Get portal push subscriptions error:', error);
     res.status(500).json({ error: 'Failed to get subscriptions' });
   }
 });
@@ -2201,7 +2461,7 @@ router.delete('/push/subscriptions/:id', authenticateCustomerToken, async (req: 
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete portal push subscription error:', error);
+    logger.error('Delete portal push subscription error:', error);
     res.status(500).json({ error: 'Failed to delete subscription' });
   }
 });
@@ -2229,7 +2489,7 @@ router.get('/push/preferences', authenticateCustomerToken, async (req: CustomerA
       }
     });
   } catch (error) {
-    console.error('Get portal push preferences error:', error);
+    logger.error('Get portal push preferences error:', error);
     res.status(500).json({ error: 'Failed to get preferences' });
   }
 });
@@ -2250,7 +2510,7 @@ router.put('/push/preferences', authenticateCustomerToken, async (req: CustomerA
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Update portal push preferences error:', error);
+    logger.error('Update portal push preferences error:', error);
     res.status(500).json({ error: 'Failed to update preferences' });
   }
 });
@@ -2303,7 +2563,7 @@ router.post('/push/test', authenticateCustomerToken, async (req: CustomerAuthReq
 
     res.json({ success: true, sent, failed });
   } catch (error) {
-    console.error('Send portal test push error:', error);
+    logger.error('Send portal test push error:', error);
     res.status(500).json({ error: 'Failed to send test notification' });
   }
 });
@@ -2321,7 +2581,7 @@ router.get('/debug/contact-status', async (req, res) => {
       `SELECT
         cc.id,
         cc.email,
-        cc.name,
+        COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as name,
         cc.customer_id,
         c.name as customer_name,
         cc.password_hash IS NOT NULL as has_password,
@@ -2345,7 +2605,7 @@ router.get('/debug/contact-status', async (req, res) => {
         recentLoginAttempts = lines.slice(-10); // Last 10 entries for this email
       }
     } catch (logError) {
-      console.error('Could not read security log:', logError);
+      logger.error('Could not read security log:', logError);
     }
 
     // Check audit logs for this contact
@@ -2362,7 +2622,7 @@ router.get('/debug/contact-status', async (req, res) => {
         );
         auditLogs = auditResult.rows;
       } catch (auditError) {
-        console.error('Could not read audit logs:', auditError);
+        logger.error('Could not read audit logs:', auditError);
       }
     }
 
@@ -2395,7 +2655,7 @@ router.get('/debug/contact-status', async (req, res) => {
       auditLogs
     });
   } catch (error) {
-    console.error('Debug contact status error:', error);
+    logger.error('Debug contact status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

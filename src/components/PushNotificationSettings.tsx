@@ -12,6 +12,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { Button, IconButton } from './ui';
 
 export const PushNotificationSettings = () => {
   const {
@@ -142,37 +143,27 @@ export const PushNotificationSettings = () => {
           </div>
           <div className="flex items-center gap-2">
             {isSubscribed && (
-              <button
+              <Button
                 onClick={handleTestNotification}
                 disabled={testSending || loading}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50"
+                loading={testSending}
+                variant="secondary"
+                size="sm"
+                icon={<Send size={16} />}
               >
-                {testSending ? (
-                  <Loader2 className="animate-spin" size={16} />
-                ) : (
-                  <Send size={16} />
-                )}
                 Test
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
               disabled={loading || permission === 'denied' || actionLoading !== null}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium disabled:opacity-50 ${
-                isSubscribed
-                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  : 'btn-accent'
-              }`}
+              loading={actionLoading === 'subscribe' || actionLoading === 'unsubscribe'}
+              variant={isSubscribed ? 'secondary' : 'primary'}
+              size="md"
+              icon={isSubscribed ? <BellOff size={18} /> : <Bell size={18} />}
             >
-              {actionLoading === 'subscribe' || actionLoading === 'unsubscribe' ? (
-                <Loader2 className="animate-spin" size={18} />
-              ) : isSubscribed ? (
-                <BellOff size={18} />
-              ) : (
-                <Bell size={18} />
-              )}
               {isSubscribed ? 'Deaktivieren' : 'Aktivieren'}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -206,52 +197,103 @@ export const PushNotificationSettings = () => {
       </div>
 
       {/* Notification Preferences */}
-      {preferences && isSubscribed && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 dark:text-white mb-4">
-            Benachrichtigungseinstellungen
-          </h4>
-          <div className="space-y-3">
-            <PreferenceToggle
-              label="Push-Benachrichtigungen aktiviert"
-              description="Alle Push-Benachrichtigungen aktivieren/deaktivieren"
-              checked={preferences.push_enabled}
-              onChange={(v) => handlePreferenceChange('push_enabled', v)}
-            />
-            <div className={preferences.push_enabled ? '' : 'opacity-50 pointer-events-none'}>
+      {preferences && (
+        <>
+          {/* Push Notification Settings */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <h4 className="font-medium text-gray-900 dark:text-white mb-4">
+              Push-Benachrichtigungen
+            </h4>
+            <div className="space-y-3">
               <PreferenceToggle
-                label="Neues Ticket erstellt"
-                description="Benachrichtigung bei neuen Tickets"
-                checked={preferences.push_on_new_ticket}
-                onChange={(v) => handlePreferenceChange('push_on_new_ticket', v)}
+                label="Push-Benachrichtigungen aktiviert"
+                description="Alle Push-Benachrichtigungen aktivieren/deaktivieren"
+                checked={preferences.push_enabled}
+                onChange={(v) => handlePreferenceChange('push_enabled', v)}
+                disabled={!isSubscribed}
               />
-              <PreferenceToggle
-                label="Neuer Kommentar"
-                description="Benachrichtigung bei neuen Kommentaren"
-                checked={preferences.push_on_ticket_comment}
-                onChange={(v) => handlePreferenceChange('push_on_ticket_comment', v)}
-              />
-              <PreferenceToggle
-                label="Ticket zugewiesen"
-                description="Benachrichtigung wenn Ihnen ein Ticket zugewiesen wird"
-                checked={preferences.push_on_ticket_assigned}
-                onChange={(v) => handlePreferenceChange('push_on_ticket_assigned', v)}
-              />
-              <PreferenceToggle
-                label="Status geändert"
-                description="Benachrichtigung bei Statusänderungen"
-                checked={preferences.push_on_status_change}
-                onChange={(v) => handlePreferenceChange('push_on_status_change', v)}
-              />
-              <PreferenceToggle
-                label="SLA-Warnung"
-                description="Benachrichtigung bei SLA-Verletzungen"
-                checked={preferences.push_on_sla_warning}
-                onChange={(v) => handlePreferenceChange('push_on_sla_warning', v)}
-              />
+              <div className={preferences.push_enabled && isSubscribed ? '' : 'opacity-50 pointer-events-none'}>
+                <PreferenceToggle
+                  label="Neues Ticket erstellt"
+                  description="Benachrichtigung bei neuen Tickets"
+                  checked={preferences.push_on_new_ticket}
+                  onChange={(v) => handlePreferenceChange('push_on_new_ticket', v)}
+                />
+                <PreferenceToggle
+                  label="Neuer Kommentar"
+                  description="Benachrichtigung bei Kommentaren zu Ihren Tickets"
+                  checked={preferences.push_on_ticket_comment}
+                  onChange={(v) => handlePreferenceChange('push_on_ticket_comment', v)}
+                />
+                <PreferenceToggle
+                  label="Ticket zugewiesen"
+                  description="Benachrichtigung wenn Ihnen ein Ticket zugewiesen wird"
+                  checked={preferences.push_on_ticket_assigned}
+                  onChange={(v) => handlePreferenceChange('push_on_ticket_assigned', v)}
+                />
+                <PreferenceToggle
+                  label="Status geändert"
+                  description="Benachrichtigung bei Statusänderungen"
+                  checked={preferences.push_on_status_change}
+                  onChange={(v) => handlePreferenceChange('push_on_status_change', v)}
+                />
+                <PreferenceToggle
+                  label="SLA-Warnung"
+                  description="Benachrichtigung bei SLA-Verletzungen"
+                  checked={preferences.push_on_sla_warning}
+                  onChange={(v) => handlePreferenceChange('push_on_sla_warning', v)}
+                />
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* Email Notification Settings */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <h4 className="font-medium text-gray-900 dark:text-white mb-4">
+              E-Mail-Benachrichtigungen
+            </h4>
+            <div className="space-y-3">
+              <PreferenceToggle
+                label="E-Mail-Benachrichtigungen aktiviert"
+                description="Alle E-Mail-Benachrichtigungen aktivieren/deaktivieren"
+                checked={preferences.email_enabled}
+                onChange={(v) => handlePreferenceChange('email_enabled', v)}
+              />
+              <div className={preferences.email_enabled ? '' : 'opacity-50 pointer-events-none'}>
+                <PreferenceToggle
+                  label="Neues Ticket"
+                  description="E-Mail wenn ein neues Ticket erstellt wird"
+                  checked={preferences.email_on_new_ticket}
+                  onChange={(v) => handlePreferenceChange('email_on_new_ticket', v)}
+                />
+                <PreferenceToggle
+                  label="Ticket zugewiesen"
+                  description="E-Mail wenn Ihnen ein Ticket zugewiesen wird"
+                  checked={preferences.email_on_ticket_assigned}
+                  onChange={(v) => handlePreferenceChange('email_on_ticket_assigned', v)}
+                />
+                <PreferenceToggle
+                  label="Neuer Kommentar"
+                  description="E-Mail bei Kommentaren zu Ihren zugewiesenen Tickets"
+                  checked={preferences.email_on_ticket_comment}
+                  onChange={(v) => handlePreferenceChange('email_on_ticket_comment', v)}
+                />
+                <PreferenceToggle
+                  label="Status geändert"
+                  description="E-Mail bei Statusänderungen Ihrer Tickets"
+                  checked={preferences.email_on_status_change}
+                  onChange={(v) => handlePreferenceChange('email_on_status_change', v)}
+                />
+                <PreferenceToggle
+                  label="SLA-Warnung"
+                  description="E-Mail bei SLA-Verletzungen"
+                  checked={preferences.email_on_sla_warning}
+                  onChange={(v) => handlePreferenceChange('email_on_sla_warning', v)}
+                />
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Registered Devices */}
@@ -280,18 +322,14 @@ export const PushNotificationSettings = () => {
                     </p>
                   </div>
                 </div>
-                <button
+                <IconButton
                   onClick={() => handleDeleteSubscription(sub.id)}
                   disabled={actionLoading === `delete-${sub.id}`}
-                  className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg disabled:opacity-50"
-                  title="Gerät entfernen"
-                >
-                  {actionLoading === `delete-${sub.id}` ? (
-                    <Loader2 className="animate-spin" size={16} />
-                  ) : (
-                    <Trash2 size={16} />
-                  )}
-                </button>
+                  variant="danger"
+                  size="md"
+                  tooltip="Gerät entfernen"
+                  icon={<Trash2 size={16} />}
+                />
               </div>
             ))}
           </div>
@@ -314,19 +352,21 @@ interface PreferenceToggleProps {
   description: string;
   checked: boolean;
   onChange: (value: boolean) => void;
+  disabled?: boolean;
 }
 
-const PreferenceToggle = ({ label, description, checked, onChange }: PreferenceToggleProps) => (
-  <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+const PreferenceToggle = ({ label, description, checked, onChange, disabled }: PreferenceToggleProps) => (
+  <div className={`flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${disabled ? 'opacity-50' : ''}`}>
     <div>
       <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
       <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
     </div>
     <button
-      onClick={() => onChange(!checked)}
+      onClick={() => !disabled && onChange(!checked)}
+      disabled={disabled}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
         checked ? 'bg-accent-primary' : 'bg-gray-300 dark:bg-gray-600'
-      }`}
+      } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <span
         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${

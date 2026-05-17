@@ -182,7 +182,12 @@ async function getUserFromToken(req: any): Promise<any | null> {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    const result = await pool.query('SELECT * FROM users WHERE id = $1', [decoded.userId]);
+    const result = await pool.query(
+      `SELECT id, username, email, account_type, role, mfa_enabled, mfa_secret,
+              mfa_recovery_codes, accent_color, gray_tone, dark_mode, time_rounding_interval
+       FROM users WHERE id = $1`,
+      [decoded.userId]
+    );
     return result.rows[0] || null;
   } catch {
     return null;
@@ -417,8 +422,12 @@ router.post('/verify', async (req, res) => {
       });
     }
 
-    // Get user
-    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [decoded.userId]);
+    // Get user (only fields needed for MFA verification)
+    const userResult = await pool.query(
+      `SELECT id, username, email, account_type, mfa_enabled, mfa_secret, mfa_recovery_codes
+       FROM users WHERE id = $1`,
+      [decoded.userId]
+    );
     const user = userResult.rows[0];
 
     if (!user) {

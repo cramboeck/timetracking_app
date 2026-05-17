@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Tag, MessageSquare, Save, X, Clock, Download, Info } from 'lucide-react';
+import { Button, IconButton } from './ui';
 import { ticketsApi, CannedResponse, TicketTag } from '../services/api';
 import { SlaPolicy } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -369,30 +370,31 @@ export const TicketSettings = () => {
             </div>
             {editingTag ? (
               <div className="flex gap-2">
-                <button
+                <Button
                   onClick={handleUpdateTag}
                   disabled={!newTagName.trim()}
-                  className="flex items-center gap-1 px-3 py-2 btn-accent rounded-lg disabled:opacity-50"
+                  variant="primary"
+                  size="sm"
+                  icon={<Save size={16} />}
                 >
-                  <Save size={16} />
                   Speichern
-                </button>
-                <button
+                </Button>
+                <IconButton
                   onClick={cancelEditTag}
-                  className="p-2 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg"
-                >
-                  <X size={16} />
-                </button>
+                  icon={<X size={16} />}
+                  tooltip="Abbrechen"
+                />
               </div>
             ) : (
-              <button
+              <Button
                 onClick={handleCreateTag}
                 disabled={!newTagName.trim()}
-                className="flex items-center gap-1 px-3 py-2 btn-accent rounded-lg disabled:opacity-50"
+                variant="primary"
+                size="sm"
+                icon={<Plus size={16} />}
               >
-                <Plus size={16} />
                 Erstellen
-              </button>
+              </Button>
             )}
           </div>
 
@@ -425,18 +427,17 @@ export const TicketSettings = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
+                    <IconButton
                       onClick={() => startEditTag(tag)}
-                      className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button
+                      icon={<Edit2 size={16} />}
+                      tooltip="Bearbeiten"
+                    />
+                    <IconButton
                       onClick={() => setTagToDelete(tag)}
-                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                      icon={<Trash2 size={16} />}
+                      variant="danger"
+                      tooltip="Löschen"
+                    />
                   </div>
                 </div>
               ))}
@@ -455,22 +456,25 @@ export const TicketSettings = () => {
             {!showResponseForm && (
               <div className="flex items-center gap-2">
                 {responses.length === 0 && (
-                  <button
+                  <Button
                     onClick={handleSeedDefaultResponses}
                     disabled={seedingResponses}
-                    className="flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+                    variant="outline"
+                    size="sm"
+                    icon={<Download size={16} />}
+                    loading={seedingResponses}
                   >
-                    <Download size={16} />
                     {seedingResponses ? 'Lädt...' : 'Standard-Vorlagen laden'}
-                  </button>
+                  </Button>
                 )}
-                <button
+                <Button
                   onClick={() => setShowResponseForm(true)}
-                  className="flex items-center gap-2 px-3 py-2 btn-accent rounded-lg"
+                  variant="primary"
+                  size="sm"
+                  icon={<Plus size={16} />}
                 >
-                  <Plus size={16} />
                   Neuer Textbaustein
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -587,20 +591,20 @@ export const TicketSettings = () => {
                 />
               </div>
               <div className="flex justify-end gap-2">
-                <button
+                <Button
                   onClick={resetResponseForm}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg"
+                  variant="secondary"
                 >
                   Abbrechen
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleSaveResponse}
                   disabled={!responseTitle.trim() || !responseContent.trim()}
-                  className="flex items-center gap-2 px-4 py-2 btn-accent rounded-lg disabled:opacity-50"
+                  variant="primary"
+                  icon={<Save size={16} />}
                 >
-                  <Save size={16} />
                   {editingResponse ? 'Aktualisieren' : 'Speichern'}
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -646,18 +650,17 @@ export const TicketSettings = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
-                      <button
+                      <IconButton
                         onClick={() => startEditResponse(response)}
-                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
+                        icon={<Edit2 size={16} />}
+                        tooltip="Bearbeiten"
+                      />
+                      <IconButton
                         onClick={() => setResponseToDelete(response)}
-                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                        icon={<Trash2 size={16} />}
+                        variant="danger"
+                        tooltip="Löschen"
+                      />
                     </div>
                   </div>
                 </div>
@@ -675,13 +678,14 @@ export const TicketSettings = () => {
               SLA-Richtlinien definieren die Reaktions- und Lösungszeiten für Tickets basierend auf ihrer Priorität.
             </p>
             {!showSlaForm && (
-              <button
+              <Button
                 onClick={() => setShowSlaForm(true)}
-                className="flex items-center gap-2 px-3 py-2 btn-accent rounded-lg"
+                variant="primary"
+                size="sm"
+                icon={<Plus size={16} />}
               >
-                <Plus size={16} />
                 Neue SLA-Richtlinie
-              </button>
+              </Button>
             )}
           </div>
 
@@ -774,20 +778,20 @@ export const TicketSettings = () => {
                 </label>
               </div>
               <div className="flex justify-end gap-2">
-                <button
+                <Button
                   onClick={resetSlaForm}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg"
+                  variant="secondary"
                 >
                   Abbrechen
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleSaveSla}
                   disabled={!slaName.trim()}
-                  className="flex items-center gap-2 px-4 py-2 btn-accent rounded-lg disabled:opacity-50"
+                  variant="primary"
+                  icon={<Save size={16} />}
                 >
-                  <Save size={16} />
                   {editingSla ? 'Aktualisieren' : 'Speichern'}
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -843,18 +847,17 @@ export const TicketSettings = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
-                      <button
+                      <IconButton
                         onClick={() => startEditSla(policy)}
-                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
+                        icon={<Edit2 size={16} />}
+                        tooltip="Bearbeiten"
+                      />
+                      <IconButton
                         onClick={() => setSlaToDelete(policy)}
-                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                        icon={<Trash2 size={16} />}
+                        variant="danger"
+                        tooltip="Löschen"
+                      />
                     </div>
                   </div>
                 </div>

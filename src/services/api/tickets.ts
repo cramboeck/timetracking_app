@@ -94,6 +94,12 @@ export const ticketsApi = {
     return authFetch(`/tickets${query}`);
   },
 
+  // Get tickets for a specific customer
+  getByCustomer: async (customerId: string): Promise<{ tickets: Ticket[]; total: number }> => {
+    const result = await authFetch(`/tickets?customerId=${customerId}`);
+    return { tickets: result.data || [], total: (result.data || []).length };
+  },
+
   getStats: async (): Promise<{ success: boolean; data: {
     open_count: number;
     in_progress_count: number;
@@ -149,10 +155,23 @@ export const ticketsApi = {
     return authFetch(`/tickets/${id}`, { method: 'DELETE' });
   },
 
-  addComment: async (ticketId: string, content: string, isInternal?: boolean): Promise<{ success: boolean; data: TicketComment }> => {
+  addComment: async (
+    ticketId: string,
+    content: string,
+    options?: {
+      isInternal?: boolean;
+      notifyCustomer?: boolean;  // Send email notification to customer
+      replyViaEmail?: boolean;   // Reply in original email thread (for email-sourced tickets)
+    }
+  ): Promise<{ success: boolean; data: TicketComment }> => {
     return authFetch(`/tickets/${ticketId}/comments`, {
       method: 'POST',
-      body: JSON.stringify({ content, isInternal }),
+      body: JSON.stringify({
+        content,
+        isInternal: options?.isInternal,
+        notifyCustomer: options?.notifyCustomer,
+        replyViaEmail: options?.replyViaEmail,
+      }),
     });
   },
 
@@ -452,6 +471,7 @@ export interface PortalSettings {
   primaryColor: string;
   showKnowledgeBase: boolean;
   requireLoginForKb?: boolean;
+  teamviewerLink?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

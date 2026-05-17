@@ -4,14 +4,13 @@ import {
   Search,
   Loader2,
   Check,
-  X,
   AlertTriangle,
-  ExternalLink,
   Unlink,
 } from 'lucide-react';
 import { sevdeskApi } from '../services/api';
 import { Customer } from '../types';
 import { Modal } from './Modal';
+import { Button } from './ui';
 
 interface SevdeskCustomer {
   id: string;
@@ -114,14 +113,16 @@ export const CustomerSevdeskLink = ({
               <Check size={18} />
               <span className="text-sm">Mit sevDesk verknüpft</span>
             </div>
-            <button
+            <Button
               onClick={handleUnlink}
               disabled={saving}
-              className="flex items-center gap-1 px-3 py-1 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+              variant="danger"
+              size="sm"
+              loading={saving}
+              icon={!saving ? <Unlink size={14} /> : undefined}
             >
-              {saving ? <Loader2 className="animate-spin" size={14} /> : <Unlink size={14} />}
               Trennen
-            </button>
+            </Button>
           </div>
         )}
 
@@ -208,24 +209,21 @@ export const CustomerSevdeskLink = ({
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-2">
-          <button
+          <Button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            variant="secondary"
           >
             Abbrechen
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleLink}
             disabled={!selectedCustomerId || saving}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            variant="primary"
+            loading={saving}
+            icon={!saving ? <Link2 size={18} /> : undefined}
           >
-            {saving ? (
-              <Loader2 className="animate-spin" size={18} />
-            ) : (
-              <Link2 size={18} />
-            )}
             Verknüpfen
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

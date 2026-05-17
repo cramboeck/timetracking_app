@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { sevdeskApi, SevdeskInvoice, SevdeskQuote, DocumentSearchResult } from '../services/api';
 import { QuoteEditor } from './QuoteEditor';
+import { Button, IconButton } from './ui';
 
 type DocumentType = 'invoices' | 'quotes';
 
@@ -391,39 +392,36 @@ export const SevdeskDocuments = () => {
           )}
 
           {/* New Quote Button */}
-          <button
+          <Button
             onClick={() => setShowQuoteEditor(true)}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+            variant="success"
+            size="sm"
+            icon={<Plus size={14} />}
             title="Neues Angebot erstellen"
           >
-            <Plus size={14} />
             <span className="hidden xs:inline sm:inline">Angebot</span>
-          </button>
+          </Button>
 
           {/* Sync Button */}
-          <button
+          <Button
             onClick={handleSync}
-            disabled={syncing}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-primary/90 disabled:opacity-50"
+            loading={syncing}
+            variant="primary"
+            size="sm"
+            icon={<Download size={14} />}
             title="Dokumente in lokale Datenbank synchronisieren"
           >
-            {syncing ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Download size={14} />
-            )}
             <span className="hidden xs:inline sm:inline">Sync</span>
-          </button>
+          </Button>
 
           {/* Refresh Button */}
-          <button
+          <IconButton
             onClick={loadDocuments}
             disabled={loading}
-            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            title="Von sevDesk neu laden"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
+            icon={<RefreshCw size={18} className={loading ? 'animate-spin' : ''} />}
+            size="lg"
+            tooltip="Von sevDesk neu laden"
+          />
         </div>
       </div>
 

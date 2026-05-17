@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Bot, Save, RefreshCw, CheckCircle, XCircle, Eye, EyeOff, Sparkles, Zap, Settings2, FileText, RotateCcw } from 'lucide-react';
 import { aiApi, AIConfig, DEFAULT_SYSTEM_PROMPTS } from '../services/api';
+import { Button, IconButton } from './ui';
 
 export const AISettings = () => {
   const [loading, setLoading] = useState(true);
@@ -306,23 +307,20 @@ export const AISettings = () => {
             className="w-full px-4 py-2 pr-20 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           />
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            <button
+            <IconButton
               onClick={() => setShowApiKey(!showApiKey)}
-              className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-            <button
+              icon={showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
+              size="sm"
+            />
+            <Button
               onClick={handleTestConnection}
               disabled={testing || (!apiKey && !config?.hasApiKey)}
-              className="px-3 py-1.5 text-sm bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              variant="secondary"
+              size="sm"
+              loading={testing}
             >
-              {testing ? (
-                <RefreshCw size={14} className="animate-spin" />
-              ) : (
-                'Test'
-              )}
-            </button>
+              Test
+            </Button>
           </div>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -470,13 +468,14 @@ export const AISettings = () => {
                  'Antwort-Generator Prompt'}
               </label>
               {isPromptCustomized(activePromptTab) && (
-                <button
+                <Button
                   onClick={() => resetPromptToDefault(activePromptTab)}
-                  className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+                  variant="ghost"
+                  size="sm"
+                  icon={<RotateCcw size={12} />}
                 >
-                  <RotateCcw size={12} />
                   Auf Standard zurücksetzen
-                </button>
+                </Button>
               )}
             </div>
             <textarea
@@ -505,23 +504,16 @@ export const AISettings = () => {
 
       {/* Save Button */}
       <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button
+        <Button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg font-medium transition-colors"
+          variant="primary"
+          size="lg"
+          loading={saving}
+          icon={!saving ? <Save size={18} /> : undefined}
         >
-          {saving ? (
-            <>
-              <RefreshCw size={18} className="animate-spin" />
-              Speichern...
-            </>
-          ) : (
-            <>
-              <Save size={18} />
-              Einstellungen speichern
-            </>
-          )}
-        </button>
+          {saving ? 'Speichern...' : 'Einstellungen speichern'}
+        </Button>
       </div>
 
       {/* Info Box */}

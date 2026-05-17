@@ -1,22 +1,29 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Send, Clock, User, Building2, Play, Trash2, Edit2, Archive, RotateCcw, Tag, Plus, X, MessageSquare, ChevronDown, History, ChevronRight, Paperclip, Download, Image, File, FileText, Merge, CheckSquare, Square, GripVertical, Eye, EyeOff, Lightbulb, Pencil, Check, Sparkles, ThumbsUp, ThumbsDown, RefreshCw, Bot, Loader2, Copy, ArrowRight, Mail } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Bot } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, getApiBaseUrl, organizationsApi, aiApi, AISuggestion, microsoft365Api, TicketEmail } from '../services/api';
+import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, aiApi, AISuggestion, microsoft365Api, TicketEmail } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
-import { SlaStatus } from './SlaStatus';
 import { TicketMergeDialog } from './TicketMergeDialog';
+import { Button } from './ui/Button';
 import { MarkdownEditor } from './MarkdownEditor';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { sanitizeEmailHtml } from '../utils/sanitize';
 
-// Resolution type labels
-const resolutionTypeConfig: Record<TicketResolutionType, { label: string; description: string }> = {
-  solved: { label: 'Gelöst', description: 'Problem wurde behoben' },
-  not_reproducible: { label: 'Nicht reproduzierbar', description: 'Problem konnte nicht nachgestellt werden' },
-  duplicate: { label: 'Duplikat', description: 'Bereits in einem anderen Ticket behandelt' },
-  wont_fix: { label: 'Wird nicht behoben', description: 'Absichtlich nicht behoben' },
-  resolved_itself: { label: 'Hat sich erledigt', description: 'Problem hat sich von selbst gelöst' },
-  workaround: { label: 'Workaround', description: 'Umgehungslösung bereitgestellt' },
-};
+// Import sub-components
+import {
+  TicketHeader,
+  TicketMetadata,
+  TicketDescription,
+  TicketTasks,
+  TicketAttachments,
+  TicketComments,
+  TicketTimeEntries,
+  TicketTimeline,
+  TicketEmailHistory,
+  TicketAIPanel,
+  TicketMetaInfo,
+  SolutionModal,
+} from './ticket-detail';
 
 interface TicketDetailProps {
   ticketId: string;
@@ -27,23 +34,8 @@ interface TicketDetailProps {
   onTicketDeleted: () => void;
 }
 
-const statusConfig: Record<TicketStatus, { label: string; color: string }> = {
-  open: { label: 'Offen', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-  in_progress: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
-  waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
-  resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
-  closed: { label: 'Geschlossen', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' },
-  archived: { label: 'Archiviert', color: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' },
-};
-
-const priorityConfig: Record<TicketPriority, { label: string; color: string }> = {
-  low: { label: 'Niedrig', color: 'text-gray-500' },
-  normal: { label: 'Normal', color: 'text-blue-500' },
-  high: { label: 'Hoch', color: 'text-orange-500' },
-  critical: { label: 'Kritisch', color: 'text-red-500' },
-};
-
 export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTimer, onTicketDeleted }: TicketDetailProps) => {
+  // Core state
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [comments, setComments] = useState<TicketComment[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -57,69 +49,46 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const [editStatus, setEditStatus] = useState<TicketStatus>('open');
   const [editPriority, setEditPriority] = useState<TicketPriority>('normal');
 
-  // Comment
-  const [newComment, setNewComment] = useState('');
-  const [isInternal, setIsInternal] = useState(false);
-  const [submittingComment, setSubmittingComment] = useState(false);
-
-  // Delete
+  // Delete/Archive
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
-  // Archive
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [archiving, setArchiving] = useState(false);
 
   // Merge
   const [showMergeDialog, setShowMergeDialog] = useState(false);
 
-  // User role for permission checks
+  // User role
   const [userRole, setUserRole] = useState<string | null>(null);
 
   // Tags
   const [ticketTags, setTicketTags] = useState<TicketTag[]>([]);
   const [allTags, setAllTags] = useState<TicketTag[]>([]);
-  const [showTagDropdown, setShowTagDropdown] = useState(false);
-  const [newTagName, setNewTagName] = useState('');
-  const tagDropdownRef = useRef<HTMLDivElement>(null);
 
   // Canned Responses
   const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>([]);
-  const [showCannedDropdown, setShowCannedDropdown] = useState(false);
-  const cannedDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Activities (Timeline)
+  // Activities
   const [activities, setActivities] = useState<TicketActivity[]>([]);
-  const [showActivities, setShowActivities] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
 
   // Email History
   const [ticketEmails, setTicketEmails] = useState<TicketEmail[]>([]);
-  const [showEmails, setShowEmails] = useState(false);
   const [loadingEmails, setLoadingEmails] = useState(false);
-  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
 
   // Attachments
   const [attachments, setAttachments] = useState<TicketAttachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Solution Modal
   const [showSolutionModal, setShowSolutionModal] = useState(false);
   const [solutionText, setSolutionText] = useState('');
   const [resolutionType, setResolutionType] = useState<TicketResolutionType>('solved');
-  const [pendingStatusChange, setPendingStatusChange] = useState<TicketStatus | null>(null);
   const [savingSolution, setSavingSolution] = useState(false);
 
   // Tasks
   const [tasks, setTasks] = useState<TicketTask[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskVisible, setNewTaskVisible] = useState(false);
-  const [addingTask, setAddingTask] = useState(false);
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editingTaskTitle, setEditingTaskTitle] = useState('');
 
   // AI Assistant
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
@@ -128,6 +97,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiConfigured, setAiConfigured] = useState(false);
 
+  // Load initial data
   useEffect(() => {
     loadTicket();
     loadTags();
@@ -138,136 +108,14 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     checkAiConfig();
   }, [ticketId]);
 
-  // Load user role for permission checks
-  const loadUserRole = async () => {
-    try {
-      const response = await organizationsApi.getCurrent();
-      if (response.data) {
-        setUserRole(response.data.user_role);
-      }
-    } catch (err) {
-      // Non-critical, just hide merge button
-      console.error('Failed to load user role:', err);
-    }
-  };
-
-  // Check if AI is configured
-  const checkAiConfig = async () => {
-    try {
-      const response = await aiApi.getConfig();
-      setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
-    } catch (err) {
-      console.error('Failed to check AI config:', err);
-      setAiConfigured(false);
-    }
-  };
-
-  // Load existing AI suggestions for ticket
-  const loadAiSuggestions = async () => {
-    try {
-      const response = await aiApi.getSuggestions(ticketId);
-      setAiSuggestions(response.data || []);
-    } catch (err) {
-      console.error('Failed to load AI suggestions:', err);
-    }
-  };
-
-  // Generate new AI suggestion
-  const generateAiSuggestion = async (suggestionType: 'solution' | 'category' | 'priority' | 'response' = 'solution') => {
-    setLoadingAiSuggestion(true);
-    setAiError(null);
-    try {
-      const response = await aiApi.generateSuggestion(ticketId, suggestionType);
-      if (response.success && response.data) {
-        setAiSuggestions(prev => [response.data, ...prev]);
-      }
-    } catch (err: any) {
-      setAiError(err.message || 'Fehler beim Generieren des Vorschlags');
-    } finally {
-      setLoadingAiSuggestion(false);
-    }
-  };
-
-  // Mark suggestion feedback
-  const handleSuggestionFeedback = async (suggestionId: string, isHelpful: boolean) => {
-    try {
-      await aiApi.markSuggestionFeedback(suggestionId, isHelpful);
-      // Reload suggestions to update UI
-      loadAiSuggestions();
-    } catch (err) {
-      console.error('Failed to mark feedback:', err);
-    }
-  };
-
-  // Apply response suggestion to comment field
-  const applyResponseSuggestion = (content: string) => {
-    setNewComment(prev => prev ? `${prev}\n\n${content}` : content);
-    // Scroll to comment field
-    document.querySelector('textarea[placeholder*="Kommentar"]')?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  // Apply priority suggestion by extracting priority from content
-  const applyPrioritySuggestion = async (content: string) => {
-    if (!ticket) return;
-
-    // Try to extract priority from AI response
-    const priorities: Record<string, TicketPriority> = {
-      'kritisch': 'critical',
-      'critical': 'critical',
-      'hoch': 'high',
-      'high': 'high',
-      'normal': 'normal',
-      'medium': 'normal',
-      'mittel': 'normal',
-      'niedrig': 'low',
-      'low': 'low',
-      'gering': 'low',
-    };
-
-    const lowerContent = content.toLowerCase();
-    let detectedPriority: TicketPriority | null = null;
-
-    for (const [keyword, priority] of Object.entries(priorities)) {
-      if (lowerContent.includes(keyword)) {
-        detectedPriority = priority;
-        break;
-      }
-    }
-
-    if (detectedPriority) {
-      try {
-        const response = await ticketsApi.update(ticket.id, { priority: detectedPriority });
-        setTicket(response.data);
-        setEditPriority(detectedPriority);
-      } catch (err) {
-        console.error('Failed to update priority:', err);
-      }
-    }
-  };
-
-  // Copy suggestion to clipboard
-  const copySuggestionToClipboard = async (content: string) => {
-    try {
-      await navigator.clipboard.writeText(content);
-    } catch (err) {
-      console.error('Failed to copy to clipboard:', err);
-    }
-  };
-
-  // Close dropdowns on outside click
+  // Auto-load emails for email-source tickets
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (tagDropdownRef.current && !tagDropdownRef.current.contains(event.target as Node)) {
-        setShowTagDropdown(false);
-      }
-      if (cannedDropdownRef.current && !cannedDropdownRef.current.contains(event.target as Node)) {
-        setShowCannedDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    if (ticket?.source === 'email' && ticketEmails.length === 0 && !loadingEmails) {
+      loadTicketEmails();
+    }
+  }, [ticket?.source]);
 
+  // Load functions
   const loadTicket = async () => {
     try {
       setLoading(true);
@@ -291,6 +139,17 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       setError('Fehler beim Laden des Tickets');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadUserRole = async () => {
+    try {
+      const response = await organizationsApi.getCurrent();
+      if (response.data) {
+        setUserRole(response.data.user_role);
+      }
+    } catch (err) {
+      console.error('Failed to load user role:', err);
     }
   };
 
@@ -333,173 +192,6 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     }
   };
 
-  const handleAddTask = async () => {
-    if (!newTaskTitle.trim()) return;
-
-    try {
-      setAddingTask(true);
-      const response = await ticketsApi.createTask(ticketId, {
-        title: newTaskTitle.trim(),
-        visibleToCustomer: newTaskVisible,
-      });
-      setTasks(prev => [...prev, response.data]);
-      setNewTaskTitle('');
-      setNewTaskVisible(false);
-    } catch (err) {
-      console.error('Failed to add task:', err);
-    } finally {
-      setAddingTask(false);
-    }
-  };
-
-  const handleToggleTask = async (task: TicketTask) => {
-    try {
-      const response = await ticketsApi.updateTask(ticketId, task.id, {
-        completed: !task.completed,
-      });
-      setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
-    } catch (err) {
-      console.error('Failed to toggle task:', err);
-    }
-  };
-
-  const handleToggleTaskVisibility = async (task: TicketTask) => {
-    try {
-      const response = await ticketsApi.updateTask(ticketId, task.id, {
-        visibleToCustomer: !task.visibleToCustomer,
-      });
-      setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
-    } catch (err) {
-      console.error('Failed to update task visibility:', err);
-    }
-  };
-
-  const handleStartEditTask = (task: TicketTask) => {
-    setEditingTaskId(task.id);
-    setEditingTaskTitle(task.title);
-  };
-
-  const handleCancelEditTask = () => {
-    setEditingTaskId(null);
-    setEditingTaskTitle('');
-  };
-
-  const handleSaveEditTask = async (taskId: string) => {
-    if (!editingTaskTitle.trim()) {
-      handleCancelEditTask();
-      return;
-    }
-    try {
-      const response = await ticketsApi.updateTask(ticketId, taskId, {
-        title: editingTaskTitle.trim(),
-      });
-      setTasks(prev => prev.map(t => t.id === taskId ? response.data : t));
-      handleCancelEditTask();
-    } catch (err) {
-      console.error('Failed to update task:', err);
-    }
-  };
-
-  const handleDeleteTask = async (taskId: string) => {
-    try {
-      await ticketsApi.deleteTask(ticketId, taskId);
-      setTasks(prev => prev.filter(t => t.id !== taskId));
-    } catch (err) {
-      console.error('Failed to delete task:', err);
-    }
-  };
-
-  const handleDragStart = (taskId: string) => {
-    setDraggedTaskId(taskId);
-  };
-
-  const handleDragOver = (e: React.DragEvent, targetTaskId: string) => {
-    e.preventDefault();
-    if (!draggedTaskId || draggedTaskId === targetTaskId) return;
-
-    const draggedIndex = tasks.findIndex(t => t.id === draggedTaskId);
-    const targetIndex = tasks.findIndex(t => t.id === targetTaskId);
-
-    if (draggedIndex === -1 || targetIndex === -1) return;
-
-    const newTasks = [...tasks];
-    const [draggedTask] = newTasks.splice(draggedIndex, 1);
-    newTasks.splice(targetIndex, 0, draggedTask);
-    setTasks(newTasks);
-  };
-
-  const handleDragEnd = async () => {
-    if (!draggedTaskId) return;
-
-    try {
-      await ticketsApi.reorderTasks(ticketId, tasks.map(t => t.id));
-    } catch (err) {
-      console.error('Failed to reorder tasks:', err);
-      // Reload to get correct order
-      loadTasks();
-    }
-    setDraggedTaskId(null);
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    try {
-      setUploadingFiles(true);
-      const formData = new FormData();
-      Array.from(files).forEach(file => {
-        formData.append('files', file);
-      });
-
-      const result = await ticketsApi.uploadAttachments(ticketId, formData);
-      setAttachments(prev => [...prev, ...result.data]);
-
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (err) {
-      console.error('Failed to upload files:', err);
-      alert('Fehler beim Hochladen der Dateien');
-    } finally {
-      setUploadingFiles(false);
-    }
-  };
-
-  const handleDeleteAttachment = async (attachmentId: string) => {
-    if (!confirm('Anhang wirklich löschen?')) return;
-
-    try {
-      await ticketsApi.deleteAttachment(ticketId, attachmentId);
-      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
-    } catch (err) {
-      console.error('Failed to delete attachment:', err);
-      alert('Fehler beim Löschen des Anhangs');
-    }
-  };
-
-  const getAbsoluteFileUrl = (fileUrl: string): string => {
-    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-      return fileUrl;
-    }
-    const apiBase = getApiBaseUrl();
-    const relativePath = fileUrl.startsWith('/api') ? fileUrl.substring(4) : fileUrl;
-    return `${apiBase}${relativePath}`;
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType?.startsWith('image/')) return Image;
-    if (mimeType === 'application/pdf') return FileText;
-    return File;
-  };
-
   const loadActivities = async () => {
     try {
       setLoadingActivities(true);
@@ -510,13 +202,6 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     } finally {
       setLoadingActivities(false);
     }
-  };
-
-  const toggleActivities = () => {
-    if (!showActivities && activities.length === 0) {
-      loadActivities();
-    }
-    setShowActivities(!showActivities);
   };
 
   const loadTicketEmails = async () => {
@@ -533,92 +218,26 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     }
   };
 
-  const toggleEmails = () => {
-    if (!showEmails && ticketEmails.length === 0) {
-      loadTicketEmails();
-    }
-    setShowEmails(!showEmails);
-  };
-
-  const formatEmailDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('de-DE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const getActivityLabel = (activity: TicketActivity): string => {
-    const actor = activity.userName || activity.contactName || 'System';
-    switch (activity.actionType) {
-      case 'created':
-        return `${actor} hat das Ticket erstellt`;
-      case 'status_changed':
-        return `${actor} hat den Status von "${statusConfig[activity.oldValue as TicketStatus]?.label || activity.oldValue}" auf "${statusConfig[activity.newValue as TicketStatus]?.label || activity.newValue}" geändert`;
-      case 'priority_changed':
-        return `${actor} hat die Priorität von "${priorityConfig[activity.oldValue as TicketPriority]?.label || activity.oldValue}" auf "${priorityConfig[activity.newValue as TicketPriority]?.label || activity.newValue}" geändert`;
-      case 'assigned':
-        return `${actor} hat das Ticket zugewiesen`;
-      case 'unassigned':
-        return `${actor} hat die Zuweisung entfernt`;
-      case 'comment_added':
-        return `${actor} hat einen Kommentar hinzugefügt`;
-      case 'internal_comment_added':
-        return `${actor} hat eine interne Notiz hinzugefügt`;
-      case 'attachment_added':
-        return `${actor} hat einen Anhang hinzugefügt`;
-      case 'tag_added':
-        return `${actor} hat den Tag "${activity.newValue}" hinzugefügt`;
-      case 'tag_removed':
-        return `${actor} hat den Tag "${activity.oldValue}" entfernt`;
-      case 'title_changed':
-        return `${actor} hat den Titel geändert`;
-      case 'description_changed':
-        return `${actor} hat die Beschreibung geändert`;
-      case 'resolved':
-        return `${actor} hat das Ticket als gelöst markiert`;
-      case 'closed':
-        return `${actor} hat das Ticket geschlossen`;
-      case 'reopened':
-        return `${actor} hat das Ticket wieder geöffnet`;
-      case 'archived':
-        return `${actor} hat das Ticket archiviert`;
-      case 'rating_added':
-        return `${actor} hat eine Bewertung abgegeben`;
-      case 'time_logged':
-        return `${actor} hat ${activity.newValue} Zeit erfasst`;
-      default:
-        return `${actor} hat eine Aktion durchgeführt`;
+  const checkAiConfig = async () => {
+    try {
+      const response = await aiApi.getConfig();
+      setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
+    } catch (err) {
+      console.error('Failed to check AI config:', err);
+      setAiConfigured(false);
     }
   };
 
-  const getActivityIcon = (actionType: TicketActivity['actionType']) => {
-    switch (actionType) {
-      case 'created':
-        return <Plus size={12} />;
-      case 'status_changed':
-      case 'resolved':
-      case 'closed':
-      case 'reopened':
-      case 'archived':
-        return <RotateCcw size={12} />;
-      case 'priority_changed':
-        return <ChevronDown size={12} />;
-      case 'comment_added':
-      case 'internal_comment_added':
-        return <MessageSquare size={12} />;
-      case 'tag_added':
-      case 'tag_removed':
-        return <Tag size={12} />;
-      case 'time_logged':
-        return <Clock size={12} />;
-      default:
-        return <Clock size={12} />;
+  const loadAiSuggestions = async () => {
+    try {
+      const response = await aiApi.getSuggestions(ticketId);
+      setAiSuggestions(response.data || []);
+    } catch (err) {
+      console.error('Failed to load AI suggestions:', err);
     }
   };
 
+  // Action handlers
   const handleAddTag = async (tagId: string) => {
     if (!ticket) return;
     try {
@@ -639,15 +258,12 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     }
   };
 
-  const handleCreateTag = async () => {
-    if (!newTagName.trim()) return;
+  const handleCreateTag = async (name: string) => {
     try {
       const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
       const randomColor = colors[Math.floor(Math.random() * colors.length)];
-      const response = await ticketsApi.createTag({ name: newTagName.trim(), color: randomColor });
+      const response = await ticketsApi.createTag({ name, color: randomColor });
       setAllTags(prev => [...prev, response.data]);
-      setNewTagName('');
-      // Automatically add the new tag to the ticket
       if (ticket) {
         await handleAddTag(response.data.id);
       }
@@ -656,58 +272,11 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     }
   };
 
-  // Process template variables in canned response content
-  const processTemplateVariables = (content: string): string => {
-    if (!ticket) return content;
-
-    const customer = customers.find(c => c.id === ticket.customerId);
-    const now = new Date();
-    const createdDate = ticket.createdAt ? new Date(ticket.createdAt) : null;
-
-    const variables: Record<string, string> = {
-      // Customer variables
-      '{{customer_name}}': customer?.name || 'Kunde',
-      '{{customer_email}}': customer?.email || '',
-      // Ticket variables
-      '{{ticket_number}}': ticket.ticketNumber || '',
-      '{{ticket_title}}': ticket.title || '',
-      '{{ticket_description}}': ticket.description || '',
-      '{{status}}': statusConfig[ticket.status]?.label || ticket.status,
-      '{{priority}}': priorityConfig[ticket.priority]?.label || ticket.priority,
-      '{{created_date}}': createdDate ? createdDate.toLocaleDateString('de-DE') : '',
-      '{{created_time}}': createdDate ? createdDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '',
-      // Current date/time
-      '{{current_date}}': now.toLocaleDateString('de-DE'),
-      '{{current_time}}': now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
-      '{{current_datetime}}': now.toLocaleString('de-DE'),
-    };
-
-    let processed = content;
-    for (const [variable, value] of Object.entries(variables)) {
-      processed = processed.replace(new RegExp(variable.replace(/[{}]/g, '\\$&'), 'g'), value);
-    }
-
-    return processed;
-  };
-
-  const handleUseCannedResponse = async (response: CannedResponse) => {
-    const processedContent = processTemplateVariables(response.content);
-    setNewComment(prev => prev + (prev ? '\n' : '') + processedContent);
-    setShowCannedDropdown(false);
-    // Increment usage count
-    try {
-      await ticketsApi.useCannedResponse(response.id);
-    } catch (err) {
-      // Silent fail for usage tracking
-    }
-  };
-
   const handleSaveEdit = async () => {
     if (!ticket) return;
 
     // Check if we're closing the ticket and need solution
     if (editStatus === 'closed' && ticket.status !== 'closed') {
-      setPendingStatusChange(editStatus);
       setSolutionText(ticket.solution || '');
       setResolutionType(ticket.resolutionType || 'solved');
       setShowSolutionModal(true);
@@ -729,6 +298,16 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     }
   };
 
+  const handleCancelEdit = () => {
+    if (ticket) {
+      setIsEditing(false);
+      setEditTitle(ticket.title);
+      setEditDescription(ticket.description || '');
+      setEditStatus(ticket.status);
+      setEditPriority(ticket.priority);
+    }
+  };
+
   const handleSaveSolution = async () => {
     if (!ticket || !solutionText.trim()) return;
 
@@ -745,36 +324,28 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       setTicket(response.data);
       setIsEditing(false);
       setShowSolutionModal(false);
-      setPendingStatusChange(null);
       setSolutionText('');
     } catch (err) {
       console.error('Failed to save solution:', err);
-      alert('Fehler beim Speichern der Lösung');
+      alert('Fehler beim Speichern der Loesung');
     } finally {
       setSavingSolution(false);
     }
   };
 
-  const handleAddComment = async () => {
-    if (!newComment.trim() || !ticket) return;
+  const handleAddComment = async (content: string, isInternal: boolean, notifyCustomer: boolean, replyViaEmail: boolean) => {
+    if (!ticket) return;
 
-    try {
-      setSubmittingComment(true);
-      const wasInternal = isInternal;
-      const response = await ticketsApi.addComment(ticket.id, newComment, isInternal);
-      setComments(prev => [...prev, response.data]);
-      setNewComment('');
-      setIsInternal(false);
+    const response = await ticketsApi.addComment(ticket.id, content, {
+      isInternal,
+      notifyCustomer,
+      replyViaEmail,
+    });
+    setComments(prev => [...prev, response.data]);
 
-      // Reload ticket to get updated first_response_at for SLA tracking (only for non-internal comments)
-      if (!wasInternal) {
-        await loadTicket();
-      }
-    } catch (err) {
-      console.error('Failed to add comment:', err);
-      alert('Fehler beim Hinzufügen des Kommentars');
-    } finally {
-      setSubmittingComment(false);
+    // Reload ticket to get updated first_response_at for SLA tracking
+    if (!isInternal) {
+      await loadTicket();
     }
   };
 
@@ -787,7 +358,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       onTicketDeleted();
     } catch (err) {
       console.error('Failed to delete ticket:', err);
-      alert('Fehler beim Löschen des Tickets');
+      alert('Fehler beim Loeschen des Tickets');
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
@@ -799,9 +370,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
 
     try {
       setArchiving(true);
-      const response = await ticketsApi.update(ticket.id, {
-        status: 'archived',
-      });
+      const response = await ticketsApi.update(ticket.id, { status: 'archived' });
       setTicket(response.data);
       setEditStatus('archived');
       setShowArchiveConfirm(false);
@@ -818,9 +387,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
 
     try {
       setArchiving(true);
-      const response = await ticketsApi.update(ticket.id, {
-        status: 'open',
-      });
+      const response = await ticketsApi.update(ticket.id, { status: 'open' });
       setTicket(response.data);
       setEditStatus('open');
     } catch (err) {
@@ -831,32 +398,151 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     }
   };
 
-  const getCustomerName = (customerId: string) => {
-    return customers.find(c => c.id === customerId)?.name || 'Unbekannt';
-  };
-
-  const getProjectName = (projectId?: string) => {
-    if (!projectId) return null;
-    return projects.find(p => p.id === projectId)?.name;
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('de-DE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+  // Task handlers
+  const handleAddTask = async (title: string, visible: boolean) => {
+    const response = await ticketsApi.createTask(ticketId, {
+      title,
+      visibleToCustomer: visible,
     });
+    setTasks(prev => [...prev, response.data]);
   };
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}:${String(minutes).padStart(2, '0')} Std`;
+  const handleToggleTask = async (task: TicketTask) => {
+    const response = await ticketsApi.updateTask(ticketId, task.id, {
+      completed: !task.completed,
+    });
+    setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
   };
 
+  const handleToggleTaskVisibility = async (task: TicketTask) => {
+    const response = await ticketsApi.updateTask(ticketId, task.id, {
+      visibleToCustomer: !task.visibleToCustomer,
+    });
+    setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
+  };
+
+  const handleUpdateTask = async (taskId: string, title: string) => {
+    const response = await ticketsApi.updateTask(ticketId, taskId, { title });
+    setTasks(prev => prev.map(t => t.id === taskId ? response.data : t));
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    await ticketsApi.deleteTask(ticketId, taskId);
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+  };
+
+  const handleReorderTasks = async (taskIds: string[]) => {
+    await ticketsApi.reorderTasks(ticketId, taskIds);
+  };
+
+  // Attachment handlers
+  const handleUploadFiles = async (files: FileList) => {
+    try {
+      setUploadingFiles(true);
+      const formData = new FormData();
+      Array.from(files).forEach(file => {
+        formData.append('files', file);
+      });
+
+      const result = await ticketsApi.uploadAttachments(ticketId, formData);
+      setAttachments(prev => [...prev, ...result.data]);
+    } catch (err) {
+      console.error('Failed to upload files:', err);
+      alert('Fehler beim Hochladen der Dateien');
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!confirm('Anhang wirklich loeschen?')) return;
+
+    try {
+      await ticketsApi.deleteAttachment(ticketId, attachmentId);
+      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    } catch (err) {
+      console.error('Failed to delete attachment:', err);
+      alert('Fehler beim Loeschen des Anhangs');
+    }
+  };
+
+  // AI handlers
+  const generateAiSuggestion = async (suggestionType: 'solution' | 'category' | 'priority' | 'response') => {
+    setLoadingAiSuggestion(true);
+    setAiError(null);
+    try {
+      const response = await aiApi.generateSuggestion(ticketId, suggestionType);
+      if (response.success && response.data) {
+        setAiSuggestions(prev => [response.data, ...prev]);
+      }
+    } catch (err: any) {
+      setAiError(err.message || 'Fehler beim Generieren des Vorschlags');
+    } finally {
+      setLoadingAiSuggestion(false);
+    }
+  };
+
+  const handleSuggestionFeedback = async (suggestionId: string, isHelpful: boolean) => {
+    try {
+      await aiApi.markSuggestionFeedback(suggestionId, isHelpful);
+      loadAiSuggestions();
+    } catch (err) {
+      console.error('Failed to mark feedback:', err);
+    }
+  };
+
+  const applyResponseSuggestion = (content: string) => {
+    // This will be handled via the comment component's internal state
+    // We trigger this by scrolling to the comment area
+    document.querySelector('textarea[placeholder*="Kommentar"]')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const applyPrioritySuggestion = async (content: string) => {
+    if (!ticket) return;
+
+    const priorities: Record<string, TicketPriority> = {
+      'kritisch': 'critical',
+      'critical': 'critical',
+      'hoch': 'high',
+      'high': 'high',
+      'normal': 'normal',
+      'medium': 'normal',
+      'mittel': 'normal',
+      'niedrig': 'low',
+      'low': 'low',
+      'gering': 'low',
+    };
+
+    const lowerContent = content.toLowerCase();
+    let detectedPriority: TicketPriority | null = null;
+
+    for (const [keyword, priority] of Object.entries(priorities)) {
+      if (lowerContent.includes(keyword)) {
+        detectedPriority = priority;
+        break;
+      }
+    }
+
+    if (detectedPriority) {
+      try {
+        const response = await ticketsApi.update(ticket.id, { priority: detectedPriority });
+        setTicket(response.data);
+        setEditPriority(detectedPriority);
+      } catch (err) {
+        console.error('Failed to update priority:', err);
+      }
+    }
+  };
+
+  const copySuggestionToClipboard = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+    }
+  };
+
+  // Loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -865,274 +551,58 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     );
   }
 
+  // Error state
   if (error || !ticket) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
         <p>{error || 'Ticket nicht gefunden'}</p>
-        <button onClick={onBack} className="mt-4 text-accent-primary hover:underline">
-          Zurück zur Liste
+        <button onClick={onBack} className="mt-2 text-accent-primary hover:underline">
+          Zurueck zur Liste
         </button>
       </div>
     );
   }
 
-  const totalTime = timeEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
-
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex-shrink-0 p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-4 mb-4">
-          <button
-            onClick={onBack}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <div className="flex-1">
-            <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
-              {ticket.ticketNumber}
-            </span>
-          </div>
-          {ticket.status !== 'archived' && (
-            <button
-              onClick={() => setIsEditing(!isEditing)}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
-              title="Bearbeiten"
-            >
-              <Edit2 size={20} />
-            </button>
-          )}
-          {ticket.status === 'archived' ? (
-            <button
-              onClick={handleRestore}
-              disabled={archiving}
-              className="p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 disabled:opacity-50"
-              title="Wiederherstellen"
-            >
-              <RotateCcw size={20} />
-            </button>
-          ) : (
-            <>
-              {/* Merge button - only for admins/owners */}
-              {(userRole === 'admin' || userRole === 'owner') && (
-                <button
-                  onClick={() => setShowMergeDialog(true)}
-                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                  title="Tickets zusammenführen"
-                >
-                  <Merge size={20} />
-                </button>
-              )}
-              <button
-                onClick={() => setShowArchiveConfirm(true)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                title="Archivieren"
-              >
-                <Archive size={20} />
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
-            title="Löschen"
-          >
-            <Trash2 size={20} />
-          </button>
-        </div>
-
-        {isEditing ? (
-          <div className="space-y-4">
-            <input
-              type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full px-4 py-2 text-xl font-bold rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
-                <select
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value as TicketStatus)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  {Object.entries(statusConfig).map(([key, { label }]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priorität</label>
-                <select
-                  value={editPriority}
-                  onChange={(e) => setEditPriority(e.target.value as TicketPriority)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  {Object.entries(priorityConfig).map(([key, { label }]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleSaveEdit}
-                className="px-4 py-2 btn-accent rounded-lg"
-              >
-                Speichern
-              </button>
-              <button
-                onClick={() => {
-                  setIsEditing(false);
-                  setEditTitle(ticket.title);
-                  setEditDescription(ticket.description || '');
-                  setEditStatus(ticket.status);
-                  setEditPriority(ticket.priority);
-                }}
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-              >
-                Abbrechen
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              {ticket.title}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusConfig[ticket.status].color}`}>
-                {statusConfig[ticket.status].label}
-              </span>
-              <span className={`text-sm font-medium ${priorityConfig[ticket.priority].color}`}>
-                {priorityConfig[ticket.priority].label}
-              </span>
-            </div>
-
-            {/* Tags */}
-            <div className="flex flex-wrap items-center gap-2 mt-3">
-              {ticketTags.map(tag => (
-                <span
-                  key={tag.id}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium text-white"
-                  style={{ backgroundColor: tag.color }}
-                >
-                  <Tag size={10} />
-                  {tag.name}
-                  <button
-                    onClick={() => handleRemoveTag(tag.id)}
-                    className="ml-1 hover:bg-white/20 rounded-full p-0.5"
-                  >
-                    <X size={10} />
-                  </button>
-                </span>
-              ))}
-              <div className="relative" ref={tagDropdownRef}>
-                <button
-                  onClick={() => setShowTagDropdown(!showTagDropdown)}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                >
-                  <Plus size={12} />
-                  Tag
-                </button>
-                {showTagDropdown && (
-                  <div className="absolute left-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-                    <div className="p-2 border-b border-gray-200 dark:border-gray-700">
-                      <div className="flex gap-1">
-                        <input
-                          type="text"
-                          value={newTagName}
-                          onChange={(e) => setNewTagName(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && handleCreateTag()}
-                          placeholder="Neuer Tag..."
-                          className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
-                        <button
-                          onClick={handleCreateTag}
-                          disabled={!newTagName.trim()}
-                          className="p-1 rounded bg-accent-primary text-white disabled:opacity-50"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="max-h-40 overflow-y-auto p-1">
-                      {allTags
-                        .filter(tag => !ticketTags.find(t => t.id === tag.id))
-                        .map(tag => (
-                          <button
-                            key={tag.id}
-                            onClick={() => {
-                              handleAddTag(tag.id);
-                              setShowTagDropdown(false);
-                            }}
-                            className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                          >
-                            <span
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: tag.color }}
-                            />
-                            {tag.name}
-                          </button>
-                        ))}
-                      {allTags.filter(tag => !ticketTags.find(t => t.id === tag.id)).length === 0 && (
-                        <div className="px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400">
-                          {allTags.length === 0 ? 'Keine Tags vorhanden' : 'Alle Tags zugewiesen'}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+      <TicketHeader
+        ticket={ticket}
+        ticketTags={ticketTags}
+        allTags={allTags}
+        userRole={userRole}
+        isEditing={isEditing}
+        editTitle={editTitle}
+        editDescription={editDescription}
+        editStatus={editStatus}
+        editPriority={editPriority}
+        archiving={archiving}
+        onBack={onBack}
+        onToggleEdit={() => setIsEditing(!isEditing)}
+        onEditTitleChange={setEditTitle}
+        onEditDescriptionChange={setEditDescription}
+        onEditStatusChange={setEditStatus}
+        onEditPriorityChange={setEditPriority}
+        onSaveEdit={handleSaveEdit}
+        onCancelEdit={handleCancelEdit}
+        onRestore={handleRestore}
+        onShowArchiveConfirm={() => setShowArchiveConfirm(true)}
+        onShowDeleteConfirm={() => setShowDeleteConfirm(true)}
+        onShowMergeDialog={() => setShowMergeDialog(true)}
+        onAddTag={handleAddTag}
+        onRemoveTag={handleRemoveTag}
+        onCreateTag={handleCreateTag}
+      />
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-        {/* Info Cards */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <Building2 className="text-gray-400" size={20} />
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Kunde</div>
-              <div className="font-medium text-gray-900 dark:text-white">
-                {getCustomerName(ticket.customerId)}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <Clock className="text-gray-400" size={20} />
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Erfasste Zeit</div>
-              <div className="font-medium text-gray-900 dark:text-white">
-                {formatDuration(totalTime)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* SLA Status */}
-        <SlaStatus
-          firstResponseDueAt={ticket.firstResponseDueAt}
-          resolutionDueAt={ticket.resolutionDueAt}
-          firstResponseAt={ticket.firstResponseAt}
-          slaFirstResponseBreached={ticket.slaFirstResponseBreached}
-          slaResolutionBreached={ticket.slaResolutionBreached}
-          status={ticket.status}
+        {/* Metadata (info cards, SLA, timer button) */}
+        <TicketMetadata
+          ticket={ticket}
+          customers={customers}
+          timeEntries={timeEntries}
+          onStartTimer={onStartTimer}
         />
-
-        {/* Start Timer Button */}
-        <button
-          onClick={() => onStartTimer(ticket)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
-        >
-          <Play size={20} />
-          Timer für dieses Ticket starten
-        </button>
 
         {/* AI Assistant Button */}
         {aiConfigured && (
@@ -1156,834 +626,104 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
 
         {/* AI Assistant Panel */}
         {showAiPanel && aiConfigured && (
-          <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="text-purple-600 dark:text-purple-400" size={18} />
-              <h3 className="text-sm font-medium text-purple-800 dark:text-purple-300">
-                KI-Assistent
-              </h3>
-            </div>
-
-            {/* AI Assistant Type Buttons */}
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <button
-                onClick={() => generateAiSuggestion('solution')}
-                disabled={loadingAiSuggestion}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg transition-colors"
-              >
-                <Lightbulb size={14} />
-                Lösung vorschlagen
-              </button>
-              <button
-                onClick={() => generateAiSuggestion('category')}
-                disabled={loadingAiSuggestion}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
-              >
-                <Tag size={14} />
-                Kategorie analysieren
-              </button>
-              <button
-                onClick={() => generateAiSuggestion('priority')}
-                disabled={loadingAiSuggestion}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white rounded-lg transition-colors"
-              >
-                <ChevronDown size={14} />
-                Priorität bewerten
-              </button>
-              <button
-                onClick={() => generateAiSuggestion('response')}
-                disabled={loadingAiSuggestion}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg transition-colors"
-              >
-                <MessageSquare size={14} />
-                Antwort generieren
-              </button>
-            </div>
-
-            {loadingAiSuggestion && (
-              <div className="flex items-center justify-center gap-2 py-4 text-purple-600 dark:text-purple-400">
-                <Loader2 size={18} className="animate-spin" />
-                <span className="text-sm">KI analysiert das Ticket...</span>
-              </div>
-            )}
-
-            {aiError && (
-              <div className="mb-3 p-2 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">
-                {aiError}
-              </div>
-            )}
-
-            {aiSuggestions.length === 0 && !loadingAiSuggestion && (
-              <p className="text-sm text-purple-600 dark:text-purple-400 italic">
-                Wähle eine der Optionen oben, um KI-basierte Vorschläge zu erhalten.
-              </p>
-            )}
-
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {aiSuggestions.map((suggestion) => {
-                const typeConfig = {
-                  solution: { label: 'Lösung', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300', icon: Lightbulb },
-                  category: { label: 'Kategorie', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300', icon: Tag },
-                  priority: { label: 'Priorität', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300', icon: ChevronDown },
-                  response: { label: 'Antwort', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300', icon: MessageSquare },
-                };
-                const config = typeConfig[suggestion.suggestionType] || typeConfig.solution;
-                const TypeIcon = config.icon;
-
-                return (
-                  <div
-                    key={suggestion.id}
-                    className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-purple-100 dark:border-purple-800"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-                        <TypeIcon size={12} />
-                        {config.label}
-                      </span>
-                      {suggestion.confidence && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {Math.round(suggestion.confidence * 100)}% Konfidenz
-                        </span>
-                      )}
-                    </div>
-                    <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
-                      {suggestion.content}
-                    </div>
-
-                    {/* Action Buttons based on type */}
-                    <div className="flex flex-wrap items-center gap-2 mt-3 pt-2 border-t border-purple-100 dark:border-purple-800">
-                      {/* Type-specific actions */}
-                      {suggestion.suggestionType === 'response' && (
-                        <button
-                          onClick={() => applyResponseSuggestion(suggestion.content)}
-                          className="flex items-center gap-1 px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 rounded transition-colors"
-                          title="In Kommentar übernehmen"
-                        >
-                          <ArrowRight size={12} />
-                          In Kommentar
-                        </button>
-                      )}
-                      {suggestion.suggestionType === 'priority' && (
-                        <button
-                          onClick={() => applyPrioritySuggestion(suggestion.content)}
-                          className="flex items-center gap-1 px-2 py-1 text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 dark:text-orange-400 rounded transition-colors"
-                          title="Priorität übernehmen"
-                        >
-                          <ArrowRight size={12} />
-                          Übernehmen
-                        </button>
-                      )}
-                      {suggestion.suggestionType === 'solution' && (
-                        <button
-                          onClick={() => {
-                            setSolutionText(suggestion.content);
-                            setShowSolutionModal(true);
-                          }}
-                          className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors"
-                          title="Als Lösung übernehmen"
-                        >
-                          <ArrowRight size={12} />
-                          Als Lösung
-                        </button>
-                      )}
-
-                      {/* Copy button for all types */}
-                      <button
-                        onClick={() => copySuggestionToClipboard(suggestion.content)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-400 rounded transition-colors"
-                        title="In Zwischenablage kopieren"
-                      >
-                        <Copy size={12} />
-                        Kopieren
-                      </button>
-
-                      <div className="flex-1" />
-
-                      {/* Feedback buttons */}
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(suggestion.createdAt).toLocaleString('de-DE')}
-                      </span>
-                      <button
-                        onClick={() => handleSuggestionFeedback(suggestion.id, true)}
-                        className="p-1 text-gray-400 hover:text-green-500 transition-colors"
-                        title="Hilfreich"
-                      >
-                        <ThumbsUp size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleSuggestionFeedback(suggestion.id, false)}
-                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                        title="Nicht hilfreich"
-                      >
-                        <ThumbsDown size={14} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <TicketAIPanel
+            suggestions={aiSuggestions}
+            loading={loadingAiSuggestion}
+            error={aiError}
+            onGenerateSuggestion={generateAiSuggestion}
+            onFeedback={handleSuggestionFeedback}
+            onApplyResponse={applyResponseSuggestion}
+            onApplyPriority={applyPrioritySuggestion}
+            onApplySolution={(content) => {
+              setSolutionText(content);
+              setShowSolutionModal(true);
+            }}
+            onCopy={copySuggestionToClipboard}
+          />
         )}
 
-        {/* Description */}
-        {isEditing ? (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Beschreibung
-            </label>
-            <MarkdownEditor
-              value={editDescription}
-              onChange={setEditDescription}
-              placeholder="Beschreibung hinzufügen..."
-              rows={4}
-            />
-          </div>
-        ) : ticket.description && (
-          <div>
-            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Beschreibung</h2>
-            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <MarkdownRenderer content={ticket.description} />
-            </div>
-          </div>
-        )}
-
-        {/* Solution (shown when ticket is closed) */}
-        {(ticket.status === 'closed' || ticket.status === 'resolved') && ticket.solution && (
-          <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <Lightbulb className="text-green-600 dark:text-green-400" size={18} />
-              <h3 className="text-sm font-medium text-green-800 dark:text-green-300">
-                Lösung
-                {ticket.resolutionType && (
-                  <span className="ml-2 text-xs font-normal text-green-600 dark:text-green-400">
-                    ({resolutionTypeConfig[ticket.resolutionType]?.label || ticket.resolutionType})
-                  </span>
-                )}
-              </h3>
-            </div>
-            <div className="text-green-900 dark:text-green-100">
-              <MarkdownRenderer content={ticket.solution} />
-            </div>
-          </div>
-        )}
+        {/* Description and Solution */}
+        <TicketDescription
+          ticket={ticket}
+          isEditing={isEditing}
+          editDescription={editDescription}
+          onEditDescriptionChange={setEditDescription}
+        />
 
         {/* Tasks */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-              <CheckSquare size={16} />
-              Aufgaben ({tasks.filter(t => t.completed).length}/{tasks.length})
-            </h2>
-          </div>
-
-          {/* Task List */}
-          {loadingTasks ? (
-            <div className="flex items-center justify-center py-4">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  draggable
-                  onDragStart={() => handleDragStart(task.id)}
-                  onDragOver={(e) => handleDragOver(e, task.id)}
-                  onDragEnd={handleDragEnd}
-                  className={`flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg group cursor-move transition-opacity ${
-                    draggedTaskId === task.id ? 'opacity-50' : ''
-                  }`}
-                >
-                  {/* Drag Handle */}
-                  <GripVertical
-                    size={16}
-                    className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                  />
-
-                  {/* Checkbox */}
-                  <button
-                    onClick={() => handleToggleTask(task)}
-                    className="flex-shrink-0"
-                  >
-                    {task.completed ? (
-                      <CheckSquare size={20} className="text-green-500" />
-                    ) : (
-                      <Square size={20} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
-                    )}
-                  </button>
-
-                  {/* Task Title */}
-                  {editingTaskId === task.id ? (
-                    <div className="flex-1 flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={editingTaskTitle}
-                        onChange={(e) => setEditingTaskTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleSaveEditTask(task.id);
-                          } else if (e.key === 'Escape') {
-                            handleCancelEditTask();
-                          }
-                        }}
-                        autoFocus
-                        className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
-                      />
-                      <button
-                        onClick={() => handleSaveEditTask(task.id)}
-                        className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
-                        title="Speichern"
-                      >
-                        <Check size={16} />
-                      </button>
-                      <button
-                        onClick={handleCancelEditTask}
-                        className="p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                        title="Abbrechen"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <span
-                      className={`flex-1 text-sm cursor-pointer hover:text-accent-primary ${
-                        task.completed
-                          ? 'text-gray-500 dark:text-gray-400 line-through'
-                          : 'text-gray-900 dark:text-white'
-                      }`}
-                      onDoubleClick={() => handleStartEditTask(task)}
-                      title="Doppelklicken zum Bearbeiten"
-                    >
-                      {task.title}
-                    </span>
-                  )}
-
-                  {/* Edit Button - only show when not editing */}
-                  {editingTaskId !== task.id && (
-                    <button
-                      onClick={() => handleStartEditTask(task)}
-                      className="p-1.5 text-gray-400 hover:text-accent-primary hover:bg-accent-primary/10 rounded opacity-0 group-hover:opacity-100 transition-all"
-                      title="Aufgabe bearbeiten"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                  )}
-
-                  {/* Visibility Toggle */}
-                  <button
-                    onClick={() => handleToggleTaskVisibility(task)}
-                    className={`p-1.5 rounded transition-colors ${
-                      task.visibleToCustomer
-                        ? 'text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
-                        : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                    title={task.visibleToCustomer ? 'Für Kunden sichtbar' : 'Nur intern sichtbar'}
-                  >
-                    {task.visibleToCustomer ? <Eye size={16} /> : <EyeOff size={16} />}
-                  </button>
-
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => handleDeleteTask(task.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded opacity-0 group-hover:opacity-100 transition-all"
-                    title="Aufgabe löschen"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
-
-              {/* Add Task Form */}
-              <div className="flex items-center gap-2 p-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-                <Square size={20} className="text-gray-300 dark:text-gray-600 flex-shrink-0" />
-                <input
-                  type="text"
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddTask()}
-                  placeholder="Neue Aufgabe hinzufügen..."
-                  className="flex-1 bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
-                />
-                <button
-                  onClick={() => setNewTaskVisible(!newTaskVisible)}
-                  className={`p-1.5 rounded transition-colors ${
-                    newTaskVisible
-                      ? 'text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
-                      : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                  title={newTaskVisible ? 'Für Kunden sichtbar' : 'Nur intern sichtbar'}
-                >
-                  {newTaskVisible ? <Eye size={16} /> : <EyeOff size={16} />}
-                </button>
-                <button
-                  onClick={handleAddTask}
-                  disabled={!newTaskTitle.trim() || addingTask}
-                  className="px-3 py-1.5 text-sm btn-accent rounded disabled:opacity-50"
-                >
-                  {addingTask ? '...' : 'Hinzufügen'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <TicketTasks
+          ticketId={ticketId}
+          tasks={tasks}
+          loadingTasks={loadingTasks}
+          onAddTask={handleAddTask}
+          onToggleTask={handleToggleTask}
+          onToggleTaskVisibility={handleToggleTaskVisibility}
+          onUpdateTask={handleUpdateTask}
+          onDeleteTask={handleDeleteTask}
+          onReorderTasks={handleReorderTasks}
+        />
 
         {/* Attachments */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Anhänge ({attachments.length})
-            </h2>
-            <label className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-accent-primary bg-accent-primary/10 hover:bg-accent-primary/20 rounded-lg cursor-pointer transition-colors">
-              <Paperclip size={16} />
-              {uploadingFiles ? 'Lädt...' : 'Datei hinzufügen'}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                onChange={handleFileUpload}
-                disabled={uploadingFiles}
-                className="hidden"
-                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip,.rar"
-              />
-            </label>
-          </div>
-
-          {attachments.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              Keine Anhänge vorhanden
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {/* Image attachments with preview */}
-              {attachments.filter(a => a.mimeType?.startsWith('image/')).length > 0 && (
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Bilder</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {attachments.filter(a => a.mimeType?.startsWith('image/')).map((attachment) => (
-                      <div key={attachment.id} className="relative group">
-                        <a
-                          href={getAbsoluteFileUrl(attachment.fileUrl)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700"
-                        >
-                          <img
-                            src={getAbsoluteFileUrl(attachment.fileUrl)}
-                            alt={attachment.filename}
-                            className="w-full h-full object-cover hover:scale-105 transition-transform"
-                          />
-                        </a>
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
-                          <a
-                            href={getAbsoluteFileUrl(attachment.fileUrl)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"
-                            title="Öffnen"
-                          >
-                            <Download size={16} />
-                          </a>
-                          <button
-                            onClick={() => handleDeleteAttachment(attachment.id)}
-                            className="p-2 bg-white/20 hover:bg-red-500/50 rounded-full text-white transition-colors"
-                            title="Löschen"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {attachment.filename}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Other file attachments */}
-              {attachments.filter(a => !a.mimeType?.startsWith('image/')).length > 0 && (
-                <div>
-                  {attachments.filter(a => a.mimeType?.startsWith('image/')).length > 0 && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Dokumente</p>
-                  )}
-                  <div className="space-y-2">
-                    {attachments.filter(a => !a.mimeType?.startsWith('image/')).map((attachment) => {
-                      const FileIcon = getFileIcon(attachment.mimeType);
-                      return (
-                        <div
-                          key={attachment.id}
-                          className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg group"
-                        >
-                          <FileIcon size={20} className="text-gray-400 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {attachment.filename}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatFileSize(attachment.fileSize)} • {attachment.uploadedByName}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <a
-                              href={getAbsoluteFileUrl(attachment.fileUrl)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 text-gray-500 hover:text-accent-primary hover:bg-accent-primary/10 rounded transition-colors"
-                              title="Herunterladen"
-                            >
-                              <Download size={16} />
-                            </a>
-                            <button
-                              onClick={() => handleDeleteAttachment(attachment.id)}
-                              className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
-                              title="Löschen"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <TicketAttachments
+          attachments={attachments}
+          uploadingFiles={uploadingFiles}
+          onUploadFiles={handleUploadFiles}
+          onDeleteAttachment={handleDeleteAttachment}
+        />
 
         {/* Time Entries */}
-        {timeEntries.length > 0 && (
-          <div>
-            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Zeiteinträge ({timeEntries.length})
-            </h2>
-            <div className="space-y-2">
-              {timeEntries.map(entry => (
-                <div
-                  key={entry.id}
-                  className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center justify-between"
-                >
-                  <div>
-                    <div className="text-sm text-gray-900 dark:text-white">
-                      {entry.description || 'Keine Beschreibung'}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatDate(entry.startTime)}
-                    </div>
-                  </div>
-                  <div className="font-mono text-sm text-gray-900 dark:text-white">
-                    {formatDuration(entry.duration || 0)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <TicketTimeEntries timeEntries={timeEntries} />
 
         {/* Comments */}
-        <div>
-          <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Kommentare ({comments.length})
-          </h2>
-          <div className="space-y-3">
-            {comments.map(comment => (
-              <div
-                key={comment.id}
-                className={`p-3 rounded-lg ${
-                  comment.isInternal
-                    ? 'bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800'
-                    : 'bg-gray-50 dark:bg-gray-800'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <User size={14} className="text-gray-400" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    {comment.authorName || 'Unbekannt'}
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatDate(comment.createdAt)}
-                  </span>
-                  {comment.isInternal && (
-                    <span className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">
-                      Intern
-                    </span>
-                  )}
-                </div>
-                <div className="text-gray-900 dark:text-white">
-                  <MarkdownRenderer content={comment.content} />
-                </div>
-              </div>
-            ))}
-
-            {/* Add Comment */}
-            <div className="space-y-2">
-              <MarkdownEditor
-                value={newComment}
-                onChange={setNewComment}
-                placeholder="Kommentar hinzufügen..."
-                rows={3}
-              />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <input
-                      type="checkbox"
-                      checked={isInternal}
-                      onChange={(e) => setIsInternal(e.target.checked)}
-                      className="rounded"
-                    />
-                    Interne Notiz
-                  </label>
-                  {/* Canned Responses Dropdown */}
-                  {cannedResponses.length > 0 && (
-                    <div className="relative" ref={cannedDropdownRef}>
-                      <button
-                        onClick={() => setShowCannedDropdown(!showCannedDropdown)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                        title="Textbaustein einfügen"
-                      >
-                        <MessageSquare size={14} />
-                        Textbausteine
-                        <ChevronDown size={12} />
-                      </button>
-                      {showCannedDropdown && (
-                        <div className="absolute left-0 bottom-full mb-1 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-60 overflow-y-auto">
-                          {cannedResponses.map(response => (
-                            <button
-                              key={response.id}
-                              onClick={() => handleUseCannedResponse(response)}
-                              className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-0"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                  {response.title}
-                                </span>
-                                {response.shortcut && (
-                                  <span className="text-xs text-gray-400 font-mono">
-                                    /{response.shortcut}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
-                                {response.content}
-                              </p>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={handleAddComment}
-                  disabled={!newComment.trim() || submittingComment}
-                  className="flex items-center gap-2 px-4 py-2 btn-accent rounded-lg disabled:opacity-50"
-                >
-                  <Send size={16} />
-                  Senden
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <TicketComments
+          ticket={ticket}
+          comments={comments}
+          customers={customers}
+          cannedResponses={cannedResponses}
+          onAddComment={handleAddComment}
+        />
 
         {/* Meta Info */}
-        <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-          <div>Erstellt: {formatDate(ticket.createdAt)}</div>
-          <div>Aktualisiert: {formatDate(ticket.updatedAt)}</div>
-          {ticket.resolvedAt && <div>Gelöst: {formatDate(ticket.resolvedAt)}</div>}
-          {ticket.closedAt && <div>Geschlossen: {formatDate(ticket.closedAt)}</div>}
-        </div>
+        <TicketMetaInfo ticket={ticket} />
 
         {/* Activity Timeline */}
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
-          <button
-            onClick={toggleActivities}
-            className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <History size={16} className="text-gray-500" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Aktivitätsverlauf
-              </span>
-            </div>
-            <ChevronRight
-              size={16}
-              className={`text-gray-400 transition-transform ${showActivities ? 'rotate-90' : ''}`}
-            />
-          </button>
-          {showActivities && (
-            <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3">
-              {loadingActivities ? (
-                <div className="flex items-center justify-center py-4">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
-                </div>
-              ) : activities.length === 0 ? (
-                <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                  Keine Aktivitäten vorhanden
-                </div>
-              ) : (
-                <div className="relative">
-                  {/* Timeline line */}
-                  <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-gray-700" />
-                  <div className="space-y-3">
-                    {activities.map((activity) => (
-                      <div key={activity.id} className="relative flex items-start gap-3 pl-6">
-                        {/* Timeline dot */}
-                        <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center">
-                          {getActivityIcon(activity.actionType)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-900 dark:text-white">
-                            {getActivityLabel(activity)}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatDate(activity.createdAt)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <TicketTimeline
+          activities={activities}
+          loading={loadingActivities}
+          onLoad={loadActivities}
+        />
 
         {/* Email History */}
         {ticket.source === 'email' && (
-          <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
-            <button
-              onClick={toggleEmails}
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Mail size={16} className="text-blue-500" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  E-Mail-Verlauf
-                </span>
-                {ticketEmails.length > 0 && (
-                  <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 rounded">
-                    {ticketEmails.length}
-                  </span>
-                )}
-              </div>
-              <ChevronRight
-                size={16}
-                className={`text-gray-400 transition-transform ${showEmails ? 'rotate-90' : ''}`}
-              />
-            </button>
-            {showEmails && (
-              <div className="border-t border-gray-200 dark:border-gray-700">
-                {loadingEmails ? (
-                  <div className="flex items-center justify-center py-4">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
-                  </div>
-                ) : ticketEmails.length === 0 ? (
-                  <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                    Keine E-Mails mit diesem Ticket verknüpft
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {ticketEmails.map((email) => (
-                      <div key={email.id} className="px-4 py-3">
-                        <div
-                          className="flex items-start gap-3 cursor-pointer"
-                          onClick={() => setExpandedEmailId(expandedEmailId === email.id ? null : email.id)}
-                        >
-                          <div className={`p-1.5 rounded-full ${
-                            email.direction === 'inbound'
-                              ? 'bg-blue-100 dark:bg-blue-900/30'
-                              : 'bg-green-100 dark:bg-green-900/30'
-                          }`}>
-                            <Mail size={14} className={
-                              email.direction === 'inbound'
-                                ? 'text-blue-600 dark:text-blue-400'
-                                : 'text-green-600 dark:text-green-400'
-                            } />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                {email.direction === 'inbound' ? email.from_name || email.from_email : 'Gesendet'}
-                              </span>
-                              <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                email.direction === 'inbound'
-                                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
-                                  : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
-                              }`}>
-                                {email.direction === 'inbound' ? 'Empfangen' : 'Gesendet'}
-                              </span>
-                              {email.has_attachments && (
-                                <Paperclip size={12} className="text-gray-400" />
-                              )}
-                            </div>
-                            <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                              {email.subject}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-500">
-                              {formatEmailDate(email.received_at)}
-                            </p>
-                          </div>
-                          <ChevronRight
-                            size={14}
-                            className={`text-gray-400 transition-transform flex-shrink-0 ${
-                              expandedEmailId === email.id ? 'rotate-90' : ''
-                            }`}
-                          />
-                        </div>
-                        {expandedEmailId === email.id && (
-                          <div className="mt-3 pl-9">
-                            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 text-sm">
-                              <div className="mb-2 text-xs text-gray-500 dark:text-gray-500">
-                                <span className="font-medium">Von:</span> {email.from_name} &lt;{email.from_email}&gt;
-                              </div>
-                              {email.body_html ? (
-                                <div
-                                  className="prose prose-sm dark:prose-invert max-w-none"
-                                  dangerouslySetInnerHTML={{ __html: email.body_html }}
-                                />
-                              ) : (
-                                <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300">
-                                  {email.body_text}
-                                </pre>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <TicketEmailHistory
+            emails={ticketEmails}
+            loading={loadingEmails}
+            onLoad={loadTicketEmails}
+          />
         )}
       </div>
 
-      {/* Archive Confirmation */}
+      {/* Dialogs */}
       <ConfirmDialog
         isOpen={showArchiveConfirm}
         onClose={() => setShowArchiveConfirm(false)}
         onConfirm={handleArchive}
         title="Ticket archivieren"
-        message={`Möchtest du das Ticket "${ticket.ticketNumber}" archivieren? Du kannst es jederzeit wiederherstellen.`}
+        message={`Moechtest du das Ticket "${ticket.ticketNumber}" archivieren? Du kannst es jederzeit wiederherstellen.`}
         confirmText={archiving ? 'Archivieren...' : 'Archivieren'}
         variant="info"
       />
 
-      {/* Delete Confirmation */}
       <ConfirmDialog
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={handleDelete}
-        title="Ticket löschen"
-        message={`Möchtest du das Ticket "${ticket.ticketNumber}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`}
-        confirmText={deleting ? 'Löschen...' : 'Löschen'}
+        title="Ticket loeschen"
+        message={`Moechtest du das Ticket "${ticket.ticketNumber}" wirklich loeschen? Diese Aktion kann nicht rueckgaengig gemacht werden.`}
+        confirmText={deleting ? 'Loeschen...' : 'Loeschen'}
         variant="danger"
       />
 
-      {/* Merge Dialog */}
       <TicketMergeDialog
         isOpen={showMergeDialog}
         targetTicket={ticket}
@@ -1991,90 +731,23 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
         onMerged={(mergedTicket) => {
           setTicket(mergedTicket);
           setShowMergeDialog(false);
-          loadTicket(); // Reload to get updated comments etc.
+          loadTicket();
         }}
       />
 
-      {/* Solution Modal */}
-      {showSolutionModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                  <Lightbulb className="text-green-600 dark:text-green-400" size={20} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Ticket schließen
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Bitte dokumentiere die Lösung für dieses Ticket
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Lösungstyp *
-                </label>
-                <select
-                  value={resolutionType}
-                  onChange={(e) => setResolutionType(e.target.value as TicketResolutionType)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  {Object.entries(resolutionTypeConfig).map(([key, { label, description }]) => (
-                    <option key={key} value={key}>
-                      {label} - {description}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Lösung / Beschreibung *
-                </label>
-                <textarea
-                  value={solutionText}
-                  onChange={(e) => setSolutionText(e.target.value)}
-                  rows={5}
-                  placeholder="Beschreibe, wie das Problem gelöst wurde oder warum es geschlossen wird..."
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
-                />
-              </div>
-            </div>
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowSolutionModal(false);
-                  setPendingStatusChange(null);
-                }}
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Abbrechen
-              </button>
-              <button
-                onClick={handleSaveSolution}
-                disabled={!solutionText.trim() || savingSolution}
-                className="px-4 py-2 btn-accent rounded-lg disabled:opacity-50 flex items-center gap-2"
-              >
-                {savingSolution ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Speichern...
-                  </>
-                ) : (
-                  <>
-                    <CheckSquare size={16} />
-                    Ticket schließen
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SolutionModal
+        isOpen={showSolutionModal}
+        solutionText={solutionText}
+        resolutionType={resolutionType}
+        saving={savingSolution}
+        onSolutionTextChange={setSolutionText}
+        onResolutionTypeChange={setResolutionType}
+        onSave={handleSaveSolution}
+        onClose={() => {
+          setShowSolutionModal(false);
+          setSolutionText('');
+        }}
+      />
     </div>
   );
 };

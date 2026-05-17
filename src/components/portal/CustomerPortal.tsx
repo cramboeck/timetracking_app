@@ -244,7 +244,7 @@ export const CustomerPortal = () => {
       ) : currentView === 'profile' ? (
         <PortalProfile contact={contact} onBack={handleBack} />
       ) : currentView === 'devices' ? (
-        <PortalDevices contact={contact} />
+        <PortalDevices contact={contact} teamviewerLink={portalSettings?.teamviewerLink || undefined} />
       ) : currentView === 'invoices' ? (
         <PortalInvoices contact={contact} />
       ) : currentView === 'ticket-detail' && selectedTicketId ? (

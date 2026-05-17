@@ -6,6 +6,7 @@ import {
   Webhook, Copy, Key, Eye, EyeOff, Zap, Filter, Plus, Trash2, Edit3,
   ToggleLeft, ToggleRight, Ban
 } from 'lucide-react';
+import { Button, IconButton } from './ui/Button';
 import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert, NinjaAlertExclusion } from '../services/api';
 import { customersApi } from '../services/api';
 import { Customer } from '../types';
@@ -745,43 +746,43 @@ export const NinjaRMMSettings = () => {
               </div>
 
               <div className="flex items-center gap-3 pt-2">
-                <button
+                <Button
                   onClick={handleSaveConfig}
-                  disabled={saving}
-                  className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+                  loading={saving}
+                  icon={<Save size={16} />}
+                  variant="primary"
                 >
-                  <Save size={16} />
                   {saving ? 'Speichern...' : 'Speichern'}
-                </button>
+                </Button>
 
                 {config?.hasClientId && config?.hasClientSecret && !config?.isConnected && (
-                  <button
+                  <Button
                     onClick={handleConnect}
-                    disabled={connecting}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    loading={connecting}
+                    icon={<Link2 size={16} />}
+                    variant="success"
                   >
-                    <Link2 size={16} />
                     {connecting ? 'Verbinden...' : 'Mit NinjaRMM verbinden'}
-                  </button>
+                  </Button>
                 )}
 
                 {config?.isConnected && (
                   <>
-                    <button
+                    <Button
                       onClick={handleTestConnection}
-                      disabled={testing}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      loading={testing}
+                      icon={<RefreshCw size={16} className={testing ? 'animate-spin' : ''} />}
+                      variant="primary"
                     >
-                      <RefreshCw size={16} className={testing ? 'animate-spin' : ''} />
                       Testen
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={handleDisconnect}
-                      className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                      icon={<Unlink size={16} />}
+                      variant="danger"
                     >
-                      <Unlink size={16} />
                       Trennen
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -863,14 +864,15 @@ export const NinjaRMMSettings = () => {
             <div className="text-center py-12 text-gray-500 dark:text-dark-400">
               <Building size={48} className="mx-auto mb-3 opacity-50" />
               <p>Keine Organisationen gefunden. Führe eine Synchronisation durch.</p>
-              <button
+              <Button
                 onClick={handleSync}
-                disabled={syncing}
-                className="mt-4 flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark mx-auto"
+                loading={syncing}
+                icon={<RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />}
+                variant="primary"
+                className="mt-4 mx-auto"
               >
-                <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
                 {syncing ? 'Synchronisiere...' : 'Jetzt synchronisieren'}
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 overflow-hidden">
@@ -925,14 +927,15 @@ export const NinjaRMMSettings = () => {
             <div className="text-center py-12 text-gray-500 dark:text-dark-400">
               <Monitor size={48} className="mx-auto mb-3 opacity-50" />
               <p>Keine Geräte gefunden. Führe eine Synchronisation durch.</p>
-              <button
+              <Button
                 onClick={handleSync}
-                disabled={syncing}
-                className="mt-4 flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark mx-auto"
+                loading={syncing}
+                icon={<RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />}
+                variant="primary"
+                className="mt-4 mx-auto"
               >
-                <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
                 {syncing ? 'Synchronisiere...' : 'Jetzt synchronisieren'}
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 overflow-hidden">
@@ -1058,14 +1061,15 @@ export const NinjaRMMSettings = () => {
             <div className="text-center py-12 text-gray-500 dark:text-dark-400">
               <Bell size={48} className="mx-auto mb-3 opacity-50" />
               <p>Keine Alerts gefunden. Führe eine Synchronisation durch.</p>
-              <button
+              <Button
                 onClick={handleSync}
-                disabled={syncing}
-                className="mt-4 flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark mx-auto"
+                loading={syncing}
+                icon={<RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />}
+                variant="primary"
+                className="mt-4 mx-auto"
               >
-                <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
                 {syncing ? 'Synchronisiere...' : 'Jetzt synchronisieren'}
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 overflow-hidden">
@@ -1220,22 +1224,13 @@ export const NinjaRMMSettings = () => {
                         value={webhookConfig?.webhookUrl || ''}
                         className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-gray-50 dark:bg-dark-50 text-gray-900 dark:text-white font-mono text-sm"
                       />
-                      <button
+                      <Button
                         onClick={copyWebhookUrl}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300 transition-colors"
+                        variant="secondary"
+                        icon={webhookCopied ? <CheckCircle size={16} className="text-green-500" /> : <Copy size={16} />}
                       >
-                        {webhookCopied ? (
-                          <>
-                            <CheckCircle size={16} className="text-green-500" />
-                            Kopiert!
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={16} />
-                            Kopieren
-                          </>
-                        )}
-                      </button>
+                        {webhookCopied ? 'Kopiert!' : 'Kopieren'}
+                      </Button>
                     </div>
                   </div>
 
@@ -1256,14 +1251,15 @@ export const NinjaRMMSettings = () => {
                           <span>Kein Secret - jeder mit der URL kann Webhooks senden</span>
                         </div>
                       )}
-                      <button
+                      <Button
                         onClick={handleGenerateWebhookSecret}
-                        disabled={generatingSecret}
-                        className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors whitespace-nowrap"
+                        loading={generatingSecret}
+                        variant="primary"
+                        icon={<Key size={16} className={generatingSecret ? 'animate-spin' : ''} />}
+                        className="whitespace-nowrap"
                       >
-                        <Key size={16} className={generatingSecret ? 'animate-spin' : ''} />
                         {generatingSecret ? 'Generiere...' : webhookConfig?.hasSecret ? 'Neues Secret' : 'Secret generieren'}
-                      </button>
+                      </Button>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                       Nach dem Generieren wird das Secret automatisch an die URL angehängt. Kopiere dann die neue URL nach NinjaRMM.
@@ -1349,14 +1345,14 @@ export const NinjaRMMSettings = () => {
 
                   {/* Save Button */}
                   <div className="pt-4">
-                    <button
+                    <Button
                       onClick={handleSaveWebhookConfig}
-                      disabled={savingWebhook}
-                      className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+                      loading={savingWebhook}
+                      variant="primary"
+                      icon={<Save size={16} />}
                     >
-                      <Save size={16} />
                       {savingWebhook ? 'Speichern...' : 'Einstellungen speichern'}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -1369,22 +1365,24 @@ export const NinjaRMMSettings = () => {
                     <p className="text-sm text-gray-500 dark:text-dark-400">Letzte eingehende Events</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
+                    <Button
                       onClick={handleBackfillDeviceNames}
-                      disabled={backfillingDeviceNames}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50"
+                      loading={backfillingDeviceNames}
+                      variant="outline"
+                      size="sm"
+                      icon={<Monitor size={14} />}
                       title="Gerätenamen für bestehende Events aus synchronisierten Geräten nachtragen"
                     >
-                      <Monitor size={14} />
                       {backfillingDeviceNames ? 'Aktualisiere...' : 'Gerätenamen nachtragen'}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={loadWebhookData}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+                      variant="secondary"
+                      size="sm"
+                      icon={<RefreshCw size={14} />}
                     >
-                      <RefreshCw size={14} />
                       Aktualisieren
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 {webhookEvents.length === 0 ? (
@@ -1457,25 +1455,24 @@ export const NinjaRMMSettings = () => {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1">
-                                <button
+                                <Button
                                   onClick={() => loadWebhookPayload(event.id)}
                                   disabled={loadingPayload}
-                                  className="px-2 py-1 text-xs bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-dark-300 disabled:opacity-50"
+                                  variant="secondary"
+                                  size="sm"
                                   title="Raw Payload anzeigen"
                                 >
                                   {loadingPayload ? '...' : 'Payload'}
-                                </button>
+                                </Button>
                                 {event.status !== 'ignored' && event.message && (
-                                  <button
+                                  <IconButton
                                     onClick={() => handleCreateExclusionFromEvent(event.id, 'message')}
                                     disabled={creatingExclusionFromEvent === event.id}
-                                    className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded hover:bg-orange-200 dark:hover:bg-orange-900/50 disabled:opacity-50"
-                                    title="Ähnliche Alerts künftig ignorieren"
-                                  >
-                                    {creatingExclusionFromEvent === event.id ? '...' : (
-                                      <Ban size={12} />
-                                    )}
-                                  </button>
+                                    icon={creatingExclusionFromEvent === event.id ? <span>...</span> : <Ban size={12} />}
+                                    variant="warning"
+                                    size="sm"
+                                    tooltip="Ähnliche Alerts künftig ignorieren"
+                                  />
                                 )}
                               </div>
                             </td>
@@ -1498,20 +1495,20 @@ export const NinjaRMMSettings = () => {
                     <p className="text-sm text-gray-500 dark:text-dark-400">Regeln zum Ignorieren bestimmter Alerts</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
+                    <IconButton
                       onClick={loadExclusions}
                       disabled={loadingExclusions}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
-                    >
-                      <RefreshCw size={14} className={loadingExclusions ? 'animate-spin' : ''} />
-                    </button>
-                    <button
+                      icon={<RefreshCw size={14} className={loadingExclusions ? 'animate-spin' : ''} />}
+                      tooltip="Ausnahmen neu laden"
+                    />
+                    <Button
                       onClick={() => setShowExclusionForm(true)}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-dark"
+                      variant="primary"
+                      size="sm"
+                      icon={<Plus size={14} />}
                     >
-                      <Plus size={14} />
                       Neue Ausnahme
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
@@ -1591,20 +1588,22 @@ export const NinjaRMMSettings = () => {
                         Aktiv
                       </label>
                       <div className="flex items-center gap-2">
-                        <button
+                        <Button
                           onClick={resetExclusionForm}
-                          className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
+                          variant="secondary"
+                          size="sm"
                         >
                           Abbrechen
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={handleSaveExclusion}
-                          disabled={savingExclusion}
-                          className="flex items-center gap-2 px-4 py-2 text-sm bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+                          loading={savingExclusion}
+                          variant="primary"
+                          size="sm"
+                          icon={<Save size={14} />}
                         >
-                          <Save size={14} />
                           {savingExclusion ? 'Speichern...' : editingExclusion ? 'Aktualisieren' : 'Erstellen'}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -1654,27 +1653,22 @@ export const NinjaRMMSettings = () => {
                           )}
                         </div>
                         <div className="flex items-center gap-2 ml-4">
-                          <button
+                          <IconButton
                             onClick={() => handleToggleExclusion(exclusion)}
-                            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-dark-300"
-                            title={exclusion.isActive ? 'Deaktivieren' : 'Aktivieren'}
-                          >
-                            {exclusion.isActive ? <ToggleRight size={20} className="text-green-500" /> : <ToggleLeft size={20} />}
-                          </button>
-                          <button
+                            icon={exclusion.isActive ? <ToggleRight size={20} className="text-green-500" /> : <ToggleLeft size={20} />}
+                            tooltip={exclusion.isActive ? 'Deaktivieren' : 'Aktivieren'}
+                          />
+                          <IconButton
                             onClick={() => handleEditExclusion(exclusion)}
-                            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-dark-300"
-                            title="Bearbeiten"
-                          >
-                            <Edit3 size={16} />
-                          </button>
-                          <button
+                            icon={<Edit3 size={16} />}
+                            tooltip="Bearbeiten"
+                          />
+                          <IconButton
                             onClick={() => handleDeleteExclusion(exclusion.id)}
-                            className="p-2 text-gray-400 hover:text-red-500"
-                            title="Löschen"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                            icon={<Trash2 size={16} />}
+                            variant="danger"
+                            tooltip="Löschen"
+                          />
                         </div>
                       </div>
                     ))}
@@ -1717,14 +1711,14 @@ export const NinjaRMMSettings = () => {
               <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-medium text-gray-900 dark:text-white">Sync Status</h3>
-                  <button
+                  <Button
                     onClick={handleSync}
-                    disabled={syncing}
-                    className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+                    loading={syncing}
+                    variant="primary"
+                    icon={<RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />}
                   >
-                    <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
                     {syncing ? 'Synchronisiere...' : 'Jetzt synchronisieren'}
-                  </button>
+                  </Button>
                 </div>
 
                 {syncStatus && (
@@ -1782,12 +1776,11 @@ export const NinjaRMMSettings = () => {
                   </p>
                 </div>
               </div>
-              <button
+              <IconButton
                 onClick={() => setSelectedDevice(null)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-gray-500" />
-              </button>
+                icon={<X size={20} />}
+                tooltip="Schließen"
+              />
             </div>
 
             {/* Modal Content */}
@@ -1919,14 +1912,14 @@ export const NinjaRMMSettings = () => {
             {/* Modal Footer */}
             <div className="flex justify-between gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
               <div className="flex gap-2">
-                <button
+                <Button
                   onClick={() => handleRefreshDeviceDetails(selectedDevice.id)}
-                  disabled={refreshingDevice}
-                  className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50 transition-colors"
+                  loading={refreshingDevice}
+                  variant="primary"
+                  icon={<RefreshCw size={16} className={refreshingDevice ? 'animate-spin' : ''} />}
                 >
-                  <RefreshCw size={16} className={refreshingDevice ? 'animate-spin' : ''} />
                   {refreshingDevice ? 'Lade...' : 'Details laden'}
-                </button>
+                </Button>
                 <a
                   href={`${config?.instanceUrl || 'https://eu.ninjarmm.com'}/#/deviceDashboard/${selectedDevice.ninjaId}/overview`}
                   target="_blank"
@@ -1937,12 +1930,12 @@ export const NinjaRMMSettings = () => {
                   In NinjaRMM öffnen
                 </a>
               </div>
-              <button
+              <Button
                 onClick={() => setSelectedDevice(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                variant="secondary"
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1984,12 +1977,11 @@ export const NinjaRMMSettings = () => {
                   </p>
                 </div>
               </div>
-              <button
+              <IconButton
                 onClick={() => setSelectedAlert(null)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-gray-500" />
-              </button>
+                icon={<X size={20} />}
+                tooltip="Schließen"
+              />
             </div>
 
             {/* Modal Content */}
@@ -2088,32 +2080,32 @@ export const NinjaRMMSettings = () => {
             <div className="flex justify-between gap-3 p-4 border-t border-gray-200 dark:border-dark-200">
               <div className="flex gap-2">
                 {!selectedAlert.ticketId && (
-                  <button
+                  <Button
                     onClick={() => handleCreateTicketFromAlert(selectedAlert.id)}
-                    disabled={creatingTicket}
-                    className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
+                    loading={creatingTicket}
+                    variant="primary"
+                    icon={<Ticket size={16} />}
                   >
-                    <Ticket size={16} />
                     {creatingTicket ? 'Erstelle...' : 'Ticket erstellen'}
-                  </button>
+                  </Button>
                 )}
                 {!selectedAlert.resolved && (
-                  <button
+                  <Button
                     onClick={() => handleResolveAlert(selectedAlert.id)}
-                    disabled={resolvingAlert}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    loading={resolvingAlert}
+                    variant="success"
+                    icon={<CheckCircle size={16} />}
                   >
-                    <CheckCircle size={16} />
                     {resolvingAlert ? 'Markiere...' : 'Als gelöst markieren'}
-                  </button>
+                  </Button>
                 )}
               </div>
-              <button
+              <Button
                 onClick={() => setSelectedAlert(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                variant="secondary"
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -2132,12 +2124,11 @@ export const NinjaRMMSettings = () => {
                   Event: {selectedPayload.eventType} - {new Date(selectedPayload.createdAt).toLocaleString('de-DE')}
                 </p>
               </div>
-              <button
+              <IconButton
                 onClick={() => setSelectedPayload(null)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg text-gray-500"
-              >
-                <X size={20} />
-              </button>
+                icon={<X size={20} />}
+                tooltip="Schließen"
+              />
             </div>
             <div className="p-4 overflow-y-auto max-h-[60vh]">
               <pre className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
@@ -2145,12 +2136,12 @@ export const NinjaRMMSettings = () => {
               </pre>
             </div>
             <div className="p-4 border-t border-gray-200 dark:border-dark-200 flex justify-end">
-              <button
+              <Button
                 onClick={() => setSelectedPayload(null)}
-                className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+                variant="secondary"
               >
                 Schließen
-              </button>
+              </Button>
             </div>
           </div>
         </div>

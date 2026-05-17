@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, User, Lock, Eye, EyeOff, Check, Smartphone, Shield, Copy, Trash2, Monitor, AlertCircle, X, Key, Bell, BellRing, Send } from 'lucide-react';
 import { customerPortalApi, PortalContact, TrustedDevice } from '../../services/api';
+import { Button, IconButton } from '../ui/Button';
 
 interface PortalProfileProps {
   contact: PortalContact;
@@ -420,12 +421,12 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
         <div className="flex items-center gap-4">
-          <button
+          <IconButton
+            icon={<ArrowLeft size={24} />}
             onClick={onBack}
-            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </button>
+            tooltip="Zurück"
+          />
+
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
               Profil & Einstellungen
@@ -519,13 +520,12 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pr-12"
                 placeholder="Ihr aktuelles Passwort"
               />
-              <button
-                type="button"
+              <IconButton
+                icon={showCurrentPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                {showCurrentPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
+                tooltip={showCurrentPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+              />
             </div>
           </div>
 
@@ -543,13 +543,12 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pr-12"
                 placeholder="Mindestens 8 Zeichen"
               />
-              <button
-                type="button"
+              <IconButton
+                icon={showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 onClick={() => setShowNewPassword(!showNewPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
+                tooltip={showNewPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+              />
             </div>
           </div>
 
@@ -567,13 +566,16 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
             />
           </div>
 
-          <button
+          <Button
             type="submit"
-            disabled={loading || !currentPassword || !newPassword || !confirmPassword}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl font-medium transition-colors"
+            variant="primary"
+            fullWidth
+            loading={loading}
+            disabled={!currentPassword || !newPassword || !confirmPassword}
+            className="py-3 rounded-xl"
           >
             {loading ? 'Wird geändert...' : 'Passwort ändern'}
-          </button>
+          </Button>
         </form>
       </div>
 
@@ -635,12 +637,13 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                       Vertrauenswürdige Geräte ({trustedDevices.length})
                     </span>
                   </div>
-                  <button
+                  <Button
                     onClick={() => setShowTrustedDevices(!showTrustedDevices)}
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                    variant="ghost"
+                    size="sm"
                   >
                     {showTrustedDevices ? 'Ausblenden' : 'Anzeigen'}
-                  </button>
+                  </Button>
                 </div>
                 {showTrustedDevices && (
                   <div className="space-y-2">
@@ -654,32 +657,37 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                             Zuletzt: {new Date(device.lastUsedAt).toLocaleDateString('de-DE')}
                           </p>
                         </div>
-                        <button
+                        <IconButton
+                          icon={<Trash2 size={16} />}
                           onClick={() => handleRemoveTrustedDevice(device.id)}
-                          className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                          variant="danger"
+                          tooltip="Gerät entfernen"
+                        />
                       </div>
                     ))}
-                    <button
+                    <Button
                       onClick={handleRemoveAllTrustedDevices}
-                      className="w-full mt-2 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                      variant="danger"
+                      fullWidth
+                      size="sm"
+                      className="mt-2"
                     >
                       Alle Geräte entfernen
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
             )}
 
             {/* Disable MFA */}
-            <button
+            <Button
               onClick={() => setShowDisableMfa(true)}
-              className="w-full py-3 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              variant="outline"
+              fullWidth
+              className="py-3 rounded-xl border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
               2FA deaktivieren
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -693,23 +701,16 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 <span>{mfaSetupError}</span>
               </div>
             )}
-            <button
+            <Button
               onClick={handleStartMfaSetup}
-              disabled={mfaSetupLoading}
-              className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+              variant="success"
+              fullWidth
+              loading={mfaSetupLoading}
+              icon={<Shield size={20} />}
+              className="py-3 rounded-xl"
             >
-              {mfaSetupLoading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Wird vorbereitet...
-                </>
-              ) : (
-                <>
-                  <Shield size={20} />
-                  2FA aktivieren
-                </>
-              )}
-            </button>
+              {mfaSetupLoading ? 'Wird vorbereitet...' : '2FA aktivieren'}
+            </Button>
           </div>
         )}
       </div>
@@ -790,13 +791,15 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
               />
             </label>
 
-            <button
+            <Button
               onClick={handleSaveNotificationPreferences}
-              disabled={notifySaving}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl font-medium transition-colors"
+              variant="primary"
+              fullWidth
+              loading={notifySaving}
+              className="py-3 rounded-xl"
             >
               {notifySaving ? 'Wird gespeichert...' : 'Einstellungen speichern'}
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -857,31 +860,36 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
             <div className="flex gap-3">
               {pushSubscribed ? (
                 <>
-                  <button
+                  <Button
                     onClick={handlePushUnsubscribe}
-                    disabled={pushLoading}
-                    className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors"
+                    variant="secondary"
+                    loading={pushLoading}
+                    className="flex-1 py-3 rounded-xl"
                   >
                     Deaktivieren
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={handleSendPushTest}
-                    disabled={pushTestSending}
-                    className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                    variant="primary"
+                    loading={pushTestSending}
+                    icon={<Send size={16} />}
+                    className="px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-700"
                   >
-                    <Send size={16} />
                     {pushTestSending ? 'Sende...' : 'Test'}
-                  </button>
+                  </Button>
                 </>
               ) : (
-                <button
+                <Button
                   onClick={handlePushSubscribe}
-                  disabled={pushLoading || pushPermission === 'denied'}
-                  className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                  variant="primary"
+                  fullWidth
+                  disabled={pushPermission === 'denied'}
+                  loading={pushLoading}
+                  icon={<BellRing size={18} />}
+                  className="py-3 rounded-xl bg-purple-600 hover:bg-purple-700"
                 >
-                  <BellRing size={18} />
                   Push-Benachrichtigungen aktivieren
-                </button>
+                </Button>
               )}
             </div>
 
@@ -935,13 +943,12 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                           </p>
                         </div>
                       </div>
-                      <button
+                      <IconButton
+                        icon={<Trash2 size={16} />}
                         onClick={() => handleDeletePushSubscription(sub.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        title="Entfernen"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                        variant="danger"
+                        tooltip="Entfernen"
+                      />
                     </div>
                   ))}
                 </div>
@@ -959,16 +966,15 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                 2FA einrichten
               </h3>
-              <button
+              <IconButton
+                icon={<X size={20} />}
                 onClick={() => {
                   setShowMfaSetup(false);
                   setMfaSetupCode(['', '', '', '', '', '']);
                   setMfaSetupError(null);
                 }}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-              >
-                <X size={20} />
-              </button>
+                tooltip="Schließen"
+              />
             </div>
             <div className="p-6 space-y-6">
               {/* QR Code */}
@@ -990,12 +996,11 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                   <code className="flex-1 text-sm font-mono bg-white dark:bg-gray-800 px-3 py-2 rounded border border-gray-200 dark:border-gray-600 break-all">
                     {mfaSetupData.manualEntryKey}
                   </code>
-                  <button
+                  <IconButton
+                    icon={<Copy size={18} />}
                     onClick={() => copyToClipboard(mfaSetupData.manualEntryKey)}
-                    className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                  >
-                    <Copy size={18} />
-                  </button>
+                    tooltip="Kopieren"
+                  />
                 </div>
               </div>
 
@@ -1026,13 +1031,16 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                     />
                   ))}
                 </div>
-                <button
+                <Button
                   onClick={handleVerifyMfaSetup}
-                  disabled={mfaSetupLoading || mfaSetupCode.join('').length !== 6}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl font-medium"
+                  variant="primary"
+                  fullWidth
+                  loading={mfaSetupLoading}
+                  disabled={mfaSetupCode.join('').length !== 6}
+                  className="py-3 rounded-xl"
                 >
                   {mfaSetupLoading ? 'Wird überprüft...' : 'Bestätigen'}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -1064,22 +1072,26 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                   </div>
                 ))}
               </div>
-              <button
+              <Button
                 onClick={() => copyToClipboard(mfaSetupData.recoveryCodes.join('\n'))}
-                className="w-full py-2 border border-gray-300 dark:border-gray-600 rounded-xl flex items-center justify-center gap-2 mb-4 hover:bg-gray-50 dark:hover:bg-gray-700"
+                variant="outline"
+                fullWidth
+                icon={<Copy size={18} />}
+                className="py-2 rounded-xl mb-4"
               >
-                <Copy size={18} />
                 Alle kopieren
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setShowRecoveryCodes(false);
                   setMfaSetupData(null);
                 }}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium"
+                variant="primary"
+                fullWidth
+                className="py-3 rounded-xl"
               >
                 Fertig
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1093,17 +1105,16 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                 2FA deaktivieren
               </h3>
-              <button
+              <IconButton
+                icon={<X size={20} />}
                 onClick={() => {
                   setShowDisableMfa(false);
                   setDisablePassword('');
                   setDisableCode('');
                   setDisableError(null);
                 }}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-              >
-                <X size={20} />
-              </button>
+                tooltip="Schließen"
+              />
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
@@ -1146,13 +1157,16 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                 />
               </div>
 
-              <button
+              <Button
                 onClick={handleDisableMfa}
-                disabled={disableLoading || !disablePassword || disableCode.length !== 6}
-                className="w-full py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-xl font-medium"
+                variant="danger"
+                fullWidth
+                loading={disableLoading}
+                disabled={!disablePassword || disableCode.length !== 6}
+                className="py-3 rounded-xl"
               >
                 {disableLoading ? 'Wird deaktiviert...' : '2FA deaktivieren'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

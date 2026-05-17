@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Sparkles,
-  Loader2,
   FileText,
   Clock,
   Euro,
@@ -11,6 +10,7 @@ import {
   Check,
   AlertCircle,
 } from 'lucide-react';
+import { Button, IconButton } from './ui';
 import { sevdeskApi, BillingSummaryItem } from '../services/api';
 
 interface InvoicePosition {
@@ -303,12 +303,11 @@ export const InvoiceCreationDialog = ({
               {customer.customerName} • {periodStart.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
             </p>
           </div>
-          <button
+          <IconButton
+            icon={<X size={20} />}
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <X size={20} />
-          </button>
+            size="lg"
+          />
         </div>
 
         {/* Content */}
@@ -333,28 +332,15 @@ export const InvoiceCreationDialog = ({
                 </p>
               </div>
             </div>
-            <button
+            <Button
               onClick={handleGenerateAI}
               disabled={isGeneratingAI}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+              loading={isGeneratingAI}
+              variant="primary"
+              icon={aiGenerated ? <Check size={16} /> : <Sparkles size={16} />}
             >
-              {isGeneratingAI ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Generiere...
-                </>
-              ) : aiGenerated ? (
-                <>
-                  <Check size={16} />
-                  Neu generieren
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} />
-                  Texte generieren
-                </>
-              )}
-            </button>
+              {isGeneratingAI ? 'Generiere...' : aiGenerated ? 'Neu generieren' : 'Texte generieren'}
+            </Button>
           </div>
 
           {/* Invoice Header */}
@@ -505,29 +491,21 @@ export const InvoiceCreationDialog = ({
             </div>
 
             <div className="flex items-center gap-3">
-              <button
+              <Button
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                variant="secondary"
               >
                 Abbrechen
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleCreateInvoice}
                 disabled={isCreating || positions.length === 0}
-                className="flex items-center gap-2 px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                loading={isCreating}
+                variant="warning"
+                icon={<FileText size={18} />}
               >
-                {isCreating ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Erstelle...
-                  </>
-                ) : (
-                  <>
-                    <FileText size={18} />
-                    Rechnung erstellen
-                  </>
-                )}
-              </button>
+                {isCreating ? 'Erstelle...' : 'Rechnung erstellen'}
+              </Button>
             </div>
           </div>
         </div>

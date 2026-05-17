@@ -114,7 +114,19 @@ export type AuditAction =
   | 'security.sessions_invalidated'
   // Admin notification actions
   | 'notification.create'
-  | 'notification.delete';
+  | 'notification.delete'
+  // Email actions
+  | 'email.test'
+  // Customer domain mapping actions
+  | 'customer_domain.add'
+  | 'customer_domain.remove'
+  // Migration actions
+  | 'customers.migrate_contacts'
+  // Health score actions
+  | 'health_score.manual_trigger'
+  | 'health_score.job_completed'
+  | 'health_score.job_error'
+  | 'health_score.warning_acknowledged';
 
 export interface AuditLogEntry {
   id: string;

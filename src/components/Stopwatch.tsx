@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Pause, Square, Plus, Sparkles, Loader2, Check } from 'lucide-react';
+import { Play, Pause, Square, Plus, Sparkles, Check } from 'lucide-react';
 import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { aiApi } from '../services/api';
 import { SearchableSelect } from './SearchableSelect';
+import { Button } from './ui';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => Promise<boolean> | void;
@@ -336,14 +337,12 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
         <div className="flex items-center justify-between">
           <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Zeiterfassung</h1>
           {onOpenManualEntry && (
-            <button
+            <Button
               onClick={onOpenManualEntry}
-              className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-darker text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
-              title="Manuelle Erfassung"
+              icon={<Plus size={20} />}
             >
-              <Plus size={20} />
               <span className="hidden sm:inline">Manuell</span>
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -446,24 +445,21 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                   )}
                 </label>
                 {aiConfigured && (projectId || activityId) && (
-                  <button
+                  <Button
                     type="button"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       generateAiDescription();
                     }}
-                    disabled={generatingDescription}
-                    className="flex items-center gap-1 text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400 rounded transition-colors disabled:opacity-50"
-                    title="KI-Vorschlag generieren"
+                    loading={generatingDescription}
+                    size="sm"
+                    variant="ghost"
+                    icon={!generatingDescription ? <Sparkles size={12} /> : undefined}
+                    className="text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50"
                   >
-                    {generatingDescription ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Sparkles size={12} />
-                    )}
                     KI-Vorschlag
-                  </button>
+                  </Button>
                 )}
               </div>
               <textarea
@@ -517,80 +513,66 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
             )}
 
             {!isRunning && elapsedSeconds === 0 && !isStopping && (
-              <button
+              <Button
                 onClick={handleStart}
-                className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                variant="primary"
+                size="lg"
+                icon={<Play size={20} className="sm:w-6 sm:h-6" />}
                 disabled={!projectId}
+                className="rounded-full px-6 sm:px-8 py-3 sm:py-4 shadow-lg hover:shadow-xl active:scale-95 touch-manipulation"
               >
-                <Play size={20} className="sm:w-6 sm:h-6" />
                 Start
-              </button>
+              </Button>
             )}
 
             {(isRunning || isStopping) && (
               <>
-                <button
+                <Button
                   onClick={handlePause}
                   disabled={isStopping}
-                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-yellow-500 text-white rounded-full font-semibold hover:bg-yellow-600 active:bg-yellow-700 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="warning"
+                  size="lg"
+                  icon={<Pause size={20} className="sm:w-6 sm:h-6" />}
+                  className="rounded-full px-6 sm:px-8 py-3 sm:py-4 shadow-lg hover:shadow-xl touch-manipulation"
                 >
-                  <Pause size={20} className="sm:w-6 sm:h-6" />
                   Pause
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleStop}
                   disabled={isStopping}
-                  className={`flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-white rounded-full font-semibold touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:cursor-not-allowed ${
-                    isStopping
-                      ? 'bg-red-400 cursor-wait'
-                      : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
-                  }`}
+                  variant="danger"
+                  size="lg"
+                  loading={isStopping}
+                  icon={!isStopping ? <Square size={20} className="sm:w-6 sm:h-6" /> : undefined}
+                  className="rounded-full px-6 sm:px-8 py-3 sm:py-4 shadow-lg hover:shadow-xl touch-manipulation"
                 >
-                  {isStopping ? (
-                    <>
-                      <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
-                      Speichere...
-                    </>
-                  ) : (
-                    <>
-                      <Square size={20} className="sm:w-6 sm:h-6" />
-                      Stop
-                    </>
-                  )}
-                </button>
+                  {isStopping ? 'Speichere...' : 'Stop'}
+                </Button>
               </>
             )}
 
             {!isRunning && elapsedSeconds > 0 && !isStopping && (
               <>
-                <button
+                <Button
                   onClick={handleResume}
-                  className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-accent-primary text-white rounded-full font-semibold bg-accent-primary-hover active:scale-95 touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
+                  variant="primary"
+                  size="lg"
+                  icon={<Play size={20} className="sm:w-6 sm:h-6" />}
+                  className="rounded-full px-6 sm:px-8 py-3 sm:py-4 shadow-lg hover:shadow-xl active:scale-95 touch-manipulation"
                 >
-                  <Play size={20} className="sm:w-6 sm:h-6" />
                   Weiter
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleStop}
                   disabled={isStopping}
-                  className={`flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-white rounded-full font-semibold touch-manipulation transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:cursor-not-allowed ${
-                    isStopping
-                      ? 'bg-red-400 cursor-wait'
-                      : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
-                  }`}
+                  variant="danger"
+                  size="lg"
+                  loading={isStopping}
+                  icon={!isStopping ? <Square size={20} className="sm:w-6 sm:h-6" /> : undefined}
+                  className="rounded-full px-6 sm:px-8 py-3 sm:py-4 shadow-lg hover:shadow-xl touch-manipulation"
                 >
-                  {isStopping ? (
-                    <>
-                      <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
-                      Speichere...
-                    </>
-                  ) : (
-                    <>
-                      <Square size={20} className="sm:w-6 sm:h-6" />
-                      Stop
-                    </>
-                  )}
-                </button>
+                  {isStopping ? 'Speichere...' : 'Stop'}
+                </Button>
               </>
             )}
           </div>
