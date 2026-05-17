@@ -51,7 +51,7 @@ const severityColors: Record<string, { bg: string; text: string; icon: string }>
   CRITICAL: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', icon: 'text-red-600' },
   MAJOR: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400', icon: 'text-orange-600' },
   MODERATE: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-400', icon: 'text-yellow-600' },
-  MINOR: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', icon: 'text-blue-600' },
+  MINOR: { bg: 'bg-accent-lighter dark:bg-blue-900/30', text: 'text-accent-dark dark:text-blue-400', icon: 'text-accent-primary' },
   NONE: { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-700 dark:text-gray-400', icon: 'text-gray-600' },
 };
 
@@ -333,7 +333,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
       </div>
     );
   }
@@ -364,7 +364,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
               href={teamviewerLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-3 py-2 bg-accent-primary hover:bg-accent-primary text-white rounded-lg text-sm font-medium transition-colors"
             >
               <Headphones size={16} />
               <span className="hidden sm:inline">Remote-Support</span>
@@ -392,7 +392,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
               placeholder="Gerät, Benutzer suchen..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent text-sm"
             />
           </div>
 
@@ -401,11 +401,11 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
             onClick={() => setShowFilters(!showFilters)}
             variant={showFilters || activeFiltersCount > 0 ? 'primary' : 'ghost'}
             icon={<Filter size={16} />}
-            className={activeFiltersCount > 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : ''}
+            className={activeFiltersCount > 0 ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400' : ''}
           >
             Filter
             {activeFiltersCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full">
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-accent-primary text-white rounded-full">
                 {activeFiltersCount}
               </span>
             )}
@@ -471,7 +471,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                   type="checkbox"
                   checked={showOffline}
                   onChange={(e) => setShowOffline(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                  className="rounded border-gray-300 text-accent-primary focus:ring-accent-primary w-3.5 h-3.5"
                 />
                 <span className="text-xs text-gray-600 dark:text-gray-300">Offline zeigen</span>
               </label>
@@ -480,7 +480,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
               {activeFiltersCount > 0 && (
                 <button
                   onClick={resetFilters}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-xs text-accent-primary dark:text-blue-400 hover:underline"
                 >
                   Filter zurücksetzen
                 </button>
@@ -522,7 +522,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                 onClick={() => openDevice(device)}
                 className={`w-full text-left p-4 rounded-xl border-2 transition-all hover:shadow-md ${
                   isSelected
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    ? 'border-accent-primary bg-accent-light dark:bg-blue-900/20'
                     : device.offline
                     ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 opacity-60'
                     : 'border-green-200 dark:border-green-800 bg-white dark:bg-gray-800 hover:border-green-300'
@@ -639,7 +639,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                   onClick={() => handleTabChange(tab.id)}
                   className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                     activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      ? 'border-accent-primary text-accent-primary dark:text-blue-400'
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
                 >
@@ -756,7 +756,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
 
                   {loadingSoftware === selectedDevice.id ? (
                     <div className="flex items-center justify-center py-12">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
                     </div>
                   ) : filteredSoftware.length === 0 ? (
                     <div className="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -833,7 +833,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
 
                   {loadingPatches === selectedDevice.id ? (
                     <div className="flex items-center justify-center py-12">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
                     </div>
                   ) : filteredPatches.length === 0 ? (
                     <div className="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -848,7 +848,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                             <div className="min-w-0">
                               <p className="font-medium text-sm text-gray-900 dark:text-white">{patch.name}</p>
                               {patch.kbNumber && (
-                                <p className="text-xs font-mono text-blue-600 dark:text-blue-400 mt-0.5">{patch.kbNumber}</p>
+                                <p className="text-xs font-mono text-accent-primary dark:text-blue-400 mt-0.5">{patch.kbNumber}</p>
                               )}
                             </div>
                             {patch.severity && (
@@ -875,7 +875,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                 <div className="space-y-3">
                   {loadingAlerts === selectedDevice.id ? (
                     <div className="flex items-center justify-center py-12">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
                     </div>
                   ) : (deviceAlerts[selectedDevice.id] || []).length === 0 ? (
                     <div className="text-center py-8">

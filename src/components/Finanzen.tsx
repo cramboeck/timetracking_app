@@ -31,6 +31,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
+import { toLocalDateString } from '../utils/time';
 import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, DocumentSearchResult } from '../services/api';
 import { QuoteEditor } from './QuoteEditor';
 import { SevdeskSettings } from './SevdeskSettings';
@@ -214,14 +215,7 @@ const BillingTab = () => {
     loadData();
   }, [selectedMonth, billingPeriodType, selectedQuarter, selectedYear, customStartDate, customEndDate]);
 
-  // Helper to format date as YYYY-MM-DD in local timezone (not UTC)
-  // Using toISOString() would convert to UTC first, causing off-by-one errors in CET/CEST
-  const formatDateLocal = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  const formatDateLocal = toLocalDateString;
 
   // Calculate period dates based on billing type
   const getPeriodDates = () => {
@@ -1243,7 +1237,7 @@ const DocumentsTab = () => {
     } else {
       switch (status) {
         case 100: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
-        case 200: return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+        case 200: return 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400';
         case 300: return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
         case 400: return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
         default: return 'bg-gray-100 text-gray-700';
@@ -1348,7 +1342,7 @@ const DocumentsTab = () => {
             ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
             : syncMessage.startsWith('✗')
             ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-            : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+            : 'bg-accent-light dark:bg-blue-900/20 text-accent-dark dark:text-blue-400'
         }`}>
           {syncMessage.startsWith('✓') && <CheckCircle size={16} />}
           {syncMessage.startsWith('✗') && <AlertTriangle size={16} />}
@@ -1692,7 +1686,7 @@ const DocumentsTab = () => {
                         {voucher.statusName}
                       </span>
                       {voucher.creditDebit === 'C' && (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400">
                           Gutschrift
                         </span>
                       )}

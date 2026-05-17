@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Save, Clock, ArrowRight, Zap } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
-import { calculateDuration } from '../utils/time';
+import { calculateDuration, toLocalDateString } from '../utils/time';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { ModernDatePicker } from './ModernDatePicker';
@@ -36,7 +36,7 @@ export const ManualEntryModern = ({
 }: ManualEntryModernProps) => {
   const { currentUser } = useAuth();
   const { toast, showToast, hideToast } = useToast();
-  const today = new Date().toISOString().split('T')[0];
+  const today = toLocalDateString(new Date());
 
   // Smart defaults
   const now = new Date();
@@ -181,7 +181,7 @@ export const ManualEntryModern = ({
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-        <Clock size={28} className="text-blue-600 dark:text-blue-400" />
+        <Clock size={28} className="text-accent-primary dark:text-blue-400" />
         Zeit erfassen
       </h1>
 
@@ -303,7 +303,7 @@ export const ManualEntryModern = ({
             <select
               value={activityId}
               onChange={(e) => setActivityId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 transition-all"
             >
               <option value="">Keine Tätigkeit</option>
               {activities.map(activity => (
@@ -323,7 +323,7 @@ export const ManualEntryModern = ({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Was wurde gemacht?"
               rows={3}
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 resize-none transition-all"
+              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 resize-none transition-all"
             />
           </div>
         </div>

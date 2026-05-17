@@ -106,7 +106,7 @@ export default function MaintenanceApproval() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          <RefreshCw className="w-10 h-10 animate-spin text-blue-600 mx-auto" />
+          <RefreshCw className="w-10 h-10 animate-spin text-accent-primary mx-auto" />
           <p className="text-gray-600 mt-4">Wird geladen...</p>
         </div>
       </div>
@@ -229,8 +229,8 @@ export default function MaintenanceApproval() {
 
           {/* Time Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-blue-50 rounded-xl">
-              <div className="flex items-center gap-2 text-blue-600 text-sm mb-1">
+            <div className="p-4 bg-accent-light rounded-xl">
+              <div className="flex items-center gap-2 text-accent-primary text-sm mb-1">
                 <Calendar className="w-4 h-4" />
                 Geplanter Beginn
               </div>
@@ -239,8 +239,8 @@ export default function MaintenanceApproval() {
               </p>
             </div>
             {details.scheduledEnd && (
-              <div className="p-4 bg-blue-50 rounded-xl">
-                <div className="flex items-center gap-2 text-blue-600 text-sm mb-1">
+              <div className="p-4 bg-accent-light rounded-xl">
+                <div className="flex items-center gap-2 text-accent-primary text-sm mb-1">
                   <Clock className="w-4 h-4" />
                   Geplantes Ende
                 </div>
@@ -292,7 +292,7 @@ export default function MaintenanceApproval() {
                   value={approverName}
                   onChange={(e) => setApproverName(e.target.value)}
                   placeholder="Vor- und Nachname"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                 />
               </div>
 
@@ -366,7 +366,7 @@ export default function MaintenanceApproval() {
           )}
 
           {!details.requireApproval && (
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
+            <div className="p-4 bg-accent-light border border-blue-200 rounded-xl text-center">
               <p className="text-blue-800">
                 Dies ist eine reine Information. Es ist keine Freigabe erforderlich.
               </p>

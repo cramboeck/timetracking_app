@@ -41,7 +41,7 @@ import { Button, IconButton } from './ui/Button';
 // ============================================
 
 const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bgColor: string }> = {
-  new: { label: 'Neu', color: 'text-blue-600', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
+  new: { label: 'Neu', color: 'text-accent-primary', bgColor: 'bg-accent-lighter dark:bg-blue-900/30' },
   contacted: { label: 'Kontaktiert', color: 'text-cyan-600', bgColor: 'bg-cyan-100 dark:bg-cyan-900/30' },
   qualified: { label: 'Qualifiziert', color: 'text-purple-600', bgColor: 'bg-purple-100 dark:bg-purple-900/30' },
   proposal: { label: 'Angebot', color: 'text-orange-600', bgColor: 'bg-orange-100 dark:bg-orange-900/30' },
@@ -63,7 +63,7 @@ const SOURCE_LABELS: Record<LeadSource, string> = {
 
 const PRIORITY_CONFIG: Record<LeadPriority, { label: string; color: string; icon?: React.ReactNode }> = {
   low: { label: 'Niedrig', color: 'text-gray-500' },
-  normal: { label: 'Normal', color: 'text-blue-500' },
+  normal: { label: 'Normal', color: 'text-accent-primary' },
   high: { label: 'Hoch', color: 'text-orange-500' },
   hot: { label: 'Hot', color: 'text-red-500', icon: <Flame size={14} /> },
 };
@@ -114,7 +114,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onCon
         e.dataTransfer.setData('leadId', lead.id);
         e.dataTransfer.effectAllowed = 'move';
       }}
-      className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all"
+      className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 dark:hover:border-accent-primary transition-all"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -318,7 +318,7 @@ const LeadColumn: React.FC<LeadColumnProps> = ({
   return (
     <div
       className={`flex-shrink-0 w-72 bg-gray-100 dark:bg-gray-800/50 rounded-xl flex flex-col max-h-full ${
-        isDragOver && !isClosedStatus ? 'ring-2 ring-blue-500 ring-opacity-50' : ''
+        isDragOver && !isClosedStatus ? 'ring-2 ring-accent-primary ring-opacity-50' : ''
       }`}
       onDragOver={!isClosedStatus ? handleDragOver : undefined}
       onDragLeave={!isClosedStatus ? handleDragLeave : undefined}
@@ -765,7 +765,7 @@ const Leads: React.FC = () => {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary" />
       </div>
     );
   }
@@ -805,7 +805,7 @@ const Leads: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Suchen..."
-              className="pl-9 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-48 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="pl-9 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-48 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
             />
           </div>
           <Button
@@ -864,7 +864,7 @@ const Leads: React.FC = () => {
                 lead={editingLead || undefined}
                 initialStatus={initialStatus || undefined}
                 onSave={handleSaveLead}
-                onCancel={() => {
+                onClose={() => {
                   setShowForm(false);
                   setEditingLead(null);
                   setInitialStatus(null);

@@ -164,10 +164,10 @@ export const UnknownCustomerDialog = ({
                 {/* Option 2: Assign to existing customer */}
                 <button
                   onClick={() => setView('select')}
-                  className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
+                  className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-accent-primary hover:bg-accent-light dark:hover:bg-blue-900/20 transition-all group"
                 >
-                  <div className="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:bg-blue-200 dark:group-hover:bg-blue-800/30 transition-colors">
-                    <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  <div className="w-12 h-12 rounded-lg bg-accent-lighter dark:bg-blue-900/30 flex items-center justify-center group-hover:bg-blue-200 dark:group-hover:bg-blue-800/30 transition-colors">
+                    <Building2 className="w-6 h-6 text-accent-primary dark:text-blue-400" />
                   </div>
                   <div className="flex-1 text-left">
                     <p className="font-semibold text-gray-900 dark:text-white">
@@ -177,7 +177,7 @@ export const UnknownCustomerDialog = ({
                       Kunde auswählen und Domain speichern
                     </p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-accent-primary" />
                 </button>
 
                 {/* Option 3: Continue without customer */}
@@ -237,7 +237,7 @@ export const UnknownCustomerDialog = ({
                     </div>
 
                     {senderDomain && (
-                      <label className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg cursor-pointer">
+                      <label className="flex items-start gap-3 p-3 bg-accent-light dark:bg-blue-900/20 rounded-lg cursor-pointer">
                         <input
                           type="checkbox"
                           checked={saveDomainForCustomer}

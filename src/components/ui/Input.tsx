@@ -13,7 +13,7 @@ const baseInputStyles = `
   text-gray-900 dark:text-white
   placeholder:text-gray-400 dark:placeholder:text-gray-500
   transition-colors duration-150
-  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+  focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary
   dark:focus:ring-blue-400 dark:focus:border-blue-400
   disabled:bg-gray-100 dark:disabled:bg-gray-800
   disabled:text-gray-500 dark:disabled:text-gray-500

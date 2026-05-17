@@ -182,7 +182,7 @@ export const TicketComments = ({
                   </label>
                   {/* Reply via Email option - only for email-sourced tickets */}
                   {notifyCustomer && ticket.source === 'email' && ticket.emailConversationId && (
-                    <label className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+                    <label className="flex items-center gap-2 text-sm text-accent-primary dark:text-blue-400">
                       <input
                         type="checkbox"
                         checked={replyViaEmail}

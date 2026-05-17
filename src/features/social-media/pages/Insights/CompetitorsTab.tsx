@@ -154,7 +154,7 @@ export default function CompetitorsTab() {
                         href={competitor.profiles.linkedin}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                        className="text-sm text-accent-primary hover:underline flex items-center gap-1"
                       >
                         LinkedIn
                         <ExternalLink size={12} />

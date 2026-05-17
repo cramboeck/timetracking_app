@@ -20,9 +20,20 @@ export default {
           700: '#e4e4e7',
           800: '#f4f4f5',
           900: '#fafafa',
+          border: 'rgb(var(--dark-border) / <alpha-value>)',
         },
         // Accent colors
         'accent': {
+          // ─── Dynamic tokens (CSS-variable-backed, theme-switchable) ───────
+          // These 4 tokens power all bg-accent-primary / text-accent-primary
+          // etc. classes used throughout the app. They read from --accent-*
+          // CSS variables which are set per accent-class (accent-blue,
+          // accent-ramboeck, …) in index.css.
+          primary:  'rgb(var(--accent-600) / <alpha-value>)',
+          light:    'rgb(var(--accent-50)  / <alpha-value>)',
+          lighter:  'rgb(var(--accent-100) / <alpha-value>)',
+          dark:     'rgb(var(--accent-700) / <alpha-value>)',
+          // ─── Static named palettes (used by Settings color-picker) ────────
           blue: {
             DEFAULT: '#3b82f6',
             50: '#eff6ff',
@@ -107,7 +118,15 @@ export default {
   },
   plugins: [],
   safelist: [
-    // Safelist accent color classes for dynamic usage
+    // Dynamic accent-token classes (used throughout all components)
+    'bg-accent-primary', 'bg-accent-light', 'bg-accent-lighter',
+    'text-accent-primary', 'text-accent-dark',
+    'border-accent-primary',
+    'focus:ring-accent-primary',
+    'hover:bg-accent-primary',
+    'dark:bg-accent-primary/10', 'dark:bg-accent-primary/20',
+    'dark:text-accent-primary',
+    // Safelist static accent color classes for dynamic usage (Settings picker)
     'bg-accent-blue-500', 'bg-accent-blue-600', 'bg-accent-blue-700',
     'bg-accent-green-500', 'bg-accent-green-600', 'bg-accent-green-700',
     'bg-accent-orange-500', 'bg-accent-orange-600', 'bg-accent-orange-700',

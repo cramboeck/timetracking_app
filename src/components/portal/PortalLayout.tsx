@@ -72,7 +72,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 variant={currentView === 'kb' ? 'primary' : 'ghost'}
                 size="sm"
                 icon={<Book size={18} />}
-                className={currentView === 'kb' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''}
+                className={currentView === 'kb' ? 'bg-accent-light dark:bg-blue-900/30 text-accent-primary dark:text-blue-400' : ''}
               >
                 <span className="hidden sm:inline">Hilfe</span>
               </Button>
@@ -83,7 +83,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 variant={currentView === 'profile' ? 'primary' : 'ghost'}
                 size="sm"
                 icon={<User size={18} />}
-                className={`hidden sm:flex ${currentView === 'profile' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''}`}
+                className={`hidden sm:flex ${currentView === 'profile' ? 'bg-accent-light dark:bg-blue-900/30 text-accent-primary dark:text-blue-400' : ''}`}
               >
                 <span>{contact.name}</span>
               </Button>
@@ -94,7 +94,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 onClick={onShowProfile}
                 variant={currentView === 'profile' ? 'primary' : 'default'}
                 tooltip="Profil"
-                className={`sm:hidden ${currentView === 'profile' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''}`}
+                className={`sm:hidden ${currentView === 'profile' ? 'bg-accent-light dark:bg-blue-900/30 text-accent-primary dark:text-blue-400' : ''}`}
               />
             )}
             <Button
@@ -122,7 +122,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   icon={<Ticket size={18} />}
                   className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
                     currentView === 'tickets' || currentView === 'ticket-detail'
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      ? 'border-accent-primary text-accent-primary dark:text-blue-400'
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
                 >
@@ -137,7 +137,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   icon={<Monitor size={18} />}
                   className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
                     currentView === 'devices'
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      ? 'border-accent-primary text-accent-primary dark:text-blue-400'
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
                 >
@@ -152,7 +152,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   icon={<FileText size={18} />}
                   className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
                     currentView === 'invoices'
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      ? 'border-accent-primary text-accent-primary dark:text-blue-400'
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
                 >
@@ -183,7 +183,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   variant="ghost"
                   size="sm"
                   icon={<HelpCircle size={16} />}
-                  className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                  className="text-accent-primary dark:text-blue-400 hover:text-accent-dark dark:hover:text-blue-300"
                 >
                   Einführung
                 </Button>
@@ -213,7 +213,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Shield className="w-6 h-6 text-blue-600" />
+                <Shield className="w-6 h-6 text-accent-primary" />
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                   Datenschutzerklärung
                 </h2>
@@ -314,7 +314,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Info className="w-6 h-6 text-blue-600" />
+                <Info className="w-6 h-6 text-accent-primary" />
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                   Impressum
                 </h2>

@@ -248,7 +248,7 @@ export default function TaskModal({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Was muss erledigt werden?"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   autoFocus
                 />
               </div>
@@ -263,7 +263,7 @@ export default function TaskModal({
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Weitere Details..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary resize-none"
                 />
               </div>
 
@@ -276,7 +276,7 @@ export default function TaskModal({
                   <select
                     value={priority}
                     onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   >
                     <option value="low">Niedrig</option>
                     <option value="normal">Normal</option>
@@ -291,7 +291,7 @@ export default function TaskModal({
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   >
                     <option value="pending">Ausstehend</option>
                     <option value="in_progress">In Arbeit</option>
@@ -312,7 +312,7 @@ export default function TaskModal({
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   />
                 </div>
                 <div>
@@ -324,7 +324,7 @@ export default function TaskModal({
                     type="time"
                     value={dueTime}
                     onChange={(e) => setDueTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   />
                 </div>
               </div>
@@ -342,7 +342,7 @@ export default function TaskModal({
                     value={estimatedMinutes}
                     onChange={(e) => setEstimatedMinutes(e.target.value ? parseInt(e.target.value) : '')}
                     placeholder="z.B. 30"
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   />
                   {suggestedMinutes && !estimatedMinutes && (
                     <Button
@@ -372,7 +372,7 @@ export default function TaskModal({
                       setCustomerId(e.target.value);
                       setProjectId(''); // Reset project when customer changes
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   >
                     <option value="">Kein Kunde</option>
                     {customers.map(c => (
@@ -388,7 +388,7 @@ export default function TaskModal({
                   <select
                     value={projectId}
                     onChange={(e) => setProjectId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                     disabled={filteredProjects.length === 0}
                   >
                     <option value="">Kein Projekt</option>
@@ -410,7 +410,7 @@ export default function TaskModal({
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   placeholder="z.B. Entwicklung, Support, Admin"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                 />
               </div>
 
@@ -421,7 +421,7 @@ export default function TaskModal({
                     type="checkbox"
                     checked={isRecurring}
                     onChange={(e) => setIsRecurring(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
                   />
                   <Repeat className="w-4 h-4 text-gray-500" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -438,7 +438,7 @@ export default function TaskModal({
                       <select
                         value={recurrencePattern}
                         onChange={(e) => setRecurrencePattern(e.target.value as RecurrencePattern)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                       >
                         <option value="">Auswählen...</option>
                         <option value="daily">Täglich</option>
@@ -456,7 +456,7 @@ export default function TaskModal({
                         min="1"
                         value={recurrenceInterval}
                         onChange={(e) => setRecurrenceInterval(parseInt(e.target.value) || 1)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                       />
                     </div>
                   </div>
@@ -476,7 +476,7 @@ export default function TaskModal({
                       <li key={index} className="flex items-center gap-2 group">
                         <button
                           onClick={() => toggleChecklistItem(index)}
-                          className="text-gray-400 hover:text-blue-600"
+                          className="text-gray-400 hover:text-accent-primary"
                         >
                           {item.completed ? (
                             <CheckCircle className="w-4 h-4 text-green-500" />
@@ -506,7 +506,7 @@ export default function TaskModal({
                     onChange={(e) => setNewChecklistItem(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && addChecklistItem()}
                     placeholder="Neuer Punkt..."
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   />
                   <IconButton
                     onClick={addChecklistItem}

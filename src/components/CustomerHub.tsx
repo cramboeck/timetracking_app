@@ -341,7 +341,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({
   const [isOpen, setIsOpen] = useState(false);
 
   const actions = [
-    { icon: UserPlus, label: 'Kontakt hinzufügen', onClick: onAddContact, color: 'text-blue-600' },
+    { icon: UserPlus, label: 'Kontakt hinzufügen', onClick: onAddContact, color: 'text-accent-primary' },
     { icon: PhoneCall, label: 'Interaktion erfassen', onClick: onAddInteraction, color: 'text-green-600' },
     { icon: Ticket, label: 'Ticket erstellen', onClick: onCreateTicket, color: 'text-orange-600' },
     { icon: ListTodo, label: 'Aufgabe erstellen', onClick: onCreateTask, color: 'text-purple-600' },
@@ -512,24 +512,24 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         {/* Contact Info */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Building2 size={18} className="text-blue-500" />
+            <Building2 size={18} className="text-accent-primary" />
             Kontaktdaten
           </h3>
           <div className="space-y-3 text-sm">
             {customer.email && (
-              <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+              <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-blue-400">
                 <Mail size={16} />
                 {customer.email}
               </a>
             )}
             {customer.phone && (
-              <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+              <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-blue-400">
                 <Phone size={16} />
                 {customer.phone}
               </a>
             )}
             {customer.website && (
-              <a href={customer.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+              <a href={customer.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-blue-400">
                 <Globe size={16} />
                 {customer.website}
               </a>
@@ -616,7 +616,7 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'decision_maker': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
-      case 'technical': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+      case 'technical': return 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400';
       case 'billing': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
       default: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400';
     }
@@ -683,7 +683,7 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
                 ) : (
                   <button
                     onClick={() => onEnablePortalAccess(contact)}
-                    className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                    className="text-xs px-2 py-0.5 rounded-full bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
                   >
                     + Portal aktivieren
                   </button>
@@ -692,19 +692,19 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
 
               <div className="space-y-1 text-sm">
                 {contact.email && (
-                  <a href={`mailto:${contact.email}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-blue-600">
+                  <a href={`mailto:${contact.email}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary">
                     <Mail size={14} />
                     {contact.email}
                   </a>
                 )}
                 {contact.phone && (
-                  <a href={`tel:${contact.phone}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-blue-600">
+                  <a href={`tel:${contact.phone}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary">
                     <Phone size={14} />
                     {contact.phone}
                   </a>
                 )}
                 {contact.mobile && (
-                  <a href={`tel:${contact.mobile}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-blue-600">
+                  <a href={`tel:${contact.mobile}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary">
                     <Phone size={14} />
                     {contact.mobile} (Mobil)
                   </a>
@@ -764,7 +764,7 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ tickets, onCreateTicket, onTick
   const priorityColors: Record<string, string> = {
     critical: 'text-red-600 dark:text-red-400',
     high: 'text-orange-600 dark:text-orange-400',
-    normal: 'text-blue-600 dark:text-blue-400',
+    normal: 'text-accent-primary dark:text-blue-400',
     low: 'text-gray-600 dark:text-gray-400',
   };
 
@@ -855,7 +855,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ tasks, onCreateTask, onTaskClick })
 
   const statusColors: Record<string, string> = {
     pending: 'text-gray-500',
-    in_progress: 'text-blue-500',
+    in_progress: 'text-accent-primary',
     completed: 'text-green-500',
     cancelled: 'text-gray-400',
   };
@@ -1409,7 +1409,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
         description: formatDuration(e.duration || 0),
         timestamp: e.date || e.startTime,
         icon: Clock,
-        color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+        color: 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400',
       });
     });
 
@@ -1485,7 +1485,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2 mb-3">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Building2 size={24} className="text-blue-600 dark:text-blue-400" />
+              <Building2 size={24} className="text-accent-primary dark:text-blue-400" />
               Kunden
             </h1>
             <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -1518,7 +1518,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600
                 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                focus:ring-2 focus:ring-accent-primary focus:border-transparent"
             />
           </div>
 
@@ -1556,7 +1556,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                     onClick={() => handleCustomerSelect(customer.id)}
                     className={`w-full p-4 text-left transition-colors ${
                       isSelected
-                        ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500'
+                        ? 'bg-accent-light dark:bg-blue-900/20 border-l-4 border-accent-primary'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 border-l-4 border-transparent'
                     }`}
                   >
@@ -1593,7 +1593,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
             {/* Back Button (Mobile) */}
             <button
               onClick={() => setSelectedCustomerId(null)}
-              className="lg:hidden flex items-center gap-1 text-blue-600 dark:text-blue-400 mb-4"
+              className="lg:hidden flex items-center gap-1 text-accent-primary dark:text-blue-400 mb-4"
             >
               <ChevronLeft size={18} />
               <span>Zurück</span>
@@ -1647,7 +1647,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                     activeTab === tab.id
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                      ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
@@ -1671,7 +1671,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
           <div className="flex-1 overflow-y-auto p-4 lg:p-6">
             {isLoading ? (
               <div className="flex items-center justify-center h-64">
-                <RefreshCw size={32} className="animate-spin text-blue-500" />
+                <RefreshCw size={32} className="animate-spin text-accent-primary" />
               </div>
             ) : (
               <>

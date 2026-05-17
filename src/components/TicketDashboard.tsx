@@ -302,9 +302,9 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 text-center text-sm">
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2">
-              <div className="font-bold text-blue-600 dark:text-blue-400">{data.sla.responseCompliance}%</div>
-              <div className="text-blue-600 dark:text-blue-400 text-xs">Erste Antwort</div>
+            <div className="bg-accent-light dark:bg-blue-900/20 rounded-lg p-2">
+              <div className="font-bold text-accent-primary dark:text-blue-400">{data.sla.responseCompliance}%</div>
+              <div className="text-accent-primary dark:text-blue-400 text-xs">Erste Antwort</div>
             </div>
             <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
               <div className="font-bold text-green-600 dark:text-green-400">{data.sla.resolutionCompliance}%</div>
@@ -331,12 +331,12 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
             Durchschnittliche Zeiten
           </h2>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-accent-light dark:bg-blue-900/20 rounded-lg">
               <div className="flex items-center gap-3">
-                <Zap size={20} className="text-blue-500" />
+                <Zap size={20} className="text-accent-primary" />
                 <span className="text-gray-700 dark:text-gray-300">Erste Antwort</span>
               </div>
-              <span className="font-semibold text-blue-600 dark:text-blue-400">
+              <span className="font-semibold text-accent-primary dark:text-blue-400">
                 {data.trends.avgFirstResponseMinutes
                   ? formatMinutes(data.trends.avgFirstResponseMinutes)
                   : '—'}
@@ -416,7 +416,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
                               ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300'
                               : ticket.priority === 'high'
                               ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300'
-                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                              : 'bg-accent-lighter text-accent-dark dark:bg-blue-900/50 dark:text-blue-300'
                           }`}>
                             {getPriorityLabel(ticket.priority)}
                           </span>
@@ -556,7 +556,7 @@ interface StatusCardProps {
 
 const StatusCard = ({ label, count, icon: Icon, color, onClick }: StatusCardProps) => {
   const colorClasses = {
-    blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+    blue: 'bg-accent-light dark:bg-blue-900/30 text-accent-primary dark:text-blue-400 border-blue-200 dark:border-blue-800',
     yellow: 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800',
     purple: 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800',
     green: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800',
@@ -638,7 +638,7 @@ const TrendCard = ({ label, value, change = 0, showChange = true, inverse = fals
 
 const ActivityIcon = ({ actionType }: { actionType: string }) => {
   const iconMap: Record<string, { icon: typeof Clock; color: string }> = {
-    created: { icon: AlertCircle, color: 'text-blue-500 bg-blue-100 dark:bg-blue-900/30' },
+    created: { icon: AlertCircle, color: 'text-accent-primary bg-accent-lighter dark:bg-blue-900/30' },
     status_changed: { icon: Activity, color: 'text-purple-500 bg-purple-100 dark:bg-purple-900/30' },
     priority_changed: { icon: Target, color: 'text-orange-500 bg-orange-100 dark:bg-orange-900/30' },
     assigned: { icon: Users, color: 'text-indigo-500 bg-indigo-100 dark:bg-indigo-900/30' },

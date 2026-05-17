@@ -74,7 +74,7 @@ const getTypeColor = (type: InteractionType) => {
     case 'call':
       return 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400';
     case 'email':
-      return 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
+      return 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400';
     case 'meeting':
       return 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400';
     case 'demo':
@@ -246,7 +246,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
               onClick={() => setDirection('outbound')}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
                 direction === 'outbound'
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                  ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
               }`}
             >
@@ -350,7 +350,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
             type="checkbox"
             checked={followUpRequired}
             onChange={(e) => setFollowUpRequired(e.target.checked)}
-            className="w-5 h-5 rounded border-gray-300 text-blue-600"
+            className="w-5 h-5 rounded border-gray-300 text-accent-primary"
           />
           <span className="text-gray-900 dark:text-white font-medium">Follow-up erforderlich</span>
         </label>
@@ -536,7 +536,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
             onClick={() => setFilterType('')}
             className={`px-3 py-1.5 rounded-lg text-sm ${
               filterType === ''
-                ? 'bg-blue-600 text-white'
+                ? 'bg-accent-primary text-white'
                 : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'
             }`}
           >
@@ -548,7 +548,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
               onClick={() => setFilterType(t)}
               className={`px-3 py-1.5 rounded-lg text-sm ${
                 filterType === t
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-accent-primary text-white'
                   : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'
               }`}
             >
@@ -577,7 +577,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
                 customerId={customerId}
                 interaction={editingInteraction || undefined}
                 onSave={handleSave}
-                onCancel={() => {
+                onClose={() => {
                   setShowForm(false);
                   setEditingInteraction(null);
                 }}
@@ -590,7 +590,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
         </div>
       )}
 

@@ -146,7 +146,7 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 text-white mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-primary text-white mb-4">
             {mfaRequired ? <Smartphone size={32} /> : <Ticket size={32} />}
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -198,7 +198,7 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                     onKeyDown={(e) => handleMfaKeyDown(index, e)}
                     onPaste={handleMfaPaste}
                     disabled={loading || !!retryAfter}
-                    className="w-12 h-14 text-center text-2xl font-bold rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="w-12 h-14 text-center text-2xl font-bold rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary disabled:opacity-50"
                   />
                 ))}
               </div>
@@ -209,7 +209,7 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                   type="checkbox"
                   checked={trustDevice}
                   onChange={(e) => setTrustDevice(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                  className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-accent-primary focus:ring-accent-primary"
                 />
                 <div>
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -265,7 +265,7 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     placeholder="ihre@email.de"
-                    className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   />
                 </div>
               </div>
@@ -282,7 +282,7 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     placeholder="Ihr Passwort"
-                    className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   />
                 </div>
               </div>
@@ -334,7 +334,7 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Shield className="w-6 h-6 text-blue-600" />
+                <Shield className="w-6 h-6 text-accent-primary" />
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                   Datenschutzerklärung
                 </h2>
@@ -415,7 +415,7 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Info className="w-6 h-6 text-blue-600" />
+                <Info className="w-6 h-6 text-accent-primary" />
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                   Impressum
                 </h2>

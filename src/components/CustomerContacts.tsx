@@ -239,7 +239,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center h-32">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
             </div>
           ) : error ? (
             <div className="text-center text-red-500 py-8">
@@ -483,7 +483,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                             {contact.name}
                           </span>
                           {contact.isPrimary && (
-                            <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                            <span className="text-xs bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-300 px-2 py-0.5 rounded-full">
                               Hauptkontakt
                             </span>
                           )}
@@ -515,7 +515,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                             </span>
                           )}
                           {contact.canViewDevices && (
-                            <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                            <span className="bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-300 px-2 py-0.5 rounded">
                               Geräte
                             </span>
                           )}
@@ -539,7 +539,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                               disabled={sendingInvite === contact.id}
                               icon={
                                 sendingInvite === contact.id ? (
-                                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                  <div className="w-4 h-4 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
                                 ) : inviteSuccess === contact.id ? (
                                   <Check size={18} />
                                 ) : (

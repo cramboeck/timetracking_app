@@ -68,8 +68,8 @@ export default function AnalyticsTab() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <BarChart3 size={20} className="text-blue-600 dark:text-blue-400" />
+            <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
+              <BarChart3 size={20} className="text-accent-primary dark:text-blue-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-800 dark:text-white">

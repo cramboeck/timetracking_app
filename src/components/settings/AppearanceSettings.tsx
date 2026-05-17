@@ -21,12 +21,14 @@ export const AppearanceSettings = ({
     { name: 'purple', label: 'Lila', hex: '#a855f7' },
     { name: 'red', label: 'Rot', hex: '#ef4444' },
     { name: 'pink', label: 'Pink', hex: '#ec4899' },
+    { name: 'ramboeck', label: 'RamboFlow', hex: '#FF6A00' },
   ];
 
-  const grayTones: { name: GrayTone; label: string; desc: string }[] = [
-    { name: 'light', label: 'Hell', desc: 'Weiche Grautöne' },
-    { name: 'medium', label: 'Mittel', desc: 'Ausgewogen' },
-    { name: 'dark', label: 'Dunkel', desc: 'Tiefe Schwarztöne' },
+  const grayTones: { name: GrayTone; label: string; desc: string; previewBg: string; previewCard: string }[] = [
+    { name: 'light', label: 'Hell', desc: 'Weiche Grautöne', previewBg: 'bg-gray-700', previewCard: 'bg-gray-500' },
+    { name: 'medium', label: 'Mittel', desc: 'Ausgewogen', previewBg: 'bg-zinc-900', previewCard: 'bg-zinc-700' },
+    { name: 'dark', label: 'Dunkel', desc: 'Tiefe Schwarztöne', previewBg: 'bg-zinc-950', previewCard: 'bg-zinc-800' },
+    { name: 'ramboeck', label: 'RamboFlow', desc: 'Dunkles Lila', previewBg: 'bg-[#0e0e18]', previewCard: 'bg-[#211c38]' },
   ];
 
   return (
@@ -39,7 +41,7 @@ export const AppearanceSettings = ({
             onClick={() => updateTimeFormat('24h')}
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               (currentUser?.timeFormat || '24h') === '24h'
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                ? 'border-accent-primary bg-accent-light dark:bg-blue-900/20 shadow-sm'
                 : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
             }`}
           >
@@ -61,7 +63,7 @@ export const AppearanceSettings = ({
             onClick={() => updateTimeFormat('12h')}
             className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
               currentUser?.timeFormat === '12h'
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                ? 'border-accent-primary bg-accent-light dark:bg-blue-900/20 shadow-sm'
                 : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
             }`}
           >
@@ -108,7 +110,7 @@ export const AppearanceSettings = ({
                   onClick={() => updateAccentColor(color.name as any)}
                   className={`relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover:scale-105 ${
                     currentUser?.accentColor === color.name
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      ? 'border-accent-primary bg-accent-light dark:bg-blue-900/20'
                       : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
                   }`}
                   title={color.label}
@@ -119,7 +121,7 @@ export const AppearanceSettings = ({
                   />
                   <span className={`text-xs font-medium ${
                     currentUser?.accentColor === color.name
-                      ? 'text-blue-600 dark:text-blue-400'
+                      ? 'text-accent-primary dark:text-blue-400'
                       : 'text-gray-600 dark:text-gray-400'
                   }`}>
                     {color.label}
@@ -146,33 +148,25 @@ export const AppearanceSettings = ({
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Wähle die Dunkelheit des Dark Modes (nur im Dark Mode sichtbar)
             </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {grayTones.map((tone) => (
                 <button
                   key={tone.name}
                   onClick={() => updateGrayTone(tone.name)}
                   className={`relative flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover:scale-105 ${
                     currentUser?.grayTone === tone.name
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      ? 'border-accent-primary bg-accent-light dark:bg-blue-900/20'
                       : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
                   }`}
                   title={tone.desc}
                 >
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                    tone.name === 'light' ? 'bg-gray-700' :
-                    tone.name === 'medium' ? 'bg-gray-800' :
-                    'bg-gray-950'
-                  }`}>
-                    <div className={`w-6 h-6 rounded ${
-                      tone.name === 'light' ? 'bg-gray-500' :
-                      tone.name === 'medium' ? 'bg-gray-600' :
-                      'bg-gray-800'
-                    }`} />
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${tone.previewBg}`}>
+                    <div className={`w-6 h-6 rounded ${tone.previewCard}`} />
                   </div>
                   <div className="text-center">
                     <span className={`text-sm font-medium block ${
                       currentUser?.grayTone === tone.name
-                        ? 'text-blue-600 dark:text-blue-400'
+                        ? 'text-accent-primary dark:text-blue-400'
                         : 'text-gray-900 dark:text-white'
                     }`}>
                       {tone.label}

@@ -16,9 +16,9 @@ interface StatWidgetProps {
 
 const colorStyles = {
   blue: {
-    bg: 'bg-blue-50 dark:bg-blue-900/20',
-    icon: 'text-blue-600 dark:text-blue-400',
-    ring: 'ring-blue-500/20',
+    bg: 'bg-accent-light dark:bg-blue-900/20',
+    icon: 'text-accent-primary dark:text-blue-400',
+    ring: 'ring-accent-primary/20',
   },
   green: {
     bg: 'bg-green-50 dark:bg-green-900/20',

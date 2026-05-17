@@ -145,7 +145,7 @@ export const CustomerSevdeskLink = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="sevDesk-Kontakt suchen..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 focus:bg-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
           />
         </div>
 
@@ -167,7 +167,7 @@ export const CustomerSevdeskLink = ({
                   onClick={() => setSelectedCustomerId(sevdeskCustomer.id)}
                   className={`w-full p-3 text-left hover:bg-gray-50 transition-colors ${
                     selectedCustomerId === sevdeskCustomer.id
-                      ? 'bg-blue-50'
+                      ? 'bg-accent-light'
                       : ''
                   }`}
                 >
@@ -175,7 +175,7 @@ export const CustomerSevdeskLink = ({
                     <div
                       className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
                         selectedCustomerId === sevdeskCustomer.id
-                          ? 'border-blue-600 bg-blue-600'
+                          ? 'border-accent-primary bg-accent-primary'
                           : 'border-gray-300'
                       }`}
                     >
