@@ -103,15 +103,20 @@
     --dark-border: 63 63 70;  /* zinc-700 */
   }
 
-  /* RamboFlow brand tone - Navy Blue + Orange (from ramboeck-it.com) */
+  /* RamboFlow brand tone – Deep Purple/Indigo (exact match from ramboeck-it.com)
+     Body bg:    oklch(17% .07 295) ≈ #0e0e18  (very dark indigo-black)
+     Card bg:    oklch(22% .08 295) ≈ #16163a  (dark indigo)
+     Footer:     rgb(33, 28, 56)   = #211c38   (deep purple)
+     Border:     oklch(28% .09 295) ≈ #23204e  (mid purple)
+  */
   .tone-ramboeck.dark {
-    --dark-50: 22 22 35;       /* Deep Navy #161623 */
-    --dark-100: 30 30 50;      /* Navy #1e1e32 */
-    --dark-200: 42 42 68;      /* Mid Navy #2a2a44 */
-    --dark-300: 58 58 90;      /* Light Navy #3a3a5a */
-    --dark-400: 140 140 175;   /* Muted text */
-    --dark-500: 200 200 220;   /* Light text */
-    --dark-border: 50 50 78;   /* Border Navy #32324e */
+    --dark-50:  14 14 24;       /* #0e0e18 – body bg (oklch 17% .07 295) */
+    --dark-100: 22 22 58;       /* #16163a – card bg (oklch 22% .08 295) */
+    --dark-200: 33 28 56;       /* #211c38 – footer / elevated surface */
+    --dark-300: 45 40 80;       /* #2d2850 – hover states */
+    --dark-400: 130 120 170;    /* muted text – purple-tinted gray */
+    --dark-500: 210 205 230;    /* light text – soft lavender white */
+    --dark-border: 50 44 90;    /* #322c5a – border (oklch 28% .09 295) */
   }
 
   /* Dark gray tone - deepest blacks, maximum contrast */

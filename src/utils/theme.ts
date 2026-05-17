@@ -39,13 +39,13 @@ export const getGrayClasses = (tone: GrayTone) => {
   const tones: Record<string, ReturnType<typeof Object.assign>> = {
     ramboeck: {
       bg: 'bg-gray-50',
-      bgDark: 'dark:bg-[#161623]',
+      bgDark: 'dark:bg-[#0e0e18]',         /* exact body bg from ramboeck-it.com */
       border: 'border-gray-200',
-      borderDark: 'dark:border-[#32324e]',
+      borderDark: 'dark:border-[#322c5a]', /* exact border from ramboeck-it.com */
       text: 'text-gray-900',
       textDark: 'dark:text-white',
       textMuted: 'text-gray-600',
-      textMutedDark: 'dark:text-[#8c8caf]',
+      textMutedDark: 'dark:text-[#8278aa]', /* purple-tinted muted text */
     },
     light: {
       bg: 'bg-gray-50',
