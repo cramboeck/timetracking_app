@@ -14,7 +14,7 @@ const baseInputStyles = `
   placeholder:text-gray-400 dark:placeholder:text-gray-500
   transition-colors duration-150
   focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary
-  dark:focus:ring-blue-400 dark:focus:border-blue-400
+  dark:focus:ring-accent-primary dark:focus:border-accent-primary
   disabled:bg-gray-100 dark:disabled:bg-gray-800
   disabled:text-gray-500 dark:disabled:text-gray-500
   disabled:cursor-not-allowed

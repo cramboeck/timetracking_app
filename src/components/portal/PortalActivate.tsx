@@ -81,7 +81,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
   // Loading state while verifying token
   if (verifying) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-primary text-white mb-4">
             <Loader2 size={32} className="animate-spin" />
@@ -100,7 +100,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
   // Invalid token state
   if (tokenInvalid) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 text-red-600 mb-4">
             <AlertCircle size={32} />
@@ -124,7 +124,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 text-green-600 mb-4">
             <CheckCircle size={32} />
@@ -141,7 +141,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
@@ -216,7 +216,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-accent-primary hover:bg-accent-primary disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
+              className="w-full py-3 px-4 bg-accent-primary hover:bg-accent-dark disabled:bg-accent-primary/40 text-white font-medium rounded-lg transition-colors"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">

@@ -320,7 +320,7 @@ export const InvoiceCreationDialog = ({
           )}
 
           {/* AI Button */}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl border border-purple-200 dark:border-purple-800">
+          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-accent-light dark:from-purple-900/20 dark:to-accent-primary/20 rounded-xl border border-purple-200 dark:border-purple-800">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
                 <Sparkles size={20} className="text-purple-600" />

@@ -26,7 +26,7 @@ interface PortalTicketDetailProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
-  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-accent-primary/50 dark:text-accent-primary', icon: AlertCircle },
+  open: { label: 'Offen', color: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/50 dark:text-accent-primary', icon: AlertCircle },
   in_progress: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300', icon: Clock },
   waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300', icon: Pause },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300', icon: CheckCircle },
@@ -303,7 +303,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
 
       {/* Rating Prompt for closed tickets */}
       {showRating && (ticket.status === 'closed' || ticket.status === 'resolved') && !ticket.satisfactionRating && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-6">
+        <div className="bg-gradient-to-r from-accent-light to-indigo-50 dark:from-accent-primary/20 dark:to-indigo-900/20 rounded-2xl border border-accent-primary/30 dark:border-accent-primary/40 p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
             Wie zufrieden waren Sie mit unserem Support?
           </h3>
@@ -517,7 +517,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
                   }`}
                 >
                   <div className={`flex items-center gap-2 mb-1 ${
-                    comment.isFromCustomer ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
+                    comment.isFromCustomer ? 'text-accent-primary' : 'text-gray-500 dark:text-gray-400'
                   }`}>
                     <User size={12} />
                     <span className="text-xs font-medium">{comment.authorName}</span>

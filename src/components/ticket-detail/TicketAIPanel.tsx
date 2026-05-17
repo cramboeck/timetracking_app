@@ -27,7 +27,7 @@ export const TicketAIPanel = ({
 }: TicketAIPanelProps) => {
   const typeConfig = {
     solution: { label: 'Losung', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300', icon: Lightbulb },
-    category: { label: 'Kategorie', color: 'bg-accent-lighter text-blue-800 dark:bg-accent-primary/50 dark:text-accent-primary', icon: Tag },
+    category: { label: 'Kategorie', color: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/50 dark:text-accent-primary', icon: Tag },
     priority: { label: 'Prioritat', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300', icon: ChevronDown },
     response: { label: 'Antwort', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300', icon: MessageSquare },
   };

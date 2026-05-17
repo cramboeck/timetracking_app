@@ -964,14 +964,14 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
       {/* Dialog */}
       <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg h-[600px] max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-blue-700">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-accent-primary to-accent-dark">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
               <MessageCircle size={20} className="text-white" />
             </div>
             <div>
               <h2 className="font-bold text-white">Support-Assistent</h2>
-              <p className="text-xs text-blue-100">Wir helfen Ihnen gerne!</p>
+              <p className="text-xs text-accent-primary">Wir helfen Ihnen gerne!</p>
             </div>
           </div>
           <button
@@ -1035,7 +1035,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
                 <button
                   key={option.id}
                   onClick={() => handleOptionClick(option)}
-                  className="px-4 py-2 bg-white dark:bg-gray-800 hover:bg-accent-light dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-accent-primary"
+                  className="px-4 py-2 bg-white dark:bg-gray-800 hover:bg-accent-light dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors shadow-sm hover:shadow-md hover:border-accent-primary/40 dark:hover:border-accent-primary"
                 >
                   {option.label}
                 </button>

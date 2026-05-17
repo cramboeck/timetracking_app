@@ -332,10 +332,10 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
       />
 
       {/* Info Box */}
-      <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-4">
+      <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-4">
         <div className="flex items-start gap-3">
           <Info className="text-accent-primary dark:text-accent-primary flex-shrink-0 mt-0.5" size={18} />
-          <div className="text-sm text-blue-800 dark:text-blue-200">
+          <div className="text-sm text-accent-dark dark:text-accent-primary">
             <p className="font-medium mb-1">So funktioniert die sevDesk-Integration:</p>
             <ol className="list-decimal list-inside space-y-1 text-accent-dark dark:text-accent-primary">
               <li>Verbinden Sie Ihr sevDesk-Konto mit dem API-Token</li>

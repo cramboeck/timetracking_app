@@ -153,7 +153,7 @@ export function CookieConsent() {
                     <h4 className="font-medium text-gray-900 dark:text-white">
                       Notwendige Cookies
                     </h4>
-                    <span className="px-2 py-0.5 text-xs font-medium bg-accent-lighter text-blue-800 dark:bg-accent-primary/40 dark:text-accent-primary rounded">
+                    <span className="px-2 py-0.5 text-xs font-medium bg-accent-lighter text-accent-dark dark:bg-accent-primary/40 dark:text-accent-primary rounded">
                       Erforderlich
                     </span>
                   </div>

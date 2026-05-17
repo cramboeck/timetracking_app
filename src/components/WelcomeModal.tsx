@@ -85,8 +85,8 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
             </div>
           </div>
 
-          <div className="p-3 bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg">
-            <p className="text-sm text-blue-900 dark:text-blue-200">
+          <div className="p-3 bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg">
+            <p className="text-sm text-accent-dark dark:text-accent-primary">
               💡 <strong>Tipp:</strong> Wähle eine eindeutige Farbe für jeden Kunden, um sie schnell zu unterscheiden
             </p>
           </div>
@@ -127,8 +127,8 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
             </div>
           </div>
 
-          <div className="p-3 bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg">
-            <p className="text-sm text-blue-900 dark:text-blue-200">
+          <div className="p-3 bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg">
+            <p className="text-sm text-accent-dark dark:text-accent-primary">
               💡 <strong>Tipp:</strong> Du kannst mehrere Projekte pro Kunde anlegen, z.B. "Entwicklung" und "Support"
             </p>
           </div>
@@ -142,7 +142,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
       content: (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+            <div className="bg-gradient-to-br from-accent-light to-accent-lighter dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-lg p-4 border border-accent-primary/30 dark:border-accent-primary/40">
               <div className="text-2xl mb-2">⏱️</div>
               <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Stopwatch</h4>
               <p className="text-sm text-gray-700 dark:text-gray-300">

@@ -2694,8 +2694,8 @@ ${companyInfo?.phone || ''}`;
               </div>
 
               {sendApprovalDialog.revisionOfId && (
-                <div className="mb-4 p-3 bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg">
-                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                <div className="mb-4 p-3 bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg">
+                  <p className="text-sm text-accent-dark dark:text-accent-primary">
                     Dies ist eine Überarbeitung eines abgelehnten Reports. Der ursprüngliche Report wird als "Ersetzt" markiert.
                   </p>
                 </div>

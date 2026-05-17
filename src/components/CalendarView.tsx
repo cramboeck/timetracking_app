@@ -495,7 +495,7 @@ export const CalendarView = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
+    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-accent-light dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
@@ -507,7 +507,7 @@ export const CalendarView = ({
                 onClick={() => setShowTimeEntries(!showTimeEntries)}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                   showTimeEntries
-                    ? 'bg-accent-lighter text-blue-800 dark:bg-accent-primary/50 dark:text-accent-primary'
+                    ? 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/50 dark:text-accent-primary'
                     : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
                 }`}
               >
@@ -528,8 +528,8 @@ export const CalendarView = ({
             </div>
 
             {/* Time summary */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-accent-light dark:bg-accent-primary/30 rounded-lg border border-blue-200 dark:border-accent-primary/40">
-              <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-accent-light dark:bg-accent-primary/30 rounded-lg border border-accent-primary/30 dark:border-accent-primary/40">
+              <span className="text-sm font-medium text-accent-dark dark:text-accent-primary">
                 {view === 'day' && 'Heute'}
                 {view === 'week' && 'Diese Woche'}
                 {view === 'month' && 'Dieser Monat'}
@@ -699,7 +699,7 @@ export const CalendarView = ({
           <div className="space-y-4">
             {/* Date display */}
             <div className="text-center py-2 bg-accent-light dark:bg-accent-primary/30 rounded-lg">
-              <span className="text-lg font-medium text-blue-900 dark:text-blue-200">
+              <span className="text-lg font-medium text-accent-dark dark:text-accent-primary">
                 {format(createSlotInfo.start, 'EEEE, dd.MM.yyyy', { locale: de })}
               </span>
             </div>

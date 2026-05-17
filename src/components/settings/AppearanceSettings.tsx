@@ -59,7 +59,7 @@ export const AppearanceSettings = ({
                 </p>
               </div>
               {(currentUser?.timeFormat || '24h') === '24h' && (
-                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 ml-3">
+                <div className="w-6 h-6 rounded-full bg-accent-primary flex items-center justify-center flex-shrink-0 ml-3">
                   <span className="text-white text-sm font-bold">✓</span>
                 </div>
               )}
@@ -81,7 +81,7 @@ export const AppearanceSettings = ({
                 </p>
               </div>
               {currentUser?.timeFormat === '12h' && (
-                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 ml-3">
+                <div className="w-6 h-6 rounded-full bg-accent-primary flex items-center justify-center flex-shrink-0 ml-3">
                   <span className="text-white text-sm font-bold">✓</span>
                 </div>
               )}
@@ -183,7 +183,7 @@ export const AppearanceSettings = ({
                   </div>
                   {currentUser?.grayTone === tone.name && (
                     <div className="absolute -top-1 -right-1 w-5 h-5 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center border border-gray-200 dark:border-gray-600">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full" />
+                      <div className="w-3 h-3 bg-accent-primary rounded-full" />
                     </div>
                   )}
                 </button>

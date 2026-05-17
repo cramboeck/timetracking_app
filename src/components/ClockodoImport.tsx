@@ -369,8 +369,8 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
 
       {/* Sticky Help Panel */}
       {showHelp && (
-        <div className="sticky top-0 z-10 mb-4 p-4 bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg">
-          <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
+        <div className="sticky top-0 z-10 mb-4 p-4 bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg">
+          <h4 className="font-medium text-accent-dark dark:text-accent-primary mb-3 flex items-center gap-2">
             <HelpCircle size={18} />
             Import-Anleitung
           </h4>
@@ -774,7 +774,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
             )}
           </div>
 
-          <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-3 mb-6">
+          <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-3 mb-6">
             <p className="text-sm text-accent-dark dark:text-accent-primary">
               <strong>Hinweis:</strong> {importMode === 'csv'
                 ? 'Alle Einträge werden mit Startzeit 08:00 Uhr importiert. Die Endzeit wird aus der Dauer berechnet.'

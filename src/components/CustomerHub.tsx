@@ -650,7 +650,7 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent-primary to-purple-600 flex items-center justify-center text-white font-bold text-lg">
                     {(contact.first_name?.[0] || '') + (contact.last_name?.[0] || '')}
                   </div>
                   <div>
@@ -1656,7 +1656,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                   {tab.count !== undefined && tab.count > 0 && (
                     <span className={`px-1.5 py-0.5 rounded-full text-xs ${
                       activeTab === tab.id
-                        ? 'bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200'
+                        ? 'bg-accent-light dark:bg-accent-primary/40 text-accent-dark dark:text-accent-primary'
                         : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
                     }`}>
                       {tab.count}

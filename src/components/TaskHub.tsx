@@ -180,7 +180,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
     const colors = {
       urgent: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
       high: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-      normal: 'bg-accent-lighter text-blue-800 dark:bg-accent-primary/30 dark:text-accent-primary',
+      normal: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary',
       low: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400',
     };
     const labels = { urgent: 'Dringend', high: 'Hoch', normal: 'Normal', low: 'Niedrig' };
@@ -234,7 +234,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
         className={`group flex items-start gap-3 p-3 rounded-lg border transition-all ${
           isCompleted
             ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 opacity-60'
-            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-accent-primary hover:shadow-sm'
+            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-accent-primary/40 dark:hover:border-accent-primary hover:shadow-sm'
         }`}
       >
         {/* Checkbox */}

@@ -229,7 +229,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
                 key={article.id}
                 onClick={() => handleArticleSelect(article)}
                 variant="ghost"
-                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-300 dark:hover:border-accent-primary h-auto"
+                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-accent-primary/40 dark:hover:border-accent-primary h-auto"
               >
                 <div className="flex items-start justify-between gap-4 w-full">
                   <div className="flex-1 text-left">
@@ -265,7 +265,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-6 text-white">
+      <div className="bg-gradient-to-r from-accent-primary to-indigo-600 rounded-2xl p-6 text-white">
         <div className="flex items-center gap-4 mb-4">
           <IconButton
             icon={<ArrowLeft size={24} />}
@@ -275,7 +275,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
           />
           <div>
             <h1 className="text-2xl font-bold">Wissensdatenbank</h1>
-            <p className="text-blue-100">
+            <p className="text-accent-primary">
               Finden Sie Antworten auf häufige Fragen
             </p>
           </div>
@@ -346,7 +346,7 @@ export const PortalKnowledgeBase = ({ userId, onBack }: PortalKnowledgeBaseProps
               <button
                 key={category.id}
                 onClick={() => handleCategorySelect(category)}
-                className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-accent-primary hover:bg-accent-light/50 dark:hover:bg-accent-primary/20 transition-colors"
+                className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-accent-primary/40 dark:hover:border-accent-primary hover:bg-accent-light/50 dark:hover:bg-accent-primary/20 transition-colors"
               >
                 <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
                   <FolderOpen size={24} className="text-indigo-600 dark:text-indigo-400" />

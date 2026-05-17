@@ -161,7 +161,7 @@ export default function EngagementBotTab() {
       {/* Status Card */}
       <div className={`rounded-xl p-6 ${
         settings.enabled
-          ? 'bg-gradient-to-r from-blue-500 to-indigo-600'
+          ? 'bg-gradient-to-r from-accent-primary to-indigo-600'
           : 'bg-gradient-to-r from-gray-500 to-gray-600'
       } text-white`}>
         <div className="flex items-center justify-between">

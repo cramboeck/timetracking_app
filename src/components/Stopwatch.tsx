@@ -365,7 +365,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const selectedCustomer = selectedProject ? customers.find(c => c.id === selectedProject.customerId) : null;
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
+    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-accent-light dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between">
@@ -418,12 +418,12 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
             {/* Active Project Info */}
             {isRunning && selectedProject && (
-              <div className="inline-flex items-center gap-2 px-3 py-2 bg-accent-light dark:bg-accent-primary/30 rounded-full border border-blue-200 dark:border-accent-primary/40 max-w-full">
+              <div className="inline-flex items-center gap-2 px-3 py-2 bg-accent-light dark:bg-accent-primary/30 rounded-full border border-accent-primary/30 dark:border-accent-primary/40 max-w-full">
                 <div
                   className="w-3 h-3 rounded-full animate-pulse flex-shrink-0"
                   style={{ backgroundColor: selectedCustomer?.color || '#3B82F6' }}
                 />
-                <span className="text-xs sm:text-sm font-medium text-blue-900 dark:text-blue-100 truncate">
+                <span className="text-xs sm:text-sm font-medium text-accent-dark dark:text-accent-primary truncate">
                   {selectedCustomer?.name} - {selectedProject.name}
                 </span>
               </div>

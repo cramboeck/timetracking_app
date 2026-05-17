@@ -46,7 +46,7 @@ export const Card = ({
   const interactiveStyles = interactive
     ? `
       cursor-pointer
-      hover:border-blue-300 dark:hover:border-accent-primary
+      hover:border-accent-primary/40 dark:hover:border-accent-primary
       hover:shadow-md dark:hover:shadow-gray-900/50
       focus-within:ring-2 focus-within:ring-accent-primary focus-within:ring-offset-2
       dark:focus-within:ring-offset-gray-900
@@ -140,7 +140,7 @@ export const KanbanCard = ({
       p-3
       cursor-grab active:cursor-grabbing
       hover:shadow-md dark:hover:shadow-gray-900/50
-      hover:border-blue-300 dark:hover:border-accent-primary
+      hover:border-accent-primary/40 dark:hover:border-accent-primary
       transition-all duration-150
       ${isDragging ? 'opacity-50 shadow-lg' : ''}
       ${className}
