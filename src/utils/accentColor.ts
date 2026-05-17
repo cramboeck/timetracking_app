@@ -14,7 +14,7 @@ export const accentColor = {
   get: (): AccentColor => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored && ['blue', 'green', 'orange', 'purple', 'red', 'pink'].includes(stored)) {
+      if (stored && ['blue', 'green', 'orange', 'purple', 'red', 'pink', 'ramboeck'].includes(stored)) {
         return stored as AccentColor;
       }
       return 'blue'; // Default

@@ -21,12 +21,14 @@ export const AppearanceSettings = ({
     { name: 'purple', label: 'Lila', hex: '#a855f7' },
     { name: 'red', label: 'Rot', hex: '#ef4444' },
     { name: 'pink', label: 'Pink', hex: '#ec4899' },
+    { name: 'ramboeck', label: 'RamboFlow', hex: '#FF6A00' },
   ];
 
-  const grayTones: { name: GrayTone; label: string; desc: string }[] = [
-    { name: 'light', label: 'Hell', desc: 'Weiche Grautöne' },
-    { name: 'medium', label: 'Mittel', desc: 'Ausgewogen' },
-    { name: 'dark', label: 'Dunkel', desc: 'Tiefe Schwarztöne' },
+  const grayTones: { name: GrayTone; label: string; desc: string; previewBg: string; previewCard: string }[] = [
+    { name: 'light', label: 'Hell', desc: 'Weiche Grautöne', previewBg: 'bg-gray-700', previewCard: 'bg-gray-500' },
+    { name: 'medium', label: 'Mittel', desc: 'Ausgewogen', previewBg: 'bg-zinc-900', previewCard: 'bg-zinc-700' },
+    { name: 'dark', label: 'Dunkel', desc: 'Tiefe Schwarztöne', previewBg: 'bg-zinc-950', previewCard: 'bg-zinc-800' },
+    { name: 'ramboeck', label: 'RamboFlow', desc: 'Dunkles Lila', previewBg: 'bg-[#0e0e18]', previewCard: 'bg-[#211c38]' },
   ];
 
   return (
@@ -146,7 +148,7 @@ export const AppearanceSettings = ({
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Wähle die Dunkelheit des Dark Modes (nur im Dark Mode sichtbar)
             </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {grayTones.map((tone) => (
                 <button
                   key={tone.name}
@@ -158,16 +160,8 @@ export const AppearanceSettings = ({
                   }`}
                   title={tone.desc}
                 >
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                    tone.name === 'light' ? 'bg-gray-700' :
-                    tone.name === 'medium' ? 'bg-gray-800' :
-                    'bg-gray-950'
-                  }`}>
-                    <div className={`w-6 h-6 rounded ${
-                      tone.name === 'light' ? 'bg-gray-500' :
-                      tone.name === 'medium' ? 'bg-gray-600' :
-                      'bg-gray-800'
-                    }`} />
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${tone.previewBg}`}>
+                    <div className={`w-6 h-6 rounded ${tone.previewCard}`} />
                   </div>
                   <div className="text-center">
                     <span className={`text-sm font-medium block ${
