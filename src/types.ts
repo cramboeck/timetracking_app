@@ -67,6 +67,8 @@ export type TimeRoundingInterval = 1 | 5 | 10 | 15 | 30 | 60; // minutes
 
 export type TimeFormat = '12h' | '24h'; // Time display format
 
+export type HeartbeatInterval = 1 | 5 | 15; // How often the running timer is persisted server-side, in minutes
+
 export type TeamRole = 'owner' | 'admin' | 'member';
 
 export interface TeamMembership {
@@ -117,6 +119,7 @@ export interface User {
   darkMode: boolean; // User's dark mode preference
   timeRoundingInterval: TimeRoundingInterval; // Minimum time unit for rounding (default: 15)
   timeFormat: TimeFormat; // Time display format (12h/24h, default: 24h)
+  heartbeatIntervalMinutes: HeartbeatInterval; // How often the running timer is persisted to server (default: 5)
   hasTicketAccess: boolean; // Ticket system add-on (default: false)
   createdAt: string;
   lastLogin?: string;

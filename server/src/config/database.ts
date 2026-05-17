@@ -90,6 +90,7 @@ export async function initializeDatabase() {
         accent_color TEXT DEFAULT 'ramboeck',
         gray_tone TEXT DEFAULT 'ramboeck',
         time_rounding_interval INTEGER DEFAULT 15,
+        heartbeat_interval_minutes INTEGER DEFAULT 5 CHECK(heartbeat_interval_minutes IN (1, 5, 15)),
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         last_login TIMESTAMP
       )
@@ -4137,6 +4138,23 @@ export async function initializeDatabase() {
       ALTER TABLE users ALTER COLUMN gray_tone SET DEFAULT 'ramboeck';
     `);
     logger.info('✅ Users default theme updated to RamboFlow brand');
+
+    // Migration: Add heartbeat_interval_minutes to users (per-user pref for
+    // how often the running timer is persisted server-side — default 5 min)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'heartbeat_interval_minutes'
+        ) THEN
+          ALTER TABLE users
+            ADD COLUMN heartbeat_interval_minutes INTEGER NOT NULL DEFAULT 5
+            CHECK (heartbeat_interval_minutes IN (1, 5, 15));
+        END IF;
+      END $$;
+    `);
+    logger.info('✅ Users heartbeat_interval_minutes migration complete');
 
     await client.query('COMMIT');
     logger.info('✅ Database schema initialized successfully');

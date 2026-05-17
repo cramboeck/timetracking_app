@@ -28,6 +28,7 @@ import { ReportsPage } from './components/ReportsPage';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { Auth } from './components/Auth';
 import { OfflineBanner } from './components/OfflineBanner';
+import { ForgottenTimerBanner } from './components/ForgottenTimerBanner';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
@@ -39,6 +40,7 @@ import { useSwipeGesture } from './hooks/useSwipeGesture';
 import { useIsDesktop } from './hooks/useMediaQuery';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { haptics } from './utils/haptics';
+import { generateUUID } from './utils/uuid';
 import { notificationService } from './utils/notifications';
 import { toLocalDateString } from './utils/time';
 import { addPendingEntry, getRetryableEntries, removePendingEntry, getPendingCount, getFailedCount, markEntryFailed, isRetryableError, resetFailedEntry, discardFailedEntry } from './utils/offlineStorage';
@@ -744,15 +746,19 @@ function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [runningEntry]);
 
-  // TIMER SAFETY: Periodic heartbeat - save running timer to backend every 5 minutes
-  // This ensures the server has the latest state even if the client crashes
+  // TIMER SAFETY: Periodic heartbeat — save running timer to backend every
+  // N minutes (configurable per user, default 5). Ensures the server has
+  // the latest state even if the client crashes.
   useEffect(() => {
     if (!runningEntry || !isOnline) return;
+
+    const intervalMinutes = currentUser?.heartbeatIntervalMinutes ?? 5;
+    const intervalMs = intervalMinutes * 60 * 1000;
 
     const heartbeatInterval = setInterval(async () => {
       if (runningEntry && runningEntry.isRunning) {
         try {
-          console.log('💓 [TIMER] Heartbeat: saving running timer state...');
+          console.log(`💓 [TIMER] Heartbeat (every ${intervalMinutes}min): saving running timer state...`);
           await entriesApi.update(runningEntry.id, {
             ...runningEntry,
             duration: Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000),
@@ -764,10 +770,10 @@ function App() {
           addPendingEntry(runningEntry, 'update');
         }
       }
-    }, 5 * 60 * 1000); // Every 5 minutes
+    }, intervalMs);
 
     return () => clearInterval(heartbeatInterval);
-  }, [runningEntry, isOnline]);
+  }, [runningEntry, isOnline, currentUser?.heartbeatIntervalMinutes]);
 
   // TIMER SAFETY: Save running timer to localStorage as backup
   useEffect(() => {
@@ -942,15 +948,33 @@ function App() {
     }
   };
 
-  // Repeat Entry handler
-  const handleRepeatEntry = (entry: TimeEntry) => {
-    setPrefilledEntry({
-      projectId: entry.projectId,
-      activityId: entry.activityId,
-      description: entry.description
-    });
+  // Repeat Entry handler — starts a new running timer immediately with the
+  // same project/activity/description. A previously running timer is
+  // automatically closed server-side (see PR #54 overlap-prevention).
+  const handleRepeatEntry = async (entry: TimeEntry) => {
+    if (!currentUser) return;
+
+    // Switch to the stopwatch view first so the user sees the new timer
+    // already counting when the view renders.
     setCurrentArea('arbeiten');
     setCurrentSubView('stopwatch');
+
+    const now = new Date().toISOString();
+    const newEntry: TimeEntry = {
+      id: generateUUID(),
+      userId: currentUser.id,
+      startTime: now,
+      duration: 0,
+      projectId: entry.projectId,
+      activityId: entry.activityId,
+      ticketId: entry.ticketId,
+      description: entry.description || '',
+      isRunning: true,
+      isBillable: entry.isBillable ?? true,
+      createdAt: now,
+    };
+
+    await handleUpdateRunning(newEntry);
   };
 
   // Area change handler
@@ -1089,6 +1113,16 @@ function App() {
         onRetryAll={syncPendingEntries}
       />
 
+      {/* Forgotten-timer warning (>8h running) */}
+      <ForgottenTimerBanner
+        runningEntry={runningEntry}
+        onGoToTimer={() => {
+          setCurrentArea('arbeiten');
+          setCurrentSubView('stopwatch');
+        }}
+        onStopTimer={handleFABStopTimer}
+      />
+
       {/* Global Command Palette (Cmd+K / Ctrl+K) */}
       <CommandPalette onNavigate={handleSubViewChange} />
 
@@ -1125,6 +1159,7 @@ function App() {
             projects={projects}
             customers={customers}
             activities={activities}
+            entries={entries}
             onOpenManualEntry={() => setCurrentSubView('manual')}
             prefilledEntry={prefilledEntry}
             onPrefilledEntryUsed={() => setPrefilledEntry(null)}

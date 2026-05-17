@@ -1,5 +1,5 @@
-import { Contrast } from 'lucide-react';
-import { GrayTone } from '../../types';
+import { Contrast, Zap } from 'lucide-react';
+import { GrayTone, HeartbeatInterval } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { IOSSwitch } from '../IOSSwitch';
 
@@ -12,7 +12,13 @@ export const AppearanceSettings = ({
   darkMode,
   onToggleDarkMode,
 }: AppearanceSettingsProps) => {
-  const { currentUser, updateAccentColor, updateGrayTone, updateTimeFormat } = useAuth();
+  const { currentUser, updateAccentColor, updateGrayTone, updateTimeFormat, updateHeartbeatInterval } = useAuth();
+
+  const heartbeatOptions: { value: HeartbeatInterval; label: string; desc: string }[] = [
+    { value: 1, label: '1 Min', desc: 'Sehr häufig — empfohlen bei wackeliger Verbindung' },
+    { value: 5, label: '5 Min', desc: 'Ausgewogen (Standard)' },
+    { value: 15, label: '15 Min', desc: 'Selten — schont Akku und Netz' },
+  ];
 
   const accentColors = [
     { name: 'blue', label: 'Blau', hex: '#3b82f6' },
@@ -184,6 +190,43 @@ export const AppearanceSettings = ({
               ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Heartbeat Interval Settings */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+          <Zap size={18} />
+          Timer-Heartbeat
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Wie oft soll ein laufender Timer auf den Server geschrieben werden? Häufige Heartbeats sind bei
+          wackeliger Verbindung sicherer (weniger Datenverlust), seltene schonen Akku und Netz.
+        </p>
+        <div className="grid grid-cols-3 gap-3">
+          {heartbeatOptions.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => updateHeartbeatInterval(option.value)}
+              className={`relative flex flex-col items-center gap-1 p-4 rounded-lg border-2 transition-all hover:scale-105 ${
+                (currentUser?.heartbeatIntervalMinutes || 5) === option.value
+                  ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+              }`}
+              title={option.desc}
+            >
+              <span className={`text-lg font-bold ${
+                (currentUser?.heartbeatIntervalMinutes || 5) === option.value
+                  ? 'text-accent-primary dark:text-accent-primary'
+                  : 'text-gray-900 dark:text-white'
+              }`}>
+                {option.label}
+              </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 text-center leading-tight">
+                {option.desc}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
     </div>

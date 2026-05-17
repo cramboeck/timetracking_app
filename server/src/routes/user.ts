@@ -15,6 +15,7 @@ const updateSettingsSchema = z.object({
   darkMode: z.boolean().optional(),
   timeRoundingInterval: z.number().int().min(1).optional(),
   timeFormat: z.string().optional(),
+  heartbeatIntervalMinutes: z.union([z.literal(1), z.literal(5), z.literal(15)]).optional(),
   organizationName: z.string().max(200).optional()
 });
 
@@ -35,7 +36,7 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res) => {
     const result = await pool.query(
       `SELECT id, username, email, account_type, role, organization_name, customer_number, display_name,
               team_id, team_role, mfa_enabled, accent_color, gray_tone, dark_mode, time_rounding_interval,
-              time_format, has_ticket_access, preferences, created_at, last_login
+              time_format, heartbeat_interval_minutes, has_ticket_access, preferences, created_at, last_login
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -86,6 +87,10 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
       fields.push(`time_format = $${paramCount++}`);
       values.push(updates.timeFormat);
     }
+    if (updates.heartbeatIntervalMinutes !== undefined) {
+      fields.push(`heartbeat_interval_minutes = $${paramCount++}`);
+      values.push(updates.heartbeatIntervalMinutes);
+    }
     if (updates.organizationName !== undefined) {
       fields.push(`organization_name = $${paramCount++}`);
       values.push(updates.organizationName || null);
@@ -102,7 +107,7 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
     const userResult = await pool.query(
       `SELECT id, username, email, account_type, role, organization_name, customer_number, display_name,
               team_id, team_role, mfa_enabled, accent_color, gray_tone, dark_mode, time_rounding_interval,
-              time_format, has_ticket_access, created_at, last_login
+              time_format, heartbeat_interval_minutes, has_ticket_access, created_at, last_login
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -256,7 +261,7 @@ router.post('/export', authenticateToken, async (req: AuthRequest, res) => {
     const userResult = await pool.query(
       `SELECT id, username, email, account_type, role, organization_name, customer_number,
               display_name, accent_color, gray_tone, dark_mode, time_rounding_interval,
-              time_format, created_at, last_login
+              time_format, heartbeat_interval_minutes, created_at, last_login
        FROM users WHERE id = $1`,
       [userId]
     );

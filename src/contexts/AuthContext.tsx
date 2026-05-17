@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginCredentials, RegisterData, AccentColor, GrayTone, TimeRoundingInterval, TimeFormat } from '../types';
+import { User, LoginCredentials, RegisterData, AccentColor, GrayTone, TimeRoundingInterval, TimeFormat, HeartbeatInterval } from '../types';
 import { storage } from '../utils/storage';
 import { validatePassword, validateEmail, validateUsername } from '../utils/auth';
 import { accentColor } from '../utils/accentColor';
@@ -44,6 +44,7 @@ interface AuthContextType {
   updateDarkMode: (enabled: boolean) => void;
   updateTimeRoundingInterval: (interval: TimeRoundingInterval) => void;
   updateTimeFormat: (format: TimeFormat) => void;
+  updateHeartbeatInterval: (minutes: HeartbeatInterval) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -412,6 +413,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     storage.setCurrentUser(updatedUser);
   };
 
+  const updateHeartbeatInterval = (minutes: HeartbeatInterval) => {
+    if (!currentUser) return;
+
+    persistSettings({ heartbeatIntervalMinutes: minutes });
+
+    const updatedUser = { ...currentUser, heartbeatIntervalMinutes: minutes };
+    setCurrentUser(updatedUser);
+    storage.setCurrentUser(updatedUser);
+  };
+
   const value: AuthContextType = {
     currentUser,
     isAuthenticated: !!currentUser,
@@ -424,7 +435,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     updateGrayTone,
     updateDarkMode,
     updateTimeRoundingInterval,
-    updateTimeFormat
+    updateTimeFormat,
+    updateHeartbeatInterval
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

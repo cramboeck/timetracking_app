@@ -227,7 +227,8 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
     // Try to find user by email (case-insensitive) or username (case-insensitive)
     const userResult = await pool.query(
       `SELECT id, username, email, password_hash, account_type, role, mfa_enabled, mfa_secret,
-              accent_color, gray_tone, dark_mode, time_rounding_interval, time_format
+              accent_color, gray_tone, dark_mode, time_rounding_interval, time_format,
+              heartbeat_interval_minutes
        FROM users WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)`,
       [username]
     );
