@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Mail, Lock, User, Shield, Building2, Users, Ticket, UserPlus, CheckCircle, XCircle } from 'lucide-react';
+import { Mail, Lock, User, Shield, Building2, Users, Ticket, UserPlus, CheckCircle, XCircle } from 'lucide-react';
 import logoRamboeck from '../logo/logo-ramboeckit.png';
 import { useAuth } from '../contexts/AuthContext';
 import { AccountType } from '../types';
