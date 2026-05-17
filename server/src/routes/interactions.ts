@@ -6,8 +6,10 @@
 
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
 import { query } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 import { getUserOrganizationId } from '../middleware/organization';
 import { logger } from '../utils/logger';
 
@@ -15,6 +17,66 @@ const router = Router();
 
 // All routes require authentication
 router.use(authenticateToken);
+
+// ============================================
+// VALIDATION SCHEMAS
+// ============================================
+
+const interactionTypeSchema = z.enum([
+  'call', 'email', 'meeting', 'note', 'task', 'chat',
+  'support', 'sales', 'other',
+]);
+const interactionDirectionSchema = z.enum(['inbound', 'outbound']);
+const interactionOutcomeSchema = z.enum([
+  'successful', 'unsuccessful', 'follow_up_needed', 'no_response', 'other',
+]);
+const isoDateOrTimestampSchema = z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}/));
+
+const createInteractionSchema = z.object({
+  customer_id: z.string().uuid('customer_id must be a UUID'),
+  type: interactionTypeSchema,
+  contact_id: z.string().uuid().optional().nullable(),
+  direction: interactionDirectionSchema.optional().nullable(),
+  subject: z.string().max(255).optional().nullable(),
+  content: z.string().max(20000).optional().nullable(),
+  summary: z.string().max(2000).optional().nullable(),
+  ticket_id: z.string().uuid().optional().nullable(),
+  lead_id: z.string().uuid().optional().nullable(),
+  contract_id: z.string().uuid().optional().nullable(),
+  duration_minutes: z.number().int().min(0).max(10080).optional().nullable(),
+  scheduled_at: isoDateOrTimestampSchema.optional().nullable(),
+  occurred_at: isoDateOrTimestampSchema.optional().nullable(),
+  follow_up_required: z.boolean().optional(),
+  follow_up_date: isoDateOrTimestampSchema.optional().nullable(),
+  follow_up_assigned_to: z.string().uuid().optional().nullable(),
+  follow_up_notes: z.string().max(2000).optional().nullable(),
+  outcome: interactionOutcomeSchema.optional().nullable(),
+  tags: z.array(z.string().max(50)).max(20).optional().nullable(),
+});
+
+const updateInteractionSchema = z.object({
+  contact_id: z.string().uuid().optional().nullable(),
+  type: interactionTypeSchema.optional(),
+  direction: interactionDirectionSchema.optional().nullable(),
+  subject: z.string().max(255).optional().nullable(),
+  content: z.string().max(20000).optional().nullable(),
+  summary: z.string().max(2000).optional().nullable(),
+  duration_minutes: z.number().int().min(0).max(10080).optional().nullable(),
+  occurred_at: isoDateOrTimestampSchema.optional().nullable(),
+  follow_up_required: z.boolean().optional(),
+  follow_up_date: isoDateOrTimestampSchema.optional().nullable(),
+  follow_up_assigned_to: z.string().uuid().optional().nullable(),
+  follow_up_notes: z.string().max(2000).optional().nullable(),
+  follow_up_completed: z.boolean().optional(),
+  outcome: interactionOutcomeSchema.optional().nullable(),
+  tags: z.array(z.string().max(50)).max(20).optional().nullable(),
+});
+
+const completeFollowUpSchema = z.object({
+  create_new_follow_up: z.boolean().optional(),
+  new_follow_up_date: isoDateOrTimestampSchema.optional().nullable(),
+  new_follow_up_notes: z.string().max(2000).optional().nullable(),
+});
 
 // ============================================
 // GET /api/interactions - List interactions
@@ -260,7 +322,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 // ============================================
 // POST /api/interactions - Create interaction
 // ============================================
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', validate(createInteractionSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
@@ -289,14 +351,6 @@ router.post('/', async (req: Request, res: Response) => {
       outcome,
       tags
     } = req.body;
-
-    if (!customer_id) {
-      return res.status(400).json({ error: 'customer_id is required' });
-    }
-
-    if (!type) {
-      return res.status(400).json({ error: 'type is required' });
-    }
 
     // Verify customer belongs to organization
     const customerCheck = await query(
@@ -353,7 +407,7 @@ router.post('/', async (req: Request, res: Response) => {
 // ============================================
 // PUT /api/interactions/:id - Update interaction
 // ============================================
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', validate(updateInteractionSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -418,7 +472,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 // ============================================
 // POST /api/interactions/:id/complete-follow-up - Mark follow-up as done
 // ============================================
-router.post('/:id/complete-follow-up', async (req: Request, res: Response) => {
+router.post('/:id/complete-follow-up', validate(completeFollowUpSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {

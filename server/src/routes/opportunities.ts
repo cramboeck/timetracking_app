@@ -6,8 +6,10 @@
 
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
 import { query } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 import { getUserOrganizationId } from '../middleware/organization';
 import { logger } from '../utils/logger';
 
@@ -15,6 +17,93 @@ const router = Router();
 
 // All routes require authentication
 router.use(authenticateToken);
+
+// ============================================
+// VALIDATION SCHEMAS
+// ============================================
+
+const hexColorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color');
+const isoDateSchema = z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}/));
+
+const createStageSchema = z.object({
+  name: z.string().min(1, 'name is required').max(100),
+  description: z.string().max(500).optional().nullable(),
+  color: hexColorSchema.optional(),
+  probability: z.number().int().min(0).max(100).optional(),
+  is_won: z.boolean().optional(),
+  is_lost: z.boolean().optional(),
+});
+
+const updateStageSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional().nullable(),
+  color: hexColorSchema.optional(),
+  probability: z.number().int().min(0).max(100).optional(),
+  sort_order: z.number().int().min(0).optional(),
+  is_won: z.boolean().optional(),
+  is_lost: z.boolean().optional(),
+});
+
+const reorderStagesSchema = z.object({
+  stage_ids: z.array(z.string().uuid('Each stage_id must be a UUID')).min(1),
+});
+
+const opportunityStatusSchema = z.enum(['open', 'won', 'lost']);
+
+const createOpportunitySchema = z.object({
+  name: z.string().min(1, 'name is required').max(200),
+  description: z.string().max(5000).optional().nullable(),
+  customer_id: z.string().uuid('customer_id must be a UUID').optional().nullable(),
+  lead_id: z.string().uuid().optional().nullable(),
+  contact_id: z.string().uuid().optional().nullable(),
+  stage_id: z.string().uuid().optional().nullable(),
+  value: z.number().nonnegative().optional().nullable(),
+  currency: z.string().length(3).optional(),
+  probability: z.number().int().min(0).max(100).optional().nullable(),
+  expected_close_date: isoDateSchema.optional().nullable(),
+  assigned_to: z.string().uuid().optional().nullable(),
+  source: z.string().max(100).optional().nullable(),
+  campaign: z.string().max(150).optional().nullable(),
+  next_step: z.string().max(500).optional().nullable(),
+  next_step_date: isoDateSchema.optional().nullable(),
+  notes: z.string().max(5000).optional().nullable(),
+  tags: z.array(z.string().max(50)).max(20).optional().nullable(),
+});
+
+const updateOpportunitySchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(5000).optional().nullable(),
+  customer_id: z.string().uuid().optional().nullable(),
+  contact_id: z.string().uuid().optional().nullable(),
+  stage_id: z.string().uuid().optional().nullable(),
+  value: z.number().nonnegative().optional().nullable(),
+  probability: z.number().int().min(0).max(100).optional().nullable(),
+  expected_close_date: isoDateSchema.optional().nullable(),
+  actual_close_date: isoDateSchema.optional().nullable(),
+  assigned_to: z.string().uuid().optional().nullable(),
+  status: opportunityStatusSchema.optional(),
+  lost_reason: z.string().max(500).optional().nullable(),
+  lost_to_competitor: z.string().max(150).optional().nullable(),
+  next_step: z.string().max(500).optional().nullable(),
+  next_step_date: isoDateSchema.optional().nullable(),
+  notes: z.string().max(5000).optional().nullable(),
+  tags: z.array(z.string().max(50)).max(20).optional().nullable(),
+});
+
+const moveOpportunitySchema = z.object({
+  stage_id: z.string().uuid('stage_id must be a UUID'),
+  note: z.string().max(1000).optional().nullable(),
+});
+
+const opportunityActivityTypeSchema = z.enum(['note', 'call', 'email', 'meeting', 'task', 'stage_change', 'value_change']);
+
+const createOpportunityActivitySchema = z.object({
+  activity_type: opportunityActivityTypeSchema.optional(),
+  title: z.string().min(1).max(200).optional().nullable(),
+  description: z.string().max(5000).optional().nullable(),
+  scheduled_at: isoDateSchema.optional().nullable(),
+  is_completed: z.boolean().optional(),
+});
 
 // ============================================
 // Pipeline Stages
@@ -71,7 +160,7 @@ router.get('/stages', async (req: Request, res: Response) => {
 });
 
 // POST /api/opportunities/stages - Create stage
-router.post('/stages', async (req: Request, res: Response) => {
+router.post('/stages', validate(createStageSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -79,10 +168,6 @@ router.post('/stages', async (req: Request, res: Response) => {
     }
 
     const { name, description, color, probability, is_won, is_lost } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ error: 'name is required' });
-    }
 
     // Get max sort_order
     const maxOrder = await query(
@@ -106,7 +191,7 @@ router.post('/stages', async (req: Request, res: Response) => {
 });
 
 // PUT /api/opportunities/stages/:id - Update stage
-router.put('/stages/:id', async (req: Request, res: Response) => {
+router.put('/stages/:id', validate(updateStageSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -141,7 +226,7 @@ router.put('/stages/:id', async (req: Request, res: Response) => {
 });
 
 // PUT /api/opportunities/stages/reorder - Reorder stages
-router.put('/stages/reorder', async (req: Request, res: Response) => {
+router.put('/stages/reorder', validate(reorderStagesSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -149,10 +234,6 @@ router.put('/stages/reorder', async (req: Request, res: Response) => {
     }
 
     const { stage_ids } = req.body; // Array of stage IDs in new order
-
-    if (!Array.isArray(stage_ids)) {
-      return res.status(400).json({ error: 'stage_ids must be an array' });
-    }
 
     for (let i = 0; i < stage_ids.length; i++) {
       await query(
@@ -486,7 +567,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/opportunities - Create opportunity
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', validate(createOpportunitySchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
@@ -513,10 +594,6 @@ router.post('/', async (req: Request, res: Response) => {
       notes,
       tags
     } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ error: 'name is required' });
-    }
 
     // Get first stage if not specified
     let actualStageId = stage_id;
@@ -569,7 +646,7 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // PUT /api/opportunities/:id - Update opportunity
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', validate(updateOpportunitySchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
@@ -673,7 +750,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/opportunities/:id/move - Move to different stage
-router.post('/:id/move', async (req: Request, res: Response) => {
+router.post('/:id/move', validate(moveOpportunitySchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
@@ -683,10 +760,6 @@ router.post('/:id/move', async (req: Request, res: Response) => {
 
     const { id } = req.params;
     const { stage_id, note } = req.body;
-
-    if (!stage_id) {
-      return res.status(400).json({ error: 'stage_id is required' });
-    }
 
     // Get current and new stage
     const [current, newStage] = await Promise.all([
@@ -749,7 +822,7 @@ router.post('/:id/move', async (req: Request, res: Response) => {
 });
 
 // POST /api/opportunities/:id/activities - Add activity
-router.post('/:id/activities', async (req: Request, res: Response) => {
+router.post('/:id/activities', validate(createOpportunityActivitySchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;

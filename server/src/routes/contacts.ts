@@ -6,8 +6,10 @@
 
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
 import { query } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 import { getUserOrganizationId } from '../middleware/organization';
 import { emailService } from '../services/emailService';
 import { logger } from '../utils/logger';
@@ -16,6 +18,39 @@ const router = Router();
 
 // All routes require authentication
 router.use(authenticateToken);
+
+// ============================================
+// VALIDATION SCHEMAS
+// ============================================
+
+const contactRoleSchema = z.enum(['contact', 'decision_maker', 'technical', 'billing', 'other']);
+const preferredContactMethodSchema = z.enum(['email', 'phone', 'mobile']);
+
+const createContactSchema = z.object({
+  customer_id: z.string().uuid('customer_id must be a valid UUID'),
+  last_name: z.string().min(1, 'last_name is required').max(100),
+  first_name: z.string().max(100).optional().nullable(),
+  email: z.string().email('Invalid email').max(255).optional().nullable(),
+  phone: z.string().max(50).optional().nullable(),
+  mobile: z.string().max(50).optional().nullable(),
+  job_title: z.string().max(150).optional().nullable(),
+  department: z.string().max(150).optional().nullable(),
+  role: contactRoleSchema.optional(),
+  is_primary: z.boolean().optional(),
+  preferred_contact_method: preferredContactMethodSchema.optional(),
+  notify_on_ticket_update: z.boolean().optional(),
+  notify_on_maintenance: z.boolean().optional(),
+  linkedin_url: z.string().url('Invalid URL').max(500).optional().nullable(),
+  notes: z.string().max(5000).optional().nullable(),
+});
+
+const updateContactSchema = createContactSchema.partial().omit({ customer_id: true });
+
+const portalAccessSchema = z.object({
+  send_invitation: z.boolean().optional(),
+});
+
+const resendInvitationSchema = z.object({}).strict();
 
 // ============================================
 // GET /api/contacts - List all contacts
@@ -177,7 +212,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 // ============================================
 // POST /api/contacts - Create contact
 // ============================================
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', validate(createContactSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -201,14 +236,6 @@ router.post('/', async (req: Request, res: Response) => {
       linkedin_url,
       notes
     } = req.body;
-
-    if (!customer_id) {
-      return res.status(400).json({ error: 'customer_id is required' });
-    }
-
-    if (!last_name) {
-      return res.status(400).json({ error: 'last_name is required' });
-    }
 
     // Verify customer belongs to organization
     const customerCheck = await query(
@@ -253,7 +280,7 @@ router.post('/', async (req: Request, res: Response) => {
 // ============================================
 // PUT /api/contacts/:id - Update contact
 // ============================================
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', validate(updateContactSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -363,7 +390,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 // ============================================
 // POST /api/contacts/:id/portal-access - Enable portal access
 // ============================================
-router.post('/:id/portal-access', async (req: Request, res: Response) => {
+router.post('/:id/portal-access', validate(portalAccessSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
@@ -490,7 +517,7 @@ router.post('/:id/portal-access', async (req: Request, res: Response) => {
 // ============================================
 // POST /api/contacts/:id/resend-invitation - Resend portal invitation
 // ============================================
-router.post('/:id/resend-invitation', async (req: Request, res: Response) => {
+router.post('/:id/resend-invitation', validate(resendInvitationSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
