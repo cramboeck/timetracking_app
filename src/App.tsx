@@ -1155,6 +1155,7 @@ function App() {
             projects={projects}
             customers={customers}
             activities={activities}
+            entries={entries}
             onOpenManualEntry={() => setCurrentSubView('manual')}
             prefilledEntry={prefilledEntry}
             onPrefilledEntryUsed={() => setPrefilledEntry(null)}

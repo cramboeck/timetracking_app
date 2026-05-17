@@ -15,12 +15,25 @@ interface StopwatchProps {
   projects: Project[];
   customers: Customer[];
   activities: Activity[];
+  entries: TimeEntry[];
   onOpenManualEntry?: () => void;
   prefilledEntry?: { projectId: string; activityId?: string; description: string; ticketId?: string } | null;
   onPrefilledEntryUsed?: () => void;
 }
 
-export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers, activities, onOpenManualEntry, prefilledEntry, onPrefilledEntryUsed }: StopwatchProps) => {
+const WEEKLY_GOAL_HOURS = 40;
+
+// Monday 00:00 of the current local week
+const getStartOfWeek = (): Date => {
+  const d = new Date();
+  const day = d.getDay(); // 0 = Sunday, 1 = Monday, ...
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers, activities, entries, onOpenManualEntry, prefilledEntry, onPrefilledEntryUsed }: StopwatchProps) => {
   const { currentUser } = useAuth();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -143,6 +156,27 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
         : a.name,
     }));
   }, [activities]);
+
+  // Sum of all closed time entries in the current (Monday-based) week.
+  // Excludes the running entry — its live elapsed seconds are added below.
+  const closedWeekSeconds = useMemo(() => {
+    const weekStart = getStartOfWeek();
+    return entries.reduce((sum, e) => {
+      if (e.isRunning) return sum;
+      if (new Date(e.startTime) < weekStart) return sum;
+      return sum + (e.duration || 0);
+    }, 0);
+  }, [entries]);
+
+  const runningWeekSeconds = (runningEntry && new Date(runningEntry.startTime) >= getStartOfWeek())
+    ? elapsedSeconds
+    : 0;
+
+  const weekSeconds = closedWeekSeconds + runningWeekSeconds;
+  const weekGoalSeconds = WEEKLY_GOAL_HOURS * 3600;
+  const weekPercent = Math.min(100, (weekSeconds / weekGoalSeconds) * 100);
+  const weekHours = Math.floor(weekSeconds / 3600);
+  const weekMinutes = Math.floor((weekSeconds % 3600) / 60);
 
   // Handle prefilled entry (from repeat action or ticket)
   useEffect(() => {
@@ -344,6 +378,28 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               <span className="hidden sm:inline">Manuell</span>
             </Button>
           )}
+        </div>
+
+        {/* Weekly goal progress: live total of this week (Mo–So) vs. 40h target */}
+        <div className="mt-3">
+          <div className="flex items-baseline justify-between text-xs sm:text-sm mb-1.5">
+            <span className="text-gray-500 dark:text-gray-400">Wochenziel</span>
+            <span className="font-medium text-gray-700 dark:text-gray-200 tabular-nums">
+              {weekHours}h {String(weekMinutes).padStart(2, '0')}min
+              <span className="text-gray-400 dark:text-gray-500"> / {WEEKLY_GOAL_HOURS}h</span>
+              <span className="ml-2 text-accent-primary">{Math.round(weekPercent)}%</span>
+            </span>
+          </div>
+          <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${
+                weekPercent >= 100
+                  ? 'bg-green-500'
+                  : 'bg-gradient-to-r from-accent-primary to-accent-dark'
+              }`}
+              style={{ width: `${weekPercent}%` }}
+            />
+          </div>
         </div>
       </div>
 
