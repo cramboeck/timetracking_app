@@ -1376,9 +1376,9 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               setRepeatConfirm({ isOpen: false, entry: null });
             }
           }}
-          title="Eintrag wiederholen?"
-          message={`Möchtest du einen neuen Zeiteintrag mit denselben Daten starten?\n\nProjekt: ${getProjectById(repeatConfirm.entry.projectId)?.name || 'Unbekannt'}\n${repeatConfirm.entry.description ? `Beschreibung: ${repeatConfirm.entry.description}` : ''}`}
-          confirmText="Stoppuhr starten"
+          title="Timer wiederholen?"
+          message={`Es wird sofort ein neuer Timer mit denselben Daten gestartet. Ein bereits laufender Timer wird dabei automatisch gestoppt.\n\nProjekt: ${getProjectById(repeatConfirm.entry.projectId)?.name || 'Unbekannt'}\n${repeatConfirm.entry.description ? `Beschreibung: ${repeatConfirm.entry.description}` : ''}`}
+          confirmText="Timer starten"
           variant="info"
         />
       )}

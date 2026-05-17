@@ -39,6 +39,7 @@ import { useSwipeGesture } from './hooks/useSwipeGesture';
 import { useIsDesktop } from './hooks/useMediaQuery';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { haptics } from './utils/haptics';
+import { generateUUID } from './utils/uuid';
 import { notificationService } from './utils/notifications';
 import { toLocalDateString } from './utils/time';
 import { addPendingEntry, getRetryableEntries, removePendingEntry, getPendingCount, getFailedCount, markEntryFailed, isRetryableError, resetFailedEntry, discardFailedEntry } from './utils/offlineStorage';
@@ -942,15 +943,33 @@ function App() {
     }
   };
 
-  // Repeat Entry handler
-  const handleRepeatEntry = (entry: TimeEntry) => {
-    setPrefilledEntry({
-      projectId: entry.projectId,
-      activityId: entry.activityId,
-      description: entry.description
-    });
+  // Repeat Entry handler — starts a new running timer immediately with the
+  // same project/activity/description. A previously running timer is
+  // automatically closed server-side (see PR #54 overlap-prevention).
+  const handleRepeatEntry = async (entry: TimeEntry) => {
+    if (!currentUser) return;
+
+    // Switch to the stopwatch view first so the user sees the new timer
+    // already counting when the view renders.
     setCurrentArea('arbeiten');
     setCurrentSubView('stopwatch');
+
+    const now = new Date().toISOString();
+    const newEntry: TimeEntry = {
+      id: generateUUID(),
+      userId: currentUser.id,
+      startTime: now,
+      duration: 0,
+      projectId: entry.projectId,
+      activityId: entry.activityId,
+      ticketId: entry.ticketId,
+      description: entry.description || '',
+      isRunning: true,
+      isBillable: entry.isBillable ?? true,
+      createdAt: now,
+    };
+
+    await handleUpdateRunning(newEntry);
   };
 
   // Area change handler
