@@ -111,7 +111,6 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 - **Verbesserungsidee:** Sales Pipeline → Angebots-Editor verknüpfen; bei Lead „Won" automatisch Projekt + Vertrag anlegen
 
 ### Arbeiten (Zeiterfassung)
-- `ManualEntry.tsx` existiert noch als toter Code neben `ManualEntryModern.tsx` (todo: löschen)
 - **Verbesserungsidee:** Stoppuhr als persistentes, schwebendes Widget in der gesamten App (nicht nur im „Arbeiten"-Tab)
 
 ---
@@ -150,6 +149,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 | RamboFlow brand (Orange `#FF6A00` + Dark-Indigo) als Default für neue User | #57 |
 | Phase 1: 306 `dark:*-blue-*` Inkonsistenzen → `accent-primary` | #57 |
 | Phase 2: 97 weitere semantisch blau-vs-brand Stellen → `accent-primary` (46 Files) | #65 |
+| Theme-Token-Fix: 3049 `dark:*-gray-*` → `dark-*` Tokens (136 Files) — sonst hatten die `tone-*` Klassen keinen visuellen Effekt | #66 |
 | 15 verbliebene blue-Stellen (Status „open", Info-Toast, Facebook-Brand, etc.) — intentional semantisch blau | — |
 
 ---
@@ -160,7 +160,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 1. **React Router einführen** — `App.tsx` (1100+ Zeilen) refactoren, echtes URL-Routing implementieren. `react-router-dom` v6.22 ist bereits installiert (wird aktuell nur für `/portal` und `/admin` genutzt).
 2. **TanStack Query (React Query)** — `useEffect`-Datenabfragen schrittweise ersetzen (Start mit `Tickets.tsx` und `AlertsView.tsx`).
-3. **Toten Code entfernen** — `ManualEntry.tsx` löschen (nur noch `ManualEntryModern.tsx` in `App.tsx` importiert).
+3. **Toten Code entfernen** — `Dashboard.tsx` vs `DashboardOverview.tsx`, Billing-Trio, `TaskHub.tsx` vs `TasksOverview.tsx` konsolidieren (Details unten in „Duplikat-Auflösung"). `ManualEntry.tsx` ist mit PR #67 bereits gelöscht.
 
 ### Epic 6 — UI/UX-Polish (Priorität: Mittel)
 
@@ -211,7 +211,6 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 | Duplikat | Empfehlung |
 |---|---|
-| `ManualEntry.tsx` vs `ManualEntryModern.tsx` | Altes File löschen (in Epic 5.3 abgedeckt) |
 | `Dashboard.tsx` (1683 Z.) vs `DashboardOverview.tsx` (484 Z.) | Konsolidieren |
 | `Billing.tsx` (632) vs `BillingOverview.tsx` (189) vs `BillingWidget.tsx` (159) | Konsolidieren, geteilten Code extrahieren |
 | `TaskHub.tsx` (563) vs `TasksOverview.tsx` (253) | Klare Trennung Tasks vs Tickets, ggf. zusammenführen |
@@ -239,7 +238,7 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 2. **Keine neuen `any`-Typen:** TypeScript strikt verwenden. Zod für API-Validierung nutzen.
 3. **Mobile First:** Bei neuen UI-Komponenten immer prüfen, wie sie auf einem Smartphone aussehen.
 4. **Keine nativen Alerts:** `window.alert` und `window.confirm` sind verboten. Nutze `Toast` und `ConfirmDialog`.
-5. **Farben:** Nutze die CSS-Variablen aus dem RamboFlow-Theme (`accent-primary`, `bg-dark-100`), keine hartcodierten Tailwind-Farben (`bg-blue-500`), es sei denn, es ist semantisch zwingend (z.B. Fehler = Rot, Info-Toast = Blau, Status „open" = Blau).
+5. **Farben & Theme-Tokens:** Nutze die CSS-Variablen-Tokens (`bg-dark-50/100/200/300`, `border-dark-border`, `text-dark-400/500`, `bg-accent-primary`, `text-accent-dark` etc.), **niemals hartcodierte** Tailwind-Farben wie `dark:bg-gray-800` oder `dark:border-gray-700`. Die `dark-*` Tokens werden durch die `tone-*` Klasse (`tone-medium`/`tone-dark`/`tone-ramboeck`) per CSS-Variable umgesetzt — hardcodete `gray`-Klassen bleiben fix und ignorieren den Theme-Switch. Ausnahmen sind nur semantisch zwingende Stellen (Status-Color, Error-Badge = Rot, Info-Toast = Blau, Brand-Logos wie Facebook).
 6. **Zod-Validierung ist Pflicht** — jede neue Route muss Eingaben mit Zod + `validate()` middleware validieren.
 7. **Kein `SELECT *`** — immer explizite Spaltenlisten in SQL-Queries.
 8. **Soft-Delete beachten** — Queries auf `customers`, `projects`, `activities`, `contracts` immer mit `WHERE deleted_at IS NULL` filtern. DELETE-Endpoints nutzen `UPDATE SET deleted_at = NOW()`, nicht `DELETE FROM`.
