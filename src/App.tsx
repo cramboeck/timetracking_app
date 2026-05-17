@@ -1175,7 +1175,6 @@ function App() {
         )}
         {currentSubView === 'list' && (
           <TimeEntriesList
-            entries={entries}
             projects={projects}
             customers={customers}
             activities={activities}
