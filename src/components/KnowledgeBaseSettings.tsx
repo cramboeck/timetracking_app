@@ -844,7 +844,7 @@ export const KnowledgeBaseSettings = () => {
                             <span className={`px-1.5 py-0.5 text-xs rounded ${
                               ticket.status === 'resolved'
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                : 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
+                                : 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                             }`}>
                               {ticket.status === 'resolved' ? 'Gelöst' : 'Geschlossen'}
                             </span>

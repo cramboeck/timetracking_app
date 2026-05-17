@@ -199,7 +199,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
               </p>
 
               <div className="space-y-3">
-                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-accent-primary/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Auskunft (Art. 15 DSGVO)
@@ -210,7 +210,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                   </p>
                 </div>
 
-                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-accent-primary/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Berichtigung (Art. 16 DSGVO)
@@ -220,7 +220,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                   </p>
                 </div>
 
-                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-accent-primary/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Löschung (Art. 17 DSGVO)
@@ -231,7 +231,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                   </p>
                 </div>
 
-                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-accent-primary/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Datenübertragbarkeit (Art. 20 DSGVO)
@@ -242,7 +242,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                   </p>
                 </div>
 
-                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-accent-primary/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Widerspruch (Art. 21 DSGVO)
@@ -252,7 +252,7 @@ export function PrivacyPolicy({ onClose }: PrivacyPolicyProps) {
                   </p>
                 </div>
 
-                <div className="bg-accent-light dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="bg-accent-light dark:bg-accent-primary/20 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-2">
                     <ChevronRight className="w-4 h-4" />
                     Recht auf Beschwerde (Art. 77 DSGVO)

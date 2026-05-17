@@ -441,8 +441,8 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       {/* Profile Info */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 rounded-full bg-accent-lighter dark:bg-blue-900/30 flex items-center justify-center">
-            <User size={32} className="text-accent-primary dark:text-blue-400" />
+          <div className="w-16 h-16 rounded-full bg-accent-lighter dark:bg-accent-primary/30 flex items-center justify-center">
+            <User size={32} className="text-accent-primary dark:text-accent-primary" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -718,8 +718,8 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       {/* Email Notification Preferences */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent-lighter dark:bg-blue-900/30 flex items-center justify-center">
-            <Bell size={20} className="text-accent-primary dark:text-blue-400" />
+          <div className="w-10 h-10 rounded-xl bg-accent-lighter dark:bg-accent-primary/30 flex items-center justify-center">
+            <Bell size={20} className="text-accent-primary dark:text-accent-primary" />
           </div>
           <div>
             <h3 className="font-semibold text-gray-900 dark:text-white">

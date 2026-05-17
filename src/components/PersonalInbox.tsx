@@ -244,7 +244,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
                     selectedEmail?.id === email.id
                       ? 'bg-accent-primary/10 border-l-4 border-accent-primary'
                       : 'hover:bg-gray-50 dark:hover:bg-dark-200 border-l-4 border-transparent'
-                  } ${!email.isRead ? 'bg-accent-light/50 dark:bg-blue-900/10' : ''}`}
+                  } ${!email.isRead ? 'bg-accent-light/50 dark:bg-accent-primary/40/10' : ''}`}
                   onClick={() => setSelectedEmail(email)}
                 >
                   <div className="flex items-start gap-3">
@@ -380,14 +380,14 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
       </div>
 
       {/* Info */}
-      <div className="bg-accent-light dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+      <div className="bg-accent-light dark:bg-accent-primary/20 rounded-lg p-4 border border-blue-200 dark:border-accent-primary/40">
         <div className="flex items-start gap-3">
-          <MessageSquare className="text-accent-primary dark:text-blue-400 flex-shrink-0 mt-0.5" size={20} />
+          <MessageSquare className="text-accent-primary dark:text-accent-primary flex-shrink-0 mt-0.5" size={20} />
           <div>
             <h4 className="font-medium text-blue-800 dark:text-blue-200">
               E-Mails als Interaktionen speichern
             </h4>
-            <p className="text-sm text-accent-dark dark:text-blue-300 mt-1">
+            <p className="text-sm text-accent-dark dark:text-accent-primary mt-1">
               Speichern Sie wichtige E-Mails direkt im CRM, um die komplette Kommunikationshistorie
               mit Ihren Kunden zu dokumentieren. Die E-Mails erscheinen dann in der Timeline des Kunden.
             </p>

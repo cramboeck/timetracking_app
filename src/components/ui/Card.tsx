@@ -55,8 +55,8 @@ export const Card = ({
 
   const selectedStyles = selected
     ? `
-      border-accent-primary dark:border-blue-400
-      ring-2 ring-accent-primary/20 dark:ring-blue-400/20
+      border-accent-primary dark:border-accent-primary
+      ring-2 ring-accent-primary/20 dark:ring-accent-primary/20
     `
     : '';
 
@@ -176,7 +176,7 @@ export const StatCard = ({ label, value, icon, trend, className = '' }: StatCard
         )}
       </div>
       {icon && (
-        <div className="p-2 bg-accent-light dark:bg-blue-900/30 rounded-lg text-accent-primary dark:text-blue-400">
+        <div className="p-2 bg-accent-light dark:bg-accent-primary/30 rounded-lg text-accent-primary dark:text-accent-primary">
           {icon}
         </div>
       )}

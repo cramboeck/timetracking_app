@@ -87,8 +87,8 @@ export async function initializeDatabase() {
         role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin')),
         mfa_enabled BOOLEAN DEFAULT FALSE,
         mfa_secret TEXT,
-        accent_color TEXT DEFAULT 'blue',
-        gray_tone TEXT DEFAULT 'medium',
+        accent_color TEXT DEFAULT 'ramboeck',
+        gray_tone TEXT DEFAULT 'ramboeck',
         time_rounding_interval INTEGER DEFAULT 15,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         last_login TIMESTAMP
@@ -4129,6 +4129,14 @@ export async function initializeDatabase() {
       `);
     }
     logger.info('✅ Soft-delete migration complete');
+
+    // Migration: Update users.accent_color / gray_tone defaults to RamboFlow brand
+    // (idempotent: SET DEFAULT only changes future inserts, existing rows untouched)
+    await client.query(`
+      ALTER TABLE users ALTER COLUMN accent_color SET DEFAULT 'ramboeck';
+      ALTER TABLE users ALTER COLUMN gray_tone SET DEFAULT 'ramboeck';
+    `);
+    logger.info('✅ Users default theme updated to RamboFlow brand');
 
     await client.query('COMMIT');
     logger.info('✅ Database schema initialized successfully');

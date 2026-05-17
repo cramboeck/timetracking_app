@@ -11,13 +11,13 @@ interface TasksOverviewProps {
 
 const priorityConfig: Record<TicketPriority, { label: string; color: string; bgColor: string }> = {
   low: { label: 'Niedrig', color: 'text-gray-500', bgColor: 'bg-gray-100 dark:bg-gray-700' },
-  normal: { label: 'Normal', color: 'text-accent-primary', bgColor: 'bg-accent-lighter dark:bg-blue-900/30' },
+  normal: { label: 'Normal', color: 'text-accent-primary', bgColor: 'bg-accent-lighter dark:bg-accent-primary/30' },
   high: { label: 'Hoch', color: 'text-orange-500', bgColor: 'bg-orange-100 dark:bg-orange-900/30' },
   critical: { label: 'Kritisch', color: 'text-red-500', bgColor: 'bg-red-100 dark:bg-red-900/30' },
 };
 
 const statusConfig: Record<TicketStatus, { label: string; color: string }> = {
-  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-accent-primary/40 dark:text-accent-primary' },
   in_progress: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
   waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },

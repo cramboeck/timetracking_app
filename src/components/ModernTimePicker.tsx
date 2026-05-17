@@ -76,8 +76,8 @@ export const ModernTimePicker = ({
         `}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-accent-light dark:bg-blue-900/20 flex items-center justify-center">
-            <Clock size={20} className="text-accent-primary dark:text-blue-400" />
+          <div className="w-10 h-10 rounded-lg bg-accent-light dark:bg-accent-primary/20 flex items-center justify-center">
+            <Clock size={20} className="text-accent-primary dark:text-accent-primary" />
           </div>
           <span className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums">
             {String(hours).padStart(2, '0')}:{String(minutes).padStart(2, '0')}

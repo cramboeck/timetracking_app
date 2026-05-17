@@ -94,8 +94,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
-              <Send size={20} className="text-accent-primary dark:text-blue-400" />
+            <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
+              <Send size={20} className="text-accent-primary dark:text-accent-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.total}</p>

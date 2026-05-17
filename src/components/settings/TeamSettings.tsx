@@ -82,7 +82,7 @@ export const TeamSettings = () => {
                         {member.display_name || member.username}
                       </span>
                       {member.user_id === currentUser?.id && (
-                        <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400 rounded">Du</span>
+                        <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary rounded">Du</span>
                       )}
                     </div>
                     <p className="text-sm text-gray-500 dark:text-dark-400">{member.email}</p>
@@ -94,7 +94,7 @@ export const TeamSettings = () => {
                     member.role === 'owner'
                       ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
                       : member.role === 'admin'
-                      ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400'
+                      ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary'
                       : member.role === 'viewer'
                       ? 'bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400'
                       : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
@@ -225,7 +225,7 @@ export const TeamSettings = () => {
                       </span>
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                         invitation.role === 'admin'
-                          ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400'
+                          ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary'
                           : invitation.role === 'viewer'
                           ? 'bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400'
                           : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'

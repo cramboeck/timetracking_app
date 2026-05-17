@@ -116,7 +116,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
       case 'draft':
         return 'text-gray-600 bg-gray-50 dark:text-gray-400 dark:bg-gray-800';
       case 'paused':
-        return 'text-accent-primary bg-accent-light dark:text-blue-400 dark:bg-blue-900/30';
+        return 'text-accent-primary bg-accent-light dark:text-accent-primary dark:bg-accent-primary/30';
       case 'cancelled':
       case 'terminated':
         return 'text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800';

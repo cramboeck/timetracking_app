@@ -51,7 +51,7 @@ const severityColors: Record<string, { bg: string; text: string; icon: string }>
   CRITICAL: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', icon: 'text-red-600' },
   MAJOR: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400', icon: 'text-orange-600' },
   MODERATE: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-400', icon: 'text-yellow-600' },
-  MINOR: { bg: 'bg-accent-lighter dark:bg-blue-900/30', text: 'text-accent-dark dark:text-blue-400', icon: 'text-accent-primary' },
+  MINOR: { bg: 'bg-accent-lighter dark:bg-accent-primary/30', text: 'text-accent-dark dark:text-accent-primary', icon: 'text-accent-primary' },
   NONE: { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-700 dark:text-gray-400', icon: 'text-gray-600' },
 };
 
@@ -401,7 +401,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
             onClick={() => setShowFilters(!showFilters)}
             variant={showFilters || activeFiltersCount > 0 ? 'primary' : 'ghost'}
             icon={<Filter size={16} />}
-            className={activeFiltersCount > 0 ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400' : ''}
+            className={activeFiltersCount > 0 ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary' : ''}
           >
             Filter
             {activeFiltersCount > 0 && (
@@ -480,7 +480,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
               {activeFiltersCount > 0 && (
                 <button
                   onClick={resetFilters}
-                  className="text-xs text-accent-primary dark:text-blue-400 hover:underline"
+                  className="text-xs text-accent-primary dark:text-accent-primary hover:underline"
                 >
                   Filter zurücksetzen
                 </button>
@@ -522,7 +522,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                 onClick={() => openDevice(device)}
                 className={`w-full text-left p-4 rounded-xl border-2 transition-all hover:shadow-md ${
                   isSelected
-                    ? 'border-accent-primary bg-accent-light dark:bg-blue-900/20'
+                    ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20'
                     : device.offline
                     ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 opacity-60'
                     : 'border-green-200 dark:border-green-800 bg-white dark:bg-gray-800 hover:border-green-300'
@@ -639,7 +639,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                   onClick={() => handleTabChange(tab.id)}
                   className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                     activeTab === tab.id
-                      ? 'border-accent-primary text-accent-primary dark:text-blue-400'
+                      ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
                 >
@@ -848,7 +848,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                             <div className="min-w-0">
                               <p className="font-medium text-sm text-gray-900 dark:text-white">{patch.name}</p>
                               {patch.kbNumber && (
-                                <p className="text-xs font-mono text-accent-primary dark:text-blue-400 mt-0.5">{patch.kbNumber}</p>
+                                <p className="text-xs font-mono text-accent-primary dark:text-accent-primary mt-0.5">{patch.kbNumber}</p>
                               )}
                             </div>
                             {patch.severity && (

@@ -80,8 +80,8 @@ export const NotificationSettings = () => {
       {/* In-App Notifications */}
       <Card className="rounded-xl p-6">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 bg-accent-light dark:bg-blue-900/20 rounded-xl">
-            <Bell size={24} className="text-accent-primary dark:text-blue-400" />
+          <div className="p-3 bg-accent-light dark:bg-accent-primary/20 rounded-xl">
+            <Bell size={24} className="text-accent-primary dark:text-accent-primary" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">

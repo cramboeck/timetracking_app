@@ -1125,8 +1125,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-200">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
-                  <CalendarDays size={20} className="text-accent-primary dark:text-blue-400" />
+                <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
+                  <CalendarDays size={20} className="text-accent-primary dark:text-accent-primary" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold dark:text-white">{posts.filter(p => p.status === 'scheduled').length}</p>
@@ -1241,8 +1241,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   .slice(0, 5)
                   .map(post => (
                     <div key={post.id} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
-                      <div className="flex-shrink-0 p-2 bg-accent-lighter dark:bg-blue-900/30 rounded">
-                        <Clock size={16} className="text-accent-primary dark:text-blue-400" />
+                      <div className="flex-shrink-0 p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded">
+                        <Clock size={16} className="text-accent-primary dark:text-accent-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm dark:text-white truncate">{post.content.substring(0, 60)}...</p>
@@ -1443,7 +1443,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                               post.status === 'published'
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                                 : post.status === 'scheduled'
-                                ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
+                                ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                                 : 'bg-gray-200 dark:bg-dark-200 text-gray-600 dark:text-gray-400'
                             }`}
                           >
@@ -1482,7 +1482,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       post.status === 'published'
                         ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                         : post.status === 'scheduled'
-                        ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
+                        ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                         : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400'
                     }`}>
                       {post.status === 'published' ? 'Veröffentlicht' :
@@ -1584,7 +1584,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   className="bg-white dark:bg-dark-100 rounded-xl p-6 border-2 border-dashed border-gray-300 dark:border-dark-200 hover:border-accent-primary cursor-pointer transition-colors"
                 >
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-accent-lighter dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div className="w-16 h-16 bg-accent-lighter dark:bg-accent-primary/30 rounded-full flex items-center justify-center mx-auto mb-4">
                       <PenTool size={28} className="text-accent-primary" />
                     </div>
                     <h3 className="font-semibold dark:text-white mb-2">Manuell erstellen</h3>
@@ -1964,12 +1964,12 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
                       {/* Canva Instructions */}
                       {carouselContent.canvaInstructions && (
-                        <div className="p-4 bg-accent-light dark:bg-blue-900/20 rounded-lg">
+                        <div className="p-4 bg-accent-light dark:bg-accent-primary/20 rounded-lg">
                           <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-2">
                             <Lightbulb size={16} />
                             Canva-Anleitung
                           </h4>
-                          <p className="text-sm text-accent-dark dark:text-blue-400">{carouselContent.canvaInstructions}</p>
+                          <p className="text-sm text-accent-dark dark:text-accent-primary">{carouselContent.canvaInstructions}</p>
                         </div>
                       )}
 
@@ -2690,7 +2690,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       <h4 className="font-medium dark:text-white mb-2">{group.name}</h4>
                       <div className="flex flex-wrap gap-1 mb-3">
                         {group.hashtags.slice(0, 8).map((tag, idx) => (
-                          <span key={idx} className="text-xs px-2 py-1 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded">
+                          <span key={idx} className="text-xs px-2 py-1 bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary rounded">
                             #{tag}
                           </span>
                         ))}
@@ -2796,8 +2796,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       {/* Accounts View */}
       {viewMode === 'accounts' && (
         <div className="space-y-4">
-          <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <p className="text-sm text-accent-dark dark:text-blue-400">
+          <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-4">
+            <p className="text-sm text-accent-dark dark:text-accent-primary">
               <strong>Hinweis:</strong> Die direkte Verbindung zu Social Media Plattformen wird in einer zukünftigen Version verfügbar sein.
               Aktuell können Sie Posts planen und den Content dann manuell auf den Plattformen veröffentlichen.
             </p>
@@ -3082,7 +3082,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       {post.hashtags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {post.hashtags.map((tag, i) => (
-                            <span key={i} className="text-xs text-accent-primary bg-accent-lighter dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
+                            <span key={i} className="text-xs text-accent-primary bg-accent-lighter dark:bg-accent-primary/30 px-1.5 py-0.5 rounded">
                               {tag}
                             </span>
                           ))}
@@ -3172,9 +3172,9 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       </div>
                     ))}
                     {analyticsData.contentMix.recommendations?.length > 0 && (
-                      <div className="mt-4 p-3 bg-accent-light dark:bg-blue-900/20 rounded-lg">
-                        <p className="text-sm text-accent-dark dark:text-blue-400 font-medium mb-2">Empfehlungen:</p>
-                        <ul className="text-sm text-accent-primary dark:text-blue-300 space-y-1">
+                      <div className="mt-4 p-3 bg-accent-light dark:bg-accent-primary/20 rounded-lg">
+                        <p className="text-sm text-accent-dark dark:text-accent-primary font-medium mb-2">Empfehlungen:</p>
+                        <ul className="text-sm text-accent-primary dark:text-accent-primary space-y-1">
                           {analyticsData.contentMix.recommendations.map((rec, idx) => (
                             <li key={idx}>• {rec}</li>
                           ))}
@@ -4174,7 +4174,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                               day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                             })}
                           </span>
-                          <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded capitalize">
+                          <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary rounded capitalize">
                             {entry.platform}
                           </span>
                         </div>
@@ -4403,7 +4403,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   {/* Hashtags & CTA */}
                   <div className="flex flex-wrap gap-2 mb-4">
                     {generatedStory.hashtags.map((tag, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400 rounded text-sm">
+                      <span key={idx} className="px-2 py-1 bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary rounded text-sm">
                         #{tag}
                       </span>
                     ))}
@@ -5145,11 +5145,11 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         size="lg"
       >
         <div className="space-y-4">
-          <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-            <p className="text-sm text-accent-dark dark:text-blue-400">
-              Format: <code className="bg-accent-lighter dark:bg-blue-900/50 px-1 rounded">Inhalt;Datum (YYYY-MM-DD HH:MM)</code>
+          <div className="bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg p-3">
+            <p className="text-sm text-accent-dark dark:text-accent-primary">
+              Format: <code className="bg-accent-lighter dark:bg-accent-primary/50 px-1 rounded">Inhalt;Datum (YYYY-MM-DD HH:MM)</code>
               <br />
-              Beispiel: <code className="bg-accent-lighter dark:bg-blue-900/50 px-1 rounded">Mein Post-Text;2025-01-15 09:00</code>
+              Beispiel: <code className="bg-accent-lighter dark:bg-accent-primary/50 px-1 rounded">Mein Post-Text;2025-01-15 09:00</code>
             </p>
           </div>
 
@@ -5766,7 +5766,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <div className="flex items-center justify-between mt-3">
                     <div className="flex flex-wrap gap-1.5">
                       {(wizardContent.post?.hashtags || []).map(tag => (
-                        <span key={tag} className="px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded text-xs">
+                        <span key={tag} className="px-2 py-0.5 bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary rounded text-xs">
                           #{tag}
                         </span>
                       ))}
@@ -5803,7 +5803,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
                 {/* Best Posting Time - Moved to left side */}
                 {wizardContent.bestPostingTime && (
-                  <div className="bg-accent-light dark:bg-blue-900/20 rounded-xl p-4 flex items-center gap-3">
+                  <div className="bg-accent-light dark:bg-accent-primary/20 rounded-xl p-4 flex items-center gap-3">
                     <Clock size={20} className="text-accent-primary flex-shrink-0" />
                     <div>
                       <p className="font-medium dark:text-white text-sm">Optimaler Zeitpunkt</p>
@@ -6356,7 +6356,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <p className="dark:text-white whitespace-pre-wrap">{wizardEditedContent}</p>
                   <div className="flex flex-wrap gap-2 mt-4">
                     {(wizardContent?.post?.hashtags || []).map(tag => (
-                      <span key={tag} className="text-sm text-accent-primary dark:text-blue-400">#{tag}</span>
+                      <span key={tag} className="text-sm text-accent-primary dark:text-accent-primary">#{tag}</span>
                     ))}
                   </div>
                   {wizardContent?.post.callToAction && (

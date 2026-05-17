@@ -517,19 +517,19 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           </h3>
           <div className="space-y-3 text-sm">
             {customer.email && (
-              <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-blue-400">
+              <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-accent-primary">
                 <Mail size={16} />
                 {customer.email}
               </a>
             )}
             {customer.phone && (
-              <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-blue-400">
+              <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-accent-primary">
                 <Phone size={16} />
                 {customer.phone}
               </a>
             )}
             {customer.website && (
-              <a href={customer.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-blue-400">
+              <a href={customer.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-accent-primary">
                 <Globe size={16} />
                 {customer.website}
               </a>
@@ -616,7 +616,7 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'decision_maker': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
-      case 'technical': return 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400';
+      case 'technical': return 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary';
       case 'billing': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
       default: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400';
     }
@@ -683,7 +683,7 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
                 ) : (
                   <button
                     onClick={() => onEnablePortalAccess(contact)}
-                    className="text-xs px-2 py-0.5 rounded-full bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                    className="text-xs px-2 py-0.5 rounded-full bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary hover:bg-accent-lighter dark:hover:bg-accent-primary/50 transition-colors"
                   >
                     + Portal aktivieren
                   </button>
@@ -764,7 +764,7 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ tickets, onCreateTicket, onTick
   const priorityColors: Record<string, string> = {
     critical: 'text-red-600 dark:text-red-400',
     high: 'text-orange-600 dark:text-orange-400',
-    normal: 'text-accent-primary dark:text-blue-400',
+    normal: 'text-accent-primary dark:text-accent-primary',
     low: 'text-gray-600 dark:text-gray-400',
   };
 
@@ -1409,7 +1409,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
         description: formatDuration(e.duration || 0),
         timestamp: e.date || e.startTime,
         icon: Clock,
-        color: 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400',
+        color: 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary',
       });
     });
 
@@ -1485,7 +1485,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2 mb-3">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Building2 size={24} className="text-accent-primary dark:text-blue-400" />
+              <Building2 size={24} className="text-accent-primary dark:text-accent-primary" />
               Kunden
             </h1>
             <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -1556,7 +1556,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                     onClick={() => handleCustomerSelect(customer.id)}
                     className={`w-full p-4 text-left transition-colors ${
                       isSelected
-                        ? 'bg-accent-light dark:bg-blue-900/20 border-l-4 border-accent-primary'
+                        ? 'bg-accent-light dark:bg-accent-primary/20 border-l-4 border-accent-primary'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 border-l-4 border-transparent'
                     }`}
                   >
@@ -1593,7 +1593,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
             {/* Back Button (Mobile) */}
             <button
               onClick={() => setSelectedCustomerId(null)}
-              className="lg:hidden flex items-center gap-1 text-accent-primary dark:text-blue-400 mb-4"
+              className="lg:hidden flex items-center gap-1 text-accent-primary dark:text-accent-primary mb-4"
             >
               <ChevronLeft size={18} />
               <span>Zurück</span>
@@ -1647,7 +1647,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                     activeTab === tab.id
-                      ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
+                      ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >

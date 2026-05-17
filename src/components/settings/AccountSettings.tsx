@@ -145,7 +145,7 @@ export const AccountSettings = ({
           <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
             {entries.length}
           </p>
-          <p className="text-xs text-accent-dark dark:text-blue-300 mt-1">Gesamt erfasst</p>
+          <p className="text-xs text-accent-dark dark:text-accent-primary mt-1">Gesamt erfasst</p>
         </div>
 
         <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl border border-green-200 dark:border-green-800 p-5 shadow-sm hover:shadow-md transition-shadow">
@@ -178,8 +178,8 @@ export const AccountSettings = ({
       {/* Account Details */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-md">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 bg-accent-light dark:bg-blue-900/20 rounded-xl">
-            <UserIcon size={24} className="text-accent-primary dark:text-blue-400" />
+          <div className="p-3 bg-accent-light dark:bg-accent-primary/20 rounded-xl">
+            <UserIcon size={24} className="text-accent-primary dark:text-accent-primary" />
           </div>
           <div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white">Mein Account</h3>
@@ -227,7 +227,7 @@ export const AccountSettings = ({
           )}
 
           <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <p className="text-xs font-semibold text-accent-primary dark:text-blue-400 uppercase tracking-wider mb-1">Mitglied seit</p>
+            <p className="text-xs font-semibold text-accent-primary dark:text-accent-primary uppercase tracking-wider mb-1">Mitglied seit</p>
             <p className="text-lg font-bold text-gray-900 dark:text-white">
               {currentUser?.createdAt && new Date(currentUser.createdAt).toLocaleDateString('de-DE', {
                 day: 'numeric',
@@ -265,8 +265,8 @@ export const AccountSettings = ({
       {/* GDPR / Data Protection */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-md">
         <div className="flex items-center gap-3 mb-5">
-          <div className="p-3 bg-accent-light dark:bg-blue-900/20 rounded-xl">
-            <Shield size={24} className="text-accent-primary dark:text-blue-400" />
+          <div className="p-3 bg-accent-light dark:bg-accent-primary/20 rounded-xl">
+            <Shield size={24} className="text-accent-primary dark:text-accent-primary" />
           </div>
           <div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white">Datenschutz (DSGVO)</h3>
@@ -280,7 +280,7 @@ export const AccountSettings = ({
             disabled={gdprExporting}
             className="w-full flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left"
           >
-            <Download size={20} className="text-accent-primary dark:text-blue-400" />
+            <Download size={20} className="text-accent-primary dark:text-accent-primary" />
             <div>
               <p className="font-medium text-gray-900 dark:text-white">
                 {gdprExporting ? 'Exportiere...' : 'Daten exportieren'}

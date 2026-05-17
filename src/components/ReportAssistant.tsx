@@ -2436,7 +2436,7 @@ ${companyInfo?.phone || ''}`;
                                   <StatusIcon size={12} />
                                   {statusBadge.label}
                                 </span>
-                                <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded-full">
+                                <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary rounded-full">
                                   {report.report_title}
                                 </span>
                               </div>
@@ -2694,7 +2694,7 @@ ${companyInfo?.phone || ''}`;
               </div>
 
               {sendApprovalDialog.revisionOfId && (
-                <div className="mb-4 p-3 bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="mb-4 p-3 bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg">
                   <p className="text-sm text-blue-800 dark:text-blue-300">
                     Dies ist eine Überarbeitung eines abgelehnten Reports. Der ursprüngliche Report wird als "Ersetzt" markiert.
                   </p>

@@ -30,7 +30,7 @@ interface TicketKanbanProps {
 }
 
 const statusColumns: { status: TicketStatus; label: string; color: string; bgColor: string }[] = [
-  { status: 'open', label: 'Offen', color: 'border-accent-primary', bgColor: 'bg-accent-light dark:bg-blue-900/20' },
+  { status: 'open', label: 'Offen', color: 'border-accent-primary', bgColor: 'bg-accent-light dark:bg-accent-primary/20' },
   { status: 'in_progress', label: 'In Bearbeitung', color: 'border-yellow-500', bgColor: 'bg-yellow-50 dark:bg-yellow-900/20' },
   { status: 'waiting', label: 'Wartend', color: 'border-purple-500', bgColor: 'bg-purple-50 dark:bg-purple-900/20' },
   { status: 'resolved', label: 'Gelöst', color: 'border-green-500', bgColor: 'bg-green-50 dark:bg-green-900/20' },
@@ -39,7 +39,7 @@ const statusColumns: { status: TicketStatus; label: string; color: string; bgCol
 const priorityConfig: Record<TicketPriority, { label: string; color: string; borderColor: string; bgColor: string }> = {
   critical: { label: 'Kritisch', color: 'text-red-600', borderColor: 'border-l-red-500', bgColor: 'bg-red-50 dark:bg-red-900/20' },
   high: { label: 'Hoch', color: 'text-orange-500', borderColor: 'border-l-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/20' },
-  normal: { label: 'Normal', color: 'text-accent-primary', borderColor: 'border-l-blue-400', bgColor: 'bg-accent-light dark:bg-blue-900/20' },
+  normal: { label: 'Normal', color: 'text-accent-primary', borderColor: 'border-l-blue-400', bgColor: 'bg-accent-light dark:bg-accent-primary/20' },
   low: { label: 'Niedrig', color: 'text-gray-500', borderColor: 'border-l-gray-400', bgColor: 'bg-gray-50 dark:bg-gray-800/50' },
 };
 

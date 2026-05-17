@@ -32,7 +32,7 @@ interface TicketStats {
 }
 
 const statusConfig: Record<TicketStatus, { label: string; color: string; icon: typeof Clock }> = {
-  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-blue-900 dark:text-blue-200', icon: AlertCircle },
+  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-accent-primary/40 dark:text-accent-primary', icon: AlertCircle },
   in_progress: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200', icon: Clock },
   waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', icon: Pause },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', icon: CheckCircle },
@@ -236,9 +236,9 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4">
-            <div className="bg-accent-light dark:bg-blue-900/30 rounded-lg p-3">
-              <div className="text-2xl font-bold text-accent-primary dark:text-blue-400">{stats.open_count}</div>
-              <div className="text-sm text-accent-primary dark:text-blue-400">Offen</div>
+            <div className="bg-accent-light dark:bg-accent-primary/30 rounded-lg p-3">
+              <div className="text-2xl font-bold text-accent-primary dark:text-accent-primary">{stats.open_count}</div>
+              <div className="text-sm text-accent-primary dark:text-accent-primary">Offen</div>
             </div>
             <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-3">
               <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.in_progress_count}</div>

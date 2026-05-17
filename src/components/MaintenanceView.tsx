@@ -393,7 +393,7 @@ function AnnouncementDialog({
 
           {/* Ticket creation option - only shown when exactly one customer is selected */}
           {formData.customerIds.length === 1 && !announcement && (
-            <div className="p-4 bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="p-4 bg-accent-light dark:bg-accent-primary/20 border border-blue-200 dark:border-accent-primary/40 rounded-lg">
               <label className="flex items-center gap-3">
                 <input
                   type="checkbox"
@@ -405,7 +405,7 @@ function AnnouncementDialog({
                   <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
                     Ticket für Zeiterfassung erstellen
                   </span>
-                  <p className="text-xs text-accent-primary dark:text-blue-400 mt-0.5">
+                  <p className="text-xs text-accent-primary dark:text-accent-primary mt-0.5">
                     Erstellt automatisch ein Ticket mit dem Wartungstitel für die Zeiterfassung
                   </p>
                 </div>
@@ -1013,7 +1013,7 @@ export default function MaintenanceView() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
+              <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
                 <Calendar className="w-5 h-5 text-accent-primary" />
               </div>
               <div>

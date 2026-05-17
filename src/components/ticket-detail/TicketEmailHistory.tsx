@@ -36,7 +36,7 @@ export const TicketEmailHistory = ({
             E-Mail-Verlauf
           </span>
           {emails.length > 0 && (
-            <span className="px-1.5 py-0.5 text-xs bg-accent-lighter text-accent-dark dark:bg-blue-900/50 dark:text-blue-300 rounded">
+            <span className="px-1.5 py-0.5 text-xs bg-accent-lighter text-accent-dark dark:bg-accent-primary/50 dark:text-accent-primary rounded">
               {emails.length}
             </span>
           )}
@@ -66,12 +66,12 @@ export const TicketEmailHistory = ({
                   >
                     <div className={`p-1.5 rounded-full ${
                       email.direction === 'inbound'
-                        ? 'bg-accent-lighter dark:bg-blue-900/30'
+                        ? 'bg-accent-lighter dark:bg-accent-primary/30'
                         : 'bg-green-100 dark:bg-green-900/30'
                     }`}>
                       <Mail size={14} className={
                         email.direction === 'inbound'
-                          ? 'text-accent-primary dark:text-blue-400'
+                          ? 'text-accent-primary dark:text-accent-primary'
                           : 'text-green-600 dark:text-green-400'
                       } />
                     </div>
@@ -82,7 +82,7 @@ export const TicketEmailHistory = ({
                         </span>
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
                           email.direction === 'inbound'
-                            ? 'bg-accent-lighter text-accent-dark dark:bg-blue-900/50 dark:text-blue-300'
+                            ? 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/50 dark:text-accent-primary'
                             : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
                         }`}>
                           {email.direction === 'inbound' ? 'Empfangen' : 'Gesendet'}
