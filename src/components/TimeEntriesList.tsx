@@ -166,12 +166,11 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
   // Reset to page 1 whenever any backend-relevant filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterProjectId]);
+  }, [filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterProjectId, filterCustomerId, filterDescription]);
 
-  // Fetch entries when filters/page change. Customer + description filters
-  // are NOT sent to the backend (no support there yet), they apply only to
-  // the page we already have — this is the documented pragmatic trade-off
-  // for the first iteration of paginated list view.
+  // Fetch entries when filters/page change. ALL filters now go to the
+  // backend (since the entries endpoint learned customerId + searchText
+  // support) — no client-side narrowing of the loaded page anymore.
   useEffect(() => {
     let cancelled = false;
     const dateRange = filterToDateRange(
@@ -191,6 +190,8 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
         projectId: filterProjectId || undefined,
+        customerId: filterCustomerId || undefined,
+        searchText: filterDescription || undefined,
       })
       .then((response) => {
         if (cancelled) return;
@@ -209,7 +210,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     return () => {
       cancelled = true;
     };
-  }, [currentPage, filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterProjectId, refetchToken]);
+  }, [currentPage, filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterProjectId, filterCustomerId, filterDescription, refetchToken]);
 
   // View mode state
   const [compactView, setCompactView] = useState<boolean>(() => {
@@ -355,24 +356,10 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
   }, [entries]);
 
   // Filter entries
-  // Timeframe and projectId are already applied by the backend (see fetch
-  // useEffect above). Customer and description filters are applied here on
-  // the loaded page — backend does not support them yet.
-  const filteredEntries = useMemo(() => {
-    return entries.filter(entry => {
-      if (filterCustomerId) {
-        const project = getProjectById(entry.projectId);
-        if (!project || project.customerId !== filterCustomerId) return false;
-      }
-      if (filterDescription) {
-        const searchLower = filterDescription.toLowerCase();
-        const descMatch = entry.description?.toLowerCase().includes(searchLower);
-        const projectMatch = getProjectDisplay(entry).toLowerCase().includes(searchLower);
-        if (!descMatch && !projectMatch) return false;
-      }
-      return true;
-    });
-  }, [entries, filterCustomerId, filterDescription]);
+  // All filters (timeframe, projectId, customerId, searchText) are applied
+  // server-side now — see the fetch useEffect above. The current page is
+  // already correctly filtered; no client-side narrowing needed.
+  const filteredEntries = entries;
 
   const sortedEntries = useMemo(() =>
     [...filteredEntries].sort(

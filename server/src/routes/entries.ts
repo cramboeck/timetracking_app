@@ -38,7 +38,10 @@ const updateEntrySchema = z.object({
 });
 
 // GET /api/entries - Get entries for current organization
-// Supports pagination (?page=1&limit=100) and filters (?startDate=ISO&endDate=ISO&projectId=...)
+// Supports pagination (?page=1&limit=100) and filters:
+//   ?startDate=ISO  ?endDate=ISO   ?projectId=UUID
+//   ?customerId=UUID                 (joins via projects.customer_id)
+//   ?searchText=foo                  (case-insensitive ILIKE on description)
 // Backward-compatible: ?all=true returns all entries without pagination (legacy behaviour)
 router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
@@ -52,9 +55,11 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     const limit = Math.min(500, Math.max(1, parseInt(req.query.limit as string) || 100));
     const offset = (page - 1) * limit;
 
-    const startDate = req.query.startDate as string | undefined;
-    const endDate   = req.query.endDate   as string | undefined;
-    const projectId = req.query.projectId as string | undefined;
+    const startDate  = req.query.startDate  as string | undefined;
+    const endDate    = req.query.endDate    as string | undefined;
+    const projectId  = req.query.projectId  as string | undefined;
+    const customerId = req.query.customerId as string | undefined;
+    const searchText = (req.query.searchText as string | undefined)?.trim();
 
     const params: unknown[] = [organizationId];
     let whereClause = 'WHERE organization_id = $1';
@@ -70,6 +75,23 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     if (projectId) {
       params.push(projectId);
       whereClause += ` AND project_id = $${params.length}`;
+    }
+    if (customerId) {
+      // Subquery is scoped to the same organization, so cross-org customer
+      // IDs return zero matching projects → zero entries (safe by design).
+      params.push(customerId);
+      whereClause += ` AND project_id IN (
+        SELECT id FROM projects
+        WHERE customer_id = $${params.length}
+          AND organization_id = $1
+          AND deleted_at IS NULL
+      )`;
+    }
+    if (searchText) {
+      // Use ILIKE on the description for case-insensitive substring search.
+      // The wildcards are added server-side so the client can't inject them.
+      params.push(`%${searchText}%`);
+      whereClause += ` AND description ILIKE $${params.length}`;
     }
 
     // Explicit column list – never expose internal fields accidentally
