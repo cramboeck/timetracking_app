@@ -864,7 +864,7 @@ const Leads: React.FC = () => {
                 lead={editingLead || undefined}
                 initialStatus={initialStatus || undefined}
                 onSave={handleSaveLead}
-                onCancel={() => {
+                onClose={() => {
                   setShowForm(false);
                   setEditingLead(null);
                   setInitialStatus(null);

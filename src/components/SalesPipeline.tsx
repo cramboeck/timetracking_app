@@ -858,7 +858,7 @@ const SalesPipeline: React.FC = () => {
                 stages={stages}
                 customers={customers}
                 onSave={handleSaveOpportunity}
-                onCancel={() => {
+                onClose={() => {
                   setShowForm(false);
                   setEditingOpportunity(null);
                   setInitialStageId(null);

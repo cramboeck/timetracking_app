@@ -677,7 +677,7 @@ export const SupportInbox = () => {
         onCustomerSelected={handleSelectCustomer}
         onNavigateToCreateCustomer={handleNavigateToCreateCustomer}
         onContinueWithoutCustomer={handleContinueWithoutCustomer}
-        onCancel={() => setShowUnknownCustomerDialog(false)}
+        onClose={() => setShowUnknownCustomerDialog(false)}
       />
     </div>
   );
