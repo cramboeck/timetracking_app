@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
+import { useState, useCallback, useMemo, memo, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Clock, Building2, AlertCircle, RefreshCw, Filter, User, Layers, X, Calendar, ChevronDown } from 'lucide-react';
 import { Ticket, TicketStatus, TicketPriority, Customer } from '../types';
 import { ticketsApi, TicketTag, organizationsApi, OrganizationMember } from '../services/api';
@@ -25,7 +26,6 @@ export const DEFAULT_KANBAN_CONFIG: KanbanConfig = {
 interface TicketKanbanProps {
   customers: Customer[];
   onTicketSelect: (ticketId: string) => void;
-  refreshKey?: number;
   config?: Partial<KanbanConfig>; // Optionale Konfigurationsüberschreibung
 }
 
@@ -176,16 +176,15 @@ const TicketCard = memo(({
 
 TicketCard.displayName = 'TicketCard';
 
-export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config }: TicketKanbanProps) => {
+export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanbanProps) => {
+  const queryClient = useQueryClient();
+
   // Merge custom config with defaults
   const activeConfig = useMemo(() => ({
     ...DEFAULT_KANBAN_CONFIG,
     ...config,
   }), [config]);
 
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [ticketTags, setTicketTags] = useState<Record<string, TicketTag[]>>({});
-  const [loading, setLoading] = useState(true);
   const [draggedTicket, setDraggedTicket] = useState<Ticket | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<TicketStatus | null>(null);
 
@@ -197,9 +196,6 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
 
   // View options
   const [groupByPriority, setGroupByPriority] = useState(false);
-
-  // Team members
-  const [teamMembers, setTeamMembers] = useState<OrganizationMember[]>([]);
 
   // Refs für Infinite Scroll
   const columnRefs = useRef<Record<TicketStatus, HTMLDivElement | null>>({
@@ -231,17 +227,14 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
     archived: false,
   });
 
-  const loadTickets = useCallback(async () => {
-    try {
-      setLoading(true);
+  const kanbanDataQuery = useQuery({
+    queryKey: ['tickets', 'kanban', activeConfig.maxTagsToLoad],
+    queryFn: async () => {
       const response = await ticketsApi.getAll();
-      // Filter out archived and closed tickets
       const activeTickets = response.data.filter(
         (t: Ticket) => t.status !== 'archived' && t.status !== 'closed'
       );
-      setTickets(activeTickets);
 
-      // Load tags for all tickets (mit konfigurierbarem Limit)
       const tagsMap: Record<string, TicketTag[]> = {};
       await Promise.all(
         activeTickets.slice(0, activeConfig.maxTagsToLoad).map(async (ticket: Ticket) => {
@@ -253,32 +246,51 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
           }
         })
       );
-      setTicketTags(tagsMap);
-    } catch (error) {
-      console.error('Failed to load tickets:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeConfig.maxTagsToLoad]);
 
-  const loadTeamMembers = useCallback(async () => {
-    try {
+      return { tickets: activeTickets as Ticket[], tags: tagsMap };
+    },
+  });
+
+  const tickets = kanbanDataQuery.data?.tickets ?? [];
+  const ticketTags = kanbanDataQuery.data?.tags ?? {};
+  const loading = kanbanDataQuery.isLoading;
+  const loadTickets = () => kanbanDataQuery.refetch();
+
+  const teamMembersQuery = useQuery({
+    queryKey: ['teamMembers', 'current'],
+    queryFn: async () => {
       const orgResponse = await organizationsApi.getCurrent();
-      if (orgResponse.success && orgResponse.data) {
-        const membersResponse = await organizationsApi.getMembers(orgResponse.data.id);
-        if (membersResponse.success) {
-          setTeamMembers(membersResponse.data);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load team members:', error);
-    }
-  }, []);
+      if (!orgResponse.success || !orgResponse.data) return [] as OrganizationMember[];
+      const membersResponse = await organizationsApi.getMembers(orgResponse.data.id);
+      return (membersResponse.success ? membersResponse.data : []) as OrganizationMember[];
+    },
+    staleTime: 5 * 60_000,
+  });
+  const teamMembers = teamMembersQuery.data ?? [];
 
-  useEffect(() => {
-    loadTickets();
-    loadTeamMembers();
-  }, [loadTickets, loadTeamMembers, refreshKey]);
+  type KanbanData = { tickets: Ticket[]; tags: Record<string, TicketTag[]> };
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: TicketStatus }) =>
+      ticketsApi.update(id, { status }),
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['tickets'] });
+      const queryKey = ['tickets', 'kanban', activeConfig.maxTagsToLoad];
+      const prev = queryClient.getQueryData<KanbanData>(queryKey);
+      queryClient.setQueryData<KanbanData>(queryKey, (old) =>
+        old
+          ? { ...old, tickets: old.tickets.map((t) => (t.id === id ? { ...t, status } : t)) }
+          : old
+      );
+      return { prev, queryKey };
+    },
+    onError: (error, _vars, context) => {
+      console.error('Failed to update ticket status:', error);
+      if (context?.prev) queryClient.setQueryData(context.queryKey, context.prev);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+  });
 
   const handleDragStart = (ticket: Ticket) => {
     setDraggedTicket(ticket);
@@ -293,31 +305,15 @@ export const TicketKanban = ({ customers, onTicketSelect, refreshKey = 0, config
     setDragOverColumn(null);
   };
 
-  const handleDrop = async (status: TicketStatus) => {
+  const handleDrop = (status: TicketStatus) => {
     if (!draggedTicket || draggedTicket.status === status) {
       setDraggedTicket(null);
       setDragOverColumn(null);
       return;
     }
-
-    try {
-      // Optimistic update
-      setTickets(prev =>
-        prev.map(t =>
-          t.id === draggedTicket.id ? { ...t, status } : t
-        )
-      );
-
-      // API update
-      await ticketsApi.update(draggedTicket.id, { status });
-    } catch (error) {
-      console.error('Failed to update ticket status:', error);
-      // Revert on error
-      loadTickets();
-    } finally {
-      setDraggedTicket(null);
-      setDragOverColumn(null);
-    }
+    updateStatusMutation.mutate({ id: draggedTicket.id, status });
+    setDraggedTicket(null);
+    setDragOverColumn(null);
   };
 
   const handleDragEnd = () => {
