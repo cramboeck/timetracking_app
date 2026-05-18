@@ -15,7 +15,7 @@
 | Frontend | React 18.3 + TypeScript 5.3 + Tailwind CSS 3.4 + Vite 5.1 |
 | Backend | Node.js + Express 4.18 + TypeScript |
 | Datenbank | PostgreSQL 16 (via `pg` Pool) |
-| Auth | JWT (Access Token, kein Refresh-Token) |
+| Auth | JWT (Access Token + Refresh-Token seit PR #71) |
 | Validierung | Zod (Backend, eingeführt durch PR #48 + #61), React Hook Form (Frontend) |
 | Background Jobs | node-cron |
 | Deployment | Docker Compose (server + client + db) auf Hetzner |
@@ -115,7 +115,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ---
 
-## Aktueller Stand (Stand 17.5.2026)
+## Aktueller Stand (Stand 18.5.2026)
 
 ### Sprint „Kurzfristig" — ✅ abgeschlossen
 
@@ -152,6 +152,28 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 | Theme-Token-Fix: 3049 `dark:*-gray-*` → `dark-*` Tokens (136 Files) — sonst hatten die `tone-*` Klassen keinen visuellen Effekt | #66 |
 | 15 verbliebene blue-Stellen (Status „open", Info-Toast, Facebook-Brand, etc.) — intentional semantisch blau | — |
 
+### Epic 6 — UI/UX-Polish — ✅ abgeschlossen
+
+| Task | PR |
+|---|---|
+| Globaler Timer als persistentes Bottom-Bar-Widget in der App-Shell (Mobile) | #73 |
+| `GlobalTimerWidget.tsx` neu — Live-Counter, Tap-to-Stopwatch, integrierter Stop-Button | #73 |
+| FAB-Guard (Widget übernimmt Running-State, FAB nur noch Start-Modus) | #73 |
+| Skeleton Loaders für `TicketList.tsx` (6× `SkeletonListItem`) | #78 |
+| Skeleton Loaders für `TimeEntriesList.tsx` + Bug-Fix (kein „Keine Einträge gefunden"-Flash mehr während Initial-Load) | #78 |
+| Skeleton Loaders für `CustomerHub.tsx` via `isInitialDataLoading`-Prop | #78 |
+| App-Level `isInitialDataLoading` State (gefüttert aus `Promise.all`-Boot-Fetch) | #78 |
+| Bento-Grid Dashboard: `DashboardOverview.tsx` rewrite mit Hero-Kachel (2×2), Live-Ticker bei laufendem Timer, Wochenziel-Progress, 4 KPI-Tiles | #78 |
+| `sumDurationSeconds()` Helper extrahiert (war 4× dupliziert) | #78 |
+| Pre-existing Wochen-Montag-Off-by-one gefixt | #78 |
+
+### Refresh-Token (Epic 7 Punkt 4) — ✅ abgeschlossen
+
+| Task | PR |
+|---|---|
+| Refresh-Token-Mechanismus (Access + Refresh, smoke-tested 10/10) | #71 |
+| Hotfix: `refresh_tokens` FK Type-Mismatch (`users.id` ist TEXT, nicht UUID) | #72 |
+
 ---
 
 ## Offene Aufgaben (Roadmap)
@@ -162,18 +184,12 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 2. **TanStack Query (React Query)** — `useEffect`-Datenabfragen schrittweise ersetzen (Start mit `Tickets.tsx` und `AlertsView.tsx`).
 3. **Toten Code entfernen** — `Dashboard.tsx` vs `DashboardOverview.tsx`, Billing-Trio, `TaskHub.tsx` vs `TasksOverview.tsx` konsolidieren (Details unten in „Duplikat-Auflösung"). `ManualEntry.tsx` ist mit PR #67 bereits gelöscht.
 
-### Epic 6 — UI/UX-Polish (Priorität: Mittel)
-
-1. **Skeleton Loaders** für alle Haupt-Listen (Tickets, Kunden, Einträge) — aktuell zeigen Listen während des Loadings nichts an.
-2. **Globaler Timer** als persistentes, schwebendes Element in der App-Shell (Picture-in-Picture oder Bottom-Bar), nicht nur im „Arbeiten"-Tab.
-3. **Bento-Grid Dashboard** — `DashboardOverview.tsx` als modulares KPI-Grid.
-
 ### Epic 7 — Echtzeit & Automatisierung (Priorität: Mittel)
 
 1. **Server-Sent Events (SSE)** für NinjaRMM Alerts und eingehende E-Mails.
 2. **Push-Notifications** robuster — Service Worker (`push-sw.js`) härten, VAPID-Keys im Admin-Setup erzwingen.
 3. **CRM-Finanzen-Brücke** — Angebote direkt aus der Sales Pipeline erstellen.
-4. **Refresh-Token-Mechanismus** — JWT läuft ab → aktuell wird der Nutzer ausgeloggt, keine automatische Verlängerung.
+4. ~~**Refresh-Token-Mechanismus**~~ — ✅ in PR #71 + #72 erledigt, siehe „Aktueller Stand".
 
 ### Epic 8 — Tech-Stack-Upgrade-Plan (schrittweise, Risiko-bewertet)
 
@@ -260,4 +276,4 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-*Zuletzt aktualisiert: 17.5.2026 — nach Sprint-Abschluss (Soft-Delete + Zod + Pagination) und Epic 4.1 + Branding-Komplettierung.*
+*Zuletzt aktualisiert: 18.5.2026 — nach Epic 6 Komplettierung (Global Timer Widget #73 + Skeleton Loaders & Bento-Grid Dashboard #78) und Refresh-Token-Mechanismus (#71 + #72).*
