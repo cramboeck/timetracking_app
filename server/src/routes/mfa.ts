@@ -3,6 +3,7 @@ import { authenticator } from 'otplib';
 import * as QRCode from 'qrcode';
 import { pool } from '../config/database';
 import jwt from 'jsonwebtoken';
+import { refreshTokenService } from '../services/refreshTokenService';
 import { auditLog } from '../services/auditLog';
 import { securityService } from '../services/securityService';
 import bcrypt from 'bcryptjs';
@@ -535,12 +536,18 @@ router.post('/verify', async (req, res) => {
       userAgent: userAgent
     });
 
-    // Generate full session token
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, { expiresIn: '7d' });
+    // Generate access token (short-lived) + refresh token (long-lived)
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, { expiresIn: '1h' });
+    const refresh = await refreshTokenService.create(user.id, {
+      userAgent,
+      ipAddress: clientIP,
+    });
 
     res.json({
       success: true,
       token,
+      refreshToken: refresh.token,
+      refreshTokenExpiresAt: refresh.expiresAt.toISOString(),
       deviceToken, // Will be undefined if not requested
       user: {
         id: user.id,
