@@ -119,7 +119,8 @@ METRIKEN (Schema vorhanden)
 | **Support-Inbox** | `SupportInbox.tsx`, `PersonalInbox.tsx` | Email-zu-Ticket, Domain-Mapping |
 | **Rechnungs-Inbox** | `InvoiceInbox.tsx` | PDF-Extraktion, sevDesk-Integration |
 | **Aufgaben** | `TaskHub.tsx` | Wiederkehrend, Templates, Checklisten |
-| **Dashboard** | `Dashboard.tsx` | Analysen, PDF-Reports |
+| **Dashboard** | `DashboardOverview.tsx` | Bento-Grid KPIs, Live-Timer-Hero, Wochenziel-Progress |
+| **Reports** | `ReportsPage.tsx` / `ReportAssistant.tsx` | KI-gestützte Reports, jsPDF-Export, Approval-Flow |
 | **Finanzen** | `Finanzen.tsx` | Rechnungen, sevDesk-Export |
 | **Geräte** | `DevicesView.tsx` | NinjaRMM-Sync, Monitoring |
 | **Wartung** | `MaintenanceView.tsx` | Ankündigungen, Genehmigungen |
