@@ -8,6 +8,7 @@ import { TimePicker } from './TimePicker';
 import { useAuth } from '../contexts/AuthContext';
 import { aiApi, entriesApi, PaginationMeta } from '../services/api';
 import { Button, IconButton } from './ui/Button';
+import { SkeletonTimeEntry } from './Skeleton';
 
 interface TimeEntriesListProps {
   projects: Project[];
@@ -851,7 +852,15 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
 
       {/* Entry List */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-6 pt-3 sm:pt-4">
-        {filteredEntries.length === 0 ? (
+        {loading && filteredEntries.length === 0 ? (
+          // Initial / page-switch load — show skeleton rows instead of the
+          // misleading "Keine Einträge gefunden" empty state.
+          <div className="space-y-2 sm:space-y-3" aria-busy="true" aria-label="Zeiteinträge werden geladen">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonTimeEntry key={i} />
+            ))}
+          </div>
+        ) : filteredEntries.length === 0 ? (
           <div className="text-center py-12 text-gray-500 dark:text-dark-400">
             <Filter size={48} className="mx-auto mb-4 opacity-50" />
             <p>Keine Einträge für die gewählten Filter gefunden</p>

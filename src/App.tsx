@@ -105,6 +105,10 @@ function App() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  // Tracks the initial Promise.all() data fetch on app boot so child views
+  // can show skeletons instead of misleading "no data" empty states while
+  // customers/projects/entries are still in flight.
+  const [isInitialDataLoading, setIsInitialDataLoading] = useState(true);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
   const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string; ticketId?: string } | null>(null);
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
@@ -245,6 +249,8 @@ function App() {
         console.log('✅ [DATA] All data loaded successfully');
       } catch (error) {
         console.error('❌ [DATA] Error loading data:', error);
+      } finally {
+        setIsInitialDataLoading(false);
       }
     };
 
@@ -1226,6 +1232,7 @@ function App() {
             projects={projects}
             customers={customers}
             runningEntry={runningEntry}
+            isLoading={isInitialDataLoading}
             onNavigate={(area, subView) => {
               setCurrentArea(area);
               setCurrentSubView(subView);
@@ -1241,6 +1248,7 @@ function App() {
             customers={customers}
             projects={projects}
             entries={entries}
+            isInitialDataLoading={isInitialDataLoading}
             onNavigateToTicket={(ticketId) => {
               // Navigate to tickets view - the ticket will be opened from there
               setCurrentArea('support');

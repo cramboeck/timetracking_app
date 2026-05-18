@@ -4,6 +4,7 @@ import { Ticket, TicketStatus, TicketPriority, Customer, Project } from '../type
 import { ticketsApi } from '../services/api';
 import { SlaStatus } from './SlaStatus';
 import { Button } from './ui';
+import { SkeletonListItem } from './Skeleton';
 
 export interface TicketListHandle {
   selectNext: () => void;
@@ -363,8 +364,10 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
       {/* Ticket List */}
       <div ref={ticketListContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-6">
         {loading ? (
-          <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+          <div className="space-y-2 sm:space-y-3" aria-busy="true" aria-label="Tickets werden geladen">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonListItem key={i} />
+            ))}
           </div>
         ) : error ? (
           <div className="text-center text-red-500 py-8">
