@@ -15,7 +15,7 @@
 | Frontend | React 18.3 + TypeScript 5.3 + Tailwind CSS 3.4 + Vite 5.1 |
 | Backend | Node.js + Express 4.18 + TypeScript |
 | Datenbank | PostgreSQL 16 (via `pg` Pool) |
-| Auth | JWT (Access Token, kein Refresh-Token) |
+| Auth | JWT (Access Token) + Refresh-Token (30 Tage, SHA-256-Hash in DB, Token-Rotation, Diebstahl-Erkennung) |
 | Validierung | Zod (Backend, eingeführt durch PR #48 + #61), React Hook Form (Frontend) |
 | Background Jobs | node-cron |
 | Deployment | Docker Compose (server + client + db) auf Hetzner |
@@ -33,7 +33,7 @@
   /routes               → Express-Routen (eine Datei pro Domäne)
   /middleware           → auth, validation, organization
   /config/database.ts   → DB-Schema + alle Migrationen (3300+ Zeilen)
-  /services             → auditLog, securityService, etc.
+  /services             → auditLog, securityService, refreshTokenService, etc.
   /utils/logger.ts      → strukturiertes Logging (eingeführt durch PR #48)
 ```
 
@@ -111,11 +111,11 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 - **Verbesserungsidee:** Sales Pipeline → Angebots-Editor verknüpfen; bei Lead „Won" automatisch Projekt + Vertrag anlegen
 
 ### Arbeiten (Zeiterfassung)
-- **Verbesserungsidee:** Stoppuhr als persistentes, schwebendes Widget in der gesamten App (nicht nur im „Arbeiten"-Tab)
+- Globaler Timer-Widget (Bottom-Bar) implementiert ✅ — läuft sichtbar in der gesamten App, blendet sich auf der Stoppuhr-Seite aus (PR #73)
 
 ---
 
-## Aktueller Stand (Stand 17.5.2026)
+## Aktueller Stand (Stand 18.5.2026)
 
 ### Sprint „Kurzfristig" — ✅ abgeschlossen
 
@@ -149,8 +149,25 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 | RamboFlow brand (Orange `#FF6A00` + Dark-Indigo) als Default für neue User | #57 |
 | Phase 1: 306 `dark:*-blue-*` Inkonsistenzen → `accent-primary` | #57 |
 | Phase 2: 97 weitere semantisch blau-vs-brand Stellen → `accent-primary` (46 Files) | #65 |
-| Theme-Token-Fix: 3049 `dark:*-gray-*` → `dark-*` Tokens (136 Files) — sonst hatten die `tone-*` Klassen keinen visuellen Effekt | #66 |
-| 15 verbliebene blue-Stellen (Status „open", Info-Toast, Facebook-Brand, etc.) — intentional semantisch blau | — |
+| Theme-Token-Fix: 3049 `dark:*-gray-*` → `dark-*` Tokens (136 Files) | #66 |
+| 15 verbliebene blue-Stellen (Status „offen", Info-Toast, Facebook-Brand) — intentional semantisch blau | — |
+
+### Epic 6.2 + Epic 7.4 — ✅ abgeschlossen (18.5.2026)
+
+| Task | PR |
+|---|---|
+| Globaler Timer-Widget (Bottom-Bar, app-weit sichtbar) | #73 |
+| Refresh-Token-Mechanismus (30 Tage, Token-Rotation, Diebstahl-Erkennung) | #71 |
+| Hotfix: FK-Typ-Mismatch in `refresh_tokens` (users.id ist TEXT) | #72 |
+
+### Farb-Analyse (Stand 18.5.2026) — Abschlussbewertung
+
+| Farbe | Vorkommen | Bewertung | Handlungsbedarf |
+|---|---|---|---|
+| `blue-*` | 12 | Semantisch korrekt (Ticket-Status „offen", Info-Toast, Facebook) | **Keiner — abgeschlossen** |
+| `purple-*` | 225 in 42 Dateien | 112 davon Instagram-Gradient, AI-Icons → semantisch korrekt. ~113 in AdminPortal, Settings, CustomerHub reagieren nicht auf `accent-*`-Wechsel | Issue #68 offen |
+| `indigo-*` | 32 in 10 Dateien | Meist Portal-Seiten, kein direkter Theme-Bezug | Niedrige Priorität |
+| `text-gray-*` ohne `dark:` | 491 | App hat Light/Dark-Mode Toggle. `text-gray-500` auf hellem Hintergrund korrekt, auf dunklem zu wenig Kontrast → schrittweise auf `text-dark-400` umstellen | Mittlere Priorität |
 
 ---
 
@@ -158,29 +175,31 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ### Epic 5 — Architektur-Modernisierung (Priorität: Hoch)
 
-1. **React Router einführen** — `App.tsx` (1100+ Zeilen) refactoren, echtes URL-Routing implementieren. `react-router-dom` v6.22 ist bereits installiert (wird aktuell nur für `/portal` und `/admin` genutzt).
-2. **TanStack Query (React Query)** — `useEffect`-Datenabfragen schrittweise ersetzen (Start mit `Tickets.tsx` und `AlertsView.tsx`).
-3. **Toten Code entfernen** — `Dashboard.tsx` vs `DashboardOverview.tsx`, Billing-Trio, `TaskHub.tsx` vs `TasksOverview.tsx` konsolidieren (Details unten in „Duplikat-Auflösung"). `ManualEntry.tsx` ist mit PR #67 bereits gelöscht.
+1. **React Router einführen** — `App.tsx` (1100+ Zeilen) refactoren, echtes URL-Routing implementieren. `react-router-dom` v6.22 ist bereits installiert (wird aktuell nur für `/portal` und `/admin` genutzt). → **Issue #69**
+2. **TanStack Query (React Query)** — `useEffect`-Datenabfragen schrittweise ersetzen (Start mit `Tickets.tsx` und `AlertsView.tsx`). Aktuell 84 Komponenten mit useEffect.
+3. **Toten Code entfernen** — `Dashboard.tsx` vs `DashboardOverview.tsx`, Billing-Trio, `TaskHub.tsx` vs `TasksOverview.tsx` konsolidieren. `ManualEntry.tsx` bereits gelöscht (PR #67).
 
 ### Epic 6 — UI/UX-Polish (Priorität: Mittel)
 
 1. **Skeleton Loaders** für alle Haupt-Listen (Tickets, Kunden, Einträge) — aktuell zeigen Listen während des Loadings nichts an.
-2. **Globaler Timer** als persistentes, schwebendes Element in der App-Shell (Picture-in-Picture oder Bottom-Bar), nicht nur im „Arbeiten"-Tab.
+2. ~~**Globaler Timer**~~ — ✅ erledigt durch PR #73
 3. **Bento-Grid Dashboard** — `DashboardOverview.tsx` als modulares KPI-Grid.
+4. **Purple-Klassen → Design-Tokens** — ~113 nicht-semantische `purple-*` Stellen auf `accent-primary` umstellen → **Issue #68**
+5. **`text-gray-*` → `text-dark-400/500`** — 491 Stellen schrittweise umstellen für korrektes Light-Mode-Verhalten.
 
 ### Epic 7 — Echtzeit & Automatisierung (Priorität: Mittel)
 
 1. **Server-Sent Events (SSE)** für NinjaRMM Alerts und eingehende E-Mails.
 2. **Push-Notifications** robuster — Service Worker (`push-sw.js`) härten, VAPID-Keys im Admin-Setup erzwingen.
 3. **CRM-Finanzen-Brücke** — Angebote direkt aus der Sales Pipeline erstellen.
-4. **Refresh-Token-Mechanismus** — JWT läuft ab → aktuell wird der Nutzer ausgeloggt, keine automatische Verlängerung.
+4. ~~**Refresh-Token-Mechanismus**~~ — ✅ erledigt durch PR #71 + #72
 
 ### Epic 8 — Tech-Stack-Upgrade-Plan (schrittweise, Risiko-bewertet)
 
 | Schritt | Was | Warum | Risiko |
 |---|---|---|---|
 | 1 | **Tailwind v4** | 5× schnellere Builds, CSS-first Konfig via `@theme`. Utility-Klassen bleiben weitestgehend gleich | Gering |
-| 2 | **TanStack Query** | Aktuell ~83 Komponenten / 380+ `useEffect`-Hooks für Daten-Fetching → Race-Conditions, doppelte Requests. Lässt sich parallel zum alten System einführen | Mittel |
+| 2 | **TanStack Query** | Aktuell ~84 Komponenten / 380+ `useEffect`-Hooks für Daten-Fetching → Race-Conditions, doppelte Requests. Lässt sich parallel zum alten System einführen | Mittel |
 | 3 | **React Router v7** | App.tsx ist 1100+ Zeilen Navigation-State. Upgrade von bereits installiertem v6.22 → v7, dann App.tsx in Layout-Komponenten zerlegen | Hoch |
 | 4 | **React 19** | Server Components, `use()` Hook, bessere Performance. Hängt von Drittanbieter-Kompatibilität ab (`react-big-calendar` ✓, `recharts` prüfen) | Mittel |
 
@@ -238,7 +257,7 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 2. **Keine neuen `any`-Typen:** TypeScript strikt verwenden. Zod für API-Validierung nutzen.
 3. **Mobile First:** Bei neuen UI-Komponenten immer prüfen, wie sie auf einem Smartphone aussehen.
 4. **Keine nativen Alerts:** `window.alert` und `window.confirm` sind verboten. Nutze `Toast` und `ConfirmDialog`.
-5. **Farben & Theme-Tokens:** Nutze die CSS-Variablen-Tokens (`bg-dark-50/100/200/300`, `border-dark-border`, `text-dark-400/500`, `bg-accent-primary`, `text-accent-dark` etc.), **niemals hartcodierte** Tailwind-Farben wie `dark:bg-gray-800` oder `dark:border-gray-700`. Die `dark-*` Tokens werden durch die `tone-*` Klasse (`tone-medium`/`tone-dark`/`tone-ramboeck`) per CSS-Variable umgesetzt — hardcodete `gray`-Klassen bleiben fix und ignorieren den Theme-Switch. Ausnahmen sind nur semantisch zwingende Stellen (Status-Color, Error-Badge = Rot, Info-Toast = Blau, Brand-Logos wie Facebook).
+5. **Farben & Theme-Tokens:** Nutze die CSS-Variablen-Tokens (`bg-dark-50/100/200/300`, `border-dark-border`, `text-dark-400/500`, `bg-accent-primary`, `text-accent-dark` etc.), **niemals hartcodierte** Tailwind-Farben wie `dark:bg-gray-800` oder `dark:border-gray-700`. Die `dark-*` Tokens werden durch die `tone-*` Klasse (`tone-medium`/`tone-dark`/`tone-ramboeck`) per CSS-Variable umgesetzt — hardcodete `gray`-Klassen bleiben fix und ignorieren den Theme-Switch. Ausnahmen sind nur semantisch zwingende Stellen (Status-Color, Error-Badge = Rot, Info-Toast = Blau, Brand-Logos wie Facebook, Instagram-Gradient, AI-Icons).
 6. **Zod-Validierung ist Pflicht** — jede neue Route muss Eingaben mit Zod + `validate()` middleware validieren.
 7. **Kein `SELECT *`** — immer explizite Spaltenlisten in SQL-Queries.
 8. **Soft-Delete beachten** — Queries auf `customers`, `projects`, `activities`, `contracts` immer mit `WHERE deleted_at IS NULL` filtern. DELETE-Endpoints nutzen `UPDATE SET deleted_at = NOW()`, nicht `DELETE FROM`.
@@ -260,4 +279,4 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-*Zuletzt aktualisiert: 17.5.2026 — nach Sprint-Abschluss (Soft-Delete + Zod + Pagination) und Epic 4.1 + Branding-Komplettierung.*
+*Zuletzt aktualisiert: 18.5.2026 — nach PR #71–#73 (Refresh-Token + Globaler Timer). Farb-Analyse abgeschlossen: blue ✅ fertig, purple Issue #68 offen (113 nicht-semantische Stellen), gray-500 mittelfristig auf dark-Tokens umstellen.*
