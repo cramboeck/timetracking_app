@@ -69,6 +69,7 @@ import {
 } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 import { StatWidget } from './ui/StatWidget';
+import { SkeletonListItem } from './Skeleton';
 import { PersonalInbox } from './PersonalInbox';
 import { InteractionsTimeline } from './InteractionsTimeline';
 import { Modal } from './Modal';
@@ -91,6 +92,10 @@ interface CustomerHubProps {
   onStartTimer?: (customerId: string, projectId?: string, description?: string) => void;
   onAddManualEntry?: (customerId: string, projectId?: string) => void;
   initialCustomerId?: string;
+  // True while App.tsx is still fetching customers/projects/entries on
+  // boot. Renamed from `isLoading` to avoid colliding with the local
+  // detail-fetch `isLoading` state below.
+  isInitialDataLoading?: boolean;
 }
 
 type TabType = 'overview' | 'contacts' | 'interactions' | 'tickets' | 'tasks' | 'contracts' | 'entries';
@@ -1234,6 +1239,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
   onStartTimer,
   onAddManualEntry,
   initialCustomerId,
+  isInitialDataLoading = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialCustomerId || null);
@@ -1539,7 +1545,14 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
 
         {/* Customer List */}
         <div className="flex-1 overflow-y-auto">
-          {filteredCustomers.length === 0 ? (
+          {isInitialDataLoading && customers.length === 0 ? (
+            // Initial app boot — show skeletons instead of the empty state.
+            <div className="p-3 space-y-2" aria-busy="true" aria-label="Kunden werden geladen">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonListItem key={i} />
+              ))}
+            </div>
+          ) : filteredCustomers.length === 0 ? (
             <div className="p-8 text-center text-gray-500 dark:text-dark-400">
               <Users size={48} className="mx-auto mb-3 opacity-50" />
               <p>Keine Kunden gefunden</p>
