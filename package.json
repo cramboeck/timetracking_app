@@ -11,6 +11,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.100.11",
     "@types/dompurify": "^3.0.5",
     "@types/react-big-calendar": "^1.16.3",
     "date-fns": "^3.3.1",

@@ -104,7 +104,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ### Support & NinjaRMM Integration
 - Backend-Webhook `/webhook/:userId` ist solide (Secret-Validierung, Auto-Ticket aus Alerts, Exclusion-Rules mit Regex, OAuth2 Token-Refresh, 5-Min Auto-Sync via Cron) ✅
-- **Lücken:** `AlertsView` muss manuell refreshed werden (kein Push); Tickets ohne Bulk-Actions; SLA-Warnungen nur im Detail-View
+- **Lücken:** Tickets ohne Bulk-Actions; SLA-Warnungen nur im Detail-View. (~~`AlertsView` muss manuell refreshed werden~~ — gelöst in PR #81: TanStack Query mit `refetchInterval: 30 s` polled jetzt automatisch.)
 
 ### CRM
 - Fragmentiert: `CustomerHub.tsx` ist sehr umfangreich (360°), aber `Leads.tsx` und `SalesPipeline.tsx` wirken wie separate Apps
@@ -186,6 +186,20 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 Gesamt: **2596 LOC tot entfernt**. TS-Errors sanken von 474 auf 468 (die toten Files hatten eigene Errors). Verbleibender Konsolidierungspunkt: `TaskHub.tsx` vs `TasksOverview.tsx` — beide live, kein toter Code.
 
+### Epic 5 Pass 2 — TanStack Query Pilot (AlertsView) — ✅ abgeschlossen
+
+| Task | PR |
+|---|---|
+| `@tanstack/react-query` v5.100 installiert | #81 |
+| `src/lib/queryClient.ts` — QueryClient mit Defaults (staleTime 30 s, retry 1, refetchOnWindowFocus) | #81 |
+| `QueryClientProvider` in `main.tsx` zwischen `ErrorBoundary` und `BrowserRouter` gewrapped | #81 |
+| `AlertsView.tsx`: 2 `useEffect`+`loadData` → 2 `useQuery`-Hooks (config, alerts) | #81 |
+| `AlertsView.tsx`: 3 `handle*`-Funktionen → 3 `useMutation`-Hooks (sync, createTicket, resolve) mit optimistic `setQueryData` | #81 |
+| `selectedAlert` als State-Kopie → `selectedAlertId` + `useMemo`-Lookup (Modal-State synct sich automatisch mit Polling) | #81 |
+| `refetchInterval: 30 s` auf Alerts — löst die „AlertsView muss manuell refreshed werden"-Lücke aus dem Modul-Status | #81 |
+
+TS-Errors: 466 (von 468 — der Refactor entfernte 2 nebenher). Bundle +40 KB für TanStack Query. Verbleibend für Epic 5: `Tickets.tsx`-Subtree (TicketList/TicketDashboard/TicketKanban/TasksOverview) auf useQuery umstellen, danach React Router-Refactor.
+
 ---
 
 ## Offene Aufgaben (Roadmap)
@@ -193,7 +207,7 @@ Gesamt: **2596 LOC tot entfernt**. TS-Errors sanken von 474 auf 468 (die toten F
 ### Epic 5 — Architektur-Modernisierung (Priorität: Hoch)
 
 1. **React Router einführen** — `App.tsx` (1100+ Zeilen) refactoren, echtes URL-Routing implementieren. `react-router-dom` v6.22 ist bereits installiert (wird aktuell nur für `/portal` und `/admin` genutzt).
-2. **TanStack Query (React Query)** — `useEffect`-Datenabfragen schrittweise ersetzen (Start mit `Tickets.tsx` und `AlertsView.tsx`).
+2. **TanStack Query (React Query)** — Setup + AlertsView-Pilot in PR #81 erledigt. Verbleibend: `Tickets.tsx`-Subtree (`TicketList.tsx`, `TicketDashboard.tsx`, `TicketKanban.tsx`, `TasksOverview.tsx`) auf `useQuery`/`useMutation` umstellen.
 3. **Toten Code entfernen** — Erster Pass (PR #80) entfernte `Dashboard.tsx`, `Billing.tsx`, `BillingWidget.tsx`, `Navigation.tsx` (2596 LOC tot). Verbleibender Konsolidierungspunkt: `TaskHub.tsx` vs `TasksOverview.tsx` (beide live, Details unten in „Duplikat-Auflösung"). `ManualEntry.tsx` wurde bereits mit PR #67 gelöscht.
 
 ### Epic 7 — Echtzeit & Automatisierung (Priorität: Mittel)
@@ -288,4 +302,4 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-*Zuletzt aktualisiert: 18.5.2026 — nach Epic 6 Komplettierung (#73 + #78), Refresh-Token (#71 + #72) und Epic 5 Pass 1 „Toten Code entfernen" (#80, -2596 LOC).*
+*Zuletzt aktualisiert: 18.5.2026 — nach Epic 6 Komplettierung (#73 + #78), Refresh-Token (#71 + #72), Epic 5 Pass 1 „Toten Code entfernen" (#80, -2596 LOC) und Epic 5 Pass 2 „TanStack Query Pilot AlertsView" (#81).*
