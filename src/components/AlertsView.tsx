@@ -1,102 +1,91 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Bell, AlertTriangle, CheckCircle, Search, RefreshCw,
-  X, Ticket, Monitor, Clock
+  X, Ticket
 } from 'lucide-react';
 import { ninjaApi, NinjaAlert, NinjaRMMConfig } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 
-export const AlertsView = () => {
-  const [alerts, setAlerts] = useState<NinjaAlert[]>([]);
-  const [config, setConfig] = useState<NinjaRMMConfig | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [selectedAlert, setSelectedAlert] = useState<NinjaAlert | null>(null);
-  const [creatingTicket, setCreatingTicket] = useState(false);
-  const [resolvingAlert, setResolvingAlert] = useState(false);
+const ALERTS_REFETCH_INTERVAL_MS = 30_000;
 
-  // Search & Filter
+export const AlertsView = () => {
+  const queryClient = useQueryClient();
+
+  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'resolved'>('all');
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const configQuery = useQuery({
+    queryKey: ['ninja', 'config'],
+    queryFn: async () => {
+      const res = await ninjaApi.getConfig();
+      if (!res.success) throw new Error('NinjaRMM-Konfiguration konnte nicht geladen werden');
+      return res.data as NinjaRMMConfig;
+    },
+  });
+  const config = configQuery.data ?? null;
+  const connected = config?.isConnected ?? false;
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [configRes, alertsRes] = await Promise.all([
-        ninjaApi.getConfig(),
-        ninjaApi.getAlerts(),
-      ]);
-      if (configRes.success) setConfig(configRes.data);
-      if (alertsRes.success) setAlerts(alertsRes.data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const alertsQuery = useQuery({
+    queryKey: ['ninja', 'alerts'],
+    queryFn: async () => {
+      const res = await ninjaApi.getAlerts();
+      if (!res.success) throw new Error('Alerts konnten nicht geladen werden');
+      return res.data as NinjaAlert[];
+    },
+    enabled: connected,
+    refetchInterval: connected ? ALERTS_REFETCH_INTERVAL_MS : false,
+  });
+  const alerts = useMemo<NinjaAlert[]>(() => alertsQuery.data ?? [], [alertsQuery.data]);
+
+  const selectedAlert = useMemo(
+    () => alerts.find(a => a.id === selectedAlertId) ?? null,
+    [alerts, selectedAlertId]
+  );
+
+  const flashSuccess = (msg: string) => {
+    setSuccess(msg);
+    setTimeout(() => setSuccess(''), 3000);
   };
 
-  const handleSync = async () => {
-    try {
-      setSyncing(true);
+  const syncMutation = useMutation({
+    mutationFn: () => ninjaApi.syncAll(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ninja'] });
       setError('');
-      await ninjaApi.syncAll();
-      await loadData();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setSyncing(false);
-    }
-  };
+    },
+    onError: (err: Error) => setError(err.message || 'Sync fehlgeschlagen'),
+  });
 
-  const handleCreateTicket = async (alertId: string) => {
-    try {
-      setCreatingTicket(true);
+  const createTicketMutation = useMutation({
+    mutationFn: (alertId: string) => ninjaApi.createTicketFromAlert(alertId),
+    onSuccess: (result, alertId) => {
+      if (!result.success) return;
+      queryClient.setQueryData<NinjaAlert[]>(['ninja', 'alerts'], prev =>
+        prev?.map(a => a.id === alertId ? { ...a, ticketId: result.data.ticketId } : a) ?? prev
+      );
+      flashSuccess('Ticket erstellt');
       setError('');
-      const result = await ninjaApi.createTicketFromAlert(alertId);
-      if (result.success) {
-        setSuccess('Ticket erstellt');
-        setAlerts(prev => prev.map(a =>
-          a.id === alertId ? { ...a, ticketId: result.data.ticketId } : a
-        ));
-        if (selectedAlert?.id === alertId) {
-          setSelectedAlert(prev => prev ? { ...prev, ticketId: result.data.ticketId } : null);
-        }
-        setTimeout(() => setSuccess(''), 3000);
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setCreatingTicket(false);
-    }
-  };
+    },
+    onError: (err: Error) => setError(err.message || 'Ticket konnte nicht erstellt werden'),
+  });
 
-  const handleResolve = async (alertId: string) => {
-    try {
-      setResolvingAlert(true);
+  const resolveMutation = useMutation({
+    mutationFn: (alertId: string) => ninjaApi.resolveAlert(alertId),
+    onSuccess: (result, alertId) => {
+      if (!result.success) return;
+      const resolvedAt = new Date().toISOString();
+      queryClient.setQueryData<NinjaAlert[]>(['ninja', 'alerts'], prev =>
+        prev?.map(a => a.id === alertId ? { ...a, resolved: true, resolvedAt } : a) ?? prev
+      );
+      flashSuccess('Alert als gelöst markiert');
       setError('');
-      const result = await ninjaApi.resolveAlert(alertId);
-      if (result.success) {
-        setSuccess('Alert als gelöst markiert');
-        setAlerts(prev => prev.map(a =>
-          a.id === alertId ? { ...a, resolved: true, resolvedAt: new Date().toISOString() } : a
-        ));
-        if (selectedAlert?.id === alertId) {
-          setSelectedAlert(prev => prev ? { ...prev, resolved: true, resolvedAt: new Date().toISOString() } : null);
-        }
-        setTimeout(() => setSuccess(''), 3000);
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setResolvingAlert(false);
-    }
-  };
+    },
+    onError: (err: Error) => setError(err.message || 'Alert konnte nicht aufgelöst werden'),
+  });
 
   const filteredAlerts = useMemo(() => {
     return alerts.filter(alert => {
@@ -115,6 +104,10 @@ export const AlertsView = () => {
 
   const openCount = alerts.filter(a => !a.resolved).length;
   const resolvedCount = alerts.filter(a => a.resolved).length;
+  const loading = configQuery.isLoading || (connected && alertsQuery.isLoading);
+  const syncing = syncMutation.isPending;
+  const creatingTicket = createTicketMutation.isPending;
+  const resolvingAlert = resolveMutation.isPending;
 
   // Helper to safely format timestamp (handles Unix seconds vs milliseconds)
   const formatTimestamp = (timestamp: string | number | null | undefined): string => {
@@ -182,7 +175,7 @@ export const AlertsView = () => {
           </p>
         </div>
         <Button
-          onClick={handleSync}
+          onClick={() => syncMutation.mutate()}
           disabled={syncing}
           loading={syncing}
           icon={!syncing ? <RefreshCw size={16} /> : undefined}
@@ -254,7 +247,7 @@ export const AlertsView = () => {
             {filteredAlerts.map(alert => (
               <tr
                 key={alert.id}
-                onClick={() => setSelectedAlert(alert)}
+                onClick={() => setSelectedAlertId(alert.id)}
                 className="hover:bg-gray-50 dark:hover:bg-dark-50 cursor-pointer transition-colors"
               >
                 <td className="px-4 py-3">
@@ -321,7 +314,7 @@ export const AlertsView = () => {
                 </div>
               </div>
               <IconButton
-                onClick={() => setSelectedAlert(null)}
+                onClick={() => setSelectedAlertId(null)}
                 icon={<X size={20} />}
                 size="lg"
                 tooltip="Schliessen"
@@ -382,7 +375,7 @@ export const AlertsView = () => {
               <div className="flex gap-2">
                 {!selectedAlert.ticketId && (
                   <Button
-                    onClick={() => handleCreateTicket(selectedAlert.id)}
+                    onClick={() => createTicketMutation.mutate(selectedAlert.id)}
                     disabled={creatingTicket}
                     loading={creatingTicket}
                     icon={<Ticket size={16} />}
@@ -392,7 +385,7 @@ export const AlertsView = () => {
                 )}
                 {!selectedAlert.resolved && (
                   <Button
-                    onClick={() => handleResolve(selectedAlert.id)}
+                    onClick={() => resolveMutation.mutate(selectedAlert.id)}
                     disabled={resolvingAlert}
                     loading={resolvingAlert}
                     variant="success"
@@ -403,7 +396,7 @@ export const AlertsView = () => {
                 )}
               </div>
               <Button
-                onClick={() => setSelectedAlert(null)}
+                onClick={() => setSelectedAlertId(null)}
                 variant="secondary"
               >
                 Schliessen
