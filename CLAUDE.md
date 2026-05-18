@@ -174,6 +174,18 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 | Refresh-Token-Mechanismus (Access + Refresh, smoke-tested 10/10) | #71 |
 | Hotfix: `refresh_tokens` FK Type-Mismatch (`users.id` ist TEXT, nicht UUID) | #72 |
 
+### Epic 5 Pass 1 — Toten Code entfernen — ✅ abgeschlossen
+
+| Task | PR |
+|---|---|
+| `Dashboard.tsx` (1683 LOC) gelöscht — Saved-Reports + PDF-Export bereits in `ReportsPage.tsx` / `ReportAssistant.tsx` abgedeckt | #80 |
+| `Billing.tsx` (632 LOC) gelöscht — `BillingOverview.tsx` ist die lebende Variante in `Finanzen.tsx` | #80 |
+| `BillingWidget.tsx` (159 LOC) gelöscht — wurde nur von `Dashboard.tsx` genutzt (transitiv tot) | #80 |
+| `Navigation.tsx` (122 LOC) gelöscht — durch `AreaNavigation.tsx` ersetzt, nirgends mehr importiert | #80 |
+| `ARCHITECTURE.md` + `docs/NEXT_VERSION_ROADMAP.md` an den Stand angeglichen | #80 |
+
+Gesamt: **2596 LOC tot entfernt**. TS-Errors sanken von 474 auf 468 (die toten Files hatten eigene Errors). Verbleibender Konsolidierungspunkt: `TaskHub.tsx` vs `TasksOverview.tsx` — beide live, kein toter Code.
+
 ---
 
 ## Offene Aufgaben (Roadmap)
@@ -182,7 +194,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 1. **React Router einführen** — `App.tsx` (1100+ Zeilen) refactoren, echtes URL-Routing implementieren. `react-router-dom` v6.22 ist bereits installiert (wird aktuell nur für `/portal` und `/admin` genutzt).
 2. **TanStack Query (React Query)** — `useEffect`-Datenabfragen schrittweise ersetzen (Start mit `Tickets.tsx` und `AlertsView.tsx`).
-3. **Toten Code entfernen** — `Dashboard.tsx` vs `DashboardOverview.tsx`, Billing-Trio, `TaskHub.tsx` vs `TasksOverview.tsx` konsolidieren (Details unten in „Duplikat-Auflösung"). `ManualEntry.tsx` ist mit PR #67 bereits gelöscht.
+3. **Toten Code entfernen** — Erster Pass (PR #80) entfernte `Dashboard.tsx`, `Billing.tsx`, `BillingWidget.tsx`, `Navigation.tsx` (2596 LOC tot). Verbleibender Konsolidierungspunkt: `TaskHub.tsx` vs `TasksOverview.tsx` (beide live, Details unten in „Duplikat-Auflösung"). `ManualEntry.tsx` wurde bereits mit PR #67 gelöscht.
 
 ### Epic 7 — Echtzeit & Automatisierung (Priorität: Mittel)
 
@@ -225,11 +237,11 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ### UI-Konsistenz / Duplikat-Auflösung (Epic 4.3)
 
-| Duplikat | Empfehlung |
+| Duplikat | Status |
 |---|---|
-| `Dashboard.tsx` (1683 Z.) vs `DashboardOverview.tsx` (484 Z.) | Konsolidieren |
-| `Billing.tsx` (632) vs `BillingOverview.tsx` (189) vs `BillingWidget.tsx` (159) | Konsolidieren, geteilten Code extrahieren |
-| `TaskHub.tsx` (563) vs `TasksOverview.tsx` (253) | Klare Trennung Tasks vs Tickets, ggf. zusammenführen |
+| ~~`Dashboard.tsx` (1683 Z.) vs `DashboardOverview.tsx`~~ | ✅ `Dashboard.tsx` als tot gelöscht (PR #80). `DashboardOverview.tsx` ist die lebende Variante. |
+| ~~`Billing.tsx` (632) + `BillingWidget.tsx` (159) vs `BillingOverview.tsx`~~ | ✅ `Billing.tsx` + `BillingWidget.tsx` als tot gelöscht (PR #80). `BillingOverview.tsx` (in `Finanzen.tsx` eingebunden) ist die lebende Variante. |
+| `TaskHub.tsx` (563) vs `TasksOverview.tsx` (253) | Beide live, klare Trennung Tasks vs Tickets, ggf. zusammenführen. |
 
 ### Funktions-Review
 
@@ -276,4 +288,4 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-*Zuletzt aktualisiert: 18.5.2026 — nach Epic 6 Komplettierung (Global Timer Widget #73 + Skeleton Loaders & Bento-Grid Dashboard #78) und Refresh-Token-Mechanismus (#71 + #72).*
+*Zuletzt aktualisiert: 18.5.2026 — nach Epic 6 Komplettierung (#73 + #78), Refresh-Token (#71 + #72) und Epic 5 Pass 1 „Toten Code entfernen" (#80, -2596 LOC).*
