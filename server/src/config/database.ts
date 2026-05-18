@@ -4157,11 +4157,12 @@ export async function initializeDatabase() {
     logger.info('✅ Users heartbeat_interval_minutes migration complete');
 
     // Migration: refresh_tokens table for JWT refresh-token rotation
-    // (idempotent — CREATE TABLE IF NOT EXISTS)
+    // (idempotent — CREATE TABLE IF NOT EXISTS). Note: users.id is TEXT
+    // (not native UUID), so the FK column type must match.
     await client.query(`
       CREATE TABLE IF NOT EXISTS refresh_tokens (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         token_hash TEXT NOT NULL UNIQUE,
         device_info JSONB DEFAULT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
