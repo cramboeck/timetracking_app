@@ -26,6 +26,7 @@ import SocialMediaLayout from './features/social-media/SocialMediaLayout';
 import AdminPortal from './components/AdminPortal';
 import { ReportsPage } from './components/ReportsPage';
 import { FloatingActionButton } from './components/FloatingActionButton';
+import { GlobalTimerWidget } from './components/GlobalTimerWidget';
 import { Auth } from './components/Auth';
 import { OfflineBanner } from './components/OfflineBanner';
 import { ForgottenTimerBanner } from './components/ForgottenTimerBanner';
@@ -1375,6 +1376,24 @@ function App() {
         )}
         </Suspense>
       </main>
+
+      {/* Global timer widget (mobile only) — sits above the bottom nav,
+          visible on every view except the stopwatch itself while a timer
+          is running. Hides the FAB by virtue of FAB's isTimerRunning guard. */}
+      {!isDesktop && (
+        <GlobalTimerWidget
+          runningEntry={runningEntry}
+          projects={projects}
+          customers={customers}
+          activities={activities}
+          currentSubView={currentSubView}
+          onGoToTimer={() => {
+            setCurrentArea('arbeiten');
+            setCurrentSubView('stopwatch');
+          }}
+          onStopTimer={handleFABStopTimer}
+        />
+      )}
 
       {/* Floating Action Button - only on mobile */}
       {!isDesktop && (
