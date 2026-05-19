@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView } from './components/AreaNavigation';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView, pathToAreaSubView, areaSubViewToPath } from './components/AreaNavigation';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 // Core components loaded eagerly (always visible / needed on first render)
 import { Stopwatch } from './components/Stopwatch';
@@ -91,15 +92,49 @@ function App() {
     };
   }, []);
 
-  // Use localStorage as initial fallback, will be overwritten by server preferences
-  const [currentArea, setCurrentArea] = useState<Area>(() => {
-    const saved = localStorage.getItem('currentArea');
-    return (saved as Area) || 'arbeiten';
-  });
-  const [currentSubView, setCurrentSubView] = useState<SubView>(() => {
-    const saved = localStorage.getItem('currentSubView');
-    return (saved as SubView) || 'stopwatch';
-  });
+  // URL is the source of truth for navigation. Fall back to localStorage
+  // (and ultimately defaults) so users who bookmark "/" still see a sensible
+  // landing screen. Server preferences load asynchronously and only override
+  // the state when the URL didn't already pin it (see preferences useEffect).
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const initialNav = (() => {
+    const fromUrl = pathToAreaSubView(location.pathname);
+    if (fromUrl) return fromUrl;
+    const savedArea = localStorage.getItem('currentArea') as Area | null;
+    const savedSubView = localStorage.getItem('currentSubView') as SubView | null;
+    return {
+      area: savedArea || 'arbeiten',
+      subView: savedSubView || 'stopwatch',
+    };
+  })();
+
+  const [currentArea, setCurrentArea] = useState<Area>(initialNav.area);
+  const [currentSubView, setCurrentSubView] = useState<SubView>(initialNav.subView);
+
+  // URL → State (Browser-Back/Forward, deep links)
+  useEffect(() => {
+    const parsed = pathToAreaSubView(location.pathname);
+    if (!parsed) return;
+    if (parsed.area !== currentArea) setCurrentArea(parsed.area);
+    if (parsed.subView !== currentSubView) setCurrentSubView(parsed.subView);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  // State → URL (UI clicks, programmatic setCurrentArea/SubView calls).
+  // The very first navigate replaces the entry so users who land on "/" or
+  // an unknown path don't get a phantom history entry that re-routes them
+  // forward when they press Back.
+  const initialUrlSyncedRef = useRef(false);
+  useEffect(() => {
+    const expected = areaSubViewToPath(currentArea, currentSubView);
+    if (location.pathname !== expected) {
+      navigate(expected, { replace: !initialUrlSyncedRef.current });
+    }
+    initialUrlSyncedRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentArea, currentSubView]);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
