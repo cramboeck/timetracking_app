@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView } from './components/AreaNavigation';
+import { AreaNavigation, SubView } from './components/AreaNavigation';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 // Core components loaded eagerly (always visible / needed on first render)
 import { Stopwatch } from './components/Stopwatch';
@@ -38,7 +38,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { useSidebarCollapsed } from './hooks/useSidebarCollapsed';
-import { useAreaSync } from './hooks/useAreaSync';
+import { useCurrentNavigation } from './hooks/useCurrentNavigation';
 import { useUserPreferences } from './hooks/useUserPreferences';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation';
 import { useOfflineEntrySync } from './hooks/useOfflineEntrySync';
@@ -59,15 +59,15 @@ function App() {
   // Sidebar collapsed state (driven by DesktopSidebar's localStorage write)
   const sidebarCollapsed = useSidebarCollapsed();
 
-  // URL ↔ (currentArea, currentSubView) bidirectional sync. The hook owns
-  // the navigation state; we keep references to the setters so server
-  // preferences and direct UI handlers below can still drive it.
+  // URL is the source of truth for navigation. currentArea/currentSubView
+  // are *derived* from useLocation, not React state — Pass 4c.
   const {
     currentArea,
-    setCurrentArea,
     currentSubView,
-    setCurrentSubView,
-  } = useAreaSync('arbeiten', 'stopwatch');
+    navigateToArea,
+    navigateToSubView,
+    navigateTo,
+  } = useCurrentNavigation('arbeiten', 'stopwatch');
 
   const [entries, setEntries] = useState<TimeEntry[]>([]);
 
@@ -105,8 +105,7 @@ function App() {
     isAuthenticated,
     currentArea,
     currentSubView,
-    setCurrentArea,
-    setCurrentSubView,
+    navigateTo,
   });
 
   // Load all data from API on mount
@@ -283,9 +282,8 @@ function App() {
     if (ticketId) {
       console.log('📬 [DEEPLINK] Found ticket ID in URL:', ticketId);
       setInitialTicketId(ticketId);
-      setCurrentArea('support');
-      setCurrentSubView('tickets');
-      // Clean URL
+      navigateTo('support', 'tickets');
+      // Clean query param (preserve the pathname useNavigate just set)
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [isAuthenticated]);
@@ -326,8 +324,7 @@ function App() {
           const ticketId = url.replace('/tickets/', '').split('?')[0];
           console.log('📬 [SW Message] Opening ticket:', ticketId);
           setInitialTicketId(ticketId);
-          setCurrentArea('support');
-          setCurrentSubView('tickets');
+          navigateTo('support', 'tickets');
         }
       }
     };
@@ -799,8 +796,7 @@ function App() {
 
     // Switch to the stopwatch view first so the user sees the new timer
     // already counting when the view renders.
-    setCurrentArea('arbeiten');
-    setCurrentSubView('stopwatch');
+    navigateTo('arbeiten', 'stopwatch');
 
     const now = new Date().toISOString();
     const newEntry: TimeEntry = {
@@ -820,21 +816,11 @@ function App() {
     await handleUpdateRunning(newEntry);
   };
 
-  // Area change handler
-  const handleAreaChange = (area: Area) => {
-    setCurrentArea(area);
-    setCurrentSubView(getDefaultSubView(area));
-  };
+  // Area change handler — navigateToArea picks the area's default subView
+  const handleAreaChange = navigateToArea;
 
-  // SubView change handler
-  const handleSubViewChange = (subView: SubView) => {
-    setCurrentSubView(subView);
-    // Update area if subView belongs to different area
-    const newArea = getAreaFromSubView(subView);
-    if (newArea !== currentArea) {
-      setCurrentArea(newArea);
-    }
-  };
+  // SubView change handler — navigateToSubView infers the area from the subView
+  const handleSubViewChange = navigateToSubView;
 
   // Dark Mode handler
   const handleToggleDarkMode = () => {
@@ -852,8 +838,7 @@ function App() {
 
   // FAB handlers
   const handleFABStartTimer = () => {
-    setCurrentArea('arbeiten');
-    setCurrentSubView('stopwatch');
+    navigateTo('arbeiten', 'stopwatch');
   };
 
   const handleFABStopTimer = async () => {
@@ -906,10 +891,7 @@ function App() {
       {/* Forgotten-timer warning (>8h running) */}
       <ForgottenTimerBanner
         runningEntry={runningEntry}
-        onGoToTimer={() => {
-          setCurrentArea('arbeiten');
-          setCurrentSubView('stopwatch');
-        }}
+        onGoToTimer={() => navigateTo('arbeiten', 'stopwatch')}
         onStopTimer={handleFABStopTimer}
       />
 
@@ -950,7 +932,7 @@ function App() {
             customers={customers}
             activities={activities}
             entries={entries}
-            onOpenManualEntry={() => setCurrentSubView('manual')}
+            onOpenManualEntry={() => navigateToSubView('manual')}
             prefilledEntry={prefilledEntry}
             onPrefilledEntryUsed={() => setPrefilledEntry(null)}
           />
@@ -1016,14 +998,8 @@ function App() {
             customers={customers}
             runningEntry={runningEntry}
             isLoading={isInitialDataLoading}
-            onNavigate={(area, subView) => {
-              setCurrentArea(area);
-              setCurrentSubView(subView);
-            }}
-            onStartTimer={() => {
-              setCurrentArea('arbeiten');
-              setCurrentSubView('stopwatch');
-            }}
+            onNavigate={(area, subView) => navigateTo(area, subView)}
+            onStartTimer={() => navigateTo('arbeiten', 'stopwatch')}
           />
         )}
         {currentSubView === 'customers' && (
@@ -1032,37 +1008,30 @@ function App() {
             projects={projects}
             entries={entries}
             isInitialDataLoading={isInitialDataLoading}
-            onNavigateToTicket={(ticketId) => {
+            onNavigateToTicket={(_ticketId) => {
               // Navigate to tickets view - the ticket will be opened from there
-              setCurrentArea('support');
-              setCurrentSubView('tickets');
+              navigateTo('support', 'tickets');
             }}
-            onNavigateToTask={(taskId) => {
-              // Navigate to tasks view
-              setCurrentArea('arbeiten');
-              setCurrentSubView('tasks');
+            onNavigateToTask={(_taskId) => {
+              navigateTo('arbeiten', 'tasks');
             }}
-            onStartTimer={(customerId, projectId, description) => {
-              // Set prefilled entry and switch to stopwatch
+            onStartTimer={(_customerId, projectId, description) => {
               if (projectId) {
                 setPrefilledEntry({
                   projectId,
                   description: description || '',
                 });
               }
-              setCurrentArea('arbeiten');
-              setCurrentSubView('stopwatch');
+              navigateTo('arbeiten', 'stopwatch');
             }}
-            onAddManualEntry={(customerId, projectId) => {
-              // Set prefilled entry and switch to manual entry
+            onAddManualEntry={(_customerId, projectId) => {
               if (projectId) {
                 setPrefilledEntry({
                   projectId,
                   description: '',
                 });
               }
-              setCurrentArea('arbeiten');
-              setCurrentSubView('manual');
+              navigateTo('arbeiten', 'manual');
             }}
           />
         )}
@@ -1083,8 +1052,7 @@ function App() {
                 description: `${ticket.ticketNumber}: ${ticket.title}`,
                 ticketId: ticket.id,
               });
-              setCurrentArea('arbeiten');
-              setCurrentSubView('stopwatch');
+              navigateTo('arbeiten', 'stopwatch');
             }}
             initialTicketId={initialTicketId}
             onTicketIdHandled={() => setInitialTicketId(null)}
@@ -1106,17 +1074,17 @@ function App() {
           <InvoiceInbox />
         )}
         {currentSubView === 'billing' && (
-          <Finanzen onBack={() => setCurrentSubView('overview')} />
+          <Finanzen onBack={() => navigateToSubView('overview')} />
         )}
         {currentSubView === 'crm-dashboard' && (
           <CRMDashboard
             customers={customers}
             projects={projects}
-            onNavigateToCustomer={(customerId) => {
-              setCurrentSubView('customers');
+            onNavigateToCustomer={(_customerId) => {
+              navigateToSubView('customers');
             }}
-            onNavigateToOpportunity={(opportunityId) => {
-              setCurrentSubView('pipeline');
+            onNavigateToOpportunity={(_opportunityId) => {
+              navigateToSubView('pipeline');
             }}
           />
         )}
@@ -1178,10 +1146,7 @@ function App() {
           customers={customers}
           activities={activities}
           currentSubView={currentSubView}
-          onGoToTimer={() => {
-            setCurrentArea('arbeiten');
-            setCurrentSubView('stopwatch');
-          }}
+          onGoToTimer={() => navigateTo('arbeiten', 'stopwatch')}
           onStopTimer={handleFABStopTimer}
         />
       )}

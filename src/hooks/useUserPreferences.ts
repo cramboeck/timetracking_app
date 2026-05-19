@@ -7,8 +7,7 @@ interface UseUserPreferencesArgs {
   isAuthenticated: boolean;
   currentArea: Area;
   currentSubView: SubView;
-  setCurrentArea: (area: Area) => void;
-  setCurrentSubView: (subView: SubView) => void;
+  navigateTo: (area: Area, subView: SubView) => void;
 }
 
 /**
@@ -16,14 +15,16 @@ interface UseUserPreferencesArgs {
  * persists changes back (debounced + localStorage fallback). The server is
  * the source of truth across devices; localStorage is just the bootstrap
  * value for the very first render.
+ *
+ * Since Pass 4c, the URL is the source of truth — so applying a loaded
+ * preference means calling `navigateTo` instead of mutating React state.
  */
 export function useUserPreferences({
   currentUser,
   isAuthenticated,
   currentArea,
   currentSubView,
-  setCurrentArea,
-  setCurrentSubView,
+  navigateTo,
 }: UseUserPreferencesArgs): { preferencesLoaded: boolean } {
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const savingPreferencesRef = useRef(false);
@@ -37,11 +38,8 @@ export function useUserPreferences({
         const response = await userApi.getPreferences();
         if (response.success && response.data) {
           const prefs = response.data;
-          if (prefs.currentArea) {
-            setCurrentArea(prefs.currentArea as Area);
-          }
-          if (prefs.currentSubView) {
-            setCurrentSubView(prefs.currentSubView as SubView);
+          if (prefs.currentArea && prefs.currentSubView) {
+            navigateTo(prefs.currentArea as Area, prefs.currentSubView as SubView);
           }
           console.log('✅ [PREFS] Loaded user preferences from database:', prefs);
         }
@@ -53,7 +51,7 @@ export function useUserPreferences({
     };
 
     loadPreferences();
-  }, [currentUser, isAuthenticated, setCurrentArea, setCurrentSubView]);
+  }, [currentUser, isAuthenticated, navigateTo]);
 
   // Save preferences to database when they change (debounced)
   useEffect(() => {
