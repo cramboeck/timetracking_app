@@ -1,4 +1,5 @@
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Plus, Filter, AlertCircle, Clock, CheckCircle, Pause, X, ChevronRight, Search, Archive } from 'lucide-react';
 import { Ticket, TicketStatus, TicketPriority, Customer, Project } from '../types';
 import { ticketsApi } from '../services/api';
@@ -50,82 +51,71 @@ const priorityConfig: Record<TicketPriority, { label: string; color: string }> =
 
 export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
   ({ customers, projects, onTicketSelect, onCreateTicket }, ref) => {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [stats, setStats] = useState<TicketStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   // Filters
   const [statusFilter, setStatusFilter] = useState<TicketStatus | ''>('');
   const [priorityFilter, setPriorityFilter] = useState<TicketPriority | ''>('');
   const [customerFilter, setCustomerFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<Ticket[] | null>(null);
 
   // Keyboard navigation state
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const ticketListContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load tickets and stats
-  useEffect(() => {
-    loadData();
-  }, [statusFilter, priorityFilter, customerFilter]);
-
-  // Debounced server-side search
+  // Debounce search input
   useEffect(() => {
     if (searchQuery.length < 2) {
-      setSearchResults(null);
+      setDebouncedSearch('');
       return;
     }
-
-    const timer = setTimeout(async () => {
-      try {
-        setIsSearching(true);
-        const response = await ticketsApi.search(searchQuery, {
-          status: statusFilter || undefined,
-          priority: priorityFilter || undefined,
-          customerId: customerFilter || undefined,
-        });
-        setSearchResults(response.data);
-      } catch (err) {
-        console.error('Search failed:', err);
-        // Fall back to local search
-        setSearchResults(null);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300);
-
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, statusFilter, priorityFilter, customerFilter]);
+  }, [searchQuery]);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const filters = {
+    status: statusFilter || undefined,
+    priority: priorityFilter || undefined,
+    customerId: customerFilter || undefined,
+  };
 
-      const filters: { status?: TicketStatus; customerId?: string; priority?: TicketPriority } = {};
-      if (statusFilter) filters.status = statusFilter;
-      if (priorityFilter) filters.priority = priorityFilter;
-      if (customerFilter) filters.customerId = customerFilter;
+  const ticketsQuery = useQuery({
+    queryKey: ['tickets', 'list', filters],
+    queryFn: async () => {
+      const res = await ticketsApi.getAll(filters);
+      return (res.data || []) as Ticket[];
+    },
+  });
 
-      const [ticketsResponse, statsResponse] = await Promise.all([
-        ticketsApi.getAll(filters),
-        ticketsApi.getStats()
-      ]);
+  const statsQuery = useQuery({
+    queryKey: ['tickets', 'stats'],
+    queryFn: async () => {
+      const res = await ticketsApi.getStats();
+      return (res.data || null) as TicketStats | null;
+    },
+  });
 
-      setTickets(ticketsResponse.data || []);
-      setStats(statsResponse.data || null);
-    } catch (err) {
-      console.error('Failed to load tickets:', err);
-      setError('Fehler beim Laden der Tickets');
-    } finally {
-      setLoading(false);
-    }
+  const searchQueryResult = useQuery({
+    queryKey: ['tickets', 'search', debouncedSearch, filters],
+    queryFn: async () => {
+      const res = await ticketsApi.search(debouncedSearch, filters);
+      return (res.data || []) as Ticket[];
+    },
+    enabled: debouncedSearch.length >= 2,
+    placeholderData: keepPreviousData,
+  });
+
+  const tickets = ticketsQuery.data ?? [];
+  const stats = statsQuery.data ?? null;
+  const loading = ticketsQuery.isLoading;
+  const error = ticketsQuery.error ? 'Fehler beim Laden der Tickets' : null;
+  const searchResults = debouncedSearch.length >= 2 ? searchQueryResult.data ?? null : null;
+  const isSearching = searchQueryResult.isFetching && debouncedSearch.length >= 2;
+  const loadData = () => {
+    ticketsQuery.refetch();
+    statsQuery.refetch();
   };
 
   // Filter tickets by search query and archived status
@@ -167,8 +157,8 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
     setPriorityFilter('');
     setCustomerFilter('');
     setSearchQuery('');
+    setDebouncedSearch('');
     setShowArchived(false);
-    setSearchResults(null);
   };
 
   const hasActiveFilters = statusFilter || priorityFilter || customerFilter || searchQuery || showArchived;

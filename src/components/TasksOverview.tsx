@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { CheckSquare, Square, Building2, Ticket, Filter, RefreshCw, ExternalLink, Eye, EyeOff } from 'lucide-react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { CheckSquare, Square, Building2, Ticket, Filter, RefreshCw, ExternalLink, Eye } from 'lucide-react';
 import { TicketTaskWithInfo, Customer, TicketStatus, TicketPriority } from '../types';
 import { ticketsApi } from '../services/api';
 import { IconButton } from './ui';
@@ -26,46 +27,42 @@ const statusConfig: Record<TicketStatus, { label: string; color: string }> = {
 };
 
 export const TasksOverview = ({ customers, onTicketSelect }: TasksOverviewProps) => {
-  const [tasks, setTasks] = useState<TicketTaskWithInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<'open' | 'completed' | 'all'>('open');
   const [customerFilter, setCustomerFilter] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
 
-  useEffect(() => {
-    loadTasks();
-  }, [statusFilter, customerFilter]);
-
-  const loadTasks = async () => {
-    try {
-      setLoading(true);
-      const response = await ticketsApi.getAllTasks({
+  const tasksQuery = useQuery({
+    queryKey: ['tasks', { status: statusFilter, customerId: customerFilter || null }],
+    queryFn: async () => {
+      const res = await ticketsApi.getAllTasks({
         status: statusFilter,
         customerId: customerFilter || undefined,
       });
-      setTasks(response.data);
-    } catch (error) {
-      console.error('Failed to load tasks:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return res.data as TicketTaskWithInfo[];
+    },
+  });
+  const tasks = tasksQuery.data ?? [];
+  const loading = tasksQuery.isLoading;
 
-  const handleToggleTask = async (task: TicketTaskWithInfo) => {
-    try {
-      await ticketsApi.updateTask(task.ticketId, task.id, {
-        completed: !task.completed,
-      });
-      // Update local state
-      setTasks(prev =>
-        prev.map(t =>
-          t.id === task.id ? { ...t, completed: !t.completed } : t
-        )
+  const toggleTaskMutation = useMutation({
+    mutationFn: (task: TicketTaskWithInfo) =>
+      ticketsApi.updateTask(task.ticketId, task.id, { completed: !task.completed }),
+    onMutate: async (task) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+      const prev = queryClient.getQueriesData<TicketTaskWithInfo[]>({ queryKey: ['tasks'] });
+      queryClient.setQueriesData<TicketTaskWithInfo[]>({ queryKey: ['tasks'] }, (old) =>
+        old?.map((t) => (t.id === task.id ? { ...t, completed: !t.completed } : t))
       );
-    } catch (error) {
-      console.error('Failed to toggle task:', error);
-    }
-  };
+      return { prev };
+    },
+    onError: (err, _task, context) => {
+      console.error('Failed to toggle task:', err);
+      context?.prev?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+    },
+  });
+
+  const handleToggleTask = (task: TicketTaskWithInfo) => toggleTaskMutation.mutate(task);
 
   // Group tasks by customer
   const tasksByCustomer = tasks.reduce((acc, task) => {
@@ -106,7 +103,7 @@ export const TasksOverview = ({ customers, onTicketSelect }: TasksOverviewProps)
               tooltip="Filter"
             />
             <IconButton
-              onClick={loadTasks}
+              onClick={() => tasksQuery.refetch()}
               variant="default"
               size="lg"
               icon={<RefreshCw size={20} className={loading ? 'animate-spin' : ''} />}

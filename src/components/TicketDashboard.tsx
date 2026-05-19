@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
   AlertTriangle,
@@ -91,29 +91,23 @@ const getPriorityLabel = (priority: string): string => {
 };
 
 export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardProps) => {
-  const [data, setData] = useState<TicketDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const dashboardQuery = useQuery({
+    queryKey: ['tickets', 'dashboard'],
+    queryFn: async () => {
+      const res = await ticketsApi.getDashboard();
+      return res.data as TicketDashboardData;
+    },
+  });
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
-
-  const loadDashboard = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await ticketsApi.getDashboard();
-      setData(response.data);
-      setLastRefresh(new Date());
-    } catch (err) {
-      console.error('Failed to load dashboard:', err);
-      setError('Dashboard konnte nicht geladen werden');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const data = dashboardQuery.data ?? null;
+  const loading = dashboardQuery.isLoading;
+  const error = dashboardQuery.error
+    ? 'Dashboard konnte nicht geladen werden'
+    : null;
+  const lastRefresh = dashboardQuery.dataUpdatedAt
+    ? new Date(dashboardQuery.dataUpdatedAt)
+    : new Date();
+  const loadDashboard = () => dashboardQuery.refetch();
 
   if (loading && !data) {
     return (

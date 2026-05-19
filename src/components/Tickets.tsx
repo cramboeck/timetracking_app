@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { LayoutDashboard, List, Keyboard, Columns, CheckSquare } from 'lucide-react';
 import { IconButton } from './ui';
 import { Ticket, Customer, Project } from '../types';
@@ -22,6 +23,7 @@ interface TicketsProps {
 }
 
 export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, onTicketIdHandled }: TicketsProps) => {
+  const queryClient = useQueryClient();
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(initialTicketId || null);
 
@@ -33,7 +35,10 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
     }
   }, [initialTicketId, onTicketIdHandled]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const refreshTickets = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['tickets'] }),
+    [queryClient]
+  );
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = (localStorage.getItem('ticketViewMode') as ViewMode) || 'dashboard';
     // Kanban is not usable on mobile – fall back to list
@@ -60,16 +65,16 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
 
   const handleBack = useCallback(() => {
     setSelectedTicketId(null);
-    setRefreshKey(prev => prev + 1);
-  }, []);
+    refreshTickets();
+  }, [refreshTickets]);
 
   const handleTicketCreated = () => {
-    setRefreshKey(prev => prev + 1);
+    refreshTickets();
   };
 
   const handleTicketDeleted = () => {
     setSelectedTicketId(null);
-    setRefreshKey(prev => prev + 1);
+    refreshTickets();
   };
 
   const handleViewModeChange = useCallback((mode: ViewMode) => {
@@ -181,10 +186,10 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
       key: 'r',
       description: 'Aktualisieren',
       category: 'Aktionen',
-      handler: () => setRefreshKey(prev => prev + 1),
+      handler: () => refreshTickets(),
       disabled: selectedTicketId !== null,
     },
-  ], [viewMode, selectedTicketId, showCreateDialog, handleBack, handleViewModeChange]);
+  ], [viewMode, selectedTicketId, showCreateDialog, handleBack, handleViewModeChange, refreshTickets]);
 
   const { showHelp, setShowHelp, shortcuts: activeShortcuts } = useKeyboardShortcuts(shortcuts);
 
@@ -276,7 +281,6 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
       <div className="flex-1 overflow-hidden">
         {viewMode === 'dashboard' && (
           <TicketDashboard
-            key={refreshKey}
             onTicketSelect={handleTicketSelectById}
             onViewAll={handleViewAllTickets}
           />
@@ -284,7 +288,6 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
         {viewMode === 'list' && (
           <TicketList
             ref={ticketListRef}
-            key={refreshKey}
             customers={customers}
             projects={projects}
             onTicketSelect={handleTicketSelect}
@@ -293,15 +296,12 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
         )}
         {viewMode === 'kanban' && (
           <TicketKanban
-            key={refreshKey}
             customers={customers}
             onTicketSelect={handleTicketSelectById}
-            refreshKey={refreshKey}
           />
         )}
         {viewMode === 'tasks' && (
           <TasksOverview
-            key={refreshKey}
             customers={customers}
             onTicketSelect={handleTicketSelectById}
           />
