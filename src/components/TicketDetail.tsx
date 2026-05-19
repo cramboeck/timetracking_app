@@ -1,13 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bot } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
 import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, aiApi, AISuggestion, microsoft365Api, TicketEmail } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TicketMergeDialog } from './TicketMergeDialog';
-import { Button } from './ui/Button';
-import { MarkdownEditor } from './MarkdownEditor';
-import { MarkdownRenderer } from './MarkdownRenderer';
-import { sanitizeEmailHtml } from '../utils/sanitize';
 
 // Import sub-components
 import {
@@ -35,12 +32,7 @@ interface TicketDetailProps {
 }
 
 export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTimer, onTicketDeleted }: TicketDetailProps) => {
-  // Core state
-  const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [comments, setComments] = useState<TicketComment[]>([]);
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   // Edit mode
   const [isEditing, setIsEditing] = useState(false);
@@ -49,230 +41,184 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const [editStatus, setEditStatus] = useState<TicketStatus>('open');
   const [editPriority, setEditPriority] = useState<TicketPriority>('normal');
 
-  // Delete/Archive
+  // Delete/Archive dialogs
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
-  const [archiving, setArchiving] = useState(false);
 
   // Merge
   const [showMergeDialog, setShowMergeDialog] = useState(false);
-
-  // User role
-  const [userRole, setUserRole] = useState<string | null>(null);
-
-  // Tags
-  const [ticketTags, setTicketTags] = useState<TicketTag[]>([]);
-  const [allTags, setAllTags] = useState<TicketTag[]>([]);
-
-  // Canned Responses
-  const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>([]);
-
-  // Activities
-  const [activities, setActivities] = useState<TicketActivity[]>([]);
-  const [loadingActivities, setLoadingActivities] = useState(false);
-
-  // Email History
-  const [ticketEmails, setTicketEmails] = useState<TicketEmail[]>([]);
-  const [loadingEmails, setLoadingEmails] = useState(false);
-
-  // Attachments
-  const [attachments, setAttachments] = useState<TicketAttachment[]>([]);
-  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   // Solution Modal
   const [showSolutionModal, setShowSolutionModal] = useState(false);
   const [solutionText, setSolutionText] = useState('');
   const [resolutionType, setResolutionType] = useState<TicketResolutionType>('solved');
-  const [savingSolution, setSavingSolution] = useState(false);
 
-  // Tasks
-  const [tasks, setTasks] = useState<TicketTask[]>([]);
-  const [loadingTasks, setLoadingTasks] = useState(false);
-
-  // AI Assistant
-  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
+  // AI Assistant — UI toggles. Data flows via useQuery.
   const [showAiPanel, setShowAiPanel] = useState(false);
-  const [loadingAiSuggestion, setLoadingAiSuggestion] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [aiConfigured, setAiConfigured] = useState(false);
 
-  // Load initial data
-  useEffect(() => {
-    loadTicket();
-    loadTags();
-    loadAttachments();
-    loadCannedResponses();
-    loadTasks();
-    loadUserRole();
-    checkAiConfig();
-  }, [ticketId]);
+  // Lazy-load gates for sections that fetch on demand
+  const [activitiesEnabled, setActivitiesEnabled] = useState(false);
 
-  // Auto-load emails for email-source tickets
-  useEffect(() => {
-    if (ticket?.source === 'email' && ticketEmails.length === 0 && !loadingEmails) {
-      loadTicketEmails();
-    }
-  }, [ticket?.source]);
+  // Local upload state (mutation isPending isn't quite right while reading FormData)
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
-  // Load functions
-  const loadTicket = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await ticketsApi.getById(ticketId);
-      setTicket(response.data);
-      setComments(response.data.comments || []);
-      setTimeEntries(response.data.timeEntries || []);
+  // ─── Reads ─────────────────────────────────────────────────────────────────
 
-      // Initialize edit fields
-      setEditTitle(response.data.title);
-      setEditDescription(response.data.description || '');
-      setEditStatus(response.data.status);
-      setEditPriority(response.data.priority);
-
-      // Load ticket tags
-      const tagsResponse = await ticketsApi.getTicketTags(ticketId);
-      setTicketTags(tagsResponse.data);
-    } catch (err) {
-      console.error('Failed to load ticket:', err);
-      setError('Fehler beim Laden des Tickets');
-    } finally {
-      setLoading(false);
-    }
+  type TicketWithRelations = Ticket & {
+    comments?: TicketComment[];
+    timeEntries?: TimeEntry[];
   };
 
-  const loadUserRole = async () => {
-    try {
-      const response = await organizationsApi.getCurrent();
-      if (response.data) {
-        setUserRole(response.data.user_role);
-      }
-    } catch (err) {
-      console.error('Failed to load user role:', err);
-    }
-  };
+  const ticketQuery = useQuery({
+    queryKey: ['ticket', ticketId],
+    queryFn: async () => {
+      const res = await ticketsApi.getById(ticketId);
+      const data = res.data as TicketWithRelations;
+      // Seed edit fields whenever we load fresh ticket data
+      setEditTitle(data.title);
+      setEditDescription(data.description || '');
+      setEditStatus(data.status);
+      setEditPriority(data.priority);
+      return data;
+    },
+  });
+  const ticket = ticketQuery.data ?? null;
+  const comments: TicketComment[] = ticket?.comments ?? [];
+  const timeEntries: TimeEntry[] = ticket?.timeEntries ?? [];
+  const loading = ticketQuery.isLoading;
+  const error = ticketQuery.error ? 'Fehler beim Laden des Tickets' : null;
+  const loadTicket = () => ticketQuery.refetch();
 
-  const loadTags = async () => {
-    try {
-      const response = await ticketsApi.getTags();
-      setAllTags(response.data);
-    } catch (err) {
-      console.error('Failed to load tags:', err);
-    }
-  };
+  const ticketTagsQuery = useQuery({
+    queryKey: ['ticket', ticketId, 'tags'],
+    queryFn: async () => (await ticketsApi.getTicketTags(ticketId)).data as TicketTag[],
+  });
+  const ticketTags = ticketTagsQuery.data ?? [];
 
-  const loadCannedResponses = async () => {
-    try {
-      const response = await ticketsApi.getCannedResponses();
-      setCannedResponses(response.data);
-    } catch (err) {
-      console.error('Failed to load canned responses:', err);
-    }
-  };
+  const userRoleQuery = useQuery({
+    queryKey: ['org', 'current'],
+    queryFn: async () => (await organizationsApi.getCurrent()).data,
+    staleTime: 5 * 60_000,
+  });
+  const userRole: string | null = userRoleQuery.data?.user_role ?? null;
 
-  const loadAttachments = async () => {
-    try {
-      const response = await ticketsApi.getAttachments(ticketId);
-      setAttachments(response.data);
-    } catch (err) {
-      console.error('Failed to load attachments:', err);
-    }
-  };
+  const allTagsQuery = useQuery({
+    queryKey: ['tickets', 'allTags'],
+    queryFn: async () => (await ticketsApi.getTags()).data as TicketTag[],
+  });
+  const allTags = allTagsQuery.data ?? [];
 
-  const loadTasks = async () => {
-    try {
-      setLoadingTasks(true);
-      const response = await ticketsApi.getTasks(ticketId);
-      setTasks(response.data);
-    } catch (err) {
-      console.error('Failed to load tasks:', err);
-    } finally {
-      setLoadingTasks(false);
-    }
-  };
+  const cannedResponsesQuery = useQuery({
+    queryKey: ['tickets', 'cannedResponses'],
+    queryFn: async () => (await ticketsApi.getCannedResponses()).data as CannedResponse[],
+    staleTime: 5 * 60_000,
+  });
+  const cannedResponses = cannedResponsesQuery.data ?? [];
 
-  const loadActivities = async () => {
-    try {
-      setLoadingActivities(true);
-      const response = await ticketsApi.getActivities(ticketId);
-      setActivities(response.data);
-    } catch (err) {
-      console.error('Failed to load activities:', err);
-    } finally {
-      setLoadingActivities(false);
-    }
-  };
+  const attachmentsQuery = useQuery({
+    queryKey: ['ticket', ticketId, 'attachments'],
+    queryFn: async () => (await ticketsApi.getAttachments(ticketId)).data as TicketAttachment[],
+  });
+  const attachments = attachmentsQuery.data ?? [];
 
-  const loadTicketEmails = async () => {
-    try {
-      setLoadingEmails(true);
-      const response = await microsoft365Api.getTicketEmails(ticketId);
-      if (response.success) {
-        setTicketEmails(response.data || []);
-      }
-    } catch (err) {
-      console.error('Failed to load ticket emails:', err);
-    } finally {
-      setLoadingEmails(false);
-    }
-  };
+  const tasksQuery = useQuery({
+    queryKey: ['ticket', ticketId, 'tasks'],
+    queryFn: async () => (await ticketsApi.getTasks(ticketId)).data as TicketTask[],
+  });
+  const tasks = tasksQuery.data ?? [];
+  const loadingTasks = tasksQuery.isLoading;
 
-  const checkAiConfig = async () => {
-    try {
-      const response = await aiApi.getConfig();
-      setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
-    } catch (err) {
-      console.error('Failed to check AI config:', err);
-      setAiConfigured(false);
-    }
-  };
+  const activitiesQuery = useQuery({
+    queryKey: ['ticket', ticketId, 'activities'],
+    queryFn: async () => (await ticketsApi.getActivities(ticketId)).data as TicketActivity[],
+    enabled: activitiesEnabled,
+  });
+  const activities = activitiesQuery.data ?? [];
+  const loadingActivities = activitiesQuery.isFetching;
+  const loadActivities = () => setActivitiesEnabled(true);
 
-  const loadAiSuggestions = async () => {
-    try {
-      const response = await aiApi.getSuggestions(ticketId);
-      setAiSuggestions(response.data || []);
-    } catch (err) {
-      console.error('Failed to load AI suggestions:', err);
-    }
-  };
+  const ticketEmailsQuery = useQuery({
+    queryKey: ['ticket', ticketId, 'emails'],
+    queryFn: async () => {
+      const res = await microsoft365Api.getTicketEmails(ticketId);
+      return (res.success ? res.data || [] : []) as TicketEmail[];
+    },
+    enabled: ticket?.source === 'email',
+  });
+  const ticketEmails = ticketEmailsQuery.data ?? [];
+  const loadingEmails = ticketEmailsQuery.isFetching;
+  const loadTicketEmails = () => ticketEmailsQuery.refetch();
 
-  // Action handlers
-  const handleAddTag = async (tagId: string) => {
-    if (!ticket) return;
-    try {
-      const response = await ticketsApi.addTagToTicket(ticket.id, tagId);
-      setTicketTags(response.data);
-    } catch (err) {
-      console.error('Failed to add tag:', err);
-    }
-  };
+  const aiConfigQuery = useQuery({
+    queryKey: ['ai', 'config'],
+    queryFn: async () => (await aiApi.getConfig()).data,
+    staleTime: 5 * 60_000,
+  });
+  const aiConfigured = Boolean(aiConfigQuery.data?.enabled && aiConfigQuery.data?.hasApiKey);
 
-  const handleRemoveTag = async (tagId: string) => {
-    if (!ticket) return;
-    try {
-      const response = await ticketsApi.removeTagFromTicket(ticket.id, tagId);
-      setTicketTags(response.data);
-    } catch (err) {
-      console.error('Failed to remove tag:', err);
-    }
-  };
+  const aiSuggestionsQuery = useQuery({
+    queryKey: ['ticket', ticketId, 'aiSuggestions'],
+    queryFn: async () => (await aiApi.getSuggestions(ticketId)).data || [],
+    enabled: showAiPanel,
+  });
+  const aiSuggestions = aiSuggestionsQuery.data ?? [];
 
-  const handleCreateTag = async (name: string) => {
-    try {
+  // ─── Mutations ─────────────────────────────────────────────────────────────
+
+  const setTicketTagsCache = (data: TicketTag[]) =>
+    queryClient.setQueryData<TicketTag[]>(['ticket', ticketId, 'tags'], data);
+
+  const addTagMutation = useMutation({
+    mutationFn: (tagId: string) => ticketsApi.addTagToTicket(ticketId, tagId),
+    onSuccess: (res) => setTicketTagsCache(res.data),
+    onError: (err) => console.error('Failed to add tag:', err),
+  });
+
+  const removeTagMutation = useMutation({
+    mutationFn: (tagId: string) => ticketsApi.removeTagFromTicket(ticketId, tagId),
+    onSuccess: (res) => setTicketTagsCache(res.data),
+    onError: (err) => console.error('Failed to remove tag:', err),
+  });
+
+  const createTagMutation = useMutation({
+    mutationFn: (name: string) => {
       const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
       const randomColor = colors[Math.floor(Math.random() * colors.length)];
-      const response = await ticketsApi.createTag({ name, color: randomColor });
-      setAllTags(prev => [...prev, response.data]);
-      if (ticket) {
-        await handleAddTag(response.data.id);
-      }
-    } catch (err) {
-      console.error('Failed to create tag:', err);
-    }
-  };
+      return ticketsApi.createTag({ name, color: randomColor });
+    },
+    onSuccess: (res) => {
+      queryClient.setQueryData<TicketTag[]>(['tickets', 'allTags'], (prev) =>
+        prev ? [...prev, res.data] : [res.data]
+      );
+      addTagMutation.mutate(res.data.id);
+    },
+    onError: (err) => console.error('Failed to create tag:', err),
+  });
 
-  const handleSaveEdit = async () => {
+  const handleAddTag = (tagId: string) => addTagMutation.mutate(tagId);
+  const handleRemoveTag = (tagId: string) => removeTagMutation.mutate(tagId);
+  const handleCreateTag = (name: string) => createTagMutation.mutate(name);
+
+  const setTicketCache = (data: TicketWithRelations) =>
+    queryClient.setQueryData<TicketWithRelations>(['ticket', ticketId], (prev) =>
+      prev ? { ...prev, ...data } : data
+    );
+
+  const updateTicketMutation = useMutation({
+    mutationFn: (payload: Parameters<typeof ticketsApi.update>[1]) =>
+      ticketsApi.update(ticketId, payload),
+    onSuccess: (res) => {
+      setTicketCache(res.data);
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+    onError: (err) => {
+      console.error('Failed to update ticket:', err);
+      alert('Fehler beim Speichern des Tickets');
+    },
+  });
+
+  const handleSaveEdit = () => {
     if (!ticket) return;
 
     // Check if we're closing the ticket and need solution
@@ -283,19 +229,15 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       return;
     }
 
-    try {
-      const response = await ticketsApi.update(ticket.id, {
+    updateTicketMutation.mutate(
+      {
         title: editTitle,
         description: editDescription,
         status: editStatus,
         priority: editPriority,
-      });
-      setTicket(response.data);
-      setIsEditing(false);
-    } catch (err) {
-      console.error('Failed to update ticket:', err);
-      alert('Fehler beim Speichern des Tickets');
-    }
+      },
+      { onSuccess: () => setIsEditing(false) }
+    );
   };
 
   const handleCancelEdit = () => {
@@ -308,134 +250,139 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     }
   };
 
-  const handleSaveSolution = async () => {
-    if (!ticket || !solutionText.trim()) return;
-
-    try {
-      setSavingSolution(true);
-      const response = await ticketsApi.update(ticket.id, {
+  const saveSolutionMutation = useMutation({
+    mutationFn: () =>
+      ticketsApi.update(ticketId, {
         title: editTitle,
         description: editDescription,
         status: 'closed',
         priority: editPriority,
         solution: solutionText.trim(),
         resolutionType: resolutionType,
-      });
-      setTicket(response.data);
+      }),
+    onSuccess: (res) => {
+      setTicketCache(res.data);
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
       setIsEditing(false);
       setShowSolutionModal(false);
       setSolutionText('');
-    } catch (err) {
+    },
+    onError: (err) => {
       console.error('Failed to save solution:', err);
       alert('Fehler beim Speichern der Loesung');
-    } finally {
-      setSavingSolution(false);
-    }
+    },
+  });
+  const savingSolution = saveSolutionMutation.isPending;
+
+  const handleSaveSolution = () => {
+    if (!ticket || !solutionText.trim()) return;
+    saveSolutionMutation.mutate();
   };
+
+  const addCommentMutation = useMutation({
+    mutationFn: (vars: { content: string; isInternal: boolean; notifyCustomer: boolean; replyViaEmail: boolean }) =>
+      ticketsApi.addComment(ticketId, vars.content, {
+        isInternal: vars.isInternal,
+        notifyCustomer: vars.notifyCustomer,
+        replyViaEmail: vars.replyViaEmail,
+      }),
+    onSuccess: (res, vars) => {
+      // Append comment optimistically into the ticket cache so SLA bar / list re-renders instantly
+      queryClient.setQueryData<TicketWithRelations>(['ticket', ticketId], (prev) =>
+        prev ? { ...prev, comments: [...(prev.comments ?? []), res.data] } : prev
+      );
+      // For public replies, refetch to pick up first_response_at (SLA tracking)
+      if (!vars.isInternal) ticketQuery.refetch();
+    },
+  });
 
   const handleAddComment = async (content: string, isInternal: boolean, notifyCustomer: boolean, replyViaEmail: boolean) => {
-    if (!ticket) return;
-
-    const response = await ticketsApi.addComment(ticket.id, content, {
-      isInternal,
-      notifyCustomer,
-      replyViaEmail,
-    });
-    setComments(prev => [...prev, response.data]);
-
-    // Reload ticket to get updated first_response_at for SLA tracking
-    if (!isInternal) {
-      await loadTicket();
-    }
+    await addCommentMutation.mutateAsync({ content, isInternal, notifyCustomer, replyViaEmail });
   };
 
-  const handleDelete = async () => {
-    if (!ticket) return;
-
-    try {
-      setDeleting(true);
-      await ticketsApi.delete(ticket.id);
+  const deleteMutation = useMutation({
+    mutationFn: () => ticketsApi.delete(ticketId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      setShowDeleteConfirm(false);
       onTicketDeleted();
-    } catch (err) {
+    },
+    onError: (err) => {
       console.error('Failed to delete ticket:', err);
       alert('Fehler beim Loeschen des Tickets');
-    } finally {
-      setDeleting(false);
       setShowDeleteConfirm(false);
-    }
-  };
+    },
+  });
+  const deleting = deleteMutation.isPending;
+  const handleDelete = () => deleteMutation.mutate();
 
-  const handleArchive = async () => {
-    if (!ticket) return;
+  const archiveMutation = useMutation({
+    mutationFn: (status: 'archived' | 'open') => ticketsApi.update(ticketId, { status }),
+    onSuccess: (res, status) => {
+      setTicketCache(res.data);
+      setEditStatus(status);
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      if (status === 'archived') setShowArchiveConfirm(false);
+    },
+    onError: (err, status) => {
+      console.error(`Failed to ${status === 'archived' ? 'archive' : 'restore'} ticket:`, err);
+      alert(status === 'archived' ? 'Fehler beim Archivieren des Tickets' : 'Fehler beim Wiederherstellen des Tickets');
+    },
+  });
+  const archiving = archiveMutation.isPending;
+  const handleArchive = () => archiveMutation.mutate('archived');
+  const handleRestore = () => archiveMutation.mutate('open');
 
-    try {
-      setArchiving(true);
-      const response = await ticketsApi.update(ticket.id, { status: 'archived' });
-      setTicket(response.data);
-      setEditStatus('archived');
-      setShowArchiveConfirm(false);
-    } catch (err) {
-      console.error('Failed to archive ticket:', err);
-      alert('Fehler beim Archivieren des Tickets');
-    } finally {
-      setArchiving(false);
-    }
-  };
+  // Task handlers — write through setQueryData so the UI stays instant; also
+  // invalidate the global ['tasks'] key so TasksOverview picks up changes.
+  const tasksKey = ['ticket', ticketId, 'tasks'] as const;
+  const writeTasks = (updater: (prev: TicketTask[]) => TicketTask[]) =>
+    queryClient.setQueryData<TicketTask[]>(tasksKey, (prev) => updater(prev ?? []));
+  const invalidateTasksOverview = () =>
+    queryClient.invalidateQueries({ queryKey: ['tasks'] });
 
-  const handleRestore = async () => {
-    if (!ticket) return;
-
-    try {
-      setArchiving(true);
-      const response = await ticketsApi.update(ticket.id, { status: 'open' });
-      setTicket(response.data);
-      setEditStatus('open');
-    } catch (err) {
-      console.error('Failed to restore ticket:', err);
-      alert('Fehler beim Wiederherstellen des Tickets');
-    } finally {
-      setArchiving(false);
-    }
-  };
-
-  // Task handlers
   const handleAddTask = async (title: string, visible: boolean) => {
-    const response = await ticketsApi.createTask(ticketId, {
-      title,
-      visibleToCustomer: visible,
-    });
-    setTasks(prev => [...prev, response.data]);
+    const response = await ticketsApi.createTask(ticketId, { title, visibleToCustomer: visible });
+    writeTasks((prev) => [...prev, response.data]);
+    invalidateTasksOverview();
   };
 
   const handleToggleTask = async (task: TicketTask) => {
-    const response = await ticketsApi.updateTask(ticketId, task.id, {
-      completed: !task.completed,
-    });
-    setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
+    const response = await ticketsApi.updateTask(ticketId, task.id, { completed: !task.completed });
+    writeTasks((prev) => prev.map((t) => (t.id === task.id ? response.data : t)));
+    invalidateTasksOverview();
   };
 
   const handleToggleTaskVisibility = async (task: TicketTask) => {
     const response = await ticketsApi.updateTask(ticketId, task.id, {
       visibleToCustomer: !task.visibleToCustomer,
     });
-    setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
+    writeTasks((prev) => prev.map((t) => (t.id === task.id ? response.data : t)));
+    invalidateTasksOverview();
   };
 
   const handleUpdateTask = async (taskId: string, title: string) => {
     const response = await ticketsApi.updateTask(ticketId, taskId, { title });
-    setTasks(prev => prev.map(t => t.id === taskId ? response.data : t));
+    writeTasks((prev) => prev.map((t) => (t.id === taskId ? response.data : t)));
+    invalidateTasksOverview();
   };
 
   const handleDeleteTask = async (taskId: string) => {
     await ticketsApi.deleteTask(ticketId, taskId);
-    setTasks(prev => prev.filter(t => t.id !== taskId));
+    writeTasks((prev) => prev.filter((t) => t.id !== taskId));
+    invalidateTasksOverview();
   };
 
   const handleReorderTasks = async (taskIds: string[]) => {
     await ticketsApi.reorderTasks(ticketId, taskIds);
+    queryClient.invalidateQueries({ queryKey: tasksKey });
   };
 
   // Attachment handlers
+  const attachmentsKey = ['ticket', ticketId, 'attachments'] as const;
+  const writeAttachments = (updater: (prev: TicketAttachment[]) => TicketAttachment[]) =>
+    queryClient.setQueryData<TicketAttachment[]>(attachmentsKey, (prev) => updater(prev ?? []));
+
   const handleUploadFiles = async (files: FileList) => {
     try {
       setUploadingFiles(true);
@@ -443,9 +390,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       Array.from(files).forEach(file => {
         formData.append('files', file);
       });
-
       const result = await ticketsApi.uploadAttachments(ticketId, formData);
-      setAttachments(prev => [...prev, ...result.data]);
+      writeAttachments((prev) => [...prev, ...result.data]);
     } catch (err) {
       console.error('Failed to upload files:', err);
       alert('Fehler beim Hochladen der Dateien');
@@ -454,42 +400,47 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     }
   };
 
-  const handleDeleteAttachment = async (attachmentId: string) => {
-    if (!confirm('Anhang wirklich loeschen?')) return;
-
-    try {
-      await ticketsApi.deleteAttachment(ticketId, attachmentId);
-      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
-    } catch (err) {
+  const deleteAttachmentMutation = useMutation({
+    mutationFn: (attachmentId: string) => ticketsApi.deleteAttachment(ticketId, attachmentId),
+    onSuccess: (_res, attachmentId) => {
+      writeAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+    },
+    onError: (err) => {
       console.error('Failed to delete attachment:', err);
       alert('Fehler beim Loeschen des Anhangs');
-    }
+    },
+  });
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!confirm('Anhang wirklich loeschen?')) return;
+    await deleteAttachmentMutation.mutateAsync(attachmentId);
   };
 
   // AI handlers
-  const generateAiSuggestion = async (suggestionType: 'solution' | 'category' | 'priority' | 'response') => {
-    setLoadingAiSuggestion(true);
-    setAiError(null);
-    try {
-      const response = await aiApi.generateSuggestion(ticketId, suggestionType);
-      if (response.success && response.data) {
-        setAiSuggestions(prev => [response.data, ...prev]);
-      }
-    } catch (err: any) {
-      setAiError(err.message || 'Fehler beim Generieren des Vorschlags');
-    } finally {
-      setLoadingAiSuggestion(false);
-    }
-  };
+  const aiSuggestionsKey = ['ticket', ticketId, 'aiSuggestions'] as const;
 
-  const handleSuggestionFeedback = async (suggestionId: string, isHelpful: boolean) => {
-    try {
-      await aiApi.markSuggestionFeedback(suggestionId, isHelpful);
-      loadAiSuggestions();
-    } catch (err) {
-      console.error('Failed to mark feedback:', err);
-    }
-  };
+  const generateAiMutation = useMutation({
+    mutationFn: (suggestionType: 'solution' | 'category' | 'priority' | 'response') =>
+      aiApi.generateSuggestion(ticketId, suggestionType),
+    onMutate: () => setAiError(null),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        queryClient.setQueryData<AISuggestion[]>(aiSuggestionsKey, (prev) => [response.data, ...(prev ?? [])]);
+      }
+    },
+    onError: (err: any) => setAiError(err.message || 'Fehler beim Generieren des Vorschlags'),
+  });
+  const loadingAiSuggestion = generateAiMutation.isPending;
+  const generateAiSuggestion = (suggestionType: 'solution' | 'category' | 'priority' | 'response') =>
+    generateAiMutation.mutate(suggestionType);
+
+  const feedbackMutation = useMutation({
+    mutationFn: (vars: { suggestionId: string; isHelpful: boolean }) =>
+      aiApi.markSuggestionFeedback(vars.suggestionId, vars.isHelpful),
+    onSuccess: () => aiSuggestionsQuery.refetch(),
+    onError: (err) => console.error('Failed to mark feedback:', err),
+  });
+  const handleSuggestionFeedback = (suggestionId: string, isHelpful: boolean) =>
+    feedbackMutation.mutate({ suggestionId, isHelpful });
 
   const applyResponseSuggestion = (content: string) => {
     // This will be handled via the comment component's internal state
@@ -524,13 +475,10 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     }
 
     if (detectedPriority) {
-      try {
-        const response = await ticketsApi.update(ticket.id, { priority: detectedPriority });
-        setTicket(response.data);
-        setEditPriority(detectedPriority);
-      } catch (err) {
-        console.error('Failed to update priority:', err);
-      }
+      updateTicketMutation.mutate(
+        { priority: detectedPriority },
+        { onSuccess: () => setEditPriority(detectedPriority) }
+      );
     }
   };
 
@@ -609,7 +557,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
           <button
             onClick={() => {
               if (!showAiPanel) {
-                loadAiSuggestions();
+                aiSuggestionsQuery.refetch();
               }
               setShowAiPanel(!showAiPanel);
             }}
@@ -729,7 +677,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
         targetTicket={ticket}
         onClose={() => setShowMergeDialog(false)}
         onMerged={(mergedTicket) => {
-          setTicket(mergedTicket);
+          setTicketCache(mergedTicket);
           setShowMergeDialog(false);
           loadTicket();
         }}
