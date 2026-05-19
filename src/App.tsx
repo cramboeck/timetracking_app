@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView, pathToAreaSubView, areaSubViewToPath } from './components/AreaNavigation';
+import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView } from './components/AreaNavigation';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 // Core components loaded eagerly (always visible / needed on first render)
 import { Stopwatch } from './components/Stopwatch';
@@ -38,7 +37,10 @@ import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { CommandPalette } from './components/CommandPalette';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
-import { useSwipeGesture } from './hooks/useSwipeGesture';
+import { useSidebarCollapsed } from './hooks/useSidebarCollapsed';
+import { useAreaSync } from './hooks/useAreaSync';
+import { useUserPreferences } from './hooks/useUserPreferences';
+import { useSwipeNavigation } from './hooks/useSwipeNavigation';
 import { useIsDesktop } from './hooks/useMediaQuery';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { haptics } from './utils/haptics';
@@ -46,9 +48,7 @@ import { generateUUID } from './utils/uuid';
 import { notificationService } from './utils/notifications';
 import { toLocalDateString } from './utils/time';
 import { addPendingEntry, getRetryableEntries, removePendingEntry, getPendingCount, getFailedCount, markEntryFailed, isRetryableError, resetFailedEntry, discardFailedEntry } from './utils/offlineStorage';
-import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, userApi } from './services/api';
-
-const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
+import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi } from './services/api';
 
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
@@ -62,80 +62,19 @@ function App() {
   const [failedCount, setFailedCount] = useState(() => getFailedCount());
   const syncMutexRef = useRef(false);
 
-  // Track sidebar collapsed state for layout adjustment
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
-    }
-    return false;
-  });
+  // Sidebar collapsed state (driven by DesktopSidebar's localStorage write)
+  const sidebarCollapsed = useSidebarCollapsed();
 
-  // Listen for sidebar collapse changes from localStorage
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === SIDEBAR_COLLAPSED_KEY) {
-        setSidebarCollapsed(e.newValue === 'true');
-      }
-    };
+  // URL ↔ (currentArea, currentSubView) bidirectional sync. The hook owns
+  // the navigation state; we keep references to the setters so server
+  // preferences and direct UI handlers below can still drive it.
+  const {
+    currentArea,
+    setCurrentArea,
+    currentSubView,
+    setCurrentSubView,
+  } = useAreaSync('arbeiten', 'stopwatch');
 
-    // Also listen for custom event from DesktopSidebar
-    const handleSidebarToggle = () => {
-      setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('sidebar-toggle', handleSidebarToggle);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('sidebar-toggle', handleSidebarToggle);
-    };
-  }, []);
-
-  // URL is the source of truth for navigation. Fall back to localStorage
-  // (and ultimately defaults) so users who bookmark "/" still see a sensible
-  // landing screen. Server preferences load asynchronously and only override
-  // the state when the URL didn't already pin it (see preferences useEffect).
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  const initialNav = (() => {
-    const fromUrl = pathToAreaSubView(location.pathname);
-    if (fromUrl) return fromUrl;
-    const savedArea = localStorage.getItem('currentArea') as Area | null;
-    const savedSubView = localStorage.getItem('currentSubView') as SubView | null;
-    return {
-      area: savedArea || 'arbeiten',
-      subView: savedSubView || 'stopwatch',
-    };
-  })();
-
-  const [currentArea, setCurrentArea] = useState<Area>(initialNav.area);
-  const [currentSubView, setCurrentSubView] = useState<SubView>(initialNav.subView);
-
-  // URL → State (Browser-Back/Forward, deep links)
-  useEffect(() => {
-    const parsed = pathToAreaSubView(location.pathname);
-    if (!parsed) return;
-    if (parsed.area !== currentArea) setCurrentArea(parsed.area);
-    if (parsed.subView !== currentSubView) setCurrentSubView(parsed.subView);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
-
-  // State → URL (UI clicks, programmatic setCurrentArea/SubView calls).
-  // The very first navigate replaces the entry so users who land on "/" or
-  // an unknown path don't get a phantom history entry that re-routes them
-  // forward when they press Back.
-  const initialUrlSyncedRef = useRef(false);
-  useEffect(() => {
-    const expected = areaSubViewToPath(currentArea, currentSubView);
-    if (location.pathname !== expected) {
-      navigate(expected, { replace: !initialUrlSyncedRef.current });
-    }
-    initialUrlSyncedRef.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentArea, currentSubView]);
-  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -152,64 +91,16 @@ function App() {
   const [initialTicketId, setInitialTicketId] = useState<string | null>(null);
   // Track entry IDs that are being created to prevent duplicates
   const pendingEntryIdsRef = useRef<Set<string>>(new Set());
-  // Track if we're currently saving preferences to avoid loops
-  const savingPreferencesRef = useRef(false);
 
-  // Load preferences from database on mount
-  useEffect(() => {
-    const loadPreferences = async () => {
-      if (!currentUser || !isAuthenticated) return;
-
-      try {
-        const response = await userApi.getPreferences();
-        if (response.success && response.data) {
-          const prefs = response.data;
-          if (prefs.currentArea) {
-            setCurrentArea(prefs.currentArea as Area);
-          }
-          if (prefs.currentSubView) {
-            setCurrentSubView(prefs.currentSubView as SubView);
-          }
-          console.log('✅ [PREFS] Loaded user preferences from database:', prefs);
-        }
-      } catch (error) {
-        console.log('📋 [PREFS] No saved preferences found, using defaults');
-      } finally {
-        setPreferencesLoaded(true);
-      }
-    };
-
-    loadPreferences();
-  }, [currentUser, isAuthenticated]);
-
-  // Save preferences to database when they change (debounced)
-  useEffect(() => {
-    // Don't save until initial preferences are loaded (to avoid overwriting server state)
-    if (!preferencesLoaded || !currentUser || !isAuthenticated) return;
-    // Prevent concurrent saves
-    if (savingPreferencesRef.current) return;
-
-    const savePreferences = async () => {
-      savingPreferencesRef.current = true;
-      try {
-        await userApi.updatePreferences({
-          currentArea,
-          currentSubView,
-        });
-        // Also save to localStorage as fallback
-        localStorage.setItem('currentArea', currentArea);
-        localStorage.setItem('currentSubView', currentSubView);
-      } catch (error) {
-        console.error('❌ [PREFS] Failed to save preferences:', error);
-      } finally {
-        savingPreferencesRef.current = false;
-      }
-    };
-
-    // Debounce saves
-    const timer = setTimeout(savePreferences, 500);
-    return () => clearTimeout(timer);
-  }, [currentArea, currentSubView, preferencesLoaded, currentUser, isAuthenticated]);
+  // Load + persist server-side user preferences (last-used area/subView)
+  useUserPreferences({
+    currentUser,
+    isAuthenticated,
+    currentArea,
+    currentSubView,
+    setCurrentArea,
+    setCurrentSubView,
+  });
 
   // Load all data from API on mount
   useEffect(() => {
@@ -1041,65 +932,12 @@ function App() {
     updateDarkMode(newMode);
   };
 
-  // Get visible areas for swipe navigation
-  const visibleAreas: Area[] = ['dashboard', 'arbeiten', 'support', 'crm', 'finanzen'];
-
-  // SubView configuration for each area (matching AreaNavigation)
-  const subViewConfig: Record<Area, SubView[]> = {
-    dashboard: ['overview'],
-    arbeiten: ['stopwatch', 'tasks', 'list', 'calendar'],
-    support: ['tickets', 'inbox', 'devices', 'alerts', 'maintenance'],
-    crm: ['customers', 'leads', 'pipeline', 'contracts'],
-    finanzen: ['invoices', 'billing', 'reports'],
-  };
-
-  // Swipe between areas (Bottom zone - bottom 30%)
-  const handleSwipeLeftArea = useCallback(() => {
-    const currentIndex = visibleAreas.indexOf(currentArea);
-    if (currentIndex < visibleAreas.length - 1) {
-      haptics.light();
-      handleAreaChange(visibleAreas[currentIndex + 1]);
-    }
-  }, [currentArea, visibleAreas]);
-
-  const handleSwipeRightArea = useCallback(() => {
-    const currentIndex = visibleAreas.indexOf(currentArea);
-    if (currentIndex > 0) {
-      haptics.light();
-      handleAreaChange(visibleAreas[currentIndex - 1]);
-    }
-  }, [currentArea, visibleAreas]);
-
-  // Swipe between subviews (Top zone - top 30%)
-  const handleSwipeLeftSubView = useCallback(() => {
-    const currentSubViews = subViewConfig[currentArea];
-    const currentIndex = currentSubViews.indexOf(currentSubView);
-    if (currentIndex < currentSubViews.length - 1) {
-      haptics.light();
-      handleSubViewChange(currentSubViews[currentIndex + 1]);
-    }
-  }, [currentArea, currentSubView]);
-
-  const handleSwipeRightSubView = useCallback(() => {
-    const currentSubViews = subViewConfig[currentArea];
-    const currentIndex = currentSubViews.indexOf(currentSubView);
-    if (currentIndex > 0) {
-      haptics.light();
-      handleSubViewChange(currentSubViews[currentIndex - 1]);
-    }
-  }, [currentArea, currentSubView]);
-
-  const swipeHandlers = useSwipeGesture({
-    // Top zone (30%): Navigate between subviews
-    onSwipeLeftTop: handleSwipeLeftSubView,
-    onSwipeRightTop: handleSwipeRightSubView,
-    // Bottom zone (30%): Navigate between areas
-    onSwipeLeftBottom: handleSwipeLeftArea,
-    onSwipeRightBottom: handleSwipeRightArea,
-    // Middle zone (40%): No swipe navigation - allows normal scrolling
-    minSwipeDistance: 75,
-    topZoneThreshold: 0.30,
-    bottomZoneThreshold: 0.30,
+  // Mobile swipe gestures: bottom 30% → area switch, top 30% → subView switch
+  const swipeHandlers = useSwipeNavigation({
+    currentArea,
+    currentSubView,
+    onAreaChange: handleAreaChange,
+    onSubViewChange: handleSubViewChange,
   });
 
   // FAB handlers
