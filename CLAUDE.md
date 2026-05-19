@@ -243,13 +243,25 @@ Additive Migration — der `currentArea`/`currentSubView` State bleibt erstmal a
 
 TS-Errors: 458 (unverändert). Bundle +10 KB für Routing-Logik.
 
+### Epic 5 Pass 4b — App.tsx schlanker machen via Custom Hooks — ✅ abgeschlossen
+
+| Task | PR |
+|---|---|
+| `useSidebarCollapsed` neu (`src/hooks/`) — listening auf localStorage + `sidebar-toggle` event, returnt boolean | #86 |
+| `useUserPreferences` neu — Load auf mount, debounced save (500 ms) bei area/subView-Änderung, localStorage als Fallback | #86 |
+| `useAreaSync` neu — die Pass-4a-Logik (URL ↔ State bidirektional, Equality-Guards, replace beim ersten navigate) | #86 |
+| `useSwipeNavigation` neu — Mobile Swipe-Gesten (Top 30 % SubView-Wechsel, Bottom 30 % Area-Wechsel, Mitte 40 % normales Scrollen), nutzt `useSwipeGesture` intern | #86 |
+| App.tsx: alte useState/useEffect/useCallback-Blöcke ersetzt durch Hook-Aufrufe; `useLocation`/`useNavigate`/`useSwipeGesture`/`userApi` Imports raus | #86 |
+
+App.tsx: **1437 → 1310 Zeilen** (-127), Diff +32/-194. TS-Errors: 458 (unverändert). Bundle unverändert. Verbleibend für Pass 4: Offline-Sync-Block (~200 Z., verflochten mit `setEntries`) als eigenständigen Hook extrahieren — Pass 4b-extension. Danach Pass 4c: echte `<Routes>`/`<Route>`, State entfernen.
+
 ---
 
 ## Offene Aufgaben (Roadmap)
 
 ### Epic 5 — Architektur-Modernisierung (Priorität: Hoch)
 
-1. **React Router einführen** — Pass 4a (URL↔State Sync) in PR #85 erledigt. Verbleibend: Pass 4b (Layout-Komponenten aus App.tsx extrahieren, 1437 Z.) und Pass 4c (State entfernen, `useParams`/`useLocation` als single source).
+1. **React Router einführen** — Pass 4a (URL↔State Sync, #85) + Pass 4b (Custom Hooks für Sidebar/Preferences/AreaSync/Swipe, #86) erledigt. App.tsx ist auf 1310 Z. geschrumpft. Verbleibend: Offline-Sync-Hook (~200 Z.) und Pass 4c (echte `<Routes>`, State entfernen).
 2. ~~**TanStack Query (React Query)** — Setup + AlertsView (#81) + Tickets-Übersichten (#82) + TicketDetail (#83) erledigt.~~ ✅ Ticket-Subtree komplett auf TanStack Query.
 3. **Toten Code entfernen** — Erster Pass (PR #80) entfernte `Dashboard.tsx`, `Billing.tsx`, `BillingWidget.tsx`, `Navigation.tsx` (2596 LOC tot). Verbleibender Konsolidierungspunkt: `TaskHub.tsx` vs `TasksOverview.tsx` (beide live, Details unten in „Duplikat-Auflösung"). `ManualEntry.tsx` wurde bereits mit PR #67 gelöscht.
 
@@ -345,4 +357,4 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-*Zuletzt aktualisiert: 19.5.2026 — Epic-5-Vorstoß: Pass 1 „Toten Code entfernen" (#80, -2596 LOC), Pass 2 „TanStack Query Pilot AlertsView" (#81), Pass 3a „Tickets-Übersichten" (#82), Pass 3b „TicketDetail" (#83), Bugfix „Filter-Dropdowns" (#84) und Pass 4a „React Router URL↔State Sync" (#85). Ticket-Subtree komplett auf TanStack Query, URL-Routing eingeführt.*
+*Zuletzt aktualisiert: 19.5.2026 — Epic-5-Vorstoß: Pass 1 „Toten Code entfernen" (#80, -2596 LOC), Pass 2 „TanStack Query Pilot AlertsView" (#81), Pass 3a „Tickets-Übersichten" (#82), Pass 3b „TicketDetail" (#83), Bugfix „Filter-Dropdowns" (#84), Pass 4a „React Router URL↔State Sync" (#85) und Pass 4b „App.tsx Custom Hooks" (#86, App.tsx 1437→1310 Z.). Ticket-Subtree komplett auf TanStack Query, URL-Routing eingeführt, App.tsx schlanker.*
