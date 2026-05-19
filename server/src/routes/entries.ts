@@ -231,6 +231,32 @@ router.put('/bulk-update', authenticateToken, attachOrganization, requireOrgRole
   }
 });
 
+// GET /api/entries/timeframes - Distinct (year, month) pairs in which the
+// current organization has time entries. Used to populate filter dropdowns
+// in TimeEntriesList without depending on the currently-paginated page.
+router.get('/timeframes', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const result = await pool.query(
+      `SELECT
+         EXTRACT(YEAR  FROM start_time)::int AS year,
+         EXTRACT(MONTH FROM start_time)::int AS month
+       FROM time_entries
+       WHERE organization_id = $1
+       GROUP BY year, month
+       ORDER BY year DESC, month DESC`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Get entries timeframes error', { error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/entries/:id - Get single entry
 router.get('/:id', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
@@ -323,38 +324,40 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     return projects.filter(p => p.customerId === filterCustomerId);
   }, [filterCustomerId, projects]);
 
-  // Generate available months for filter
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
-    entries.forEach(entry => {
-      const date = new Date(entry.startTime);
-      const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      months.add(month);
-    });
-    return Array.from(months).sort().reverse();
-  }, [entries]);
+  // Filter dropdowns need ALL (year, month) pairs the organization ever
+  // tracked time for — not just the currently-paginated page. Pulled from a
+  // dedicated endpoint so the options stay populated even when the active
+  // filter narrows entries to a single month.
+  const timeframesQuery = useQuery({
+    queryKey: ['entries', 'timeframes'],
+    queryFn: async () => (await entriesApi.getTimeframes()).data,
+    staleTime: 60_000,
+  });
+  const timeframes = timeframesQuery.data ?? [];
 
-  // Generate available quarters for filter
+  const availableMonths = useMemo(
+    () =>
+      timeframes
+        .map(({ year, month }) => `${year}-${String(month).padStart(2, '0')}`)
+        .sort()
+        .reverse(),
+    [timeframes]
+  );
+
   const availableQuarters = useMemo(() => {
     const quarters = new Set<string>();
-    entries.forEach(entry => {
-      const date = new Date(entry.startTime);
-      const year = date.getFullYear();
-      const quarter = Math.floor(date.getMonth() / 3) + 1;
+    timeframes.forEach(({ year, month }) => {
+      const quarter = Math.floor((month - 1) / 3) + 1;
       quarters.add(`${year}-Q${quarter}`);
     });
     return Array.from(quarters).sort().reverse();
-  }, [entries]);
+  }, [timeframes]);
 
-  // Generate available years for filter
   const availableYears = useMemo(() => {
     const years = new Set<string>();
-    entries.forEach(entry => {
-      const date = new Date(entry.startTime);
-      years.add(String(date.getFullYear()));
-    });
+    timeframes.forEach(({ year }) => years.add(String(year)));
     return Array.from(years).sort().reverse();
-  }, [entries]);
+  }, [timeframes]);
 
   // Filter entries
   // All filters (timeframe, projectId, customerId, searchText) are applied

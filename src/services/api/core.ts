@@ -65,6 +65,15 @@ export const entriesApi = {
     return authFetch(`/entries${qs ? `?${qs}` : ''}`);
   },
 
+  // Distinct (year, month) pairs in which the current organization has entries.
+  // Used to populate filter dropdowns independently of the paginated page.
+  getTimeframes: async (): Promise<{
+    success: boolean;
+    data: { year: number; month: number }[];
+  }> => {
+    return authFetch('/entries/timeframes');
+  },
+
   getById: async (id: string): Promise<{ success: boolean; data: TimeEntry }> => {
     return authFetch(`/entries/${id}`);
   },
