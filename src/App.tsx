@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView } from './components/AreaNavigation';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 // Core components loaded eagerly (always visible / needed on first render)
@@ -41,26 +41,20 @@ import { useSidebarCollapsed } from './hooks/useSidebarCollapsed';
 import { useAreaSync } from './hooks/useAreaSync';
 import { useUserPreferences } from './hooks/useUserPreferences';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation';
+import { useOfflineEntrySync } from './hooks/useOfflineEntrySync';
 import { useIsDesktop } from './hooks/useMediaQuery';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { haptics } from './utils/haptics';
 import { generateUUID } from './utils/uuid';
 import { notificationService } from './utils/notifications';
 import { toLocalDateString } from './utils/time';
-import { addPendingEntry, getRetryableEntries, removePendingEntry, getPendingCount, getFailedCount, markEntryFailed, isRetryableError, resetFailedEntry, discardFailedEntry } from './utils/offlineStorage';
+import { addPendingEntry } from './utils/offlineStorage';
 import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi } from './services/api';
 
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
   const isDesktop = useIsDesktop();
   const { isOnline, wasOffline } = useOnlineStatus();
-
-  // Offline sync state
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [pendingCount, setPendingCount] = useState(() => getPendingCount());
-  const [failedCount, setFailedCount] = useState(() => getFailedCount());
-  const syncMutexRef = useRef(false);
 
   // Sidebar collapsed state (driven by DesktopSidebar's localStorage write)
   const sidebarCollapsed = useSidebarCollapsed();
@@ -76,6 +70,19 @@ function App() {
   } = useAreaSync('arbeiten', 'stopwatch');
 
   const [entries, setEntries] = useState<TimeEntry[]>([]);
+
+  // Background sync for entries saved locally while offline
+  const {
+    isSyncing,
+    syncError,
+    pendingCount,
+    failedCount,
+    refreshCounts: refreshOfflineCounts,
+    syncPendingEntries,
+    handleRetryFailedEntry,
+    handleDiscardFailedEntry,
+  } = useOfflineEntrySync({ isOnline, wasOffline, setEntries });
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -435,7 +442,7 @@ function App() {
 
       // Save to local storage for later sync
       addPendingEntry(entry, action);
-      setPendingCount(getPendingCount());
+      refreshOfflineCounts();
 
       // Clear running entry if stopping
       if (isUpdatingRunningEntry && !entry.isRunning) {
@@ -484,7 +491,7 @@ function App() {
       if (error instanceof TypeError && error.message.includes('fetch')) {
         console.log('📴 [ENTRY] Network error - saving entry locally:', entry.id);
         addPendingEntry(entry, action);
-        setPendingCount(getPendingCount());
+        refreshOfflineCounts();
 
         // Still update local state
         if (action === 'update') {
@@ -546,107 +553,10 @@ function App() {
       if (error instanceof TypeError && error.message.includes('fetch')) {
         console.log('📴 [ENTRY] Network error - saving running entry update locally:', entry.id);
         addPendingEntry(entry, 'update');
-        setPendingCount(getPendingCount());
+        refreshOfflineCounts();
       }
     }
   };
-
-  // Sync pending entries when back online
-  const syncPendingEntries = useCallback(async () => {
-    // Mutex: prevent concurrent sync attempts
-    if (syncMutexRef.current) {
-      console.log('🔒 [SYNC] Sync already in progress, skipping');
-      return;
-    }
-
-    const pending = getRetryableEntries();
-    if (pending.length === 0) return;
-
-    syncMutexRef.current = true;
-    console.log('🔄 [SYNC] Starting sync of', pending.length, 'pending entries');
-    setIsSyncing(true);
-    setSyncError(null);
-
-    let successCount = 0;
-    let failCount = 0;
-    let permanentFailCount = 0;
-
-    for (const { entry, action } of pending) {
-      try {
-        if (action === 'update') {
-          const response = await entriesApi.update(entry.id, entry);
-          setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
-        } else {
-          // Send clientId for idempotent creation
-          const response = await entriesApi.create({ ...entry, clientId: entry.id });
-          setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
-        }
-        removePendingEntry(entry.id);
-        successCount++;
-        console.log('✅ [SYNC] Synced entry:', entry.id);
-      } catch (error) {
-        const retryable = isRetryableError(error);
-        const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
-        markEntryFailed(entry.id, errorMessage, !retryable);
-        console.error('❌ [SYNC] Failed to sync entry:', entry.id, retryable ? '(will retry)' : '(permanent)', error);
-        failCount++;
-        if (!retryable) permanentFailCount++;
-      }
-    }
-
-    setPendingCount(getPendingCount());
-    setFailedCount(getFailedCount());
-    setIsSyncing(false);
-    syncMutexRef.current = false;
-
-    if (permanentFailCount > 0) {
-      setSyncError(`${permanentFailCount} ${permanentFailCount === 1 ? 'Eintrag konnte' : 'Einträge konnten'} nicht synchronisiert werden (Daten ungültig)`);
-    } else if (failCount > 0) {
-      setSyncError(`${failCount} ${failCount === 1 ? 'Eintrag' : 'Einträge'} – Retry läuft automatisch`);
-      setTimeout(() => setSyncError(null), 5000);
-    }
-
-    console.log('🔄 [SYNC] Sync complete:', successCount, 'synced,', failCount, 'failed (' + permanentFailCount + ' permanent)');
-  }, []);
-
-  // Auto-sync when coming back online
-  useEffect(() => {
-    if (isOnline && wasOffline) {
-      console.log('🌐 [SYNC] Back online, checking for pending entries...');
-      syncPendingEntries();
-    }
-  }, [isOnline, wasOffline, syncPendingEntries]);
-
-  // Periodic sync retry every 30 seconds while there are retryable pending entries
-  useEffect(() => {
-    if (!isOnline) return;
-
-    const interval = setInterval(() => {
-      const retryable = getRetryableEntries();
-      if (retryable.length > 0) {
-        console.log('🔄 [SYNC] Periodic retry: found', retryable.length, 'retryable entries');
-        syncPendingEntries();
-      }
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [isOnline, syncPendingEntries]);
-
-  // Handlers for failed entry management (called from OfflineBanner)
-  const handleRetryFailedEntry = useCallback((entryId: string) => {
-    resetFailedEntry(entryId);
-    setPendingCount(getPendingCount());
-    setFailedCount(getFailedCount());
-    // Trigger immediate sync
-    syncPendingEntries();
-  }, [syncPendingEntries]);
-
-  const handleDiscardFailedEntry = useCallback((entryId: string) => {
-    discardFailedEntry(entryId);
-    setEntries(prev => prev.filter(e => e.id !== entryId));
-    setPendingCount(getPendingCount());
-    setFailedCount(getFailedCount());
-  }, []);
 
   // TIMER SAFETY: Warn user before closing page with running timer
   useEffect(() => {
