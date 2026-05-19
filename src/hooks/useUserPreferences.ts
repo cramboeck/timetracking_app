@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Area, SubView } from '../components/AreaNavigation';
+import { Area, SubView, pathToAreaSubView } from '../components/AreaNavigation';
 import { userApi } from '../services/api';
 
 interface UseUserPreferencesArgs {
@@ -18,6 +18,13 @@ interface UseUserPreferencesArgs {
  *
  * Since Pass 4c, the URL is the source of truth — so applying a loaded
  * preference means calling `navigateTo` instead of mutating React state.
+ *
+ * Race-condition guard (Pass 4c hotfix): the preferences load is async,
+ * so a user click landing between "load starts" and "load returns" used
+ * to be silently overwritten — the click visibly happened, then the
+ * URL snapped back to the saved view. Now we snapshot (area, subView)
+ * at mount time and skip the navigateTo if the user has already moved
+ * away from there.
  */
 export function useUserPreferences({
   currentUser,
@@ -28,18 +35,40 @@ export function useUserPreferences({
 }: UseUserPreferencesArgs): { preferencesLoaded: boolean } {
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const savingPreferencesRef = useRef(false);
+  // What the URL parsed to at first render — used to detect whether the
+  // user has navigated during the async preferences load.
+  const mountSnapshotRef = useRef({ area: currentArea, subView: currentSubView });
+  // Idempotency guard — load preferences once per authenticated session.
+  // Without this, a stale currentUser reference change (refresh-token,
+  // multi-device sync, etc.) could re-fire the loader and bounce the URL.
+  const hasLoadedRef = useRef(false);
 
   // Load preferences from database on mount
   useEffect(() => {
-    const loadPreferences = async () => {
-      if (!currentUser || !isAuthenticated) return;
+    if (!currentUser || !isAuthenticated) {
+      hasLoadedRef.current = false;
+      return;
+    }
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
 
+    const loadPreferences = async () => {
       try {
         const response = await userApi.getPreferences();
         if (response.success && response.data) {
           const prefs = response.data;
           if (prefs.currentArea && prefs.currentSubView) {
-            navigateTo(prefs.currentArea as Area, prefs.currentSubView as SubView);
+            // If the user clicked anywhere during the load, their click wins.
+            const nowParsed = pathToAreaSubView(window.location.pathname);
+            const userNavigated =
+              !nowParsed ||
+              nowParsed.area !== mountSnapshotRef.current.area ||
+              nowParsed.subView !== mountSnapshotRef.current.subView;
+            if (userNavigated) {
+              console.log('📋 [PREFS] User navigated during load, keeping current URL');
+            } else {
+              navigateTo(prefs.currentArea as Area, prefs.currentSubView as SubView);
+            }
           }
           console.log('✅ [PREFS] Loaded user preferences from database:', prefs);
         }
