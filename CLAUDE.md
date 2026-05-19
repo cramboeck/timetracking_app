@@ -229,13 +229,27 @@ TS-Errors: 465 (von 466 — TasksOverview `EyeOff`-Import nebenher entfernt). Bu
 
 TS-Errors: 458 (von 465 — 7 weniger durch Aufräumarbeit). Bundle unverändert. Diff: +296 / -348 in 1 File. Damit ist die TanStack-Query-Migration für den Ticket-Subtree komplett.
 
+### Epic 5 Pass 4a — React Router: URL ↔ State Sync — ✅ abgeschlossen
+
+| Task | PR |
+|---|---|
+| `AreaNavigation.tsx`: Helpers `pathToAreaSubView()` + `areaSubViewToPath()` mit Standalone-Pfaden für `settings`/`social-media` | #85 |
+| `App.tsx`: `useLocation`/`useNavigate` Hooks; Initial-State priorisiert URL → localStorage → Default | #85 |
+| Bidirektionaler Sync via zwei `useEffect`s mit Path-Equality-Guards gegen Loops | #85 |
+| Erster `navigate()` macht `replace: true` (verhindert Phantom-History-Entry beim Landing auf `/` oder ungültigen Pfaden) | #85 |
+| Browser Back/Forward funktioniert; URLs sind bookmarkbar; Deep-Linking (`/support/tickets`, `/finanzen/billing`, etc.) | #85 |
+
+Additive Migration — der `currentArea`/`currentSubView` State bleibt erstmal als Single-Source-of-Truth, URL ist gespiegelt. Pass 4b extrahiert Layout-Komponenten aus App.tsx (1437 Z.), Pass 4c entfernt den State zugunsten von `useParams`/`useLocation`.
+
+TS-Errors: 458 (unverändert). Bundle +10 KB für Routing-Logik.
+
 ---
 
 ## Offene Aufgaben (Roadmap)
 
 ### Epic 5 — Architektur-Modernisierung (Priorität: Hoch)
 
-1. **React Router einführen** — `App.tsx` (1100+ Zeilen) refactoren, echtes URL-Routing implementieren. `react-router-dom` v6.22 ist bereits installiert (wird aktuell nur für `/portal` und `/admin` genutzt).
+1. **React Router einführen** — Pass 4a (URL↔State Sync) in PR #85 erledigt. Verbleibend: Pass 4b (Layout-Komponenten aus App.tsx extrahieren, 1437 Z.) und Pass 4c (State entfernen, `useParams`/`useLocation` als single source).
 2. ~~**TanStack Query (React Query)** — Setup + AlertsView (#81) + Tickets-Übersichten (#82) + TicketDetail (#83) erledigt.~~ ✅ Ticket-Subtree komplett auf TanStack Query.
 3. **Toten Code entfernen** — Erster Pass (PR #80) entfernte `Dashboard.tsx`, `Billing.tsx`, `BillingWidget.tsx`, `Navigation.tsx` (2596 LOC tot). Verbleibender Konsolidierungspunkt: `TaskHub.tsx` vs `TasksOverview.tsx` (beide live, Details unten in „Duplikat-Auflösung"). `ManualEntry.tsx` wurde bereits mit PR #67 gelöscht.
 
@@ -331,4 +345,4 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-*Zuletzt aktualisiert: 18.5.2026 — nach Epic 6 Komplettierung (#73 + #78), Refresh-Token (#71 + #72), Epic 5 Pass 1 „Toten Code entfernen" (#80, -2596 LOC), Epic 5 Pass 2 „TanStack Query Pilot AlertsView" (#81), Epic 5 Pass 3a „TanStack Query: Tickets-Übersichten" (#82) und Epic 5 Pass 3b „TanStack Query: TicketDetail" (#83). Damit ist der Ticket-Subtree komplett auf TanStack Query.*
+*Zuletzt aktualisiert: 19.5.2026 — Epic-5-Vorstoß: Pass 1 „Toten Code entfernen" (#80, -2596 LOC), Pass 2 „TanStack Query Pilot AlertsView" (#81), Pass 3a „Tickets-Übersichten" (#82), Pass 3b „TicketDetail" (#83), Bugfix „Filter-Dropdowns" (#84) und Pass 4a „React Router URL↔State Sync" (#85). Ticket-Subtree komplett auf TanStack Query, URL-Routing eingeführt.*

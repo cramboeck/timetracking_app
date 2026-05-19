@@ -231,3 +231,61 @@ export const getDefaultSubView = (area: Area): SubView => {
     default: return 'overview';
   }
 };
+
+// ─── URL routing helpers ─────────────────────────────────────────────────────
+// Standalone subViews live at their own path (no area prefix), regular ones
+// live under /:area/:subView. This way bookmarks and Browser-Back work the
+// way users expect.
+
+const STANDALONE_SUBVIEWS: SubView[] = ['settings', 'social-media'];
+
+const ALL_SUBVIEWS: SubView[] = [
+  'overview',
+  'stopwatch', 'list', 'calendar', 'manual', 'tasks',
+  'tickets', 'devices', 'alerts', 'maintenance', 'inbox',
+  'crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts',
+  'invoices', 'billing', 'reports',
+  'settings', 'admin', 'social-media',
+];
+
+const ALL_AREAS: Area[] = ['dashboard', 'arbeiten', 'support', 'crm', 'finanzen'];
+
+const isSubView = (s: string): s is SubView => (ALL_SUBVIEWS as string[]).includes(s);
+const isArea = (s: string): s is Area => (ALL_AREAS as string[]).includes(s);
+
+/**
+ * Parse `/`, `/<subView>` (standalone), or `/<area>/<subView>` into
+ * { area, subView }. Returns null for unknown paths so callers can fall back.
+ */
+export const pathToAreaSubView = (pathname: string): { area: Area; subView: SubView } | null => {
+  const parts = pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+
+  if (parts.length === 0) return null;
+
+  // Standalone single-segment paths: /settings, /social-media
+  if (parts.length === 1 && isSubView(parts[0]) && STANDALONE_SUBVIEWS.includes(parts[0])) {
+    return { area: getAreaFromSubView(parts[0]), subView: parts[0] };
+  }
+
+  // /:area or /:area/:subView
+  if (isArea(parts[0])) {
+    const area = parts[0];
+    const subView = parts[1] && isSubView(parts[1]) && getAreaFromSubView(parts[1]) === area
+      ? parts[1]
+      : getDefaultSubView(area);
+    return { area, subView };
+  }
+
+  return null;
+};
+
+/**
+ * Build the canonical URL path for an (area, subView) pair.
+ * Standalone subViews skip the area prefix.
+ */
+export const areaSubViewToPath = (area: Area, subView: SubView): string => {
+  if (STANDALONE_SUBVIEWS.includes(subView)) {
+    return `/${subView}`;
+  }
+  return `/${area}/${subView}`;
+};
