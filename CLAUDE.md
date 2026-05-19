@@ -210,7 +210,24 @@ TS-Errors: 466 (von 468 — der Refactor entfernte 2 nebenher). Bundle +40 KB f�
 | `TicketKanban.tsx`: kombinierter tickets+tags Fetch in 1 useQuery, teamMembers in eigener useQuery (staleTime 5 min, shared cache), drag-update → useMutation mit `onMutate` optimistic + `onSettled` invalidate | #82 |
 | `Tickets.tsx`: `refreshKey`-Pattern (5 Stellen) komplett raus → `queryClient.invalidateQueries({ queryKey: ['tickets'] })`, `refreshKey` prop aus `TicketKanban` entfernt | #82 |
 
-TS-Errors: 465 (von 466 — TasksOverview `EyeOff`-Import nebenher entfernt). Bundle unverändert. Cross-Component-Sync gratis: Kanban-Drag → Dashboard/List/Tasks refetchen automatisch beim nächsten Mount. Verbleibend für Epic 5: `TicketDetail.tsx` (Pass 3b — eigene Komplexitätsklasse mit 7+ Sub-Resource-Loads), danach React Router-Refactor.
+TS-Errors: 465 (von 466 — TasksOverview `EyeOff`-Import nebenher entfernt). Bundle unverändert. Cross-Component-Sync gratis: Kanban-Drag → Dashboard/List/Tasks refetchen automatisch beim nächsten Mount.
+
+### Epic 5 Pass 3b — TanStack Query: TicketDetail — ✅ abgeschlossen
+
+| Task | PR |
+|---|---|
+| 10 Reads als `useQuery`: `['ticket', id]` (mit comments/timeEntries), `['ticket', id, 'tags'\|'attachments'\|'tasks'\|'activities'\|'emails'\|'aiSuggestions']`, plus `['org','current']`, `['tickets','allTags']`, `['tickets','cannedResponses']`, `['ai','config']` | #83 |
+| Lazy-Load via `enabled:`-Gate für Activities (manual onLoad), AI-Suggestions (gated auf `showAiPanel`), Email-History (gated auf `ticket.source === 'email'`) | #83 |
+| Tag-Mutations (add/remove/create) → `setQueryData` auf `['ticket', id, 'tags']` + `['tickets','allTags']`; createTag kettet `addTag` direkt durch | #83 |
+| `updateTicketMutation` mit Variable für Status (handleArchive/Restore teilen sich denselben Codepfad), `setQueryData(['ticket', id])` + `invalidateQueries(['tickets'])` — Liste/Kanban/Dashboard synct automatisch | #83 |
+| `saveSolutionMutation`, `addCommentMutation` (refetch nur bei !isInternal für SLA), `deleteMutation` (mit onTicketDeleted-Callback) | #83 |
+| 6 Task-Mutations mit `setQueryData(['ticket', id, 'tasks'])` + `invalidateQueries(['tasks'])` — TasksOverview synct bei nächstem Mount | #83 |
+| Attachment-Mutations: `handleUploadFiles` bleibt async (FormData-Bau), schreibt direkt in den Cache; `handleDeleteAttachment` als `useMutation` mit confirm-Gate | #83 |
+| AI-Generation: `generateAiMutation` prepended in `aiSuggestions`-Cache; `feedbackMutation` refetcht. `aiError` bleibt local für Inline-Feedback | #83 |
+| Render-Loading-Flags durchgängig aus `query.isLoading`/`mutation.isPending` abgeleitet — eigene `deleting`/`archiving`/`savingSolution`/etc. raus | #83 |
+| Aufgeräumt: 4 nie genutzte Imports (Button, MarkdownEditor, MarkdownRenderer, sanitizeEmailHtml — tot seit Aufsplittung in `ticket-detail/*`), `useCallback` unused, 2 pre-existing Type-Errors gefixt nebenbei | #83 |
+
+TS-Errors: 458 (von 465 — 7 weniger durch Aufräumarbeit). Bundle unverändert. Diff: +296 / -348 in 1 File. Damit ist die TanStack-Query-Migration für den Ticket-Subtree komplett.
 
 ---
 
@@ -219,7 +236,7 @@ TS-Errors: 465 (von 466 — TasksOverview `EyeOff`-Import nebenher entfernt). Bu
 ### Epic 5 — Architektur-Modernisierung (Priorität: Hoch)
 
 1. **React Router einführen** — `App.tsx` (1100+ Zeilen) refactoren, echtes URL-Routing implementieren. `react-router-dom` v6.22 ist bereits installiert (wird aktuell nur für `/portal` und `/admin` genutzt).
-2. **TanStack Query (React Query)** — Setup + AlertsView (#81) + Tickets-Übersichten (#82) erledigt. Verbleibend: `TicketDetail.tsx` (Pass 3b, eigene Komplexitätsklasse mit 7+ Sub-Resource-Loads).
+2. ~~**TanStack Query (React Query)** — Setup + AlertsView (#81) + Tickets-Übersichten (#82) + TicketDetail (#83) erledigt.~~ ✅ Ticket-Subtree komplett auf TanStack Query.
 3. **Toten Code entfernen** — Erster Pass (PR #80) entfernte `Dashboard.tsx`, `Billing.tsx`, `BillingWidget.tsx`, `Navigation.tsx` (2596 LOC tot). Verbleibender Konsolidierungspunkt: `TaskHub.tsx` vs `TasksOverview.tsx` (beide live, Details unten in „Duplikat-Auflösung"). `ManualEntry.tsx` wurde bereits mit PR #67 gelöscht.
 
 ### Epic 7 — Echtzeit & Automatisierung (Priorität: Mittel)
@@ -314,4 +331,4 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-*Zuletzt aktualisiert: 18.5.2026 — nach Epic 6 Komplettierung (#73 + #78), Refresh-Token (#71 + #72), Epic 5 Pass 1 „Toten Code entfernen" (#80, -2596 LOC), Epic 5 Pass 2 „TanStack Query Pilot AlertsView" (#81) und Epic 5 Pass 3a „TanStack Query: Tickets-Übersichten" (#82).*
+*Zuletzt aktualisiert: 18.5.2026 — nach Epic 6 Komplettierung (#73 + #78), Refresh-Token (#71 + #72), Epic 5 Pass 1 „Toten Code entfernen" (#80, -2596 LOC), Epic 5 Pass 2 „TanStack Query Pilot AlertsView" (#81), Epic 5 Pass 3a „TanStack Query: Tickets-Übersichten" (#82) und Epic 5 Pass 3b „TanStack Query: TicketDetail" (#83). Damit ist der Ticket-Subtree komplett auf TanStack Query.*
