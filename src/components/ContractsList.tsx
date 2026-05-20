@@ -23,6 +23,7 @@ import { contractsApi, Contract, ContractSummary } from '../services/api';
 import { customersApi } from '../services/api';
 import { Button, IconButton } from './ui';
 import { Customer } from '../types';
+import { useConfirm } from '../contexts/UIContext';
 
 interface ContractsListProps {
   onSelectContract: (contract: Contract) => void;
@@ -30,6 +31,7 @@ interface ContractsListProps {
 }
 
 const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreateContract }) => {
+  const confirm = useConfirm();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [summary, setSummary] = useState<ContractSummary | null>(null);
@@ -92,7 +94,13 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
   };
 
   const handleDeleteContract = async (id: string) => {
-    if (!confirm('Möchten Sie diesen Vertrag wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Vertrag löschen?',
+      message: 'Möchten Sie diesen Vertrag wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const res = await contractsApi.deleteContract(id);

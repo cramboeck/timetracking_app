@@ -13,6 +13,7 @@ import { TimePicker } from './TimePicker';
 import { maintenanceApi, MaintenanceAnnouncement } from '../services/api';
 import { Wrench, Clock, AlertCircle } from 'lucide-react';
 import { Button } from './ui';
+import { useToast } from '../contexts/UIContext';
 
 const locales = {
   'de': de,
@@ -78,6 +79,7 @@ export const CalendarView = ({
   onUpdateEntry,
   onCreateEntry
 }: CalendarViewProps) => {
+  const showToast = useToast();
   // On mobile, default to 'agenda' view for better readability
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const [view, setView] = useState<View>(isMobile ? Views.AGENDA : Views.MONTH);
@@ -291,7 +293,7 @@ export const CalendarView = ({
     const duration = Math.floor((new Date(endDateTime).getTime() - new Date(startDateTime).getTime()) / 1000);
 
     if (duration <= 0) {
-      alert('Die Endzeit muss nach der Startzeit liegen!');
+      showToast('Die Endzeit muss nach der Startzeit liegen!', 'warning');
       return;
     }
 
@@ -359,7 +361,7 @@ export const CalendarView = ({
     // Check if user has at least one active project
     const activeProjects = projects.filter(p => p.isActive);
     if (activeProjects.length === 0) {
-      alert('Bitte erstelle zuerst ein Projekt in den Einstellungen.');
+      showToast('Bitte erstelle zuerst ein Projekt in den Einstellungen.', 'warning');
       return;
     }
 
@@ -397,7 +399,7 @@ export const CalendarView = ({
     const duration = Math.floor((endDateTime.getTime() - startDateTime.getTime()) / 1000);
 
     if (duration <= 0) {
-      alert('Die Endzeit muss nach der Startzeit liegen!');
+      showToast('Die Endzeit muss nach der Startzeit liegen!', 'warning');
       return;
     }
 

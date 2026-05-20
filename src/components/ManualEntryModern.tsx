@@ -7,7 +7,7 @@ import { generateUUID } from '../utils/uuid';
 import { ModernDatePicker } from './ModernDatePicker';
 import { ModernTimePicker } from './ModernTimePicker';
 import { SearchableSelect } from './SearchableSelect';
-import { Toast, useToast } from './Toast';
+import { useToast } from '../contexts/UIContext';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 
@@ -54,7 +54,7 @@ export const ManualEntryModern = ({
   activities,
 }: ManualEntryModernProps) => {
   const { currentUser } = useAuth();
-  const { toast, showToast, hideToast } = useToast();
+  const showToast = useToast();
   const today = toLocalDateString(new Date());
 
   // Smart defaults
@@ -416,13 +416,6 @@ export const ManualEntryModern = ({
           Eintrag speichern
         </Button>
       </form>
-
-      <Toast
-        message={toast.message}
-        type={toast.type}
-        visible={toast.visible}
-        onClose={hideToast}
-      />
     </div>
   );
 };

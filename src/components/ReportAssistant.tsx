@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import { useAuth } from '../contexts/AuthContext';
 import { userApi } from '../services/api';
 import { roundTimeUp } from '../utils/timeRounding';
+import { useToast, useConfirm } from '../contexts/UIContext';
 
 interface ReportAssistantProps {
   isOpen: boolean;
@@ -98,6 +99,8 @@ export const ReportAssistant = ({
   activities
 }: ReportAssistantProps) => {
   const { currentUser } = useAuth();
+  const showToast = useToast();
+  const confirm = useConfirm();
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [emailTemplate, setEmailTemplate] = useState('');
   const [showEmailTemplate, setShowEmailTemplate] = useState(false);
@@ -1320,7 +1323,7 @@ export const ReportAssistant = ({
       }
     } catch (error) {
       console.error('Preview generation error:', error);
-      alert('Fehler bei PDF-Vorschau: ' + (error as Error).message);
+      showToast('Fehler bei PDF-Vorschau: ' + (error as Error).message, 'error', 5000);
     } finally {
       setIsGeneratingPreview(false);
     }
@@ -1371,7 +1374,13 @@ export const ReportAssistant = ({
   };
 
   const deleteSavedReport = async (reportId: string) => {
-    if (!confirm('Report wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Report löschen?',
+      message: 'Report wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const token = localStorage.getItem('auth_token');
@@ -1631,7 +1640,7 @@ export const ReportAssistant = ({
 
     } catch (error) {
       console.error('Error downloading saved report:', error);
-      alert('Fehler beim Herunterladen des Reports');
+      showToast('Fehler beim Herunterladen des Reports', 'error');
     }
   };
 
@@ -1808,7 +1817,7 @@ ${companyInfo?.phone || ''}`;
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(emailTemplate);
-    alert('E-Mail Vorlage in Zwischenablage kopiert!');
+    showToast('E-Mail Vorlage in Zwischenablage kopiert!', 'success');
   };
 
   // Generate month options (last 12 months)

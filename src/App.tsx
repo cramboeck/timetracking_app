@@ -37,6 +37,7 @@ import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { CommandPalette } from './components/CommandPalette';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
+import { useToast } from './contexts/UIContext';
 import { useSidebarCollapsed } from './hooks/useSidebarCollapsed';
 import { useCurrentNavigation } from './hooks/useCurrentNavigation';
 import { useUserPreferences } from './hooks/useUserPreferences';
@@ -53,6 +54,7 @@ import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi 
 
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
+  const showToast = useToast();
   const isDesktop = useIsDesktop();
   const { isOnline, wasOffline } = useOnlineStatus();
 
@@ -215,13 +217,13 @@ function App() {
         const response = await organizationsApi.acceptInvitation(pendingInvitation);
         if (response.success) {
           console.log('✅ [INVITATION] Successfully joined organization:', response.message);
-          alert(`Erfolgreich beigetreten: ${response.message}`);
+          showToast(`Erfolgreich beigetreten: ${response.message}`, 'success');
           // Reload the page to refresh data with new organization context
           window.location.reload();
         }
       } catch (error: any) {
         console.error('❌ [INVITATION] Failed to accept invitation:', error);
-        alert(`Fehler beim Beitreten: ${error.message || 'Unbekannter Fehler'}`);
+        showToast(`Fehler beim Beitreten: ${error.message || 'Unbekannter Fehler'}`, 'error');
       } finally {
         // Always remove the pending invitation
         localStorage.removeItem('pending_invitation');

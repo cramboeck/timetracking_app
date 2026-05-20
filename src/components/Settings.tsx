@@ -31,6 +31,7 @@ import Papa from 'papaparse';
 import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 import { generateUUID } from '../utils/uuid';
 import { storage } from '../utils/storage';
+import { useToast, useConfirm } from '../contexts/UIContext';
 
 interface SettingsProps {
   customers: Customer[];
@@ -75,6 +76,8 @@ export const Settings = ({
   onRefreshEntries
 }: SettingsProps) => {
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
+  const showToast = useToast();
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
@@ -435,9 +438,13 @@ export const Settings = ({
 
   // Contact Migration Handler
   const handleMigrateContacts = async () => {
-    if (!confirm('Kontakte und E-Mail-Domains automatisch erstellen?\n\n- Kontakte aus Kunden-E-Mails\n- Kontakte aus Support-Tickets\n- Domains aus Websites\n- Domains aus E-Mail-Adressen\n\nBereits existierende Einträge werden übersprungen.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Kontakte automatisch erstellen?',
+      message: 'Kontakte und E-Mail-Domains automatisch erstellen?\n\n- Kontakte aus Kunden-E-Mails\n- Kontakte aus Support-Tickets\n- Domains aus Websites\n- Domains aus E-Mail-Adressen\n\nBereits existierende Einträge werden übersprungen.',
+      confirmText: 'Erstellen',
+      variant: 'warning',
+    });
+    if (!ok) return;
 
     setMigrating(true);
     setMigrationResult(null);
@@ -446,10 +453,10 @@ export const Settings = ({
       if (response.success) {
         setMigrationResult(response.stats);
       } else {
-        alert('Fehler bei der Migration');
+        showToast('Fehler bei der Migration', 'error');
       }
     } catch (err: any) {
-      alert(err.message || 'Fehler bei der Migration');
+      showToast(err.message || 'Fehler bei der Migration', 'error');
     } finally {
       setMigrating(false);
     }
@@ -461,7 +468,7 @@ export const Settings = ({
 
     // Check file type
     if (!file.name.endsWith('.csv')) {
-      alert('Bitte wähle eine CSV-Datei aus.');
+      showToast('Bitte wähle eine CSV-Datei aus.', 'warning');
       return;
     }
 
@@ -470,7 +477,7 @@ export const Settings = ({
       skipEmptyLines: true,
       complete: (results) => {
         if (!results.data || results.data.length === 0) {
-          alert('Die CSV-Datei enthält keine Daten.');
+          showToast('Die CSV-Datei enthält keine Daten.', 'warning');
           return;
         }
 
@@ -528,7 +535,7 @@ export const Settings = ({
         }
       },
       error: (error) => {
-        alert(`Fehler beim Lesen der Datei: ${error.message}`);
+        showToast(`Fehler beim Lesen der Datei: ${error.message}`, 'error');
       }
     });
   };
@@ -727,7 +734,7 @@ export const Settings = ({
   const handleDeleteCustomer = (customer: Customer) => {
     const customerProjects = projects.filter(p => p.customerId === customer.id);
     if (customerProjects.length > 0) {
-      alert(`Dieser Kunde kann nicht gelöscht werden, da noch ${customerProjects.length} Projekt(e) zugeordnet sind.`);
+      showToast(`Dieser Kunde kann nicht gelöscht werden, da noch ${customerProjects.length} Projekt(e) zugeordnet sind.`, 'warning', 5000);
       return;
     }
     setDeleteConfirm({
@@ -824,7 +831,7 @@ export const Settings = ({
 
     if (!nameStr.trim() || !addressStr.trim() || !cityStr.trim() ||
         !zipCodeStr.trim() || !countryStr.trim() || !emailStr.trim()) {
-      alert('Bitte fülle alle Pflichtfelder aus');
+      showToast('Bitte fülle alle Pflichtfelder aus', 'warning');
       return;
     }
 
@@ -842,10 +849,10 @@ export const Settings = ({
         customerNumber: companyCustomerNumber ? String(companyCustomerNumber).trim() : undefined,
         logo: companyLogo || undefined,
       });
-      alert('Firmendaten gespeichert!');
+      showToast('Firmendaten gespeichert!', 'success');
     } catch (error) {
       console.error('Error saving company info:', error);
-      alert('Fehler beim Speichern der Firmendaten');
+      showToast('Fehler beim Speichern der Firmendaten', 'error');
     }
   };
 
@@ -855,13 +862,13 @@ export const Settings = ({
 
     // Check file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
-      alert('Logo darf maximal 2MB groß sein');
+      showToast('Logo darf maximal 2MB groß sein', 'warning');
       return;
     }
 
     // Check file type
     if (!file.type.startsWith('image/')) {
-      alert('Nur Bilddateien sind erlaubt');
+      showToast('Nur Bilddateien sind erlaubt', 'warning');
       return;
     }
 

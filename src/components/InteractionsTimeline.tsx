@@ -33,6 +33,7 @@ import {
 import { Customer } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Button, IconButton } from './ui';
+import { useToast } from '../contexts/UIContext';
 
 // ============================================
 // Types
@@ -156,6 +157,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
   onSave,
   onCancel,
 }) => {
+  const showToast = useToast();
   const [type, setType] = useState<InteractionType>(interaction?.type || 'call');
   const [direction, setDirection] = useState<InteractionDirection>(interaction?.direction || 'outbound');
   const [subject, setSubject] = useState(interaction?.subject || '');
@@ -197,7 +199,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
       onSave(result);
     } catch (err) {
       console.error('Failed to save interaction:', err);
-      alert('Fehler beim Speichern');
+      showToast('Fehler beim Speichern', 'error');
     } finally {
       setSaving(false);
     }
@@ -416,6 +418,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
   compact = false,
   onInteractionClick,
 }) => {
+  const showToast = useToast();
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -472,7 +475,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
       setDeleteInteraction(null);
     } catch (err) {
       console.error('Failed to delete interaction:', err);
-      alert('Fehler beim Loschen');
+      showToast('Fehler beim Loschen', 'error');
     } finally {
       setDeleting(false);
     }

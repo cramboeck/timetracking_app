@@ -12,9 +12,11 @@ import {
 import { useSocialMedia } from '../../context';
 import { socialMediaApi } from '../../../../services/api';
 import type { SocialMediaHashtagGroup } from '../../types';
+import { useConfirm } from '../../../../contexts/UIContext';
 
 export default function HashtagsTab() {
   const { hashtagGroups, addHashtagGroup, removeHashtagGroup } = useSocialMedia();
+  const confirm = useConfirm();
 
   const [showEditor, setShowEditor] = useState(false);
   const [editingGroup, setEditingGroup] = useState<SocialMediaHashtagGroup | null>(null);
@@ -93,7 +95,13 @@ export default function HashtagsTab() {
   };
 
   const handleDelete = async (groupId: string) => {
-    if (!confirm('Möchtest du diese Hashtag-Gruppe wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Hashtag-Gruppe löschen?',
+      message: 'Möchtest du diese Hashtag-Gruppe wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setDeleting(groupId);
     try {
       await socialMediaApi.deleteHashtagGroup(groupId);

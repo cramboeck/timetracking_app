@@ -38,6 +38,7 @@ import {
 import { Button, IconButton } from './ui';
 import { adminApi } from '../services/adminApi';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast, useConfirm } from '../contexts/UIContext';
 
 interface AdminStats {
   totalUsers: number;
@@ -176,6 +177,8 @@ type AdminTab = 'dashboard' | 'users' | 'features' | 'audit' | 'backup' | 'syste
 
 export default function AdminPortal() {
   const { currentUser } = useAuth();
+  const showToast = useToast();
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -396,7 +399,7 @@ export default function AdminPortal() {
       setBackupRestoring(filename);
       await adminApi.restoreBackup(filename);
       setRestoreConfirmOpen(null);
-      alert('Datenbank wurde wiederhergestellt. Bitte Seite neu laden.');
+      showToast('Datenbank wurde wiederhergestellt. Bitte Seite neu laden.', 'success', 5000);
       window.location.reload();
     } catch (err: any) {
       setError(err.message || 'Fehler bei der Wiederherstellung');
@@ -406,7 +409,13 @@ export default function AdminPortal() {
   };
 
   const handleDeleteBackup = async (filename: string) => {
-    if (!confirm(`Backup "${filename}" wirklich löschen?`)) return;
+    const ok = await confirm({
+      title: 'Backup löschen?',
+      message: `Backup "${filename}" wirklich löschen?`,
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await adminApi.deleteBackup(filename);
       await loadBackups();
@@ -452,7 +461,13 @@ export default function AdminPortal() {
   };
 
   const handleVacuum = async () => {
-    if (!confirm('VACUUM ANALYZE ausführen? Dies kann einige Zeit dauern.')) return;
+    const ok = await confirm({
+      title: 'VACUUM ANALYZE ausführen?',
+      message: 'VACUUM ANALYZE ausführen? Dies kann einige Zeit dauern.',
+      confirmText: 'Ausführen',
+      variant: 'warning',
+    });
+    if (!ok) return;
     try {
       setVacuumRunning(true);
       await adminApi.runVacuum();
@@ -483,7 +498,13 @@ export default function AdminPortal() {
   };
 
   const handleInvalidateSessions = async (userId: string, username: string) => {
-    if (!confirm(`Alle Sessions von "${username}" invalidieren?`)) return;
+    const ok = await confirm({
+      title: 'Sessions invalidieren?',
+      message: `Alle Sessions von "${username}" invalidieren?`,
+      confirmText: 'Invalidieren',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await adminApi.invalidateUserSessions(userId);
       await loadSecurityData();
@@ -544,7 +565,13 @@ export default function AdminPortal() {
   };
 
   const handleDeleteNotification = async (id: string) => {
-    if (!confirm('Benachrichtigung wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Benachrichtigung löschen?',
+      message: 'Benachrichtigung wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await adminApi.deleteNotification(id);
       await loadNotifications();
@@ -661,9 +688,13 @@ export default function AdminPortal() {
 
   // Handle user delete
   const handleDeleteUser = async (userId: string, username: string) => {
-    if (!confirm(`Benutzer "${username}" wirklich löschen? Dies kann nicht rückgängig gemacht werden.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Benutzer löschen?',
+      message: `Benutzer "${username}" wirklich löschen? Dies kann nicht rückgängig gemacht werden.`,
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       await adminApi.deleteUser(userId);

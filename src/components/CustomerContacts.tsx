@@ -4,6 +4,7 @@ import { Customer, CustomerContact } from '../types';
 import { ticketsApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Button, IconButton } from './ui/Button';
+import { useToast } from '../contexts/UIContext';
 
 interface CustomerContactsProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface CustomerContactsProps {
 }
 
 export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContactsProps) => {
+  const showToast = useToast();
   const [contacts, setContacts] = useState<CustomerContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +148,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       closeForm();
     } catch (err) {
       console.error('Failed to save contact:', err);
-      alert('Fehler beim Speichern des Kontakts');
+      showToast('Fehler beim Speichern des Kontakts', 'error');
     } finally {
       setSaving(false);
     }
@@ -162,7 +164,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       setDeleteContact(null);
     } catch (err) {
       console.error('Failed to delete contact:', err);
-      alert('Fehler beim Löschen des Kontakts');
+      showToast('Fehler beim Löschen des Kontakts', 'error');
     } finally {
       setDeleting(false);
     }
@@ -176,7 +178,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       setTimeout(() => setInviteSuccess(null), 3000);
     } catch (err) {
       console.error('Failed to send invite:', err);
-      alert('Fehler beim Senden der Einladung');
+      showToast('Fehler beim Senden der Einladung', 'error');
     } finally {
       setSendingInvite(null);
     }
@@ -195,7 +197,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       setShowPassword(false);
     } catch (err) {
       console.error('Failed to set password:', err);
-      alert('Fehler beim Setzen des Passworts');
+      showToast('Fehler beim Setzen des Passworts', 'error');
     } finally {
       setSettingPassword(false);
     }

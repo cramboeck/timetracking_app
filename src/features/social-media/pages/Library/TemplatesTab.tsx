@@ -12,11 +12,13 @@ import { useSocialMedia } from '../../context';
 import { socialMediaApi } from '../../../../services/api';
 import { PLATFORM_ICONS, PLATFORM_COLORS } from '../../constants';
 import type { Platform, SocialMediaTemplate } from '../../types';
+import { useConfirm } from '../../../../contexts/UIContext';
 
 const PLATFORMS: Platform[] = ['linkedin', 'twitter', 'facebook', 'instagram'];
 
 export default function TemplatesTab() {
   const { templates, addTemplate, removeTemplate } = useSocialMedia();
+  const confirm = useConfirm();
 
   const [showEditor, setShowEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<SocialMediaTemplate | null>(null);
@@ -92,7 +94,13 @@ export default function TemplatesTab() {
   };
 
   const handleDelete = async (templateId: string) => {
-    if (!confirm('Möchtest du diese Vorlage wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Vorlage löschen?',
+      message: 'Möchtest du diese Vorlage wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setDeleting(templateId);
     try {
       await socialMediaApi.deleteTemplate(templateId);

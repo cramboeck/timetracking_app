@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { aiApi, entriesApi, PaginationMeta } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 import { SkeletonTimeEntry } from './Skeleton';
+import { useToast } from '../contexts/UIContext';
 
 interface TimeEntriesListProps {
   projects: Project[];
@@ -69,6 +70,7 @@ const filterToDateRange = (
 
 export const TimeEntriesList = ({ projects, customers, activities, onDelete, onEdit, onRepeatEntry, onBulkUpdate }: TimeEntriesListProps) => {
   const { currentUser } = useAuth();
+  const showToast = useToast();
   const use24Hour = (currentUser?.timeFormat || '24h') === '24h';
 
   // Edit modal state
@@ -465,7 +467,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
       triggerRefetch();
     } catch (error) {
       console.error('Bulk update error:', error);
-      alert('Fehler beim Aktualisieren der Einträge');
+      showToast('Fehler beim Aktualisieren der Einträge', 'error');
     } finally {
       setBulkProcessing(false);
     }
@@ -495,7 +497,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     const duration = calculateDuration(startDateTime, endDateTime);
 
     if (duration <= 0) {
-      alert('Die Endzeit muss nach der Startzeit liegen!');
+      showToast('Die Endzeit muss nach der Startzeit liegen!', 'warning');
       return;
     }
 

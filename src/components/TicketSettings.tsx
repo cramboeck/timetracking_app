@@ -4,6 +4,7 @@ import { Button, IconButton } from './ui';
 import { ticketsApi, CannedResponse, TicketTag } from '../services/api';
 import { SlaPolicy } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
+import { useToast } from '../contexts/UIContext';
 
 const TAG_COLORS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4',
@@ -11,6 +12,7 @@ const TAG_COLORS = [
 ];
 
 export const TicketSettings = () => {
+  const showToast = useToast();
   const [activeSection, setActiveSection] = useState<'tags' | 'responses' | 'sla'>('tags');
 
   // Tags State
@@ -99,7 +101,7 @@ export const TicketSettings = () => {
       setNewTagName('');
       setNewTagColor(TAG_COLORS[0]);
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Erstellen des Tags');
+      showToast(err.message || 'Fehler beim Erstellen des Tags', 'error');
     }
   };
 
@@ -112,7 +114,7 @@ export const TicketSettings = () => {
       setNewTagName('');
       setNewTagColor(TAG_COLORS[0]);
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Aktualisieren des Tags');
+      showToast(err.message || 'Fehler beim Aktualisieren des Tags', 'error');
     }
   };
 
@@ -123,7 +125,7 @@ export const TicketSettings = () => {
       setTags(prev => prev.filter(t => t.id !== tagToDelete.id));
       setTagToDelete(null);
     } catch (err) {
-      alert('Fehler beim Löschen des Tags');
+      showToast('Fehler beim Löschen des Tags', 'error');
     }
   };
 
@@ -142,7 +144,7 @@ export const TicketSettings = () => {
   // Canned Response handlers
   const handleSaveResponse = async () => {
     if (!responseTitle.trim() || !responseContent.trim()) {
-      alert('Titel und Inhalt sind erforderlich');
+      showToast('Titel und Inhalt sind erforderlich', 'warning');
       return;
     }
     try {
@@ -165,7 +167,7 @@ export const TicketSettings = () => {
       }
       resetResponseForm();
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Speichern');
+      showToast(err.message || 'Fehler beim Speichern', 'error');
     }
   };
 
@@ -176,7 +178,7 @@ export const TicketSettings = () => {
       setResponses(prev => prev.filter(r => r.id !== responseToDelete.id));
       setResponseToDelete(null);
     } catch (err) {
-      alert('Fehler beim Löschen');
+      showToast('Fehler beim Löschen', 'error');
     }
   };
 
@@ -204,12 +206,12 @@ export const TicketSettings = () => {
       const result = await ticketsApi.seedDefaultCannedResponses();
       if (result.seeded) {
         await loadResponses();
-        alert(`${result.count} Standard-Vorlagen wurden erstellt!`);
+        showToast(`${result.count} Standard-Vorlagen wurden erstellt!`, 'success');
       } else {
-        alert(result.message);
+        showToast(result.message, 'info');
       }
     } catch (err) {
-      alert('Fehler beim Erstellen der Vorlagen');
+      showToast('Fehler beim Erstellen der Vorlagen', 'error');
     } finally {
       setSeedingResponses(false);
     }
@@ -218,7 +220,7 @@ export const TicketSettings = () => {
   // SLA handlers
   const handleSaveSla = async () => {
     if (!slaName.trim()) {
-      alert('Name ist erforderlich');
+      showToast('Name ist erforderlich', 'warning');
       return;
     }
     try {
@@ -247,7 +249,7 @@ export const TicketSettings = () => {
       }
       resetSlaForm();
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Speichern');
+      showToast(err.message || 'Fehler beim Speichern', 'error');
     }
   };
 
@@ -258,7 +260,7 @@ export const TicketSettings = () => {
       setSlaPolicies(prev => prev.filter(p => p.id !== slaToDelete.id));
       setSlaToDelete(null);
     } catch (err) {
-      alert('Fehler beim Löschen');
+      showToast('Fehler beim Löschen', 'error');
     }
   };
 
