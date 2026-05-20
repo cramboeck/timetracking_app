@@ -16,8 +16,8 @@ interface TimeEntriesListProps {
   projects: Project[];
   customers: Customer[];
   activities: Activity[];
-  onDelete: (id: string) => void;
-  onEdit: (id: string, updates: Partial<TimeEntry>) => void;
+  onDelete: (id: string) => void | Promise<void>;
+  onEdit: (id: string, updates: Partial<TimeEntry>) => void | Promise<void>;
   onRepeatEntry?: (entry: TimeEntry) => void;
   onBulkUpdate?: (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => Promise<void>;
 }
@@ -489,7 +489,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     setEditEndTime(endDate.toTimeString().slice(0, 5)); // HH:MM
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingEntry || !editProjectId || !editDate || !editStartTime || !editEndTime) return;
 
     const startDateTime = new Date(`${editDate}T${editStartTime}`).toISOString();
@@ -501,7 +501,10 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
       return;
     }
 
-    onEdit(editingEntry.id, {
+    // Await the update so the subsequent refetch reads the new value —
+    // otherwise the parallel GET races the PUT and may show stale data
+    // until the user manually refreshes.
+    await onEdit(editingEntry.id, {
       projectId: editProjectId,
       description: editDescription,
       startTime: startDateTime,
@@ -512,9 +515,6 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     });
 
     setEditingEntry(null);
-    // Refetch the current page so the just-edited entry shows its new
-    // values (and possibly disappears from the page if it now falls
-    // outside the active filter).
     triggerRefetch();
   };
 
@@ -526,8 +526,8 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     });
   };
 
-  const confirmDelete = () => {
-    onDelete(deleteConfirm.id);
+  const confirmDelete = async () => {
+    await onDelete(deleteConfirm.id);
     triggerRefetch();
   };
 
