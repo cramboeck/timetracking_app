@@ -7,9 +7,15 @@ import { logger } from '../utils/logger';
 // exactly once and never logged.
 //
 // Rotation: every call to verifyAndRotate() revokes the consumed token and
-// issues a fresh one. If a token that is already revoked is presented, we
-// treat that as a possible theft attempt and revoke the user's entire active
-// refresh-token set.
+// issues a fresh one, recording the successor's hash on the old row
+// (rotated_to_hash). If an already-revoked token is presented, it is either a
+// legitimate retry whose rotation response never reached the client (common on
+// mobile — the app is suspended between the network round-trip and the token
+// write, so the rotated successor is never stored and never used) or genuine
+// theft. We tell them apart by the successor: if it is still unconsumed and
+// unexpired, nobody ever used the rotation → re-issue. If it was already
+// consumed (or the revoked token has no successor at all), a second party is
+// advancing the chain → theft → revoke the user's entire active token set.
 
 const REFRESH_TOKEN_TTL_DAYS = 30;
 
@@ -50,11 +56,13 @@ export const refreshTokenService = {
 
   /**
    * Verify a refresh token, revoke it, and issue a new one (rotation).
-   * Returns the user id + new token, or null if the token is invalid,
-   * expired, or already revoked.
+   * Returns the user id + new token, or null if the token is invalid or
+   * expired.
    *
-   * On a revoked-token reuse attempt, all active refresh tokens of the
-   * affected user are revoked as a precaution.
+   * If an already-revoked token is presented, its rotation successor decides:
+   * an unconsumed successor means the client never received the rotation
+   * (lost response) and we re-issue; a consumed/missing successor means a
+   * second party is using the chain (theft) and all active tokens are revoked.
    */
   async verifyAndRotate(
     presentedToken: string,
@@ -63,7 +71,7 @@ export const refreshTokenService = {
     const presentedHash = hash(presentedToken);
 
     const row = await pool.query(
-      `SELECT id, user_id, expires_at, revoked_at
+      `SELECT id, user_id, expires_at, revoked_at, rotated_to_hash
        FROM refresh_tokens
        WHERE token_hash = $1`,
       [presentedHash]
@@ -76,9 +84,45 @@ export const refreshTokenService = {
 
     const record = row.rows[0];
 
-    // Revoked-token reuse → likely theft. Revoke ALL active tokens for the
-    // user; legitimate sessions will fall back to a fresh login.
+    // Revoked token presented — distinguish a lost-response retry from theft
+    // by looking one hop ahead at its rotation successor.
     if (record.revoked_at) {
+      const successorHash: string | null = record.rotated_to_hash;
+
+      if (successorHash) {
+        const succ = await pool.query(
+          `SELECT id, expires_at, revoked_at
+           FROM refresh_tokens
+           WHERE token_hash = $1`,
+          [successorHash]
+        );
+        const successor = succ.rows[0];
+
+        if (successor && !successor.revoked_at && new Date(successor.expires_at) > new Date()) {
+          // The successor was issued but never used → the client never
+          // received this rotation (app suspended / lost response on mobile).
+          // Re-issue idempotently: mint a fresh token, repoint the presented
+          // token at it, and retire the orphaned successor. A repeated retry
+          // re-presents the same (still-revoked) token and lands here again,
+          // so a chain of lost responses keeps resolving without a logout.
+          const newToken = await this.create(record.user_id, deviceInfo);
+          const newHash = hash(newToken.token);
+          await pool.query(
+            `UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1`,
+            [successor.id]
+          );
+          await pool.query(
+            `UPDATE refresh_tokens SET rotated_to_hash = $1 WHERE id = $2`,
+            [newHash, record.id]
+          );
+          return { userId: record.user_id, newToken };
+        }
+      }
+
+      // No successor (token was revoked by logout / password change), or the
+      // successor was already consumed or has expired → a second party is
+      // advancing the chain (theft) or the token is simply dead. Revoke every
+      // active token for the user as a precaution.
       logger.warn(
         `⚠️  Refresh-token reuse detected for user ${record.user_id}; revoking all sessions`
       );
