@@ -50,7 +50,7 @@ import { generateUUID } from './utils/uuid';
 import { notificationService } from './utils/notifications';
 import { toLocalDateString } from './utils/time';
 import { addPendingEntry } from './utils/offlineStorage';
-import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi } from './services/api';
+import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, SESSION_EXPIRED_EVENT } from './services/api';
 
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
@@ -273,6 +273,22 @@ function App() {
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  // Sichtbares Feedback wenn die Session unfreiwillig stirbt. AuthContext
+  // killt den User-State (→ Auth-Screen rendert), aber ohne Toast wäre der
+  // Sprung auf den Login-Screen unkommentiert. UIProvider rendert Toast oberhalb
+  // der Routes, das überlebt das Auth/App-Switching.
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      showToast(
+        'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
+        'warning',
+        6000
+      );
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, [showToast]);
 
   // Handle deep link to ticket via ?ticket= URL parameter
   useEffect(() => {

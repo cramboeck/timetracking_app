@@ -190,11 +190,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    // visibilitychange + focus zusammen: iOS PWAs feuern je nach Resume-Pfad
+    // mal das eine, mal das andere zuerst (oder nur eines). Doppelte getMe()-
+    // Calls sind harmlos (idempotent + Single-Flight im authFetch).
     document.addEventListener('visibilitychange', revalidateSession);
+    window.addEventListener('focus', revalidateSession);
 
     return () => {
       window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
       document.removeEventListener('visibilitychange', revalidateSession);
+      window.removeEventListener('focus', revalidateSession);
     };
   }, []);
 
