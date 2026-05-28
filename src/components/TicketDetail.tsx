@@ -5,6 +5,7 @@ import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionTy
 import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, aiApi, AISuggestion, microsoft365Api, TicketEmail } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TicketMergeDialog } from './TicketMergeDialog';
+import { useToast, useConfirm } from '../contexts/UIContext';
 
 // Import sub-components
 import {
@@ -33,6 +34,8 @@ interface TicketDetailProps {
 
 export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTimer, onTicketDeleted }: TicketDetailProps) => {
   const queryClient = useQueryClient();
+  const showToast = useToast();
+  const confirm = useConfirm();
 
   // Edit mode
   const [isEditing, setIsEditing] = useState(false);
@@ -214,7 +217,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     },
     onError: (err) => {
       console.error('Failed to update ticket:', err);
-      alert('Fehler beim Speichern des Tickets');
+      showToast('Fehler beim Speichern des Tickets', 'error');
     },
   });
 
@@ -269,7 +272,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     },
     onError: (err) => {
       console.error('Failed to save solution:', err);
-      alert('Fehler beim Speichern der Loesung');
+      showToast('Fehler beim Speichern der Loesung', 'error');
     },
   });
   const savingSolution = saveSolutionMutation.isPending;
@@ -309,7 +312,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     },
     onError: (err) => {
       console.error('Failed to delete ticket:', err);
-      alert('Fehler beim Loeschen des Tickets');
+      showToast('Fehler beim Loeschen des Tickets', 'error');
       setShowDeleteConfirm(false);
     },
   });
@@ -326,7 +329,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     },
     onError: (err, status) => {
       console.error(`Failed to ${status === 'archived' ? 'archive' : 'restore'} ticket:`, err);
-      alert(status === 'archived' ? 'Fehler beim Archivieren des Tickets' : 'Fehler beim Wiederherstellen des Tickets');
+      showToast(status === 'archived' ? 'Fehler beim Archivieren des Tickets' : 'Fehler beim Wiederherstellen des Tickets', 'error');
     },
   });
   const archiving = archiveMutation.isPending;
@@ -394,7 +397,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       writeAttachments((prev) => [...prev, ...result.data]);
     } catch (err) {
       console.error('Failed to upload files:', err);
-      alert('Fehler beim Hochladen der Dateien');
+      showToast('Fehler beim Hochladen der Dateien', 'error');
     } finally {
       setUploadingFiles(false);
     }
@@ -407,11 +410,17 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     },
     onError: (err) => {
       console.error('Failed to delete attachment:', err);
-      alert('Fehler beim Loeschen des Anhangs');
+      showToast('Fehler beim Loeschen des Anhangs', 'error');
     },
   });
   const handleDeleteAttachment = async (attachmentId: string) => {
-    if (!confirm('Anhang wirklich loeschen?')) return;
+    const ok = await confirm({
+      title: 'Anhang loeschen?',
+      message: 'Anhang wirklich loeschen?',
+      confirmText: 'Loeschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     await deleteAttachmentMutation.mutateAsync(attachmentId);
   };
 

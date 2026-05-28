@@ -11,6 +11,7 @@ import AdminPortal from './components/AdminPortal.tsx'
 import AdminRoute from './components/AdminRoute.tsx'
 import { AuthProvider } from './contexts/AuthContext.tsx'
 import { FeaturesProvider } from './contexts/FeaturesContext.tsx'
+import { UIProvider } from './contexts/UIContext.tsx'
 import { queryClient } from './lib/queryClient.ts'
 import { accentColor } from './utils/accentColor.ts'
 import { grayTone } from './utils/theme.ts'
@@ -42,23 +43,25 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <BrowserRouter>
           <AuthProvider>
             <FeaturesProvider>
-              <Routes>
-                {/* Public route for report approval */}
-                <Route path="/approve/:token" element={<ReportApprovalReview />} />
+              <UIProvider>
+                <Routes>
+                  {/* Public route for report approval */}
+                  <Route path="/approve/:token" element={<ReportApprovalReview />} />
 
-                {/* Public route for maintenance approval */}
-                <Route path="/maintenance/approve/:token" element={<MaintenanceApproval />} />
+                  {/* Public route for maintenance approval */}
+                  <Route path="/maintenance/approve/:token" element={<MaintenanceApproval />} />
 
-                {/* Customer Portal (separate from main app) */}
-                <Route path="/portal" element={<CustomerPortal />} />
-                <Route path="/portal/activate" element={<CustomerPortal />} />
+                  {/* Customer Portal (separate from main app) */}
+                  <Route path="/portal" element={<CustomerPortal />} />
+                  <Route path="/portal/activate" element={<CustomerPortal />} />
 
-                {/* Admin Portal (separate from main app, with auth) */}
-                <Route path="/admin" element={<AdminRoute />} />
+                  {/* Admin Portal (separate from main app, with auth) */}
+                  <Route path="/admin" element={<AdminRoute />} />
 
-                {/* Main app */}
-                <Route path="/*" element={<App />} />
-              </Routes>
+                  {/* Main app */}
+                  <Route path="/*" element={<App />} />
+                </Routes>
+              </UIProvider>
             </FeaturesProvider>
           </AuthProvider>
         </BrowserRouter>

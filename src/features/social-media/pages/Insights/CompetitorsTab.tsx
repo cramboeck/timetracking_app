@@ -13,8 +13,10 @@ import {
 } from 'lucide-react';
 import { socialMediaApi } from '../../../../services/api';
 import type { Competitor, CompetitorAnalysis } from '../../types';
+import { useConfirm } from '../../../../contexts/UIContext';
 
 export default function CompetitorsTab() {
+  const confirm = useConfirm();
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [analyzing, setAnalyzing] = useState<string | null>(null);
@@ -74,7 +76,13 @@ export default function CompetitorsTab() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Möchtest du diesen Wettbewerber wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Wettbewerber löschen?',
+      message: 'Möchtest du diesen Wettbewerber wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setDeleting(id);
     try {
       await socialMediaApi.deleteCompetitor(id);

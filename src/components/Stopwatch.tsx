@@ -7,6 +7,7 @@ import { generateUUID } from '../utils/uuid';
 import { aiApi } from '../services/api';
 import { SearchableSelect } from './SearchableSelect';
 import { Button } from './ui';
+import { useToast } from '../contexts/UIContext';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => Promise<boolean> | void;
@@ -35,6 +36,7 @@ const getStartOfWeek = (): Date => {
 
 export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers, activities, entries, onOpenManualEntry, prefilledEntry, onPrefilledEntryUsed }: StopwatchProps) => {
   const { currentUser } = useAuth();
+  const showToast = useToast();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [customerId, setCustomerId] = useState('');
@@ -83,7 +85,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     // Check if we have enough context
     if (!projectId && !activityId) {
       console.warn('🤖 [STOPWATCH] No project or activity selected');
-      alert('Bitte wähle zuerst ein Projekt oder eine Tätigkeit aus');
+      showToast('Bitte wähle zuerst ein Projekt oder eine Tätigkeit aus', 'warning');
       return;
     }
 
@@ -113,11 +115,11 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
         setDescription(response.data.suggestion);
       } else {
         console.warn('🤖 [STOPWATCH] No suggestion in response:', response);
-        alert('KI konnte keinen Vorschlag generieren. Bitte versuche es später erneut.');
+        showToast('KI konnte keinen Vorschlag generieren. Bitte versuche es später erneut.', 'error', 5000);
       }
     } catch (err: any) {
       console.error('🤖 [STOPWATCH] Failed to generate description:', err);
-      alert(`Fehler beim Generieren: ${err.message || 'Unbekannter Fehler'}`);
+      showToast(`Fehler beim Generieren: ${err.message || 'Unbekannter Fehler'}`, 'error', 5000);
     } finally {
       setGeneratingDescription(false);
     }
@@ -235,7 +237,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
   const handleStart = () => {
     if (!projectId) {
-      alert('Bitte wähle ein Projekt aus');
+      showToast('Bitte wähle ein Projekt aus', 'warning');
       return;
     }
 
@@ -350,7 +352,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
           setElapsedSeconds(prev => prev + 1);
         }, 1000);
       }
-      alert('Fehler beim Speichern. Bitte versuche es erneut.');
+      showToast('Fehler beim Speichern. Bitte versuche es erneut.', 'error', 5000);
     } finally {
       setIsStopping(false);
     }

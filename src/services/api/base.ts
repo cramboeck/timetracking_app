@@ -29,13 +29,31 @@ export const handleResponse = async (response: Response) => {
 // (single-flight pattern) so we never call /auth/refresh more than once at
 // the same time.
 
+// Dispatched on `window` when the session is definitively dead (the server
+// rejected our refresh token). The AuthProvider listens for it and flips the
+// UI to the login screen immediately, instead of waiting for the next user
+// action to surface the failure.
+export const SESSION_EXPIRED_EVENT = 'auth:session-expired';
+
 let pendingRefresh: Promise<string | null> | null = null;
+
+// The session can no longer be recovered: drop the credentials and let the
+// app know. Only call this for a real server-side rejection — never on a
+// network error, where the token may still be valid once connectivity returns.
+const notifySessionExpired = () => {
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('refresh_token');
+  window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+};
 
 export const tryRefreshAccessToken = async (): Promise<string | null> => {
   if (pendingRefresh) return pendingRefresh;
   pendingRefresh = (async () => {
     const refreshToken = localStorage.getItem('refresh_token');
-    if (!refreshToken) return null;
+    if (!refreshToken) {
+      notifySessionExpired();
+      return null;
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
@@ -43,8 +61,7 @@ export const tryRefreshAccessToken = async (): Promise<string | null> => {
         body: JSON.stringify({ refreshToken }),
       });
       if (!response.ok) {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('refresh_token');
+        notifySessionExpired();
         return null;
       }
       const result = await response.json();
@@ -54,6 +71,7 @@ export const tryRefreshAccessToken = async (): Promise<string | null> => {
       if (newRefresh) localStorage.setItem('refresh_token', newRefresh);
       return newAccess ?? null;
     } catch {
+      // Network error — keep the tokens; a later attempt may still succeed.
       return null;
     }
   })();

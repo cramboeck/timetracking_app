@@ -35,6 +35,7 @@ import {
 } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Button, IconButton } from './ui/Button';
+import { useToast, useConfirm } from '../contexts/UIContext';
 
 // ============================================
 // Constants
@@ -382,6 +383,7 @@ interface LeadFormProps {
 }
 
 const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCancel }) => {
+  const showToast = useToast();
   const [name, setName] = useState(lead?.name || '');
   const [company, setCompany] = useState(lead?.company || '');
   const [email, setEmail] = useState(lead?.email || '');
@@ -428,7 +430,7 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
       onSave(result.data);
     } catch (err) {
       console.error('Failed to save lead:', err);
-      alert('Fehler beim Speichern');
+      showToast('Fehler beim Speichern', 'error');
     } finally {
       setSaving(false);
     }
@@ -631,6 +633,8 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
 // ============================================
 
 const Leads: React.FC = () => {
+  const showToast = useToast();
+  const confirm = useConfirm();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -691,7 +695,7 @@ const Leads: React.FC = () => {
       setLeads((prev) => prev.map((l) => (l.id === lead.id ? result.data : l)));
     } catch (err) {
       console.error('Failed to update status:', err);
-      alert('Fehler beim Aktualisieren');
+      showToast('Fehler beim Aktualisieren', 'error');
     }
   };
 
@@ -703,15 +707,21 @@ const Leads: React.FC = () => {
   };
 
   const handleConvertLead = async (lead: Lead) => {
-    if (!confirm(`"${lead.name}" zu Kunde konvertieren?`)) return;
+    const ok = await confirm({
+      title: 'Lead konvertieren?',
+      message: `"${lead.name}" zu Kunde konvertieren?`,
+      confirmText: 'Konvertieren',
+      variant: 'warning',
+    });
+    if (!ok) return;
 
     try {
       await leadsApi.convert(lead.id, true);
       await loadLeads();
-      alert('Lead erfolgreich konvertiert!');
+      showToast('Lead erfolgreich konvertiert!', 'success');
     } catch (err) {
       console.error('Failed to convert lead:', err);
-      alert('Fehler beim Konvertieren');
+      showToast('Fehler beim Konvertieren', 'error');
     }
   };
 
@@ -725,7 +735,7 @@ const Leads: React.FC = () => {
       setDeleteLead(null);
     } catch (err) {
       console.error('Failed to delete lead:', err);
-      alert('Fehler beim Loschen');
+      showToast('Fehler beim Loschen', 'error');
     } finally {
       setDeleting(false);
     }

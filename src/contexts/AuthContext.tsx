@@ -5,7 +5,7 @@ import { validatePassword, validateEmail, validateUsername } from '../utils/auth
 import { accentColor } from '../utils/accentColor';
 import { grayTone } from '../utils/theme';
 import { darkMode } from '../utils/darkMode';
-import { authApi, userApi } from '../services/api';
+import { authApi, userApi, SESSION_EXPIRED_EVENT } from '../services/api';
 
 // Helper to persist settings to backend
 const persistSettings = async (settings: Parameters<typeof userApi.updateSettings>[0]) => {
@@ -165,6 +165,37 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     loadUser();
+  }, []);
+
+  // Proactive logout detection. The API layer fires SESSION_EXPIRED_EVENT the
+  // moment the server rejects our refresh token, so we flip to the login
+  // screen right away — not only after the user's next save fails. We also
+  // re-validate whenever the app returns to the foreground (the typical
+  // "reopen the home-screen PWA" moment), which is when a session that died
+  // while the app was suspended would otherwise go unnoticed.
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      console.log('🔒 [AUTH] Session expired — clearing local session');
+      storage.setCurrentUser(null);
+      setCurrentUser(null);
+    };
+
+    const revalidateSession = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!navigator.onLine) return;
+      if (!localStorage.getItem('auth_token')) return;
+      // getMe() runs through authFetch: a dead session triggers a refresh,
+      // and a failed refresh emits SESSION_EXPIRED_EVENT (handled above).
+      userApi.getMe().catch(() => { /* network errors are non-fatal */ });
+    };
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    document.addEventListener('visibilitychange', revalidateSession);
+
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+      document.removeEventListener('visibilitychange', revalidateSession);
+    };
   }, []);
 
   const login = async (credentials: LoginCredentials): Promise<LoginResult> => {

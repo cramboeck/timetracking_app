@@ -10,8 +10,10 @@ import { Button, IconButton } from './ui/Button';
 import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert, NinjaAlertExclusion } from '../services/api';
 import { customersApi } from '../services/api';
 import { Customer } from '../types';
+import { useConfirm } from '../contexts/UIContext';
 
 export const NinjaRMMSettings = () => {
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<NinjaRMMConfig | null>(null);
@@ -220,7 +222,13 @@ export const NinjaRMMSettings = () => {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm('Möchtest du die Verbindung zu NinjaRMM wirklich trennen?')) return;
+    const ok = await confirm({
+      title: 'Verbindung trennen?',
+      message: 'Möchtest du die Verbindung zu NinjaRMM wirklich trennen?',
+      confirmText: 'Trennen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       setError('');
@@ -531,7 +539,13 @@ export const NinjaRMMSettings = () => {
   };
 
   const handleDeleteExclusion = async (id: string) => {
-    if (!confirm('Ausnahme wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Ausnahme löschen?',
+      message: 'Ausnahme wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       const result = await ninjaApi.deleteExclusion(id);
       if (result.success) {

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData } from '../services/api';
 import { Button, IconButton } from './ui/Button';
+import { useConfirm } from '../contexts/UIContext';
 
 // Format file size helper
 const formatFileSize = (bytes: number): string => {
@@ -17,6 +18,7 @@ const formatFileSize = (bytes: number): string => {
 };
 
 export const InvoiceInbox = () => {
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [processingInvoices, setProcessingInvoices] = useState(false);
   const [processedInvoices, setProcessedInvoices] = useState<ProcessedInvoice[]>([]);
@@ -310,7 +312,13 @@ export const InvoiceInbox = () => {
   const validationWarnings = extractedData ? validateExtractedData(extractedData) : [];
 
   const handleDeleteDraft = async (invoiceId: string) => {
-    if (!confirm('Entwurf wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Entwurf löschen?',
+      message: 'Entwurf wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const response = await microsoft365Api.deleteDraft(invoiceId);

@@ -17,7 +17,7 @@ const router = Router();
 
 // Access tokens are short-lived; clients must use POST /api/auth/refresh
 // (with the long-lived refresh token) to obtain a fresh access token.
-const ACCESS_TOKEN_TTL = '1h';
+const ACCESS_TOKEN_TTL = '8h';
 
 // Extract device info from request for the refresh-token record
 const deviceInfoFromReq = (req: any) => ({

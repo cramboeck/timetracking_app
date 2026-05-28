@@ -33,6 +33,7 @@ import { Customer } from '../types';
 import { customersApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Button, IconButton } from './ui/Button';
+import { useToast } from '../contexts/UIContext';
 
 // ============================================
 // Helper Functions
@@ -359,6 +360,7 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
   onSave,
   onCancel,
 }) => {
+  const showToast = useToast();
   const [name, setName] = useState(opportunity?.name || '');
   const [description, setDescription] = useState(opportunity?.description || '');
   const [customerId, setCustomerId] = useState(opportunity?.customer_id || '');
@@ -409,7 +411,7 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
       onSave(result);
     } catch (err) {
       console.error('Failed to save opportunity:', err);
-      alert('Fehler beim Speichern');
+      showToast('Fehler beim Speichern', 'error');
     } finally {
       setSaving(false);
     }
@@ -647,6 +649,7 @@ const StatsDashboard: React.FC<StatsDashboardProps> = ({ stats, loading }) => {
 // ============================================
 
 const SalesPipeline: React.FC = () => {
+  const showToast = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pipeline, setPipeline] = useState<PipelineView | null>(null);
@@ -716,7 +719,7 @@ const SalesPipeline: React.FC = () => {
       await loadData();
     } catch (err) {
       console.error('Failed to move opportunity:', err);
-      alert('Fehler beim Verschieben');
+      showToast('Fehler beim Verschieben', 'error');
     }
   };
 
@@ -739,7 +742,7 @@ const SalesPipeline: React.FC = () => {
       setDeleteOpportunity(null);
     } catch (err) {
       console.error('Failed to delete opportunity:', err);
-      alert('Fehler beim Loschen');
+      showToast('Fehler beim Loschen', 'error');
     } finally {
       setDeleting(false);
     }

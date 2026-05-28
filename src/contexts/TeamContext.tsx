@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { organizationsApi, Organization, OrganizationMember, OrganizationInvitation } from '../services/api';
 import { useAuth } from './AuthContext';
+import { useToast, useConfirm } from './UIContext';
 
 interface TeamContextValue {
   // Organization State
@@ -48,6 +49,8 @@ interface TeamProviderProps {
 
 export const TeamProvider = ({ children }: TeamProviderProps) => {
   const { currentUser } = useAuth();
+  const showToast = useToast();
+  const confirm = useConfirm();
 
   // Organization State
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
@@ -131,7 +134,7 @@ export const TeamProvider = ({ children }: TeamProviderProps) => {
         setNewInvitationEmail('');
         // Show info if user already has an account
         if (response.userAlreadyExists) {
-          alert('Hinweis: Der eingeladene Benutzer hat bereits ein Konto. Er kann sich anmelden, um der Organisation beizutreten.');
+          showToast('Hinweis: Der eingeladene Benutzer hat bereits ein Konto. Er kann sich anmelden, um der Organisation beizutreten.', 'info', 6000);
         }
       }
     } catch (error: any) {
@@ -145,8 +148,8 @@ export const TeamProvider = ({ children }: TeamProviderProps) => {
   // Copy invitation link
   const copyInvitationLink = useCallback((link: string) => {
     navigator.clipboard.writeText(link);
-    alert('Einladungslink kopiert!');
-  }, []);
+    showToast('Einladungslink kopiert!', 'success');
+  }, [showToast]);
 
   // Delete invitation
   const deleteInvitation = useCallback(async (invitationId: string) => {
@@ -157,9 +160,9 @@ export const TeamProvider = ({ children }: TeamProviderProps) => {
       setOrganizationInvitations(prev => prev.filter(inv => inv.id !== invitationId));
     } catch (error) {
       console.error('Error deleting invitation:', error);
-      alert('Fehler beim Löschen der Einladung');
+      showToast('Fehler beim Löschen der Einladung', 'error');
     }
-  }, [currentOrganization]);
+  }, [currentOrganization, showToast]);
 
   // Update member role
   const updateMemberRole = useCallback(async (memberId: string, newRole: 'admin' | 'member' | 'viewer') => {
@@ -174,24 +177,30 @@ export const TeamProvider = ({ children }: TeamProviderProps) => {
       }
     } catch (error) {
       console.error('Error updating member role:', error);
-      alert('Fehler beim Andern der Rolle');
+      showToast('Fehler beim Ändern der Rolle', 'error');
     }
-  }, [currentOrganization]);
+  }, [currentOrganization, showToast]);
 
   // Remove member
   const removeMember = useCallback(async (memberId: string) => {
     if (!currentOrganization) return;
 
-    if (!confirm('Mochtest du dieses Mitglied wirklich entfernen?')) return;
+    const ok = await confirm({
+      title: 'Mitglied entfernen?',
+      message: 'Möchtest du dieses Mitglied wirklich entfernen?',
+      confirmText: 'Entfernen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       await organizationsApi.removeMember(currentOrganization.id, memberId);
       setOrganizationMembers(prev => prev.filter(m => m.id !== memberId));
     } catch (error) {
       console.error('Error removing member:', error);
-      alert('Fehler beim Entfernen des Mitglieds');
+      showToast('Fehler beim Entfernen des Mitglieds', 'error');
     }
-  }, [currentOrganization]);
+  }, [currentOrganization, confirm, showToast]);
 
   const value: TeamContextValue = {
     currentOrganization,

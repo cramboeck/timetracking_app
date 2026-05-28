@@ -20,6 +20,7 @@ import {
 import { contractsApi, Contract, ContractPosition, ContractHourlyTracking, customersApi } from '../services/api';
 import { Customer } from '../types';
 import { Button, IconButton } from './ui';
+import { useConfirm } from '../contexts/UIContext';
 
 interface ContractDetailProps {
   contractId: string | null; // null = create new
@@ -28,6 +29,7 @@ interface ContractDetailProps {
 }
 
 const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onSaved }) => {
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,7 +167,13 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
 
   const handleDelete = async () => {
     if (!contractId) return;
-    if (!confirm('Möchten Sie diesen Vertrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+    const ok = await confirm({
+      title: 'Vertrag löschen?',
+      message: 'Möchten Sie diesen Vertrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       await contractsApi.deleteContract(contractId);
@@ -201,7 +209,13 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
 
   const handleDeletePosition = async (positionId: string) => {
     if (!contractId) return;
-    if (!confirm('Position löschen?')) return;
+    const ok = await confirm({
+      title: 'Position löschen?',
+      message: 'Position löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       await contractsApi.deletePosition(contractId, positionId);

@@ -4,6 +4,7 @@ import { Customer, CustomerEmailDomain } from '../types';
 import { customersApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Button, IconButton } from './ui/Button';
+import { useToast } from '../contexts/UIContext';
 
 interface CustomerEmailDomainsProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface CustomerEmailDomainsProps {
 }
 
 export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmailDomainsProps) => {
+  const showToast = useToast();
   const [domains, setDomains] = useState<CustomerEmailDomain[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +116,7 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
       setDeleteDomain(null);
     } catch (err) {
       console.error('Failed to delete domain:', err);
-      alert('Fehler beim Löschen der Domain');
+      showToast('Fehler beim Löschen der Domain', 'error');
     } finally {
       setDeleting(false);
     }

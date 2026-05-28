@@ -28,6 +28,7 @@ import { tasksApi } from '../services/api';
 import type { Task, TaskDashboardData, TaskFilters, TaskPriority } from '../types';
 import TaskModal from './TaskModal';
 import { Button, IconButton } from './ui';
+import { useConfirm } from '../contexts/UIContext';
 
 interface TaskHubProps {
   onTimerStart?: (taskId: string) => void;
@@ -36,6 +37,7 @@ interface TaskHubProps {
 }
 
 export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId }: TaskHubProps) {
+  const confirm = useConfirm();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dashboard, setDashboard] = useState<TaskDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,7 +131,13 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
 
   // Delete task
   const handleDeleteTask = async (taskId: string) => {
-    if (!confirm('Aufgabe wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Aufgabe löschen?',
+      message: 'Aufgabe wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await tasksApi.delete(taskId);
       setTasks(prev => prev.filter(t => t.id !== taskId));

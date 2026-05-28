@@ -17,6 +17,7 @@ import { useSocialMedia } from '../../context';
 import { socialMediaApi } from '../../../../services/api';
 import { PLATFORM_ICONS, PLATFORM_COLORS } from '../../constants';
 import type { Platform, SocialMediaPost } from '../../types';
+import { useConfirm } from '../../../../contexts/UIContext';
 
 type StatusFilter = 'all' | 'draft' | 'scheduled' | 'published';
 type PlatformFilter = 'all' | Platform;
@@ -25,6 +26,7 @@ const PLATFORMS: Platform[] = ['linkedin', 'twitter', 'facebook', 'instagram'];
 
 export default function PostsTab() {
   const { posts, removePost, updatePost, refreshPosts, setViewMode, setContentStudioTab } = useSocialMedia();
+  const confirm = useConfirm();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -68,7 +70,13 @@ export default function PostsTab() {
 
   // Delete post
   const handleDelete = async (postId: string) => {
-    if (!confirm('Möchtest du diesen Post wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Post löschen?',
+      message: 'Möchtest du diesen Post wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setDeleting(postId);
     try {
       await socialMediaApi.deletePost(postId);

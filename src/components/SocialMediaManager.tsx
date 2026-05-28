@@ -12,6 +12,7 @@ import {
 import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement, AutoImprovementResult, CarouselContent, CarouselSlide, ThemeSelectionOutput } from '../services/api';
 import { Customer } from '../types';
 import { Modal } from './Modal';
+import { useToast, useConfirm } from '../contexts/UIContext';
 
 interface SocialMediaManagerProps {
   customers?: Customer[];
@@ -52,6 +53,8 @@ const PLATFORM_LIMITS: Record<string, number> = {
 };
 
 export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) => {
+  const showToast = useToast();
+  const confirm = useConfirm();
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
   const [posts, setPosts] = useState<SocialMediaPost[]>([]);
   const [templates, setTemplates] = useState<SocialMediaTemplate[]>([]);
@@ -546,7 +549,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
     try {
       const result = await socialMediaApi.generateAutopilotContent();
       setAutopilotPending(result.posts);
-      alert(result.message);
+      showToast(result.message, 'info', 5000);
     } catch (err: any) {
       setError(err.message || 'Autopilot-Generierung fehlgeschlagen');
     } finally {
@@ -893,7 +896,13 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   };
 
   const deletePost = async (id: string) => {
-    if (!confirm('Post wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Post löschen?',
+      message: 'Post wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await socialMediaApi.deletePost(id);
       loadData();

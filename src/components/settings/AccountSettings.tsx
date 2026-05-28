@@ -9,6 +9,7 @@ import { MFASettings } from '../MFASettings';
 import { Modal } from '../Modal';
 import { gdprService } from '../../utils/gdpr';
 import { authApi, userApi } from '../../services/api';
+import { useConfirm } from '../../contexts/UIContext';
 
 interface AccountSettingsProps {
   entries: TimeEntry[];
@@ -22,6 +23,7 @@ export const AccountSettings = ({
   customers,
 }: AccountSettingsProps) => {
   const { currentUser, logout } = useAuth();
+  const confirm = useConfirm();
 
   // Modal states
   const [editProfileOpen, setEditProfileOpen] = useState(false);
@@ -116,9 +118,13 @@ export const AccountSettings = ({
   };
 
   const handleDeleteAccount = async () => {
-    if (!confirm('Sind Sie sicher, dass Sie Ihren Account löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Account löschen?',
+      message: 'Sind Sie sicher, dass Sie Ihren Account löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.',
+      confirmText: 'Account löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       setGdprDeleting(true);

@@ -9,6 +9,7 @@ import { MarkdownEditor } from '../MarkdownEditor';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { Button, IconButton } from '../ui/Button';
 import { getAbsoluteFileUrl } from '../../utils/fileUrls';
+import { useToast, useConfirm } from '../../contexts/UIContext';
 
 interface Attachment {
   id: string;
@@ -42,6 +43,8 @@ const priorityConfig: Record<string, { label: string; color: string; bgColor: st
 };
 
 export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps) => {
+  const showToast = useToast();
+  const confirm = useConfirm();
   const [ticket, setTicket] = useState<PortalTicket | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +104,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
       setNewComment('');
     } catch (err) {
       console.error('Failed to add comment:', err);
-      alert('Fehler beim Hinzufügen des Kommentars');
+      showToast('Fehler beim Hinzufügen des Kommentars', 'error');
     } finally {
       setSubmittingComment(false);
     }
@@ -127,26 +130,40 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
       }
     } catch (err) {
       console.error('Failed to upload files:', err);
-      alert('Fehler beim Hochladen der Dateien');
+      showToast('Fehler beim Hochladen der Dateien', 'error');
     } finally {
       setUploadingFiles(false);
     }
   };
 
   const handleDeleteAttachment = async (attachmentId: string) => {
-    if (!ticket || !confirm('Anhang wirklich löschen?')) return;
+    if (!ticket) return;
+    const ok = await confirm({
+      title: 'Anhang löschen?',
+      message: 'Anhang wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       await customerPortalApi.deleteAttachment(ticket.id, attachmentId);
       setAttachments(prev => prev.filter(a => a.id !== attachmentId));
     } catch (err) {
       console.error('Failed to delete attachment:', err);
-      alert('Fehler beim Löschen des Anhangs');
+      showToast('Fehler beim Löschen des Anhangs', 'error');
     }
   };
 
   const handleCloseTicket = async () => {
-    if (!ticket || !confirm('Ticket wirklich schließen?')) return;
+    if (!ticket) return;
+    const ok = await confirm({
+      title: 'Ticket schließen?',
+      message: 'Ticket wirklich schließen?',
+      confirmText: 'Schließen',
+      variant: 'warning',
+    });
+    if (!ok) return;
 
     try {
       setActionLoading(true);
@@ -155,14 +172,21 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
       setShowRating(true);
     } catch (err) {
       console.error('Failed to close ticket:', err);
-      alert('Fehler beim Schließen des Tickets');
+      showToast('Fehler beim Schließen des Tickets', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleReopenTicket = async () => {
-    if (!ticket || !confirm('Ticket wirklich wiedereröffnen?')) return;
+    if (!ticket) return;
+    const ok = await confirm({
+      title: 'Ticket wiedereröffnen?',
+      message: 'Ticket wirklich wiedereröffnen?',
+      confirmText: 'Wiedereröffnen',
+      variant: 'warning',
+    });
+    if (!ok) return;
 
     try {
       setActionLoading(true);
@@ -171,7 +195,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
       setShowRating(false);
     } catch (err) {
       console.error('Failed to reopen ticket:', err);
-      alert('Fehler beim Wiedereröffnen des Tickets');
+      showToast('Fehler beim Wiedereröffnen des Tickets', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -187,7 +211,7 @@ export const PortalTicketDetail = ({ ticketId, onBack }: PortalTicketDetailProps
       await loadTicket();
     } catch (err) {
       console.error('Failed to submit rating:', err);
-      alert('Fehler beim Speichern der Bewertung');
+      showToast('Fehler beim Speichern der Bewertung', 'error');
     } finally {
       setSubmittingRating(false);
     }

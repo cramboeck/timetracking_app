@@ -2,8 +2,10 @@ import { useState, useEffect, Fragment } from 'react';
 import { Settings, Save, CheckCircle, XCircle, AlertTriangle, Cloud, Mail, Shield, Loader2, Eye, EyeOff, ExternalLink, Key, FileText, RefreshCw, Play, Download, Check, Trash2, ChevronDown, ChevronUp, File, Undo2 } from 'lucide-react';
 import { Button, IconButton } from './ui';
 import { microsoft365Api, Microsoft365Config, ProcessedInvoice, InvoiceDocument } from '../services/api';
+import { useConfirm } from '../contexts/UIContext';
 
 export const Microsoft365Settings = () => {
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -145,9 +147,13 @@ export const Microsoft365Settings = () => {
   };
 
   const handleDeleteDraft = async (invoiceId: string) => {
-    if (!confirm('Entwurf wirklich löschen? Die Dateien werden ebenfalls entfernt.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Entwurf löschen?',
+      message: 'Entwurf wirklich löschen? Die Dateien werden ebenfalls entfernt.',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const response = await microsoft365Api.deleteInvoiceDraft(invoiceId);
@@ -165,9 +171,13 @@ export const Microsoft365Settings = () => {
 
   const handleClearFailed = async () => {
     const failedCount = processedInvoices.filter(i => i.status === 'failed').length;
-    if (!confirm(`${failedCount} fehlgeschlagene Einträge löschen und neu verarbeiten?`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Fehlgeschlagene Einträge löschen?',
+      message: `${failedCount} fehlgeschlagene Einträge löschen und neu verarbeiten?`,
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const response = await microsoft365Api.clearFailedInvoices();
@@ -184,9 +194,13 @@ export const Microsoft365Settings = () => {
   };
 
   const handleClearAll = async () => {
-    if (!confirm('ALLE Einträge wirklich löschen? Alle Dokumente und Zuordnungen werden entfernt.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Alle Einträge löschen?',
+      message: 'ALLE Einträge wirklich löschen? Alle Dokumente und Zuordnungen werden entfernt.',
+      confirmText: 'Alle löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const response = await microsoft365Api.clearAllInvoices();

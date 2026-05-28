@@ -8,6 +8,7 @@ import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
 import { UnknownCustomerDialog } from './UnknownCustomerDialog';
 import { Button, IconButton } from './ui/Button';
 import { sanitizeEmailHtml } from '../utils/sanitize';
+import { useToast } from '../contexts/UIContext';
 
 interface TicketInfo {
   linked: boolean;
@@ -26,6 +27,7 @@ interface TicketInfo {
 }
 
 export const SupportInbox = () => {
+  const showToast = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [supportMailbox, setSupportMailbox] = useState<string>('');
@@ -165,19 +167,21 @@ export const SupportInbox = () => {
       if (response.success && response.data) {
         const { ticketNumber, linkedToExisting, customerName } = response.data;
         const customerInfo = customerName ? ` (Kunde: ${customerName})` : '';
-        alert(
+        showToast(
           linkedToExisting
             ? `E-Mail wurde zu bestehendem Ticket ${ticketNumber} hinzugefügt${customerInfo}`
-            : `Ticket ${ticketNumber} wurde erstellt${customerInfo}`
+            : `Ticket ${ticketNumber} wurde erstellt${customerInfo}`,
+          'success',
+          5000
         );
         // Reload emails and ticket info
         await loadEmails();
         await loadTicketInfo(selectedEmail.id);
       } else {
-        alert(response.error || 'Fehler beim Erstellen des Tickets');
+        showToast(response.error || 'Fehler beim Erstellen des Tickets', 'error');
       }
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Erstellen des Tickets');
+      showToast(err.message || 'Fehler beim Erstellen des Tickets', 'error');
     } finally {
       setCreating(false);
       setShowUnknownCustomerDialog(false);
@@ -216,13 +220,13 @@ export const SupportInbox = () => {
         try {
           const response = await microsoft365Api.saveEmailAsInteraction(selectedEmail.id, customerId);
           if (response.success && response.data) {
-            alert(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`);
+            showToast(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`, 'success', 5000);
             await loadEmails();
           } else {
-            alert(response.error || 'Fehler beim Speichern der Interaktion');
+            showToast(response.error || 'Fehler beim Speichern der Interaktion', 'error');
           }
         } catch (err: any) {
-          alert(err.message || 'Fehler beim Speichern');
+          showToast(err.message || 'Fehler beim Speichern', 'error');
         } finally {
           setSavingInteraction(false);
         }
@@ -252,14 +256,14 @@ export const SupportInbox = () => {
         selectedTicketInfo.suggestedTicket.ticket_id
       );
       if (response.success && response.data) {
-        alert(`E-Mail wurde zu Ticket ${response.data.ticketNumber} hinzugefügt`);
+        showToast(`E-Mail wurde zu Ticket ${response.data.ticketNumber} hinzugefügt`, 'success', 5000);
         await loadEmails();
         await loadTicketInfo(selectedEmail.id);
       } else {
-        alert(response.error || 'Fehler beim Verknüpfen');
+        showToast(response.error || 'Fehler beim Verknüpfen', 'error');
       }
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Verknüpfen');
+      showToast(err.message || 'Fehler beim Verknüpfen', 'error');
     } finally {
       setCreating(false);
     }
@@ -275,9 +279,9 @@ export const SupportInbox = () => {
 
       if (response.success) {
         if (response.alreadyExists) {
-          alert('Diese E-Mail wurde bereits als Interaktion gespeichert.');
+          showToast('Diese E-Mail wurde bereits als Interaktion gespeichert.', 'info', 5000);
         } else if (response.data) {
-          alert(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`);
+          showToast(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`, 'success', 5000);
           await loadEmails();
         }
       } else if (response.requiresCustomer) {
@@ -290,10 +294,10 @@ export const SupportInbox = () => {
           setPendingPriority('interaction');
         }
       } else {
-        alert(response.error || 'Fehler beim Speichern der Interaktion');
+        showToast(response.error || 'Fehler beim Speichern der Interaktion', 'error');
       }
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Speichern der Interaktion');
+      showToast(err.message || 'Fehler beim Speichern der Interaktion', 'error');
     } finally {
       setSavingInteraction(false);
     }

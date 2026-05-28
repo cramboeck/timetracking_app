@@ -8,6 +8,7 @@ import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
 import { UnknownCustomerDialog } from './UnknownCustomerDialog';
 import { Button, IconButton } from './ui/Button';
 import { sanitizeHtml } from '../utils/sanitize';
+import { useToast } from '../contexts/UIContext';
 
 interface PersonalEmail extends SupportEmail {
   matchedCustomer?: {
@@ -22,6 +23,7 @@ interface PersonalInboxProps {
 }
 
 export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) => {
+  const showToast = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userEmail, setUserEmail] = useState<string>('');
@@ -80,9 +82,9 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
 
       if (response.success) {
         if (response.alreadyExists) {
-          alert('Diese E-Mail wurde bereits als Interaktion gespeichert.');
+          showToast('Diese E-Mail wurde bereits als Interaktion gespeichert.', 'info', 5000);
         } else if (response.data) {
-          alert(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`);
+          showToast(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`, 'success', 5000);
           onEmailSaved?.(response.data.interactionId, response.data.customerId);
           await loadEmails();
         }
@@ -94,10 +96,10 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
         }
         setShowUnknownCustomerDialog(true);
       } else {
-        alert(response.error || 'Fehler beim Speichern der Interaktion');
+        showToast(response.error || 'Fehler beim Speichern der Interaktion', 'error');
       }
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Speichern der Interaktion');
+      showToast(err.message || 'Fehler beim Speichern der Interaktion', 'error');
     } finally {
       setSaving(false);
     }
@@ -125,7 +127,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
       setShowUnknownCustomerDialog(false);
       await handleSaveAsInteraction(newCustomer.id);
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Erstellen des Kunden');
+      showToast(err.message || 'Fehler beim Erstellen des Kunden', 'error');
     }
   };
 
