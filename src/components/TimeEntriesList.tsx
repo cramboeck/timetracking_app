@@ -886,6 +886,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                 {dateEntries.map((entry) => {
                   const project = getProjectById(entry.projectId);
                   const customer = project ? getCustomerById(project.customerId) : null;
+                  const activity = entry.activityId ? getActivityById(entry.activityId) : null;
 
                   // Compact View
                   if (compactView) {
@@ -926,9 +927,15 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                                 style={{ backgroundColor: customer.color }}
                               />
                             )}
-                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-1">
+                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate min-w-0">
                               {getProjectDisplay(entry)}
                             </span>
+                            {activity && (
+                              <span className="text-xs font-medium text-accent-primary bg-accent-primary/10 dark:bg-accent-primary/20 px-1.5 py-0.5 rounded flex-shrink-0 max-w-[40%] truncate">
+                                {activity.name}
+                              </span>
+                            )}
+                            <div className="flex-1" />
                             {!selectionMode && (
                               <div className="flex gap-0.5 flex-shrink-0">
                                 {onRepeatEntry && !isRunning && (
@@ -1011,9 +1018,15 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                                 style={{ backgroundColor: customer.color }}
                               />
                             )}
-                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-1">
+                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate min-w-0">
                               {getProjectDisplay(entry)}
                             </span>
+                            {activity && (
+                              <span className="text-xs font-medium text-accent-primary bg-accent-primary/10 dark:bg-accent-primary/20 px-1.5 py-0.5 rounded flex-shrink-0 max-w-[180px] truncate">
+                                {activity.name}
+                              </span>
+                            )}
+                            <div className="flex-1" />
                             <span className="text-xs text-gray-400 dark:text-dark-400 flex-shrink-0">
                               {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
                             </span>
@@ -1112,8 +1125,13 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                             />
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-semibold text-gray-900 dark:text-white">{getProjectDisplay(entry)}</h3>
+                              {activity && (
+                                <span className="text-xs font-medium text-accent-primary bg-accent-primary/10 dark:bg-accent-primary/20 px-2 py-0.5 rounded-full">
+                                  {activity.name}
+                                </span>
+                              )}
                               {isRunningNormal && (
                                 <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
                                   Läuft
