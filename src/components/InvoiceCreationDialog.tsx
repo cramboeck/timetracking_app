@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { Button, IconButton } from './ui';
 import { sevdeskApi, BillingSummaryItem } from '../services/api';
+import { CustomerSevdeskLink } from './CustomerSevdeskLink';
+import type { Customer } from '../types';
 
 interface InvoicePosition {
   projectName: string;
@@ -53,6 +55,12 @@ export const InvoiceCreationDialog = ({
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiGenerated, setAiGenerated] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  // Tracks a successful link inside this dialog session so the user can push
+  // immediately without closing/reopening the InvoiceCreationDialog.
+  const [linkedSevdeskId, setLinkedSevdeskId] = useState<string | null>(null);
+  const effectiveSevdeskCustomerId = linkedSevdeskId ?? customer.sevdeskCustomerId ?? null;
+  const isCustomerLinked = !!effectiveSevdeskCustomerId;
 
   // Header texts
   const [invoiceHeader, setInvoiceHeader] = useState('');
@@ -210,9 +218,17 @@ export const InvoiceCreationDialog = ({
   };
 
   const handleCreateInvoice = async () => {
-    setIsCreating(true);
     setError(null);
 
+    // Pre-check: customer must be linked to a sevdesk contact, otherwise the
+    // draft invoice arrives with an empty Kunde-field and the address ends up
+    // in the recipient slot — exactly the bug we just fixed server-side.
+    if (!isCustomerLinked) {
+      setError('Dieser Kunde ist nicht mit einem sevdesk-Kontakt verknüpft. Bitte zuerst verknüpfen, dann die Rechnung erneut anlegen.');
+      return;
+    }
+
+    setIsCreating(true);
     try {
       const entryIds = customer.entries.map(e => e.id);
       const hourlyRate = customer.hourlyRate || 95;
@@ -238,7 +254,9 @@ export const InvoiceCreationDialog = ({
         })),
       ];
 
-      // Create invoice with grouped positions and custom texts
+      // Create invoice with grouped positions and custom texts. reportFilename
+      // is passed so the backend can substitute {reportFilename} in the
+      // per-customer position template.
       const response = await sevdeskApi.createInvoice({
         customerId: customer.customerId,
         entryIds,
@@ -248,6 +266,7 @@ export const InvoiceCreationDialog = ({
         headText: headText,
         footText: footText,
         positions: invoicePositions,
+        reportFilename: generateReportFilename(),
       });
 
       if (response.success) {
@@ -257,7 +276,15 @@ export const InvoiceCreationDialog = ({
         throw new Error('Rechnungserstellung fehlgeschlagen');
       }
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Erstellen der Rechnung');
+      // Race-Fall: lokaler State sagt verknüpft, Server widerspricht (z. B.
+      // Verknüpfung wurde inzwischen entfernt). Gleicher UX-Flow wie Pre-Check.
+      const message = err?.message || 'Fehler beim Erstellen der Rechnung';
+      if (message.includes('CUSTOMER_NOT_LINKED') || message.includes('nicht mit einem sevdesk-Kontakt verknüpft')) {
+        setLinkedSevdeskId(null);
+        setError('Dieser Kunde ist nicht mit einem sevdesk-Kontakt verknüpft. Bitte zuerst verknüpfen, dann die Rechnung erneut anlegen.');
+      } else {
+        setError(message);
+      }
     } finally {
       setIsCreating(false);
     }
@@ -312,6 +339,21 @@ export const InvoiceCreationDialog = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {!isCustomerLinked && (
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between gap-3 text-amber-800 dark:text-amber-300">
+              <div className="flex items-center gap-3">
+                <AlertCircle size={20} />
+                <span>Dieser Kunde ist nicht mit einem sevdesk-Kontakt verknüpft. Verknüpfen, damit die Rechnung mit korrektem Empfänger ankommt.</span>
+              </div>
+              <Button
+                onClick={() => setLinkDialogOpen(true)}
+                variant="primary"
+                size="sm"
+              >
+                Jetzt verknüpfen
+              </Button>
+            </div>
+          )}
           {error && (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-3 text-red-700 dark:text-red-400">
               <AlertCircle size={20} />
@@ -510,6 +552,30 @@ export const InvoiceCreationDialog = ({
           </div>
         </div>
       </div>
+
+      {/* Inline customer-sevdesk link dialog. Constructs a minimal Customer
+          stub from BillingSummaryItem because CustomerSevdeskLink only reads
+          id/name/sevdeskCustomerId. */}
+      <CustomerSevdeskLink
+        customer={{
+          id: customer.customerId,
+          name: customer.customerName,
+          sevdeskCustomerId: effectiveSevdeskCustomerId ?? undefined,
+        } as Customer}
+        isOpen={linkDialogOpen}
+        onClose={() => setLinkDialogOpen(false)}
+        onLinked={() => {
+          // The link dialog updates the DB but we don't get the new sevdesk-id
+          // back. The user should re-trigger the push — server will return the
+          // proper error if linking didn't actually succeed.
+          setLinkDialogOpen(false);
+          setError(null);
+          // Mark as "presumably linked" so the warning banner goes away. If the
+          // user pushes and server says CUSTOMER_NOT_LINKED, we flip back via
+          // the catch-handler in handleCreateInvoice.
+          setLinkedSevdeskId('__pending__');
+        }}
+      />
     </div>
   );
 };

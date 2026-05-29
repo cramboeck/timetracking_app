@@ -449,6 +449,17 @@ export async function getBillingSummary(
 }
 
 // Custom invoice data interface
+interface PositionTemplateContext {
+  contractNumber?: string;
+  contractTitle?: string;
+  customerName?: string;
+  projectName?: string; // Per-position; injected before applyTemplate
+  periodMonth?: string;
+  periodYear?: string;
+  periodLabel?: string;
+  reportFilename?: string;
+}
+
 interface CustomInvoiceData {
   header?: string;
   headText?: string;
@@ -461,6 +472,32 @@ interface CustomInvoiceData {
     hourlyRate?: number;
     isHeader?: boolean; // Header positions have quantity 0 and display as bold
   }>;
+  // Per-customer free-text template appended to every position's `text` after
+  // placeholder substitution. {unknown} placeholders stay as-is so typos are
+  // immediately visible in the output.
+  positionTemplate?: string;
+  templateContext?: PositionTemplateContext;
+}
+
+// Substitute {placeholder} occurrences. Unknown keys are left unchanged.
+function applyTemplate(template: string, ctx: Record<string, string | undefined>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) => ctx[key] ?? `{${key}}`);
+}
+
+// Resolve the per-customer position-text by appending the rendered template
+// (if any) to the position's own description. Header positions are skipped —
+// they typically already serve as section dividers and adding a contract
+// reference under each one would feel spammy.
+function buildPositionText(
+  baseText: string | null | undefined,
+  template: string | undefined,
+  ctx: PositionTemplateContext,
+  projectName?: string,
+): string {
+  const tmpl = template?.trim();
+  if (!tmpl) return baseText ?? '';
+  const rendered = applyTemplate(tmpl, { ...ctx, projectName: projectName ?? ctx.projectName ?? '' });
+  return [baseText, rendered].filter(s => s && s.length > 0).join('\n\n');
 }
 
 // Create invoice in sevDesk
@@ -485,6 +522,8 @@ export async function createInvoice(
   // Create invoice positions - use custom positions if provided, otherwise create from entries
   let positions: any[];
 
+  const templateCtx: PositionTemplateContext = customData?.templateContext ?? {};
+
   if (customData?.positions && customData.positions.length > 0) {
     // Use grouped positions from frontend
     logger.info('Using custom grouped positions');
@@ -507,7 +546,7 @@ export async function createInvoice(
         };
       }
 
-      // Regular positions with hours
+      // Regular positions with hours — append per-customer template
       const posHourlyRate = pos.hourlyRate || hourlyRate;
       return {
         objectName: 'InvoicePos',
@@ -515,7 +554,7 @@ export async function createInvoice(
         quantity: Math.round(pos.hours * 100) / 100,
         price: posHourlyRate,
         name: pos.title,
-        text: pos.description || null,
+        text: buildPositionText(pos.description, customData.positionTemplate, templateCtx, pos.title) || null,
         unity: {
           id: 9, // Stunden for regular positions
           objectName: 'Unity',
@@ -543,6 +582,7 @@ export async function createInvoice(
         quantity: Math.round(hours * 100) / 100,
         price: hourlyRate,
         name: name,
+        text: buildPositionText(null, customData?.positionTemplate, templateCtx, entry.projectName) || null,
         unity: {
           id: 9, // Hours in sevDesk
           objectName: 'Unity',
@@ -558,11 +598,21 @@ export async function createInvoice(
   const invoiceHeadText = customData?.headText || `Abrechnung für den Zeitraum ${periodLabel}`;
   const invoiceFootText = customData?.footText || 'Vielen Dank für Ihr Vertrauen.';
 
+  // Validate sevdesk_customer_id is a non-empty numeric string. parseInt is
+  // forgiving (returns NaN silently), and sevDesk accepts invoices without a
+  // valid contact-link instead of rejecting them — symptom is a draft invoice
+  // with an empty "Kunde"-field that needs manual selection.
+  const trimmedSevdeskId = String(sevdeskCustomerId ?? '').trim();
+  const sevdeskContactIdNumeric = parseInt(trimmedSevdeskId, 10);
+  if (!trimmedSevdeskId || !Number.isFinite(sevdeskContactIdNumeric) || String(sevdeskContactIdNumeric) !== trimmedSevdeskId) {
+    throw new Error(`sevdeskCustomerId ist nicht gültig: "${sevdeskCustomerId}". Bitte den Kunden erneut mit sevdesk verknüpfen.`);
+  }
+
   // Fetch required data: SevUser (for contactPerson), contact with address
   const [userResponse, contactResponse, addressResponse] = await Promise.all([
     sevdeskFetch(apiToken, '/SevUser'),
-    sevdeskFetch(apiToken, `/Contact/${sevdeskCustomerId}`),
-    sevdeskFetch(apiToken, `/ContactAddress?contact[id]=${sevdeskCustomerId}&contact[objectName]=Contact`),
+    sevdeskFetch(apiToken, `/Contact/${trimmedSevdeskId}`),
+    sevdeskFetch(apiToken, `/ContactAddress?contact[id]=${trimmedSevdeskId}&contact[objectName]=Contact`),
   ]);
 
   const sevUser = userResponse.objects?.[0];
@@ -570,9 +620,22 @@ export async function createInvoice(
     throw new Error('Could not get sevDesk user for contactPerson');
   }
 
-  const contact = contactResponse.objects;
+  // sevdesk returns /Contact/{id} as either { objects: contact } or
+  // { objects: [contact] } depending on endpoint/version. Handle both.
+  const rawContact = contactResponse.objects;
+  const contact = Array.isArray(rawContact) ? rawContact[0] : rawContact;
   const addresses = addressResponse.objects || [];
   const mainAddress = addresses[0] || {};
+
+  logger.info('[sevDesk] Contact resolved', {
+    sevdeskCustomerId: trimmedSevdeskId,
+    contactIsArray: Array.isArray(rawContact),
+    contactKeys: contact ? Object.keys(contact) : [],
+    contactName: contact?.name,
+    contactSurename: contact?.surename,
+    contactFamilyname: contact?.familyname,
+    addressCount: addresses.length,
+  });
 
   // Build address fields
   const addressName = contact?.name || `${contact?.surename || ''} ${contact?.familyname || ''}`.trim() || '';
@@ -599,7 +662,7 @@ export async function createInvoice(
     invoice: {
       objectName: 'Invoice',
       contact: {
-        id: parseInt(sevdeskCustomerId),
+        id: sevdeskContactIdNumeric,
         objectName: 'Contact',
       },
       invoiceDate: invoiceDateTimestamp,
@@ -661,7 +724,13 @@ export async function createInvoice(
   // Convert to form-urlencoded format (like quote creation)
   const formBody = objectToFormData(invoiceData);
 
-  logger.info('[sevDesk] Creating invoice with form-urlencoded data');
+  logger.info('[sevDesk] Creating invoice — contact link:', {
+    contactId: sevdeskContactIdNumeric,
+    addressName,
+    addressStreet,
+    addressZip,
+    addressCity,
+  });
   logger.info('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
 
   // Create invoice with retry mechanism

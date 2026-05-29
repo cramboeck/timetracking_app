@@ -222,9 +222,17 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
     }
     console.log('[create-invoice] Config loaded, API token exists:', !!config.apiToken);
 
-    // Get customer info
+    // Get customer info + the linked default contract (for {contractNumber}/
+    // {contractTitle} substitution in the per-customer position template).
     const customerResult = await query(
-      'SELECT id, name, hourly_rate, sevdesk_customer_id, time_rounding_interval FROM customers WHERE id = $1 AND user_id = $2',
+      `SELECT
+         c.id, c.name, c.hourly_rate, c.sevdesk_customer_id, c.time_rounding_interval,
+         c.sevdesk_position_template, c.default_contract_id,
+         ct.contract_number AS default_contract_number,
+         ct.name AS default_contract_title
+       FROM customers c
+       LEFT JOIN contracts ct ON ct.id = c.default_contract_id
+       WHERE c.id = $1 AND c.user_id = $2`,
       [customerId, userId]
     );
 
@@ -240,7 +248,9 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       console.log('[create-invoice] Customer not linked to sevDesk');
       return res.status(400).json({
         success: false,
-        error: 'Customer is not linked to a sevDesk contact',
+        error: 'Kunde ist nicht mit einem sevdesk-Kontakt verknüpft.',
+        code: 'CUSTOMER_NOT_LINKED',
+        customerId,
       });
     }
 
@@ -278,6 +288,22 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       console.log('[create-invoice] Calculated from entries - Total hours:', totalHours, 'amount:', totalAmount);
     }
 
+    // Build the template-context for per-position placeholder substitution.
+    // Frontend additionally passes reportFilename in the payload (if a
+    // service-report PDF was prepared) — picked up below.
+    const { reportFilename } = req.body;
+    const periodEndDate = new Date(periodEnd);
+    const monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    const templateContext = {
+      contractNumber: customer.default_contract_number ?? undefined,
+      contractTitle: customer.default_contract_title ?? undefined,
+      customerName: customer.name,
+      periodMonth: String(periodEndDate.getMonth() + 1).padStart(2, '0'),
+      periodYear: String(periodEndDate.getFullYear()),
+      periodLabel: `${monthNames[periodEndDate.getMonth()]} ${periodEndDate.getFullYear()}`,
+      reportFilename: reportFilename || undefined,
+    };
+
     // Create invoice in sevDesk with custom texts and positions
     console.log('[create-invoice] Calling sevdeskService.createInvoice...');
     const invoice = await sevdeskService.createInvoice(
@@ -293,6 +319,8 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
         headText,
         footText,
         positions,
+        positionTemplate: customer.sevdesk_position_template ?? undefined,
+        templateContext,
       }
     );
     console.log('[create-invoice] Invoice created:', invoice.invoiceId, invoice.invoiceNumber);
