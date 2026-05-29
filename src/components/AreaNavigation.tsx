@@ -25,7 +25,7 @@ export type SubView =
   // CRM
   | 'crm-dashboard' | 'customers' | 'leads' | 'pipeline' | 'contracts'
   // Finanzen
-  | 'invoices' | 'billing' | 'reports'
+  | 'invoices' | 'billing' | 'reports' | 'documents-search'
   // Settings & Admin (special)
   | 'settings' | 'admin' | 'social-media';
 
@@ -82,6 +82,7 @@ const areaConfig = {
       { view: 'invoices' as SubView, icon: FileInput, label: 'Rechnungen' },
       { view: 'billing' as SubView, icon: Wallet, label: 'Abrechnung' },
       { view: 'reports' as SubView, icon: FileText, label: 'Berichte' },
+      { view: 'documents-search' as SubView, icon: Search, label: 'Suche' },
     ],
   },
 };
@@ -215,7 +216,7 @@ export const getAreaFromSubView = (subView: SubView): Area => {
   if (['stopwatch', 'list', 'calendar', 'manual', 'tasks', 'grid', 'zeiten'].includes(subView)) return 'arbeiten';
   if (['tickets', 'devices', 'alerts', 'maintenance', 'inbox'].includes(subView)) return 'support';
   if (['crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts'].includes(subView)) return 'crm';
-  if (['invoices', 'billing', 'reports'].includes(subView)) return 'finanzen';
+  if (['invoices', 'billing', 'reports', 'documents-search'].includes(subView)) return 'finanzen';
   return 'dashboard'; // Default to dashboard
 };
 
@@ -243,7 +244,7 @@ const ALL_SUBVIEWS: SubView[] = [
   'stopwatch', 'list', 'calendar', 'manual', 'tasks', 'grid', 'zeiten',
   'tickets', 'devices', 'alerts', 'maintenance', 'inbox',
   'crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts',
-  'invoices', 'billing', 'reports',
+  'invoices', 'billing', 'reports', 'documents-search',
   'settings', 'admin', 'social-media',
 ];
 

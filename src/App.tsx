@@ -19,6 +19,7 @@ import SalesPipeline from './components/SalesPipeline';
 import Leads from './components/Leads';
 import { CRMDashboard } from './components/CRMDashboard';
 import { InvoiceInbox } from './components/InvoiceInbox';
+import { DocumentsSearch } from './components/DocumentsSearch';
 import { SupportInbox } from './components/SupportInbox';
 import { SocialMediaProvider } from './features/social-media/context';
 import SocialMediaLayout from './features/social-media/SocialMediaLayout';
@@ -1089,6 +1090,9 @@ function App() {
         )}
         {currentSubView === 'invoices' && (
           <InvoiceInbox />
+        )}
+        {currentSubView === 'documents-search' && (
+          <DocumentsSearch />
         )}
         {currentSubView === 'billing' && (
           <Finanzen onBack={() => navigateToSubView('overview')} />
