@@ -1336,6 +1336,29 @@ export async function getVoucherDetail(
   };
 }
 
+// Download original voucher PDF/image from sevDesk. Voucher hat ein
+// embedded document-Objekt (via embed=document), darin liegt die ID. Wir
+// nutzen den /Document/{id}/file-Endpoint, der das Roh-File als Binary
+// ausliefert (nicht JSON). Returns null wenn kein document vorhanden ist
+// (kann bei manuell angelegten Vouchers ohne Datei passieren).
+export async function downloadVoucherFile(
+  apiToken: string,
+  voucherDocumentId: string,
+): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const url = `${SEVDESK_API_URL}/Document/${voucherDocumentId}/file`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'Authorization': apiToken },
+  });
+  if (!response.ok) {
+    if (response.status === 404) return null;
+    throw new Error(`sevDesk Document download failed: ${response.status} ${response.statusText}`);
+  }
+  const mimeType = response.headers.get('content-type') || 'application/pdf';
+  const arrayBuffer = await response.arrayBuffer();
+  return { buffer: Buffer.from(arrayBuffer), mimeType };
+}
+
 // Upload voucher file to sevDesk
 export async function uploadVoucherFile(
   apiToken: string,

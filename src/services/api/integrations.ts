@@ -1197,6 +1197,10 @@ export const microsoft365Api = {
     attachment_count: number;
     document_ids: string[];
     processed_at: string | null;
+    source: 'email' | 'manual' | 'sevdesk_import' | null;
+    supplier_name: string | null;
+    invoice_number: string | null;
+    sevdesk_voucher_number: string | null;
     rank: number;
   }> }> => {
     const params = new URLSearchParams({ q: query });
@@ -1240,6 +1244,16 @@ export const microsoft365Api = {
     const fd = new FormData();
     fd.append('file', file);
     return authFetchMultipart('/microsoft365/invoices/upload', fd);
+  },
+
+  // Triggert den sevDesk-Voucher-Sync manuell. Laeuft sonst per Cron alle
+  // 30 Minuten. Admin-only.
+  syncSevdeskVouchers: async (): Promise<{
+    success: boolean;
+    data?: { created: number; updated: number; skipped: number; errors: number };
+    error?: string;
+  }> => {
+    return authFetch('/microsoft365/invoices/sync-sevdesk-vouchers', { method: 'POST' });
   },
 
   approveInvoiceDraft: async (invoiceId: string, extractedData?: ExtractedInvoiceData): Promise<{ success: boolean; error?: string }> => {

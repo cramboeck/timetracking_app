@@ -8,6 +8,7 @@ import {
   DocumentSearchResult,
 } from '../services/api';
 import { Button } from './ui/Button';
+import { SourceBadge } from './ui/SourceBadge';
 
 type TypeFilter = 'all' | 'invoice' | 'quote' | 'voucher';
 
@@ -23,6 +24,10 @@ interface VendorSearchResult {
   attachment_count: number;
   document_ids: string[];
   processed_at: string | null;
+  source: 'email' | 'manual' | 'sevdesk_import' | null;
+  supplier_name: string | null;
+  invoice_number: string | null;
+  sevdesk_voucher_number: string | null;
   rank: number;
 }
 
@@ -332,34 +337,42 @@ const SevdeskCard = ({ doc }: { doc: DocumentSearchResult }) => (
   </li>
 );
 
-const VendorCard = ({ doc }: { doc: VendorSearchResult }) => (
-  <li className="flex items-start gap-3 p-3 sm:p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow">
-    <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg flex-shrink-0 hidden sm:block">
-      <FileText size={20} className="text-gray-500 dark:text-dark-400" />
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base truncate">
-          {doc.email_subject || '(Kein Betreff)'}
-        </span>
-        <span className={`px-2 py-0.5 text-xs rounded-full ${vendorStatusColor(doc.status)}`}>
-          {doc.status}
-        </span>
+const VendorCard = ({ doc }: { doc: VendorSearchResult }) => {
+  const title = doc.invoice_number
+    || doc.sevdesk_voucher_number
+    || doc.email_subject
+    || '(Kein Betreff)';
+  const supplier = doc.supplier_name || doc.sender_name || doc.sender_email || 'Unbekannter Absender';
+  return (
+    <li className="flex items-start gap-3 p-3 sm:p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow">
+      <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg flex-shrink-0 hidden sm:block">
+        <FileText size={20} className="text-gray-500 dark:text-dark-400" />
       </div>
-      <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 truncate mt-0.5">
-        {doc.sender_name || doc.sender_email || 'Unbekannter Absender'}
-        {doc.vendor_name && ` · ${doc.vendor_name}`}
-      </p>
-    </div>
-    <div className="text-right flex-shrink-0">
-      <p className="text-xs text-gray-500 dark:text-dark-400">
-        {formatDate(doc.received_at)}
-      </p>
-      {doc.attachment_count > 0 && (
-        <p className="text-[10px] text-gray-400 dark:text-dark-400 mt-0.5">
-          {doc.attachment_count} Anhang{doc.attachment_count > 1 ? 'e' : ''}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base truncate">
+            {title}
+          </span>
+          <SourceBadge source={doc.source} />
+          <span className={`px-2 py-0.5 text-xs rounded-full ${vendorStatusColor(doc.status)}`}>
+            {doc.status}
+          </span>
+        </div>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 truncate mt-0.5">
+          {supplier}
+          {doc.vendor_name && ` · ${doc.vendor_name}`}
         </p>
-      )}
-    </div>
-  </li>
-);
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className="text-xs text-gray-500 dark:text-dark-400">
+          {formatDate(doc.received_at)}
+        </p>
+        {doc.attachment_count > 0 && (
+          <p className="text-[10px] text-gray-400 dark:text-dark-400 mt-0.5">
+            {doc.attachment_count} Anhang{doc.attachment_count > 1 ? 'e' : ''}
+          </p>
+        )}
+      </div>
+    </li>
+  );
+};

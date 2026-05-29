@@ -13,7 +13,7 @@ import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { mailboxMonitorService, EmailMessage, EmailAttachment } from './mailboxMonitorService';
 import { getConfig } from './microsoft365ConfigService';
-import { uploadVoucherFile, createVoucherFromFile } from './sevdeskService';
+import { uploadVoucherFile, createVoucherFromFile, getVouchers, downloadVoucherFile, SevdeskVoucherDetail } from './sevdeskService';
 import * as fs from 'fs';
 import * as path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -2263,6 +2263,174 @@ SPEZIELLE RECHNUNGSTYPEN:
   }
 
   /**
+   * sevDesk-Vouchers in processed_invoices spiegeln. Holt alle Debit-
+   * Vouchers (Eingangsrechnungen) der Org via sevDesk-API, ueberspringt
+   * solche die schon ueber sevdesk_voucher_id verlinkt sind, und legt fuer
+   * die unbekannten neue Rows mit source='sevdesk_import' an. Das PDF wird
+   * sofort runtergeladen und in den org-Storage geschrieben, damit die UI
+   * dieselbe Card-Logik (View/Download) nutzen kann wie fuer Inbox-Belege.
+   *
+   * Idempotent: existierende Rows werden bei Bedarf mit den neuesten
+   * Status-/Beleg-Daten aktualisiert (Status kann sich in sevDesk aendern
+   * z. B. von open zu paid).
+   */
+  async syncSevdeskVouchers(organizationId: string): Promise<{ created: number; updated: number; skipped: number; errors: number }> {
+    const stats = { created: 0, updated: 0, skipped: 0, errors: 0 };
+
+    // sevdesk_config ist per-user (legacy), nicht per-org. Hole ein Token
+    // eines beliebigen Users der Org; in der Praxis hat pro Org meist nur
+    // ein Admin sevDesk konfiguriert.
+    const tokenResult = await query(
+      `SELECT sc.api_token FROM sevdesk_config sc
+       JOIN users u ON sc.user_id = u.id
+       WHERE u.organization_id = $1 AND sc.api_token IS NOT NULL AND sc.api_token <> ''
+       LIMIT 1`,
+      [organizationId]
+    );
+    if (tokenResult.rows.length === 0) {
+      logger.info(`Org ${organizationId}: kein sevDesk-Token, sync skipped`);
+      return stats;
+    }
+    const apiToken = tokenResult.rows[0].api_token;
+
+    let vouchers: SevdeskVoucherDetail[];
+    try {
+      vouchers = await getVouchers(apiToken, { creditDebit: 'D', limit: 500 });
+    } catch (err: any) {
+      logger.error(`Org ${organizationId}: getVouchers failed: ${err.message}`);
+      stats.errors++;
+      return stats;
+    }
+
+    for (const v of vouchers) {
+      if (!v.id) { stats.skipped++; continue; }
+      try {
+        // Schon verlinkt? Dann nur Metadaten-Update.
+        const existing = await query(
+          `SELECT id FROM processed_invoices WHERE organization_id = $1 AND sevdesk_voucher_id = $2 LIMIT 1`,
+          [organizationId, v.id]
+        );
+        if (existing.rows.length > 0) {
+          await query(
+            `UPDATE processed_invoices SET
+               sevdesk_voucher_number = $1,
+               supplier_name = COALESCE($2, supplier_name),
+               invoice_number = COALESCE($3, invoice_number),
+               invoice_date = COALESCE($4, invoice_date),
+               net_amount = COALESCE($5, net_amount),
+               gross_amount = COALESCE($6, gross_amount),
+               vat_amount = COALESCE($7, vat_amount),
+               currency = COALESCE($8, currency),
+               status = CASE WHEN status NOT IN ('processed', 'imported') THEN 'processed' ELSE status END
+             WHERE id = $9`,
+            [
+              v.voucherNumber,
+              v.supplier?.name ?? null,
+              v.voucherNumber,
+              v.voucherDate,
+              v.sumNet,
+              v.sumGross,
+              v.sumTax,
+              v.currency,
+              existing.rows[0].id,
+            ]
+          );
+          stats.updated++;
+          continue;
+        }
+
+        // Neuer Voucher - PDF runterladen falls vorhanden.
+        let storedDoc: { path: string; filename: string; mimeType: string; size: number } | null = null;
+        if (v.document?.id) {
+          try {
+            const dl = await downloadVoucherFile(apiToken, v.document.id);
+            if (dl) {
+              const uploadDir = await this.ensureUploadDir(organizationId);
+              const ext = path.extname(v.document.filename || '') || (dl.mimeType.includes('pdf') ? '.pdf' : '');
+              const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+              const filename = `${timestamp}_sevdesk-${v.id}${ext}`;
+              const filePath = path.join(uploadDir, filename);
+              await fs.promises.writeFile(filePath, dl.buffer);
+              storedDoc = {
+                path: filePath,
+                filename,
+                mimeType: dl.mimeType,
+                size: dl.buffer.length,
+              };
+            }
+          } catch (err: any) {
+            logger.error(`Voucher ${v.id}: PDF-Download fehlgeschlagen: ${err.message}`);
+            // Weiter ohne PDF - der Datensatz wird trotzdem angelegt.
+          }
+        }
+
+        const processedInvoiceId = uuidv4();
+        const documentId = storedDoc ? uuidv4() : null;
+        const documentIds = documentId ? [documentId] : [];
+
+        await query(
+          `INSERT INTO processed_invoices (
+            id, organization_id, email_id, email_subject, sender_email, sender_name,
+            received_at, attachment_count, document_ids, status, source,
+            sevdesk_voucher_id, sevdesk_voucher_number, original_filename,
+            supplier_name, invoice_number, invoice_date,
+            net_amount, gross_amount, vat_amount, currency,
+            processed_at
+          ) VALUES ($1, $2, NULL, $3, NULL, $4, $5, $6, $7, 'imported', 'sevdesk_import',
+                    $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+          ON CONFLICT (organization_id, sevdesk_voucher_id) WHERE sevdesk_voucher_id IS NOT NULL DO NOTHING`,
+          [
+            processedInvoiceId,
+            organizationId,
+            v.description || v.voucherNumber || 'sevDesk-Beleg',
+            v.supplier?.name || null,
+            v.voucherDate || new Date().toISOString(),
+            documentIds.length,
+            JSON.stringify(documentIds),
+            v.id,
+            v.voucherNumber,
+            v.document?.filename || null,
+            v.supplier?.name || null,
+            v.voucherNumber || null,
+            v.voucherDate || null,
+            v.sumNet,
+            v.sumGross,
+            v.sumTax,
+            v.currency || 'EUR',
+          ]
+        );
+
+        if (storedDoc && documentId) {
+          await query(
+            `INSERT INTO invoice_documents (
+              id, organization_id, processed_invoice_id, filename, original_filename,
+              mime_type, size, storage_path, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+            [
+              documentId,
+              organizationId,
+              processedInvoiceId,
+              storedDoc.filename,
+              v.document?.filename || storedDoc.filename,
+              storedDoc.mimeType,
+              storedDoc.size,
+              storedDoc.path,
+            ]
+          );
+        }
+
+        stats.created++;
+      } catch (err: any) {
+        logger.error(`Voucher ${v.id} sync fehlgeschlagen: ${err.message}`);
+        stats.errors++;
+      }
+    }
+
+    logger.info(`sevDesk-Voucher-Sync fuer Org ${organizationId}: created=${stats.created} updated=${stats.updated} skipped=${stats.skipped} errors=${stats.errors}`);
+    return stats;
+  }
+
+  /**
    * Manual-Upload: PDF/Image-Buffer landet als processed_invoice mit
    * source='manual', invoice_documents-Row und sofortigem Extractor-Lauf.
    * Schliesst die Pipeline-Luecke fuer Belege, die nicht per Mail kommen.
@@ -2349,7 +2517,8 @@ SPEZIELLE RECHNUNGSTYPEN:
       SELECT
         pi.id, pi.email_subject, pi.sender_email, pi.sender_name,
         pi.received_at, pi.status, pi.vendor_id, pi.attachment_count,
-        pi.document_ids, pi.processed_at,
+        pi.document_ids, pi.processed_at, pi.source, pi.supplier_name,
+        pi.invoice_number, pi.sevdesk_voucher_number,
         c.name AS vendor_name,
         ts_rank(pi.search_vector, to_tsquery('german', $2)) AS rank
       FROM processed_invoices pi

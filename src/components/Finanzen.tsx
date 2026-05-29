@@ -32,7 +32,44 @@ import {
 } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
 import { toLocalDateString } from '../utils/time';
-import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, DocumentSearchResult } from '../services/api';
+import { sevdeskApi, microsoft365Api, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, DocumentSearchResult, ProcessedInvoice } from '../services/api';
+import { SourceBadge, ReceiptSource } from './ui/SourceBadge';
+
+// Erweitert SevdeskVoucher um die Quelle, damit der Belege-Tab auch fuer
+// E-Mail-/Manual-Belege Source-Badges zeigen kann. Wird beim Mapping von
+// ProcessedInvoice -> SevdeskVoucher-Shape angehaengt.
+type VoucherWithSource = SevdeskVoucher & { source?: ReceiptSource };
+
+const mapProcessedInvoiceToVoucher = (pi: ProcessedInvoice): VoucherWithSource => {
+  const supplier = pi.supplierName
+    ? { id: '', name: pi.supplierName }
+    : pi.senderName
+    ? { id: '', name: pi.senderName }
+    : null;
+  const taxRate = pi.netAmount && pi.vatAmount && pi.netAmount !== 0
+    ? Math.round((pi.vatAmount / pi.netAmount) * 100)
+    : 19;
+  const status = pi.status === 'processed' || pi.status === 'imported' ? 1000 : 100;
+  return {
+    id: pi.sevdeskVoucherId || pi.id,
+    voucherNumber: pi.sevdeskVoucherNumber || pi.invoiceNumber || pi.originalFilename || '—',
+    voucherDate: pi.invoiceDate || pi.receivedAt,
+    description: pi.emailSubject || pi.originalFilename || '',
+    status,
+    statusName: status === 1000 ? 'Verbucht' : 'Entwurf',
+    voucherType: 'VOU',
+    creditDebit: 'D',
+    supplier,
+    sumNet: pi.netAmount ?? 0,
+    sumGross: pi.grossAmount ?? 0,
+    sumTax: pi.vatAmount ?? 0,
+    taxRate,
+    currency: pi.currency || 'EUR',
+    paidAt: null,
+    document: null,
+    source: pi.source,
+  };
+};
 import { QuoteEditor } from './QuoteEditor';
 import { SevdeskSettings } from './SevdeskSettings';
 import { InvoiceCreationDialog } from './InvoiceCreationDialog';
@@ -1113,7 +1150,7 @@ const DocumentsTab = () => {
   const [error, setError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<SevdeskInvoice[]>([]);
   const [quotes, setQuotes] = useState<SevdeskQuote[]>([]);
-  const [vouchers, setVouchers] = useState<SevdeskVoucher[]>([]);
+  const [vouchers, setVouchers] = useState<VoucherWithSource[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDocument, setSelectedDocument] = useState<{ type: DocumentType; doc: SevdeskInvoice | SevdeskQuote | SevdeskVoucher } | null>(null);
 
@@ -1144,15 +1181,23 @@ const DocumentsTab = () => {
       setLoading(true);
       setError(null);
 
-      const [invoicesRes, quotesRes, vouchersRes] = await Promise.all([
+      const [invoicesRes, quotesRes, voucherInvoicesRes] = await Promise.all([
         sevdeskApi.getInvoices({ limit: 500 }),
         sevdeskApi.getQuotes({ limit: 500 }),
-        sevdeskApi.getVouchers({ limit: 500 }),
+        // Belege kommen jetzt aus processed_invoices (SSOT). Drei Quellen:
+        // E-Mail-Inbox, Manual-Upload und sevDesk-Sync. Das Mapping
+        // konvertiert auf das alte SevdeskVoucher-Shape, damit die
+        // bestehende UI ohne Aenderungen weiterlaeuft.
+        microsoft365Api.getProcessedInvoices({
+          status: 'processed,imported,draft',
+          source: 'email,manual,sevdesk_import',
+          limit: 500,
+        }),
       ]);
 
       setInvoices(invoicesRes.data || []);
       setQuotes(quotesRes.data || []);
-      setVouchers(vouchersRes.data || []);
+      setVouchers((voucherInvoicesRes.data || []).map(mapProcessedInvoiceToVoucher));
     } catch (err: any) {
       setError(err.message || 'Fehler beim Laden der Dokumente');
     } finally {
@@ -1682,6 +1727,7 @@ const DocumentsTab = () => {
                       <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                         {voucher.voucherNumber || voucher.description || `Beleg #${voucher.id}`}
                       </span>
+                      <SourceBadge source={voucher.source} />
                       <span className={`px-2 py-0.5 text-xs rounded-full ${getVoucherStatusColor(voucher.status)}`}>
                         {voucher.statusName}
                       </span>
