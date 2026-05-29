@@ -78,17 +78,29 @@ export interface ExtractedInvoiceData {
 export interface ProcessedInvoice {
   id: string;
   organizationId: string;
-  emailId: string;
-  emailSubject: string;
-  senderEmail: string;
-  senderName: string;
+  emailId: string | null;
+  emailSubject: string | null;
+  senderEmail: string | null;
+  senderName: string | null;
   receivedAt: string;
   attachmentCount: number;
   documentIds: string[];
   vendorId: string | null;
-  status: 'pending' | 'draft' | 'processed' | 'failed' | 'skipped';
+  status: 'pending' | 'draft' | 'processed' | 'failed' | 'skipped' | 'imported';
   errorMessage: string | null;
-  processedAt: string;
+  processedAt: string | null;
+  // SSOT-Felder ab Phase 1
+  source: 'email' | 'manual' | 'sevdesk_import';
+  originalFilename: string | null;
+  sevdeskVoucherId: string | null;
+  sevdeskVoucherNumber: string | null;
+  invoiceNumber: string | null;
+  supplierName: string | null;
+  invoiceDate: string | null;
+  netAmount: number | null;
+  grossAmount: number | null;
+  vatAmount: number | null;
+  currency: string | null;
 }
 
 export interface InvoiceDocument {
@@ -633,12 +645,15 @@ class InvoiceProcessorService {
   ): Promise<string> {
     const id = uuidv4();
 
+    // ON CONFLICT muss die WHERE-Klausel des partiellen Index spiegeln, der
+    // den alten UNIQUE-Constraint nach der SSOT-Migration ersetzt hat -
+    // sonst kann PostgreSQL den Conflict-Target nicht inferieren.
     await query(
       `INSERT INTO processed_invoices (
         id, organization_id, email_id, email_subject, sender_email, sender_name,
-        received_at, attachment_count, document_ids, vendor_id, status, error_message, processed_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
-      ON CONFLICT (organization_id, email_id) DO UPDATE SET
+        received_at, attachment_count, document_ids, vendor_id, status, error_message, processed_at, source
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'email')
+      ON CONFLICT (organization_id, email_id) WHERE email_id IS NOT NULL DO UPDATE SET
         status = $11,
         error_message = $12,
         document_ids = $9,
@@ -752,18 +767,25 @@ class InvoiceProcessorService {
     organizationId: string,
     options: {
       status?: string;
+      source?: string;  // 'email,manual,sevdesk_import' comma-separiert moeglich
       limit?: number;
       offset?: number;
     } = {}
   ): Promise<{ invoices: ProcessedInvoice[]; total: number }> {
-    const { status, limit = 50, offset = 0 } = options;
+    const { status, source, limit = 50, offset = 0 } = options;
 
     let whereClause = 'WHERE organization_id = $1';
     const params: any[] = [organizationId];
 
     if (status) {
-      params.push(status);
-      whereClause += ` AND status = $${params.length}`;
+      const statuses = status.split(',').map(s => s.trim()).filter(Boolean);
+      params.push(statuses);
+      whereClause += ` AND status = ANY($${params.length})`;
+    }
+    if (source) {
+      const sources = source.split(',').map(s => s.trim()).filter(Boolean);
+      params.push(sources);
+      whereClause += ` AND source = ANY($${params.length})`;
     }
 
     // Get total count
@@ -796,6 +818,17 @@ class InvoiceProcessorService {
       status: row.status,
       errorMessage: row.error_message,
       processedAt: row.processed_at,
+      source: row.source || 'email',
+      originalFilename: row.original_filename,
+      sevdeskVoucherId: row.sevdesk_voucher_id,
+      sevdeskVoucherNumber: row.sevdesk_voucher_number,
+      invoiceNumber: row.invoice_number,
+      supplierName: row.supplier_name,
+      invoiceDate: row.invoice_date,
+      netAmount: row.net_amount !== null ? Number(row.net_amount) : null,
+      grossAmount: row.gross_amount !== null ? Number(row.gross_amount) : null,
+      vatAmount: row.vat_amount !== null ? Number(row.vat_amount) : null,
+      currency: row.currency,
     }));
 
     return { invoices, total };
@@ -2227,6 +2260,66 @@ SPEZIELLE RECHNUNGSTYPEN:
 
     const processResult = await this.processEmail(organizationId, email);
     return processResult.status === 'draft';
+  }
+
+  /**
+   * Manual-Upload: PDF/Image-Buffer landet als processed_invoice mit
+   * source='manual', invoice_documents-Row und sofortigem Extractor-Lauf.
+   * Schliesst die Pipeline-Luecke fuer Belege, die nicht per Mail kommen.
+   * Returns the new processedInvoiceId + extracted data so the frontend can
+   * jump straight into the confirmation modal.
+   */
+  async createManualReceipt(
+    organizationId: string,
+    fileBuffer: Buffer,
+    originalFilename: string,
+    mimeType: string,
+  ): Promise<{ processedInvoiceId: string; extracted: ExtractedInvoiceData | null }> {
+    const uploadDir = await this.ensureUploadDir(organizationId);
+    const ext = path.extname(originalFilename) || '.pdf';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `${timestamp}_${uuidv4().substring(0, 8)}${ext}`;
+    const filePath = path.join(uploadDir, filename);
+    await fs.promises.writeFile(filePath, fileBuffer);
+
+    const processedInvoiceId = uuidv4();
+    const documentId = uuidv4();
+
+    await query(
+      `INSERT INTO processed_invoices (
+        id, organization_id, email_id, email_subject, sender_email, sender_name,
+        received_at, attachment_count, document_ids, status, source, original_filename, processed_at
+      ) VALUES ($1, $2, NULL, $3, NULL, NULL, NOW(), 1, $4, 'draft', 'manual', $5, NOW())`,
+      [
+        processedInvoiceId,
+        organizationId,
+        originalFilename,
+        JSON.stringify([documentId]),
+        originalFilename,
+      ]
+    );
+
+    await query(
+      `INSERT INTO invoice_documents (
+        id, organization_id, processed_invoice_id, filename, original_filename,
+        mime_type, size, storage_path, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+      [
+        documentId,
+        organizationId,
+        processedInvoiceId,
+        filename,
+        originalFilename,
+        mimeType,
+        fileBuffer.length,
+        filePath,
+      ]
+    );
+
+    // Sofort extrahieren - der User bekommt direkt das Modal mit vor-
+    // ausgefuellten Feldern. force=true, weil es eh frisch ist.
+    const extracted = await this.extractInvoiceData(organizationId, processedInvoiceId, { force: true });
+    return { processedInvoiceId, extracted };
   }
 
   /**

@@ -9,6 +9,21 @@ import { mailboxMonitorService } from '../services/mailboxMonitorService';
 import { invoiceProcessorService } from '../services/invoiceProcessorService';
 import { query } from '../config/database';
 import { logger } from '../utils/logger';
+import multer from 'multer';
+
+// In-memory multer fuer Manual-Receipt-Upload. Wir schreiben die Datei
+// selbst in den org-spezifischen Storage (analog zum Email-Pfad), deshalb
+// kein diskStorage. 15 MB Limit weil Scans groesser sein koennen als die
+// 10 MB der Tickets-Anhaenge.
+const receiptUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error(`Dateityp ${file.mimetype} ist fuer Belege nicht erlaubt (nur PDF/JPG/PNG/WebP)`));
+  },
+});
 
 interface OrganizationRequest extends AuthRequest {
   organization: {
@@ -1011,11 +1026,13 @@ router.get('/invoices', requireOrgRole('member'), async (req: AuthRequest, res: 
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const status = req.query.status as string | undefined;
+    const source = req.query.source as string | undefined;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
 
     const result = await invoiceProcessorService.getProcessedInvoices(organizationId, {
       status,
+      source,
       limit,
       offset,
     });
@@ -1227,6 +1244,40 @@ router.delete('/invoices/all', requireOrgRole('admin'), async (req: AuthRequest,
       success: false,
       error: error.message || 'Failed to clear all entries',
     });
+  }
+});
+
+// POST /api/microsoft365/invoices/upload - Manual-Upload: PDF direkt
+// hochladen, wird als Beleg mit source='manual' angelegt und sofort
+// extrahiert. Antwort enthaelt die fertig extrahierten Daten, sodass das
+// Frontend direkt das Bestaetigungs-Modal oeffnen kann.
+router.post('/invoices/upload', requireOrgRole('member'), receiptUpload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const file = (req as any).file as Express.Multer.File | undefined;
+
+    if (!file) {
+      return res.status(400).json({ success: false, error: 'Keine Datei hochgeladen' });
+    }
+
+    const result = await invoiceProcessorService.createManualReceipt(
+      organizationId,
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+    );
+
+    res.json({
+      success: true,
+      data: {
+        processedInvoiceId: result.processedInvoiceId,
+        extracted: result.extracted,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Manual receipt upload error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Upload fehlgeschlagen' });
   }
 });
 

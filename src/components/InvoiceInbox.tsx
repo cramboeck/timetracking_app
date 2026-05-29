@@ -1,11 +1,12 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, useRef } from 'react';
 import {
   FileText, RefreshCw, Loader2, Eye, Download, Check, Trash2,
   ChevronDown, ChevronUp, File, Undo2, CheckCircle, XCircle,
-  Mail, AlertTriangle, X, Edit2, Search
+  Mail, AlertTriangle, X, Edit2, Search, Upload
 } from 'lucide-react';
 import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData } from '../services/api';
 import { Button, IconButton } from './ui/Button';
+import { SourceBadge } from './ui/SourceBadge';
 import { useConfirm } from '../contexts/UIContext';
 
 // Format file size helper
@@ -45,6 +46,12 @@ export const InvoiceInbox = () => {
   const [extractedData, setExtractedData] = useState<ExtractedInvoiceData | null>(null);
   const [extractingData, setExtractingData] = useState(false);
   const [approving, setApproving] = useState(false);
+
+  // Manual-Upload state (Phase 2): hidden file input + uploading flag.
+  // Nach erfolgreichem Upload oeffnet das Bestaetigungs-Modal direkt mit
+  // den extrahierten Daten - gleicher Workflow wie bei E-Mail-Belegen.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   // Full-text search state. searchResults===null means "no active search,
   // show normal list"; an empty array means "active search, no hits".
@@ -255,6 +262,52 @@ export const InvoiceInbox = () => {
     }
   };
 
+  // Manual-Upload-Flow: User klickt "Beleg hochladen" -> hidden file input
+  // wird getriggert -> Datei geht an /microsoft365/invoices/upload, der Server
+  // legt den Beleg an, extrahiert und liefert die Daten zurueck. Wir laden die
+  // Inbox neu UND oeffnen direkt das Bestaetigungs-Modal.
+  const handleUploadReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingReceipt(true);
+    setError('');
+    try {
+      const response = await microsoft365Api.uploadReceipt(file);
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Upload fehlgeschlagen');
+      }
+      await loadProcessedInvoices();
+      // Modal direkt mit den extrahierten Daten oeffnen. Wir bauen ein
+      // minimales ProcessedInvoice-Pseudo-Objekt aus dem upload-Response,
+      // weil der echte Datensatz erst nach loadProcessedInvoices() im State ist.
+      const pseudo: ProcessedInvoice = {
+        id: response.data.processedInvoiceId,
+        emailId: '',
+        emailSubject: file.name,
+        senderEmail: '',
+        senderName: 'Manual Upload',
+        receivedAt: new Date().toISOString(),
+        attachmentCount: 1,
+        documentIds: [],
+        status: 'draft',
+        errorMessage: null,
+        processedAt: null,
+        vendorId: null,
+      };
+      setConfirmingInvoice(pseudo);
+      setExtractedData(response.data.extracted);
+      setShowConfirmModal(true);
+      setSuccess(`Beleg "${file.name}" erfolgreich hochgeladen.`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      console.error('Receipt upload failed:', err);
+      setError(err?.message || 'Beleg-Upload fehlgeschlagen');
+    } finally {
+      setUploadingReceipt(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   // Force-re-extract: ignoriert den persistierten Cache und laesst die PDF-/
   // Vision-Pipeline erneut laufen. Nutzlich wenn der erste OCR-Run schlechte
   // Daten lieferte (z. B. Scan-Qualitaet) und der User die KI nochmal triggern
@@ -451,7 +504,7 @@ export const InvoiceInbox = () => {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button
             variant="primary"
             onClick={() => handleProcessInvoices(false)}
@@ -470,6 +523,22 @@ export const InvoiceInbox = () => {
           >
             Alle erneut
           </Button>
+          <Button
+            variant="secondary"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingReceipt}
+            loading={uploadingReceipt}
+            icon={<Upload size={16} />}
+          >
+            Beleg hochladen
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleUploadReceipt}
+          />
         </div>
       </div>
 
@@ -586,7 +655,7 @@ export const InvoiceInbox = () => {
             <div className="md:hidden divide-y divide-gray-100 dark:divide-dark-300 max-h-[60vh] overflow-y-auto scroll-touch touch-manipulation">
               {processedInvoices.map((invoice) => (
                 <div key={invoice.id} className="p-4 space-y-3">
-                  {/* Header mit Datum und Status */}
+                  {/* Header mit Datum, Quelle und Status */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="text-sm text-gray-500 dark:text-dark-400">
                       {new Date(invoice.receivedAt).toLocaleDateString('de-DE', {
@@ -597,25 +666,28 @@ export const InvoiceInbox = () => {
                         minute: '2-digit',
                       })}
                     </div>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      invoice.status === 'processed'
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                        : invoice.status === 'draft'
-                        ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
-                        : invoice.status === 'failed'
-                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                        : invoice.status === 'skipped'
-                        ? 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-dark-400'
-                        : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                    }`}>
-                      {invoice.status === 'processed' && <CheckCircle size={12} />}
-                      {invoice.status === 'draft' && <FileText size={12} />}
-                      {invoice.status === 'failed' && <XCircle size={12} />}
-                      {invoice.status === 'processed' ? 'Bestätigt' :
-                       invoice.status === 'draft' ? 'Entwurf' :
-                       invoice.status === 'failed' ? 'Fehler' :
-                       invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      <SourceBadge source={invoice.source} />
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        invoice.status === 'processed'
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                          : invoice.status === 'draft'
+                          ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
+                          : invoice.status === 'failed'
+                          ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                          : invoice.status === 'skipped'
+                          ? 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-dark-400'
+                          : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                      }`}>
+                        {invoice.status === 'processed' && <CheckCircle size={12} />}
+                        {invoice.status === 'draft' && <FileText size={12} />}
+                        {invoice.status === 'failed' && <XCircle size={12} />}
+                        {invoice.status === 'processed' ? 'Bestätigt' :
+                         invoice.status === 'draft' ? 'Entwurf' :
+                         invoice.status === 'failed' ? 'Fehler' :
+                         invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Absender */}
@@ -776,16 +848,16 @@ export const InvoiceInbox = () => {
                           })}
                         </td>
                         <td className="py-3 px-4 text-gray-900 dark:text-white">
-                          <div className="truncate max-w-[200px]" title={invoice.senderEmail}>
-                            {invoice.senderName || invoice.senderEmail}
+                          <div className="truncate max-w-[200px]" title={invoice.senderEmail ?? undefined}>
+                            {invoice.senderName || invoice.senderEmail || '—'}
                           </div>
                           {invoice.vendorName && (
                             <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
                           )}
                         </td>
                         <td className="py-3 px-4 text-gray-700 dark:text-dark-500">
-                          <div className="truncate max-w-[250px]" title={invoice.emailSubject}>
-                            {invoice.emailSubject}
+                          <div className="truncate max-w-[250px]" title={invoice.emailSubject ?? undefined}>
+                            {invoice.emailSubject || invoice.originalFilename || '—'}
                           </div>
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -812,25 +884,28 @@ export const InvoiceInbox = () => {
                           )}
                         </td>
                         <td className="py-3 px-4">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                            invoice.status === 'processed'
-                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                              : invoice.status === 'draft'
-                              ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
-                              : invoice.status === 'failed'
-                              ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                              : invoice.status === 'skipped'
-                              ? 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-dark-400'
-                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                          }`}>
-                            {invoice.status === 'processed' && <CheckCircle size={12} />}
-                            {invoice.status === 'draft' && <FileText size={12} />}
-                            {invoice.status === 'failed' && <XCircle size={12} />}
-                            {invoice.status === 'processed' ? 'Bestätigt' :
-                             invoice.status === 'draft' ? 'Entwurf' :
-                             invoice.status === 'failed' ? 'Fehlgeschlagen' :
-                             invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <SourceBadge source={invoice.source} />
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                              invoice.status === 'processed'
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                : invoice.status === 'draft'
+                                ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
+                                : invoice.status === 'failed'
+                                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                                : invoice.status === 'skipped'
+                                ? 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-dark-400'
+                                : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                            }`}>
+                              {invoice.status === 'processed' && <CheckCircle size={12} />}
+                              {invoice.status === 'draft' && <FileText size={12} />}
+                              {invoice.status === 'failed' && <XCircle size={12} />}
+                              {invoice.status === 'processed' ? 'Bestätigt' :
+                               invoice.status === 'draft' ? 'Entwurf' :
+                               invoice.status === 'failed' ? 'Fehlgeschlagen' :
+                               invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
+                            </span>
+                          </div>
                           {invoice.errorMessage && (
                             <div className="text-xs text-red-500 mt-1 truncate max-w-[150px]" title={invoice.errorMessage}>
                               {invoice.errorMessage}
