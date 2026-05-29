@@ -240,7 +240,9 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       console.log('[create-invoice] Customer not linked to sevDesk');
       return res.status(400).json({
         success: false,
-        error: 'Customer is not linked to a sevDesk contact',
+        error: 'Kunde ist nicht mit einem sevdesk-Kontakt verknüpft.',
+        code: 'CUSTOMER_NOT_LINKED',
+        customerId,
       });
     }
 

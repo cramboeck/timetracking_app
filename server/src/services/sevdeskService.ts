@@ -558,11 +558,21 @@ export async function createInvoice(
   const invoiceHeadText = customData?.headText || `Abrechnung für den Zeitraum ${periodLabel}`;
   const invoiceFootText = customData?.footText || 'Vielen Dank für Ihr Vertrauen.';
 
+  // Validate sevdesk_customer_id is a non-empty numeric string. parseInt is
+  // forgiving (returns NaN silently), and sevDesk accepts invoices without a
+  // valid contact-link instead of rejecting them — symptom is a draft invoice
+  // with an empty "Kunde"-field that needs manual selection.
+  const trimmedSevdeskId = String(sevdeskCustomerId ?? '').trim();
+  const sevdeskContactIdNumeric = parseInt(trimmedSevdeskId, 10);
+  if (!trimmedSevdeskId || !Number.isFinite(sevdeskContactIdNumeric) || String(sevdeskContactIdNumeric) !== trimmedSevdeskId) {
+    throw new Error(`sevdeskCustomerId ist nicht gültig: "${sevdeskCustomerId}". Bitte den Kunden erneut mit sevdesk verknüpfen.`);
+  }
+
   // Fetch required data: SevUser (for contactPerson), contact with address
   const [userResponse, contactResponse, addressResponse] = await Promise.all([
     sevdeskFetch(apiToken, '/SevUser'),
-    sevdeskFetch(apiToken, `/Contact/${sevdeskCustomerId}`),
-    sevdeskFetch(apiToken, `/ContactAddress?contact[id]=${sevdeskCustomerId}&contact[objectName]=Contact`),
+    sevdeskFetch(apiToken, `/Contact/${trimmedSevdeskId}`),
+    sevdeskFetch(apiToken, `/ContactAddress?contact[id]=${trimmedSevdeskId}&contact[objectName]=Contact`),
   ]);
 
   const sevUser = userResponse.objects?.[0];
@@ -570,9 +580,22 @@ export async function createInvoice(
     throw new Error('Could not get sevDesk user for contactPerson');
   }
 
-  const contact = contactResponse.objects;
+  // sevdesk returns /Contact/{id} as either { objects: contact } or
+  // { objects: [contact] } depending on endpoint/version. Handle both.
+  const rawContact = contactResponse.objects;
+  const contact = Array.isArray(rawContact) ? rawContact[0] : rawContact;
   const addresses = addressResponse.objects || [];
   const mainAddress = addresses[0] || {};
+
+  logger.info('[sevDesk] Contact resolved', {
+    sevdeskCustomerId: trimmedSevdeskId,
+    contactIsArray: Array.isArray(rawContact),
+    contactKeys: contact ? Object.keys(contact) : [],
+    contactName: contact?.name,
+    contactSurename: contact?.surename,
+    contactFamilyname: contact?.familyname,
+    addressCount: addresses.length,
+  });
 
   // Build address fields
   const addressName = contact?.name || `${contact?.surename || ''} ${contact?.familyname || ''}`.trim() || '';
@@ -599,7 +622,7 @@ export async function createInvoice(
     invoice: {
       objectName: 'Invoice',
       contact: {
-        id: parseInt(sevdeskCustomerId),
+        id: sevdeskContactIdNumeric,
         objectName: 'Contact',
       },
       invoiceDate: invoiceDateTimestamp,
@@ -661,7 +684,13 @@ export async function createInvoice(
   // Convert to form-urlencoded format (like quote creation)
   const formBody = objectToFormData(invoiceData);
 
-  logger.info('[sevDesk] Creating invoice with form-urlencoded data');
+  logger.info('[sevDesk] Creating invoice — contact link:', {
+    contactId: sevdeskContactIdNumeric,
+    addressName,
+    addressStreet,
+    addressZip,
+    addressCity,
+  });
   logger.info('[sevDesk] Form body (first 500 chars):', formBody.substring(0, 500));
 
   // Create invoice with retry mechanism
