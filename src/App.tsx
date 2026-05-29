@@ -6,6 +6,7 @@ import { Stopwatch } from './components/Stopwatch';
 import { ManualEntryModern } from './components/ManualEntryModern';
 import { TimeEntriesList } from './components/TimeEntriesList';
 import { CalendarView } from './components/CalendarView';
+import { WeeklyGridView } from './components/WeeklyGridView';
 import { DashboardOverview } from './components/DashboardOverview';
 import { CustomerHub } from './components/CustomerHub';
 import { Settings } from './components/Settings';
@@ -994,6 +995,17 @@ function App() {
                 console.error('Failed to create entry:', error);
               }
             }}
+          />
+        )}
+        {currentSubView === 'grid' && (
+          <WeeklyGridView
+            entries={entries}
+            projects={projects}
+            customers={customers}
+            activities={activities}
+            onCreateEntry={handleSaveEntry}
+            onEditEntry={handleEditEntry}
+            onDeleteEntry={handleDeleteEntry}
           />
         )}
         {currentSubView === 'tasks' && (

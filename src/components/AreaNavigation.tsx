@@ -1,5 +1,5 @@
 import {
-  Clock, List, Calendar,
+  Clock, List, Calendar, LayoutGrid,
   Ticket, Monitor, Bell, Wrench, Mail,
   BarChart3, Wallet, FileText, FileSignature, FileInput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
@@ -19,7 +19,7 @@ export type SubView =
   // Dashboard (standalone)
   | 'overview'
   // Arbeiten
-  | 'stopwatch' | 'list' | 'calendar' | 'manual' | 'tasks'
+  | 'stopwatch' | 'list' | 'calendar' | 'manual' | 'tasks' | 'grid'
   // Support
   | 'tickets' | 'devices' | 'alerts' | 'maintenance' | 'inbox'
   // CRM
@@ -50,6 +50,7 @@ const areaConfig = {
     subViews: [
       { view: 'stopwatch' as SubView, icon: Clock, label: 'Timer' },
       { view: 'tasks' as SubView, icon: ListTodo, label: 'Aufgaben' },
+      { view: 'grid' as SubView, icon: LayoutGrid, label: 'Wochenraster' },
       { view: 'list' as SubView, icon: List, label: 'Einträge' },
       { view: 'calendar' as SubView, icon: Calendar, label: 'Kalender' },
     ],
@@ -213,7 +214,7 @@ export const AreaNavigation = ({
 // Helper to get area from subView
 export const getAreaFromSubView = (subView: SubView): Area => {
   if (['overview'].includes(subView)) return 'dashboard';
-  if (['stopwatch', 'list', 'calendar', 'manual', 'tasks'].includes(subView)) return 'arbeiten';
+  if (['stopwatch', 'list', 'calendar', 'manual', 'tasks', 'grid'].includes(subView)) return 'arbeiten';
   if (['tickets', 'devices', 'alerts', 'maintenance', 'inbox'].includes(subView)) return 'support';
   if (['crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts'].includes(subView)) return 'crm';
   if (['invoices', 'billing', 'reports'].includes(subView)) return 'finanzen';
@@ -241,7 +242,7 @@ const STANDALONE_SUBVIEWS: SubView[] = ['settings', 'social-media'];
 
 const ALL_SUBVIEWS: SubView[] = [
   'overview',
-  'stopwatch', 'list', 'calendar', 'manual', 'tasks',
+  'stopwatch', 'list', 'calendar', 'manual', 'tasks', 'grid',
   'tickets', 'devices', 'alerts', 'maintenance', 'inbox',
   'crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts',
   'invoices', 'billing', 'reports',

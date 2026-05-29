@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Clock, List, Calendar,
+  Clock, List, Calendar, LayoutGrid,
   Ticket, Monitor, Bell, Wrench, Mail,
   BarChart3, Wallet, FileText, FileSignature, FileInput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
@@ -34,6 +34,7 @@ const areaConfig = {
     subViews: [
       { view: 'stopwatch' as SubView, icon: Clock, label: 'Timer' },
       { view: 'tasks' as SubView, icon: ListTodo, label: 'Aufgaben' },
+      { view: 'grid' as SubView, icon: LayoutGrid, label: 'Wochenraster' },
       { view: 'list' as SubView, icon: List, label: 'Einträge' },
       { view: 'calendar' as SubView, icon: Calendar, label: 'Kalender' },
     ],
