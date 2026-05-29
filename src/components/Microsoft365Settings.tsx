@@ -773,16 +773,16 @@ export const Microsoft365Settings = () => {
                           })}
                         </td>
                         <td className="py-2 px-3 text-gray-900 dark:text-white">
-                          <div className="truncate max-w-[200px]" title={invoice.senderEmail}>
-                            {invoice.senderName || invoice.senderEmail}
+                          <div className="truncate max-w-[200px]" title={invoice.senderEmail ?? undefined}>
+                            {invoice.senderName || invoice.senderEmail || '—'}
                           </div>
                           {invoice.vendorName && (
                             <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
                           )}
                         </td>
                         <td className="py-2 px-3 text-gray-700 dark:text-dark-500">
-                          <div className="truncate max-w-[250px]" title={invoice.emailSubject}>
-                            {invoice.emailSubject}
+                          <div className="truncate max-w-[250px]" title={invoice.emailSubject ?? undefined}>
+                            {invoice.emailSubject || '—'}
                           </div>
                         </td>
                         <td className="py-2 px-3 text-center">
