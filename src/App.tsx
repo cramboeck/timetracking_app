@@ -4,9 +4,7 @@ import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSide
 // Core components loaded eagerly (always visible / needed on first render)
 import { Stopwatch } from './components/Stopwatch';
 import { ManualEntryModern } from './components/ManualEntryModern';
-import { TimeEntriesList } from './components/TimeEntriesList';
-import { CalendarView } from './components/CalendarView';
-import { WeeklyGridView } from './components/WeeklyGridView';
+import { TimeViews } from './components/TimeViews';
 import { DashboardOverview } from './components/DashboardOverview';
 import { CustomerHub } from './components/CustomerHub';
 import { Settings } from './components/Settings';
@@ -964,41 +962,8 @@ function App() {
             activities={activities}
           />
         )}
-        {currentSubView === 'list' && (
-          <TimeEntriesList
-            projects={projects}
-            customers={customers}
-            activities={activities}
-            onDelete={handleDeleteEntry}
-            onEdit={handleEditEntry}
-            onRepeatEntry={handleRepeatEntry}
-            onBulkUpdate={handleBulkUpdateEntries}
-          />
-        )}
-        {currentSubView === 'calendar' && (
-          <CalendarView
-            entries={entries}
-            projects={projects}
-            customers={customers}
-            activities={activities}
-            onEditEntry={(entry) => {
-              // Open edit modal - for now, just log
-              console.log('Edit entry:', entry);
-              // TODO: Implement edit modal
-            }}
-            onUpdateEntry={handleEditEntry}
-            onCreateEntry={async (entry) => {
-              try {
-                const response = await entriesApi.create(entry);
-                setEntries(prev => [...prev, response.data]);
-              } catch (error) {
-                console.error('Failed to create entry:', error);
-              }
-            }}
-          />
-        )}
-        {currentSubView === 'grid' && (
-          <WeeklyGridView
+        {(currentSubView === 'zeiten' || currentSubView === 'grid' || currentSubView === 'list' || currentSubView === 'calendar') && (
+          <TimeViews
             entries={entries}
             projects={projects}
             customers={customers}
@@ -1006,6 +971,16 @@ function App() {
             onCreateEntry={handleSaveEntry}
             onEditEntry={handleEditEntry}
             onDeleteEntry={handleDeleteEntry}
+            onRepeatEntry={handleRepeatEntry}
+            onBulkUpdate={handleBulkUpdateEntries}
+            onCalendarCreate={async (entry) => {
+              try {
+                const response = await entriesApi.create(entry);
+                setEntries(prev => [...prev, response.data]);
+              } catch (error) {
+                console.error('Failed to create entry:', error);
+              }
+            }}
           />
         )}
         {currentSubView === 'tasks' && (
