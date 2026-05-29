@@ -8,6 +8,7 @@ import { initializeDatabase } from './config/database';
 import { startNotificationJobs } from './jobs/notificationJobs';
 import { startNinjaJobs } from './jobs/ninjaJobs';
 import { startHealthScoreJobs } from './jobs/healthScoreJobs';
+import { startSevdeskVoucherSyncJob } from './jobs/sevdeskVoucherSync';
 import authRoutes from './routes/auth';
 import entriesRoutes from './routes/entries';
 import projectsRoutes from './routes/projects';
@@ -197,6 +198,11 @@ startNinjaJobs();
 
 // Start Customer Health Score jobs (daily at 2:00 AM)
 startHealthScoreJobs();
+
+// Start sevDesk-Voucher-Sync (alle 30 Min) - spiegelt eingehende Vouchers
+// in processed_invoices, damit Belege aus dem sevDesk-WebUI auch in der
+// RamboFlow-Inbox/Suche erscheinen.
+startSevdeskVoucherSyncJob();
 
 // Start server
 app.listen(PORT, () => {

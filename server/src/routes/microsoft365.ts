@@ -1247,6 +1247,21 @@ router.delete('/invoices/all', requireOrgRole('admin'), async (req: AuthRequest,
   }
 });
 
+// POST /api/microsoft365/invoices/sync-sevdesk-vouchers - manueller
+// Trigger fuer den sevDesk-Voucher-Sync (laeuft sonst per Cron alle 30
+// Minuten). Admin-only.
+router.post('/invoices/sync-sevdesk-vouchers', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const stats = await invoiceProcessorService.syncSevdeskVouchers(organizationId);
+    res.json({ success: true, data: stats });
+  } catch (error: any) {
+    logger.error('sevDesk-Voucher sync error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Sync fehlgeschlagen' });
+  }
+});
+
 // POST /api/microsoft365/invoices/upload - Manual-Upload: PDF direkt
 // hochladen, wird als Beleg mit source='manual' angelegt und sofort
 // extrahiert. Antwort enthaelt die fertig extrahierten Daten, sodass das
